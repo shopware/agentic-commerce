@@ -10,6 +10,8 @@ const password = args.password || process.env.SHOPWARE_ADMIN_PASSWORD || 'shopwa
 const screenshotDir = args.screenshotDir || process.env.UCP_ADMIN_SCREENSHOT_DIR || 'var/qa-screenshots';
 const lane = args.lane || process.env.SHOPWARE_REF || 'unknown';
 const headless = args.headed !== '1' && process.env.UCP_ADMIN_HEADED !== '1';
+const adminBootTimeout = Number(process.env.UCP_ADMIN_BOOT_TIMEOUT || 180000);
+const routeTimeout = Number(process.env.UCP_ADMIN_ROUTE_TIMEOUT || 120000);
 
 if (!baseUrl) {
   fail('Missing --base-url or BASE_URL.');
@@ -46,7 +48,7 @@ try {
   await login(page, baseUrl, username, password);
 
   await page.goto(`${baseUrl}/admin#/sw/settings/ucp/index`);
-  await page.locator('.sw-settings-ucp-index').waitFor({ state: 'visible', timeout: 60000 });
+  await page.locator('.sw-settings-ucp-index').first().waitFor({ state: 'visible', timeout: routeTimeout });
   await expectText(page, 'UCP');
   await expectText(page, 'Sales channel');
   await expectText(page, 'Active sales channels');
@@ -90,7 +92,7 @@ try {
   await assertOk(saveResponse, 'Unable to save QA UCP config through the admin API.');
 
   await page.goto(`${baseUrl}/admin#/sw/settings/ucp/detail/${salesChannel.id}`);
-  await page.locator('.sw-settings-ucp-detail').waitFor({ state: 'visible', timeout: 60000 });
+  await page.locator('.sw-settings-ucp-detail').first().waitFor({ state: 'visible', timeout: routeTimeout });
   await expectText(page, salesChannel.name);
   await expectText(page, 'REST');
   await expectText(page, 'A2A');
@@ -162,8 +164,8 @@ async function login(page, baseUrl, user, pass) {
 
   try {
     await Promise.any([
-      usernameInput.waitFor({ state: 'visible', timeout: 60000 }),
-      adminShell.waitFor({ state: 'visible', timeout: 60000 }),
+      usernameInput.waitFor({ state: 'visible', timeout: adminBootTimeout }),
+      adminShell.waitFor({ state: 'visible', timeout: adminBootTimeout }),
     ]);
   } catch (error) {
     await page.screenshot({ path: path.join(screenshotDir, `admin-login-${safeName(lane)}-timeout.png`), fullPage: true });
@@ -178,8 +180,8 @@ async function login(page, baseUrl, user, pass) {
   await page.locator('input[name="sw-field--password"], input[name="password"], input[type="password"]').first().fill(pass);
   await page.locator('button[type="submit"], .sw-login__login-action').first().click();
   await Promise.race([
-    adminShell.waitFor({ state: 'visible', timeout: 60000 }),
-    page.waitForLoadState('networkidle', { timeout: 60000 }),
+    adminShell.waitFor({ state: 'visible', timeout: adminBootTimeout }),
+    page.waitForLoadState('networkidle', { timeout: adminBootTimeout }),
   ]).catch(() => {});
 }
 
