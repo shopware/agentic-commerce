@@ -22,9 +22,8 @@ use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 /** @internal */
 final class UcpExtensionCapabilityTest extends TestCase
 {
-    /** @test */
     #[Test]
-    public function itExposesOptionalCapabilityDescriptors(): void
+    public function testItExposesOptionalCapabilityDescriptors(): void
     {
         self::assertSame(
             UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING,
@@ -37,9 +36,8 @@ final class UcpExtensionCapabilityTest extends TestCase
         );
     }
 
-    /** @test */
     #[Test]
-    public function itKeepsExtensionAvailabilityFalseWithoutRealImplementations(): void
+    public function testItKeepsExtensionAvailabilityFalseWithoutRealImplementations(): void
     {
         $availability = new UcpExtensionAvailability([], new PaymentHandlerRegistryStub([]));
 
@@ -47,9 +45,8 @@ final class UcpExtensionCapabilityTest extends TestCase
         self::assertFalse($availability->supportsPaymentTokenization());
     }
 
-    /** @test */
     #[Test]
-    public function itDetectsTokenizingPaymentHandlers(): void
+    public function testItDetectsTokenizingPaymentHandlers(): void
     {
         $availability = new UcpExtensionAvailability([], new PaymentHandlerRegistryStub([
             new PaymentHandlerStub(true),
@@ -58,9 +55,8 @@ final class UcpExtensionCapabilityTest extends TestCase
         self::assertTrue($availability->supportsPaymentTokenization());
     }
 
-    /** @test */
     #[Test]
-    public function itDoesNotTreatTheBundledInvoiceHandlerAsTokenizingPspSupport(): void
+    public function testItDoesNotTreatTheBundledInvoiceHandlerAsTokenizingPspSupport(): void
     {
         $handler = new ShopwareInvoicePaymentHandler();
         $availability = new UcpExtensionAvailability([], new PaymentHandlerRegistryStub([$handler]));
@@ -70,9 +66,8 @@ final class UcpExtensionCapabilityTest extends TestCase
         self::assertNull($handler->tokenize(new PaymentInstrument('invoice', $handler->id()), $this->contextWithCapability(UcpCapabilityCatalog::CONFIG_PAYMENT_TOKENIZATION)));
     }
 
-    /** @test */
     #[Test]
-    public function itRejectsTokenizationWithoutSupportingHandler(): void
+    public function testItRejectsTokenizationWithoutSupportingHandler(): void
     {
         $capability = new PaymentTokenizationCapability(new PaymentHandlerRegistryStub([]));
 
@@ -84,9 +79,8 @@ final class UcpExtensionCapabilityTest extends TestCase
         );
     }
 
-    /** @test */
     #[Test]
-    public function itDelegatesTokenizationToTheMatchingPaymentHandler(): void
+    public function testItDelegatesTokenizationToTheMatchingPaymentHandler(): void
     {
         $capability = new PaymentTokenizationCapability(new PaymentHandlerRegistryStub([
             new PaymentHandlerStub(true),

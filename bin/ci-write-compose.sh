@@ -104,4 +104,12 @@ volumes:
   db-data:
 EOF
 
+if [[ -n "${CI:-}" ]]; then
+  # The Shopware dev container runs Composer as its image user while GitHub
+  # checks files out as the runner user. Make the temporary checkout writable
+  # so composer config/install can update composer.json, composer.lock, vendor,
+  # var, and public assets through the bind mount.
+  chmod -R a+rwX "${SHOPWARE_DIR}"
+fi
+
 echo "Wrote CI compose.yaml for ${LANE} to ${SHOPWARE_DIR}/compose.yaml"

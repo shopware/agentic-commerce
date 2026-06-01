@@ -50,11 +50,11 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
         $this->assertClientId($request->clientId);
         $this->assertRedirectUri($request->redirectUri);
 
-        if ($request->codeChallenge === null || $request->codeChallenge === '') {
+        if (null === $request->codeChallenge || '' === $request->codeChallenge) {
             throw new OAuthException('PKCE code challenge is required.');
         }
 
-        if ($request->codeChallengeMethod !== 'S256') {
+        if ('S256' !== $request->codeChallengeMethod) {
             throw new OAuthException('Only PKCE S256 code challenge method is supported.');
         }
 
@@ -102,8 +102,8 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
     {
         $salesChannel = $this->contextResolver->resolveSalesChannel($context);
 
-        if ($request->grantType === 'refresh_token') {
-            if ($request->refreshToken === null || $request->refreshToken === '') {
+        if ('refresh_token' === $request->grantType) {
+            if (null === $request->refreshToken || '' === $request->refreshToken) {
                 throw new OAuthException('Missing refresh token.');
             }
 
@@ -115,15 +115,15 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
             return new OAuthTokenResponse($tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
         }
 
-        if ($request->grantType !== 'authorization_code') {
+        if ('authorization_code' !== $request->grantType) {
             throw new OAuthException('Only authorization_code and refresh_token grants are supported.');
         }
 
-        if ($request->code === null || $request->code === '') {
+        if (null === $request->code || '' === $request->code) {
             throw new OAuthException('Missing authorization code.');
         }
 
-        if ($request->codeVerifier === null || $request->codeVerifier === '') {
+        if (null === $request->codeVerifier || '' === $request->codeVerifier) {
             throw new OAuthException('PKCE code verifier is required.');
         }
 
@@ -132,11 +132,11 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
             throw new OAuthException('Authorization code is invalid, expired, or already consumed.');
         }
 
-        if ($request->clientId !== null && $request->clientId !== '' && !hash_equals($authorization->clientId, $request->clientId)) {
+        if (null !== $request->clientId && '' !== $request->clientId && !hash_equals($authorization->clientId, $request->clientId)) {
             throw new OAuthException('Client ID does not match the authorization code.');
         }
 
-        if ($request->redirectUri !== null && $request->redirectUri !== '' && !hash_equals($authorization->redirectUri, $request->redirectUri)) {
+        if (null !== $request->redirectUri && '' !== $request->redirectUri && !hash_equals($authorization->redirectUri, $request->redirectUri)) {
             throw new OAuthException('Redirect URI does not match the authorization code.');
         }
 
@@ -165,7 +165,7 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
 
     private function assertClientId(string $clientId): void
     {
-        if ($clientId === '') {
+        if ('' === $clientId) {
             throw new OAuthException('Missing OAuth client ID.');
         }
 
@@ -176,7 +176,7 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
 
     private function assertRedirectUri(string $redirectUri): void
     {
-        if ($redirectUri === '' || !filter_var($redirectUri, \FILTER_VALIDATE_URL)) {
+        if ('' === $redirectUri || !filter_var($redirectUri, \FILTER_VALIDATE_URL)) {
             throw new OAuthException('Invalid OAuth redirect URI.');
         }
 
@@ -187,13 +187,13 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
 
     private function normalizeScope(string $scope): string
     {
-        $requested = array_values(array_filter(explode(' ', trim($scope)), static fn (string $entry): bool => $entry !== ''));
-        if ($requested === []) {
+        $requested = array_values(array_filter(explode(' ', trim($scope)), static fn (string $entry): bool => '' !== $entry));
+        if ([] === $requested) {
             return implode(' ', self::SUPPORTED_SCOPES);
         }
 
         $unsupported = array_values(array_diff($requested, self::SUPPORTED_SCOPES));
-        if ($unsupported !== []) {
+        if ([] !== $unsupported) {
             throw new OAuthException(\sprintf('Unsupported OAuth scope "%s".', $unsupported[0]));
         }
 
@@ -204,7 +204,7 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
     {
         $token = $context->headers[strtolower(PlatformRequest::HEADER_CONTEXT_TOKEN)] ?? $context->headers['sw-context-token'] ?? null;
 
-        if (!\is_string($token) || $token === '') {
+        if (!\is_string($token) || '' === $token) {
             throw new OAuthException('Missing Shopware customer context token.');
         }
 
@@ -218,12 +218,12 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
     {
         $separator = str_contains($uri, '?') ? '&' : '?';
 
-        return $uri.$separator.http_build_query(array_filter($query, static fn (string $value): bool => $value !== ''));
+        return $uri.$separator.http_build_query(array_filter($query, static fn (string $value): bool => '' !== $value));
     }
 
     private function verifyPkce(string $verifier, string $challenge, string $method): bool
     {
-        if ($method !== 'S256') {
+        if ('S256' !== $method) {
             return false;
         }
 

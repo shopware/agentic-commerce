@@ -31,7 +31,7 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
             ['salesChannelId' => Uuid::fromHexToBytes($salesChannelId)],
         );
 
-        if ($row === false) {
+        if (false === $row) {
             return null;
         }
 
@@ -40,7 +40,7 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
 
     public function findMany(array $salesChannelIds): array
     {
-        if ($salesChannelIds === []) {
+        if ([] === $salesChannelIds) {
             return [];
         }
 
@@ -56,7 +56,7 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
         $configs = [];
         foreach ($rows as $row) {
             $salesChannelId = (string) ($row['sales_channel_id'] ?? '');
-            if ($salesChannelId === '') {
+            if ('' === $salesChannelId) {
                 continue;
             }
 
@@ -112,8 +112,7 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
             return ArrayParameterType::STRING;
         }
 
-        /** @var mixed $legacyType */
-        $legacyType = constant(Connection::class.'::PARAM_STR_ARRAY');
+        $legacyType = \constant(Connection::class.'::PARAM_STR_ARRAY');
 
         return $legacyType;
     }

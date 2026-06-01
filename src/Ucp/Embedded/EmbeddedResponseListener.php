@@ -56,7 +56,7 @@ final readonly class EmbeddedResponseListener
         }
 
         $config = $this->configService->getConfig($this->domainResolver->resolveByAbsoluteUri($request->getUri())?->salesChannelId);
-        $frameAncestors = $config->embeddedFrameAncestors !== [] ? $config->embeddedFrameAncestors : ["'self'"];
+        $frameAncestors = [] !== $config->embeddedFrameAncestors ? $config->embeddedFrameAncestors : ["'self'"];
         $response = $event->getResponse();
         $origin = $request->headers->get('origin');
 

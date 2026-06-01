@@ -64,14 +64,14 @@ final class SeedSmokeCatalogCommand extends Command
 
         $context = Context::createDefaultContext();
         $productName = trim((string) $input->getOption('product-name'));
-        $productName = $productName !== '' ? $productName : 'Smoke Music Album';
+        $productName = '' !== $productName ? $productName : 'Smoke Music Album';
 
         $existingId = $this->productRepository->searchIds(
             (new Criteria())->addFilter(new EqualsFilter('productNumber', self::PRODUCT_NUMBER)),
             $context
         )->firstId();
 
-        if ($existingId !== null) {
+        if (null !== $existingId) {
             $output->writeln($existingId);
 
             return self::SUCCESS;
@@ -79,7 +79,7 @@ final class SeedSmokeCatalogCommand extends Command
 
         $taxId = $this->taxRepository->searchIds((new Criteria())->setLimit(1), $context)->firstId();
 
-        if ($taxId === null) {
+        if (null === $taxId) {
             $output->writeln('<error>Unable to resolve a tax id for the smoke product.</error>');
 
             return self::FAILURE;

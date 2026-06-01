@@ -15,7 +15,7 @@ final readonly class CheckoutSessionManager
     }
 
     /**
-     * @param list<string> $discountCodes
+     * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
      */
     public function save(

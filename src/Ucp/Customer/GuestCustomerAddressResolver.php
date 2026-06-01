@@ -7,9 +7,9 @@ namespace Swag\AgenticCommerce\Ucp\Customer;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
+use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\Country\CountryCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Shopware\Core\Framework\Uuid\Uuid;
 use Ucp\Sdk\Exception\ValidationException;
 
 final readonly class GuestCustomerAddressResolver
@@ -29,11 +29,8 @@ final readonly class GuestCustomerAddressResolver
      */
     public function resolve(SalesChannelContext $context, ?array $guestAddress): array
     {
-        if ($guestAddress === null) {
-            throw new ValidationException(
-                'Checkout completion requires a shipping address in fulfillment.extra.shipping_address.',
-                ['$.fulfillment.extra.shipping_address is required'],
-            );
+        if (null === $guestAddress) {
+            throw new ValidationException('Checkout completion requires a shipping address in fulfillment.extra.shipping_address.', ['$.fulfillment.extra.shipping_address is required']);
         }
 
         $missingFields = [];
@@ -48,10 +45,7 @@ final readonly class GuestCustomerAddressResolver
         }
 
         if ([] !== $missingFields) {
-            throw new ValidationException(
-                'Checkout completion requires a complete shipping address.',
-                $missingFields,
-            );
+            throw new ValidationException('Checkout completion requires a complete shipping address.', $missingFields);
         }
 
         return [
@@ -77,11 +71,8 @@ final readonly class GuestCustomerAddressResolver
         $criteria->setLimit(1);
 
         $country = $this->countryRepository->search($criteria, $context->getContext())->first();
-        if ($country === null) {
-            throw new ValidationException(
-                sprintf('Unknown country code "%s" provided for guest checkout.', $countryCode),
-                ['$.fulfillment.extra.shipping_address.country_code is invalid'],
-            );
+        if (null === $country) {
+            throw new ValidationException(\sprintf('Unknown country code "%s" provided for guest checkout.', $countryCode), ['$.fulfillment.extra.shipping_address.country_code is invalid']);
         }
 
         /** @var string $countryId */

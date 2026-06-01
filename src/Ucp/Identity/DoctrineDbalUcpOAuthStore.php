@@ -64,7 +64,7 @@ final readonly class DoctrineDbalUcpOAuthStore
                 ['codeHash' => $codeHash, 'salesChannelId' => $salesChannelIdBytes, 'now' => $now],
             );
 
-            if ($row === false) {
+            if (false === $row) {
                 return null;
             }
 
@@ -73,7 +73,7 @@ final readonly class DoctrineDbalUcpOAuthStore
                 ['consumedAt' => $this->now(), 'codeHash' => $codeHash, 'salesChannelId' => $salesChannelIdBytes, 'now' => $now],
             );
 
-            if ($updated !== 1) {
+            if (1 !== $updated) {
                 return null;
             }
 
@@ -129,7 +129,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             'now' => time(),
         ];
         $salesChannelCondition = '';
-        if ($salesChannelId !== null && $salesChannelId !== '') {
+        if (null !== $salesChannelId && '' !== $salesChannelId) {
             $salesChannelCondition = ' AND sales_channel_id = :salesChannelId';
             $criteria['salesChannelId'] = Uuid::fromHexToBytes($salesChannelId);
         }
@@ -139,7 +139,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             $criteria,
         );
 
-        if ($row === false) {
+        if (false === $row) {
             return null;
         }
 

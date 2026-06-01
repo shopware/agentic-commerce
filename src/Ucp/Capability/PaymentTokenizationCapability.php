@@ -29,12 +29,12 @@ final readonly class PaymentTokenizationCapability implements TokenizationCapabi
 
         $handler = $this->paymentHandlerRegistry->find($instrument->handlerId);
         if (null === $handler || !$handler->supportsTokenization()) {
-            throw new UnsupportedCapabilityException(sprintf('Payment handler "%s" does not support UCP tokenization.', $instrument->handlerId));
+            throw new UnsupportedCapabilityException(\sprintf('Payment handler "%s" does not support UCP tokenization.', $instrument->handlerId));
         }
 
         $result = $handler->tokenize($instrument, $context);
         if (null === $result) {
-            throw new UnsupportedCapabilityException(sprintf('Payment handler "%s" declined UCP tokenization.', $instrument->handlerId));
+            throw new UnsupportedCapabilityException(\sprintf('Payment handler "%s" declined UCP tokenization.', $instrument->handlerId));
         }
 
         return $result;

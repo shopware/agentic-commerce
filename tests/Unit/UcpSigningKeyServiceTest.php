@@ -16,17 +16,13 @@ use Ucp\Sdk\Service\SigningKeyManagerInterface;
 /** @internal */
 final class UcpSigningKeyServiceTest extends TestCase
 {
-    /** @test */
     #[Test]
-    public function itDeletesOnlyTheRequestedManagedKey(): void
+    public function testItDeletesOnlyTheRequestedManagedKey(): void
     {
         $activeKey = new ManagedSigningKey('active-key', 'public', 'private');
         $retiredKey = new ManagedSigningKey('retired-key', 'public', 'private', status: 'retired', retireAt: '2026-01-01T00:00:00+00:00');
 
-        $repository = new class ([
-            'active-key' => $activeKey,
-            'retired-key' => $retiredKey,
-        ]) implements ManagedSigningKeyRepositoryInterface {
+        $repository = new class(['active-key' => $activeKey, 'retired-key' => $retiredKey]) implements ManagedSigningKeyRepositoryInterface {
             /**
              * @param array<string, ManagedSigningKey> $keys
              */
@@ -74,7 +70,7 @@ final class UcpSigningKeyServiceTest extends TestCase
             }
         };
 
-        $signingKeyManager = new class () implements SigningKeyManagerInterface {
+        $signingKeyManager = new class implements SigningKeyManagerInterface {
             public function generate(string $kid, string $algorithm = 'ES256'): ManagedSigningKey
             {
                 return new ManagedSigningKey($kid, 'public', 'private', $algorithm);
@@ -98,11 +94,10 @@ final class UcpSigningKeyServiceTest extends TestCase
         self::assertNotNull($repository->findManaged('retired-key'));
     }
 
-    /** @test */
     #[Test]
-    public function itScopesKeysBySalesChannelWhenTheRepositorySupportsTenants(): void
+    public function testItScopesKeysBySalesChannelWhenTheRepositorySupportsTenants(): void
     {
-        $repository = new class () implements ManagedSigningKeyRepositoryInterface, TenantAwareManagedSigningKeyRepositoryInterface {
+        $repository = new class implements ManagedSigningKeyRepositoryInterface, TenantAwareManagedSigningKeyRepositoryInterface {
             /** @var array<string, array<string, ManagedSigningKey>> */
             public array $tenantKeys = [];
 
@@ -184,7 +179,7 @@ final class UcpSigningKeyServiceTest extends TestCase
 
     private function signingKeyManager(): SigningKeyManagerInterface
     {
-        return new class () implements SigningKeyManagerInterface {
+        return new class implements SigningKeyManagerInterface {
             public function generate(string $kid, string $algorithm = 'ES256'): ManagedSigningKey
             {
                 return new ManagedSigningKey($kid, 'public', 'private', $algorithm);

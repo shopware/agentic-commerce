@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
-use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
-use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;

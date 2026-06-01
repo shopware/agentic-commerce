@@ -104,7 +104,7 @@ final class UcpCapabilityCatalog
     {
         $definition = self::definitions()[$configKey] ?? null;
         if (null === $definition) {
-            throw new \InvalidArgumentException(sprintf('Unknown UCP capability config key "%s".', $configKey));
+            throw new \InvalidArgumentException(\sprintf('Unknown UCP capability config key "%s".', $configKey));
         }
 
         return new CapabilityDescriptor(

@@ -15,9 +15,8 @@ use Ucp\Sdk\Enum\Transport;
 /** @internal */
 final class UcpConfigRuntimeConfigurationTest extends TestCase
 {
-    /** @test */
     #[Test]
-    public function itBuildsRuntimeConfigurationFromFallbackBaseUri(): void
+    public function testItBuildsRuntimeConfigurationFromFallbackBaseUri(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,
@@ -36,9 +35,8 @@ final class UcpConfigRuntimeConfigurationTest extends TestCase
         self::assertSame(UcpCapabilityCatalog::descriptorNamesForConfigKeys(UcpCapabilityCatalog::defaultConfigKeys()), $runtimeConfiguration->enabledCapabilities);
     }
 
-    /** @test */
     #[Test]
-    public function itBuildsRuntimeConfigurationForStoreApiMcp(): void
+    public function testItBuildsRuntimeConfigurationForStoreApiMcp(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,

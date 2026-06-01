@@ -12,9 +12,8 @@ use Swag\AgenticCommerce\Ucp\UcpProtocol;
 /** @internal */
 final class UcpCapabilityCatalogTest extends TestCase
 {
-    /** @test */
     #[Test]
-    public function itMapsConfigKeysToDescriptorNames(): void
+    public function testItMapsConfigKeysToDescriptorNames(): void
     {
         self::assertSame([
             UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
@@ -30,9 +29,8 @@ final class UcpCapabilityCatalogTest extends TestCase
         ]));
     }
 
-    /** @test */
     #[Test]
-    public function itKeepsExtensionCapabilitiesOutOfTheDefaultShippingContract(): void
+    public function testItKeepsExtensionCapabilitiesOutOfTheDefaultShippingContract(): void
     {
         self::assertSame([
             UcpCapabilityCatalog::CONFIG_CATALOG,
@@ -43,9 +41,8 @@ final class UcpCapabilityCatalogTest extends TestCase
         ], UcpCapabilityCatalog::defaultConfigKeys());
     }
 
-    /** @test */
     #[Test]
-    public function itBuildsCapabilityDescriptorsFromCentralMetadata(): void
+    public function testItBuildsCapabilityDescriptorsFromCentralMetadata(): void
     {
         $descriptor = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_CHECKOUT);
 
@@ -55,9 +52,8 @@ final class UcpCapabilityCatalogTest extends TestCase
         self::assertSame('https://ucp.dev/schemas/shopping/checkout.json', $descriptor->schemaUrl);
     }
 
-    /** @test */
     #[Test]
-    public function itBuildsOptionalCapabilityDescriptorsFromCentralMetadata(): void
+    public function testItBuildsOptionalCapabilityDescriptorsFromCentralMetadata(): void
     {
         $identity = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_IDENTITY_LINKING);
         $tokenization = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_PAYMENT_TOKENIZATION);

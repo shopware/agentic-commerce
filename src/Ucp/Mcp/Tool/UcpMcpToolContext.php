@@ -37,7 +37,7 @@ final readonly class UcpMcpToolContext
      */
     public function decodeObject(string $payload): array
     {
-        $decoded = $payload !== '' ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
+        $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
 
         return \is_array($decoded) && !array_is_list($decoded) ? $decoded : [];
     }
@@ -47,7 +47,7 @@ final readonly class UcpMcpToolContext
      */
     public function decodeStringList(string $payload): array
     {
-        $decoded = $payload !== '' ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
+        $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
 
         return array_values(array_map('strval', \is_array($decoded) ? $decoded : []));
     }

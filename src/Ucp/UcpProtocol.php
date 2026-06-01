@@ -10,11 +10,11 @@ final class UcpProtocol
 
     public static function specificationUrl(string $capability): string
     {
-        return sprintf('https://ucp.dev/specification/%s/', $capability);
+        return \sprintf('https://ucp.dev/specification/%s/', $capability);
     }
 
     public static function schemaUrl(string $capability): string
     {
-        return sprintf('https://ucp.dev/schemas/shopping/%s.json', $capability);
+        return \sprintf('https://ucp.dev/schemas/shopping/%s.json', $capability);
     }
 }

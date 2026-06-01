@@ -23,12 +23,12 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterfac
 use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
 use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
-use Swag\AgenticCommerce\Ucp\Admin\Api\UcpAdminController;
-use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
+use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareDiscountAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareOrderAdapter;
+use Swag\AgenticCommerce\Ucp\Admin\Api\UcpAdminController;
 use Swag\AgenticCommerce\Ucp\Capability\CartCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CatalogCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CheckoutCapability;
@@ -67,6 +67,12 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
+
 use Ucp\Sdk\Adapter\CartAdapterInterface;
 use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
@@ -81,11 +87,6 @@ use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
-use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
-use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
-use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
-use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
-
 return static function (ContainerConfigurator $container): void {
     $services = $container->services();
 
@@ -94,8 +95,8 @@ return static function (ContainerConfigurator $container): void {
         ->autoconfigure()
         ->private();
 
-    $services->load('Swag\\AgenticCommerce\\', __DIR__ . '/../../*')
-        ->exclude([__DIR__ . '/../../Resources']);
+    $services->load('Swag\\AgenticCommerce\\', __DIR__.'/../../*')
+        ->exclude([__DIR__.'/../../Resources']);
 
     // DAL repositories are bound by service id, not type — named args required.
 

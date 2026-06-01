@@ -11,9 +11,8 @@ use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 /** @internal */
 final class ShopwareVersionDetectorTest extends TestCase
 {
-    /** @test */
     #[Test]
-    public function itUsesTheConfiguredRuntimeVersion(): void
+    public function testItUsesTheConfiguredRuntimeVersion(): void
     {
         $detector = new ShopwareVersionDetector(versionOverride: '6.6.9.0');
 
@@ -22,9 +21,8 @@ final class ShopwareVersionDetectorTest extends TestCase
         self::assertFalse($detector->supportsStoreApiMcp());
     }
 
-    /** @test */
     #[Test]
-    public function itFallsBackToTheKernelVersionParameterBeforeStaticFallbacks(): void
+    public function testItFallsBackToTheKernelVersionParameterBeforeStaticFallbacks(): void
     {
         $detector = new ShopwareVersionDetector(kernelVersion: '6.7.1.0');
 

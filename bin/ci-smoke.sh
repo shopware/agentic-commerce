@@ -304,7 +304,7 @@ for attempt in $(seq 1 30); do
 done
 
 if [[ ! -f "${SHOPWARE_DIR}/composer.lock" && "${SHOPWARE_BRANCH}" == "6.5.x" ]]; then
-  web sh -lc 'cd /var/www/html && composer update --no-dev --no-scripts --no-interaction --no-security-blocking --prefer-dist --with="shopware/conflicts:0.1.24" --with="twig/twig:^3.20,<3.27"'
+  web sh -lc 'cd /var/www/html && composer update --no-dev --no-scripts --no-interaction --no-security-blocking --prefer-dist --with="shopware/conflicts:0.1.30" --with="twig/twig:^3.20,<3.27"'
 else
   web sh -lc 'cd /var/www/html && composer install --no-dev --no-scripts --no-interaction --prefer-dist'
 fi

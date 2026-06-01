@@ -14,9 +14,8 @@ use Ucp\Sdk\Enum\Transport;
 /** @internal */
 final class UcpConfigTest extends TestCase
 {
-    /** @test */
     #[Test]
-    public function itNormalizesArraysAndCustomProfileUri(): void
+    public function testItNormalizesArraysAndCustomProfileUri(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,
@@ -44,9 +43,8 @@ final class UcpConfigTest extends TestCase
         self::assertSame(UcpProtocol::VERSION, $config->ucpVersion);
     }
 
-    /** @test */
     #[Test]
-    public function itEnablesDefaultCapabilitiesWhenNoneAreStored(): void
+    public function testItEnablesDefaultCapabilitiesWhenNoneAreStored(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,
@@ -64,9 +62,8 @@ final class UcpConfigTest extends TestCase
         ], $config->runtimeEnabledCapabilityDescriptors());
     }
 
-    /** @test */
     #[Test]
-    public function itFiltersMcpUntilStoreApiMcpIsAvailable(): void
+    public function testItFiltersMcpUntilStoreApiMcpIsAvailable(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,
@@ -80,9 +77,8 @@ final class UcpConfigTest extends TestCase
         ], $config->transportEndpoints('https://merchant.example', true));
     }
 
-    /** @test */
     #[Test]
-    public function itCanStoreOptionalExtensionCapabilitiesWithoutDefaultingThemOn(): void
+    public function testItCanStoreOptionalExtensionCapabilitiesWithoutDefaultingThemOn(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,
@@ -100,9 +96,8 @@ final class UcpConfigTest extends TestCase
         ], $config->runtimeEnabledCapabilityDescriptors());
     }
 
-    /** @test */
     #[Test]
-    public function itFallsBackToStrictForInvalidSignaturePolicy(): void
+    public function testItFallsBackToStrictForInvalidSignaturePolicy(): void
     {
         $config = UcpConfig::fromArray([
             'signaturePolicy' => 'invalid',
@@ -111,9 +106,8 @@ final class UcpConfigTest extends TestCase
         self::assertSame('strict', $config->signaturePolicy);
     }
 
-    /** @test */
     #[Test]
-    public function itNormalizesUnknownCapabilitiesAndTransportsBeforeStorage(): void
+    public function testItNormalizesUnknownCapabilitiesAndTransportsBeforeStorage(): void
     {
         $config = UcpConfig::fromArray([
             'enabledCapabilities' => [
@@ -131,9 +125,8 @@ final class UcpConfigTest extends TestCase
         self::assertSame(['rest', 'a2a'], $config->enabledTransports);
     }
 
-    /** @test */
     #[Test]
-    public function itSplitsRuntimeAllowlistsButKeepsLegacyFallback(): void
+    public function testItSplitsRuntimeAllowlistsButKeepsLegacyFallback(): void
     {
         $splitConfig = UcpConfig::fromArray([
             'remoteProfileAllowlist' => ['platform.example'],
