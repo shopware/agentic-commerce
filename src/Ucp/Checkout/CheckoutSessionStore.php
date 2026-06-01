@@ -66,6 +66,8 @@ final readonly class CheckoutSessionStore
     }
 
     /**
+     * @param array<string, mixed> $metadata
+     *
      * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
      */
     public function guestAddress(array $metadata): ?array

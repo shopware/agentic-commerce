@@ -3,6 +3,7 @@ __SHOPWARE_PHPSTAN_INCLUDES__
 
 parameters:
     level: 7
+    reportUnmatchedIgnoredErrors: false
     paths:
         - src
         - tests

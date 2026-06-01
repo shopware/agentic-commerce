@@ -15,6 +15,8 @@ foreach ($autoloadCandidates as $candidate) {
     }
 }
 
+require_once __DIR__.'/phpstan/McpTool.php';
+
 if ('1' === getenv('SWAG_AGENTIC_COMMERCE_SHOPWARE_BOOTSTRAP')) {
     require __DIR__.'/TestBootstrap.php';
 }

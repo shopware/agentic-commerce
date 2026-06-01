@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Command;
 
 use Shopware\Core\Content\Product\Aggregate\ProductVisibility\ProductVisibilityDefinition;
+use Shopware\Core\Content\Product\ProductCollection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Uuid\Uuid;
+use Shopware\Core\System\Tax\TaxCollection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -28,8 +30,8 @@ final class SeedSmokeCatalogCommand extends Command
     private const PRODUCT_NUMBER = 'SWAG-AGENTIC-COMMERCE-SMOKE';
 
     /**
-     * @param EntityRepository<object> $productRepository
-     * @param EntityRepository<object> $taxRepository
+     * @param EntityRepository<ProductCollection> $productRepository
+     * @param EntityRepository<TaxCollection>     $taxRepository
      */
     public function __construct(
         private readonly EntityRepository $productRepository,

@@ -24,7 +24,6 @@ final readonly class TestWebhookController
     public function __construct(
         private WebhookCaptureStore $captureStore,
         private string $appEnv,
-        private bool $debug,
         private bool $testCaptureEnabled,
     ) {
     }

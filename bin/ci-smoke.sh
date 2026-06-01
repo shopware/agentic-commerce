@@ -95,7 +95,13 @@ detect_base_url() {
 
 BASE_URL="${BASE_URL:-$(detect_base_url)}"
 WEBHOOK_CAPTURE_URL="${WEBHOOK_CAPTURE_URL:-${BASE_URL}/_action/swag-agentic-commerce/test/webhooks}"
-WEBHOOK_CAPTURE_TARGET_URL="${WEBHOOK_CAPTURE_TARGET_URL:-${WEBHOOK_CAPTURE_URL}}"
+if [[ -z "${WEBHOOK_CAPTURE_TARGET_URL:-}" ]]; then
+  if [[ -z "${CI:-}" && "${BASE_URL}" != "http://localhost:8000" && "${BASE_URL}" != "https://localhost:8000" ]]; then
+    WEBHOOK_CAPTURE_TARGET_URL="$(printf '%s' "${BASE_URL}" | sed -E 's#^(https?://[^/:]+)(:[0-9]+)?#\1:8000#')/_action/swag-agentic-commerce/test/webhooks"
+  else
+    WEBHOOK_CAPTURE_TARGET_URL="${WEBHOOK_CAPTURE_URL}"
+  fi
+fi
 
 smoke_override_file="$(mktemp "${TMPDIR:-/tmp}/swag-agentic-commerce-ci-smoke.XXXXXX")"
 mv "${smoke_override_file}" "${smoke_override_file}.yaml"
@@ -223,6 +229,7 @@ rsync -a --delete \
   --exclude='examples/bootstrap-symfony-app/var' \
   --exclude='examples/merchant-symfony-app/var' \
   "${SDK_ROOT}/" "${SHOPWARE_DIR}/custom/ucp-php-sdk/"
+chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
 
 stage_shopware_checkout() {
   rsync -a --delete \
@@ -261,7 +268,7 @@ sync_custom_sources_into_web_volume() {
   "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/plugins/ucp-php-sdk /var/www/html/custom/ucp-php-sdk && mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
   "${container_runtime}" cp "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/." "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce"
   "${container_runtime}" cp "${SHOPWARE_DIR}/custom/ucp-php-sdk/." "${web_id}:/var/www/html/custom/ucp-php-sdk"
-  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R u+rwX,go+rX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
+  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
 }
 
 bootstrap_web_volume_if_needed() {
@@ -275,7 +282,7 @@ bootstrap_web_volume_if_needed() {
 
   stage_shopware_checkout
   "${container_runtime}" cp "${shopware_stage_dir}/." "${web_id}:/var/www/html"
-  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html && chmod -R u+rwX,go+rX /var/www/html'
+  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html && chmod -R u+rwX,go+rX /var/www/html && chmod -R a+rwX /var/www/html/custom'
   sync_custom_sources_into_web_volume
   "${compose[@]}" up -d web
 }
@@ -340,6 +347,17 @@ if [[ -z "${sales_channel_id}" ]]; then
 fi
 
 echo "Configuring UCP smoke sales channel ${sales_channel_id}."
+ensure_sales_channel_domain_url() {
+  local domain_url="$1"
+
+  db_query "INSERT INTO sales_channel_domain (id, sales_channel_id, language_id, currency_id, snippet_set_id, url, created_at, updated_at) SELECT UNHEX(REPLACE(UUID(), '-', '')), sales_channel_id, language_id, currency_id, snippet_set_id, '${domain_url}', NOW(3), NOW(3) FROM sales_channel_domain WHERE sales_channel_id = UNHEX('${sales_channel_id}') AND NOT EXISTS (SELECT 1 FROM sales_channel_domain existing WHERE existing.url = '${domain_url}') LIMIT 1;"
+}
+
+ensure_sales_channel_domain_url "${BASE_URL}"
+webhook_capture_target_base_url="${WEBHOOK_CAPTURE_TARGET_URL%/_action/swag-agentic-commerce/test/webhooks}"
+if [[ "${webhook_capture_target_base_url}" != "${BASE_URL}" ]]; then
+  ensure_sales_channel_domain_url "${webhook_capture_target_base_url}"
+fi
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.active true --json --salesChannelId="${sales_channel_id}"
 # The smoke runner still exercises unsigned requests directly via curl, so it opts the lane into log-only verification.
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy log --salesChannelId="${sales_channel_id}"

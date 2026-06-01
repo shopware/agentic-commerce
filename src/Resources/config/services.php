@@ -197,7 +197,6 @@ return static function (ContainerConfigurator $container): void {
     $services->set(TestWebhookController::class)
         ->public()
         ->arg('$appEnv', param('kernel.environment'))
-        ->arg('$debug', param('kernel.debug'))
         ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
         ->tag('controller.service_arguments');
 

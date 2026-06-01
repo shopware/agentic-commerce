@@ -23,7 +23,7 @@ final readonly class GuestCustomerAddressResolver
     }
 
     /**
-     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array<string, mixed>|null $guestAddress
      *
      * @return array{street: string, zipcode: string, city: string, countryId: string}
      */
@@ -49,15 +49,15 @@ final readonly class GuestCustomerAddressResolver
         }
 
         return [
-            'street' => $guestAddress['street'],
-            'zipcode' => $guestAddress['zipcode'],
-            'city' => $guestAddress['city'],
+            'street' => (string) $guestAddress['street'],
+            'zipcode' => (string) $guestAddress['zipcode'],
+            'city' => (string) $guestAddress['city'],
             'countryId' => $this->resolveCountryId($context, $guestAddress),
         ];
     }
 
     /**
-     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string} $guestAddress
+     * @param array<string, mixed> $guestAddress
      */
     private function resolveCountryId(SalesChannelContext $context, array $guestAddress): string
     {
