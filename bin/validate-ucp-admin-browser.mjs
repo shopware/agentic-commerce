@@ -158,16 +158,29 @@ async function login(page, baseUrl, user, pass) {
   await page.waitForLoadState('domcontentloaded');
 
   const usernameInput = page.locator('input[name="sw-field--username"], input[name="username"]').first();
-  const usernameCount = await usernameInput.count();
+  const adminShell = page.locator('.sw-admin-menu, .sw-desktop, .sw-page').first();
 
-  if (usernameCount === 0) {
+  try {
+    await Promise.any([
+      usernameInput.waitFor({ state: 'visible', timeout: 60000 }),
+      adminShell.waitFor({ state: 'visible', timeout: 60000 }),
+    ]);
+  } catch (error) {
+    await page.screenshot({ path: path.join(screenshotDir, `admin-login-${safeName(lane)}-timeout.png`), fullPage: true });
+    throw error;
+  }
+
+  if (await adminShell.isVisible().catch(() => false)) {
     return;
   }
 
   await usernameInput.fill(user);
   await page.locator('input[name="sw-field--password"], input[name="password"], input[type="password"]').first().fill(pass);
   await page.locator('button[type="submit"], .sw-login__login-action').first().click();
-  await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
+  await Promise.race([
+    adminShell.waitFor({ state: 'visible', timeout: 60000 }),
+    page.waitForLoadState('networkidle', { timeout: 60000 }),
+  ]).catch(() => {});
 }
 
 async function createAdminApiContext(baseUrl, user, pass) {
