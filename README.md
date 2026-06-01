@@ -43,12 +43,10 @@ Administration build compatibility is intentionally validated as a matrix:
 The plugin handles this with one administration implementation and
 lane-aware build/test scripts, not by copying admin modules per Shopware line.
 
-GitHub Actions checks out `shopware/shopware` and `shopware/ucp-php-sdk`.
-When those repositories are private, configure a repository secret named
-`PLUGINS_PAT` with read-only `contents` access to both repositories. This
-matches the MCP eval workflow pattern. The default `GITHUB_TOKEN` only has
-access to this plugin repository and cannot read sibling private repositories
-by itself.
+GitHub Actions checks out public `shopware/shopware` directly and private
+`shopware/ucp-php-sdk` with a repository secret named `PLUGINS_PAT`. Configure
+that token with read-only `contents` access to `shopware/ucp-php-sdk`. This
+matches the MCP eval workflow pattern.
 
 The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane-local Composer installs do not collide with the Shopware runtime dependency graph.
 

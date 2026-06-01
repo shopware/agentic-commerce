@@ -4,5 +4,6 @@
 /composer.lock
 /phpstan.neon
 /.phpunit.cache/
+/.phpunit.result.cache
 /node_modules/
 /src/Resources/public/

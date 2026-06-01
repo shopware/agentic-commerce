@@ -42,6 +42,11 @@ else
   exit 1
 fi
 
+if [[ ! -f "${SHOPWARE_DIR}/compose.yaml" ]]; then
+  echo "Missing ${SHOPWARE_DIR}/compose.yaml. In CI, run bin/ci-write-compose.sh before bin/ci-admin-smoke.sh." >&2
+  exit 1
+fi
+
 compose_files=("${SHOPWARE_DIR}/compose.yaml")
 if [[ -f "${SHOPWARE_DIR}/compose.override.yaml" ]]; then
   compose_files+=("${SHOPWARE_DIR}/compose.override.yaml")
