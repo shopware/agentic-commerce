@@ -1,0 +1,21 @@
+includes:
+__SHOPWARE_PHPSTAN_INCLUDES__
+
+parameters:
+    level: 7
+    paths:
+        - src
+        - tests
+    tmpDir: __PHPSTAN_TMP_DIR__
+    excludePaths:
+        - src/Resources/app
+        - src/Resources/public (?)
+    bootstrapFiles:
+        - tests/bootstrap.php
+    ignoreErrors:
+        -
+            identifier: shopware.namespace
+        -
+            identifier: shopware.missingPackageAttribute
+        -
+            identifier: shopware.domainException

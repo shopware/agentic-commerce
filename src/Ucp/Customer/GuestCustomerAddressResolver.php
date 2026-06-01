@@ -1,0 +1,92 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Swag\AgenticCommerce\Ucp\Customer;
+
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
+use Shopware\Core\System\Country\CountryCollection;
+use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Shopware\Core\Framework\Uuid\Uuid;
+use Ucp\Sdk\Exception\ValidationException;
+
+final readonly class GuestCustomerAddressResolver
+{
+    /**
+     * @param EntityRepository<CountryCollection> $countryRepository
+     */
+    public function __construct(
+        private EntityRepository $countryRepository,
+    ) {
+    }
+
+    /**
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     *
+     * @return array{street: string, zipcode: string, city: string, countryId: string}
+     */
+    public function resolve(SalesChannelContext $context, ?array $guestAddress): array
+    {
+        if ($guestAddress === null) {
+            throw new ValidationException(
+                'Checkout completion requires a shipping address in fulfillment.extra.shipping_address.',
+                ['$.fulfillment.extra.shipping_address is required'],
+            );
+        }
+
+        $missingFields = [];
+        foreach (['street', 'zipcode', 'city'] as $field) {
+            if (!isset($guestAddress[$field]) || !\is_string($guestAddress[$field]) || '' === $guestAddress[$field]) {
+                $missingFields[] = '$.fulfillment.extra.shipping_address.'.$field;
+            }
+        }
+
+        if (!isset($guestAddress['countryId']) && !isset($guestAddress['countryCode'])) {
+            $missingFields[] = '$.fulfillment.extra.shipping_address.country_code';
+        }
+
+        if ([] !== $missingFields) {
+            throw new ValidationException(
+                'Checkout completion requires a complete shipping address.',
+                $missingFields,
+            );
+        }
+
+        return [
+            'street' => $guestAddress['street'],
+            'zipcode' => $guestAddress['zipcode'],
+            'city' => $guestAddress['city'],
+            'countryId' => $this->resolveCountryId($context, $guestAddress),
+        ];
+    }
+
+    /**
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string} $guestAddress
+     */
+    private function resolveCountryId(SalesChannelContext $context, array $guestAddress): string
+    {
+        if (isset($guestAddress['countryId']) && \is_string($guestAddress['countryId']) && Uuid::isValid($guestAddress['countryId'])) {
+            return $guestAddress['countryId'];
+        }
+
+        $countryCode = strtoupper((string) ($guestAddress['countryCode'] ?? ''));
+        $criteria = new Criteria();
+        $criteria->addFilter(new EqualsFilter('iso', $countryCode));
+        $criteria->setLimit(1);
+
+        $country = $this->countryRepository->search($criteria, $context->getContext())->first();
+        if ($country === null) {
+            throw new ValidationException(
+                sprintf('Unknown country code "%s" provided for guest checkout.', $countryCode),
+                ['$.fulfillment.extra.shipping_address.country_code is invalid'],
+            );
+        }
+
+        /** @var string $countryId */
+        $countryId = $country->getUniqueIdentifier();
+
+        return $countryId;
+    }
+}

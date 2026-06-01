@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      sdk_ref:
+        description: 'ucp-php-sdk ref to test against'
+        default: 'feat/alpha-release'
+        required: true
+      shopware_65_ref:
+        description: 'Shopware 6.5 ref'
+        default: '6.5.x'
+        required: true
+      shopware_66_ref:
+        description: 'Shopware 6.6 ref'
+        default: '6.6.x'
+        required: true
+      shopware_trunk_ref:
+        description: 'Shopware trunk/6.7 ref'
+        default: 'trunk'
+        required: true
+
+env:
+  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'feat/alpha-release' }}
+  SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
+  SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
+  SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
+
+jobs:
+  php-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: agentic-commerce
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_66_REF }}
+          path: shopware
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: agentic-commerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh
+      - run: composer ci
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+
+  shopware-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+          - lane: '6.6.x'
+          - lane: 'trunk'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh
+      - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: ${{ matrix.lane }}
+
+  admin-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+            mode: webpack
+          - lane: '6.6.x'
+            mode: webpack
+          - lane: '6.6.x'
+            mode: vite
+          - lane: 'trunk'
+            mode: vite
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - run: npm install --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh
+      - run: agentic-commerce/bin/ci-admin-smoke.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.mode }}"
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: ${{ matrix.lane }}
+          CI_ADMIN_BOOTSTRAP_MODE: cold
+          CI_ADMIN_BROWSER_VALIDATE: 1
+          CI_ADMIN_KEEP_STACK: 0
+
+  storefront-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+          - lane: '6.6.x'
+          - lane: 'trunk'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-storefront-smoke.sh
+      - run: agentic-commerce/bin/ci-storefront-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: ${{ matrix.lane }}
+          CI_STOREFRONT_BOOTSTRAP_MODE: cold
+          CI_STOREFRONT_KEEP_STACK: 0

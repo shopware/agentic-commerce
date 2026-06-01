@@ -1,0 +1,8 @@
+/vendor/
+/.tools/
+/var/
+/composer.lock
+/phpstan.neon
+/.phpunit.cache/
+/node_modules/
+/src/Resources/public/

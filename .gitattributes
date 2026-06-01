@@ -1,0 +1,11 @@
+/.github export-ignore
+/tests export-ignore
+/var export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/phpstan.neon.dist export-ignore
+/phpunit.xml.dist export-ignore
+/rector.php export-ignore
+/package.json export-ignore
+/bin/ci-*.sh export-ignore
+/bin/validate-ucp-admin-browser.mjs export-ignore
+/docs/manual-testing.md export-ignore
