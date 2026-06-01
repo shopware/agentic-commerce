@@ -51,7 +51,7 @@ if [[ "${BOOTSTRAP_ONLY}" != "0" && "${BOOTSTRAP_ONLY}" != "1" ]]; then
   exit 1
 fi
 
-export APP_ENV="${APP_ENV:-prod}"
+export APP_ENV="${APP_ENV:-dev}"
 
 if [[ ! -d "${SHOPWARE_DIR}" ]]; then
   echo "Shopware checkout not found at ${SHOPWARE_DIR}." >&2
@@ -247,7 +247,7 @@ stage_shopware_checkout() {
     "${SHOPWARE_DIR}/" "${shopware_stage_dir}/"
 }
 
-"${compose[@]}" up -d
+"${compose[@]}" up -d --force-recreate web
 
 sync_custom_sources_into_web_volume() {
   local web_id
@@ -339,6 +339,7 @@ if [[ -z "${sales_channel_id}" ]]; then
   exit 1
 fi
 
+echo "Configuring UCP smoke sales channel ${sales_channel_id}."
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.active true --json --salesChannelId="${sales_channel_id}"
 # The smoke runner still exercises unsigned requests directly via curl, so it opts the lane into log-only verification.
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy log --salesChannelId="${sales_channel_id}"
@@ -354,12 +355,38 @@ if [[ "${store_api_mcp_available}" == "1" ]]; then
 fi
 
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.enabledTransports "${enabled_transports}" --json --salesChannelId="${sales_channel_id}"
+config_json="$(jq -cn \
+  --argjson transports "${enabled_transports}" \
+  --arg continueUrlTemplate "${BASE_URL}/checkout/confirm?checkoutId={checkoutId}" \
+  --arg webhookUrlOverride "${WEBHOOK_CAPTURE_TARGET_URL}" \
+  '{
+    active: true,
+    ucpVersion: "2026-04-08",
+    profileUriStrategy: "domain",
+    customProfileUri: null,
+    enabledCapabilities: ["catalog", "cart", "discount", "checkout", "order"],
+    enabledTransports: $transports,
+    continueUrlTemplate: $continueUrlTemplate,
+    platformAllowlist: [],
+    remoteProfileAllowlist: [],
+    agentAllowlist: [],
+    embeddedAllowedOrigins: [],
+    embeddedFrameAncestors: [],
+    discoveryBudget: 10,
+    webhookUrlOverride: $webhookUrlOverride,
+    signaturePolicy: "log",
+    idempotencyRequired: true
+  }')"
+db_query "INSERT INTO swag_agentic_commerce_ucp_config (sales_channel_id, config_json, created_at, updated_at) VALUES (UNHEX('${sales_channel_id}'), '${config_json}', NOW(3), NOW(3)) ON DUPLICATE KEY UPDATE config_json = VALUES(config_json), updated_at = NOW(3);"
+echo "Generating UCP smoke signing key."
 web php /var/www/html/bin/console ucp:signing-keys:generate --kid="ci-smoke-$(date +%s)" >/dev/null
 
 if [[ "$(db_query 'SELECT COUNT(*) FROM product;')" == "0" ]]; then
+  echo "Seeding UCP smoke catalog."
   web php /var/www/html/bin/console swag-agentic-commerce:seed-smoke-catalog --sales-channel-id="${sales_channel_id}" >/dev/null
 fi
 
+echo "Refreshing DAL indexes for UCP smoke."
 web php /var/www/html/bin/console dal:refresh:index >/dev/null
 
 if [[ "${BOOTSTRAP_ONLY}" == "1" ]]; then

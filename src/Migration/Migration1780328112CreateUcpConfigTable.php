@@ -9,11 +9,11 @@ use Shopware\Core\Framework\Migration\MigrationStep;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigSchema;
 use Swag\AgenticCommerce\Ucp\Identity\UcpOAuthSchema;
 
-final class Migration20260601091828CreateUcpConfigTable extends MigrationStep
+final class Migration1780328112CreateUcpConfigTable extends MigrationStep
 {
     public function getCreationTimestamp(): int
     {
-        return 20260601091828;
+        return 1780328112;
     }
 
     public function update(Connection $connection): void

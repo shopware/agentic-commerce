@@ -145,6 +145,11 @@ function locateShopwareCore(string $pluginDir): string
 function renderShopwarePhpstanIncludes(string $coreDir): string
 {
     $phpStanDir = $coreDir.'/DevOps/StaticAnalyze/PHPStan';
+    $shopwareProjectDir = \dirname($coreDir, 2);
+
+    if (!is_file($shopwareProjectDir.'/vendor/phpstan/phpstan/conf/bleedingEdge.neon')) {
+        return '';
+    }
 
     if (is_file($phpStanDir.'/common.neon')) {
         return implode("\n", [

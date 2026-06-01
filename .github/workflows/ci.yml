@@ -50,6 +50,8 @@ jobs:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
           path: shopware
+      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
+        working-directory: shopware
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
