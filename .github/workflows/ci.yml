@@ -44,11 +44,13 @@ jobs:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
+          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
           path: shopware
+          token: ${{ secrets.PLUGINS_PAT }}
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
@@ -76,11 +78,13 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
+          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
+          token: ${{ secrets.PLUGINS_PAT }}
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
@@ -111,11 +115,13 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
+          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
+          token: ${{ secrets.PLUGINS_PAT }}
       - run: npm install --no-audit --no-fund
         working-directory: agentic-commerce
       - run: npx playwright install chromium --with-deps
@@ -148,11 +154,13 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
+          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/checkout@v4
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
+          token: ${{ secrets.PLUGINS_PAT }}
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-storefront-smoke.sh
       - run: agentic-commerce/bin/ci-storefront-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
