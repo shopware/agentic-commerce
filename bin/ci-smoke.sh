@@ -51,7 +51,7 @@ if [[ "${BOOTSTRAP_ONLY}" != "0" && "${BOOTSTRAP_ONLY}" != "1" ]]; then
   exit 1
 fi
 
-export APP_ENV="${APP_ENV:-prod}"
+export APP_ENV="${APP_ENV:-dev}"
 export APP_DEBUG="${APP_DEBUG:-0}"
 export SHELL_VERBOSITY="${SHELL_VERBOSITY:--1}"
 
