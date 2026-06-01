@@ -95,6 +95,7 @@
         </service>
 
         <service id="Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface" alias="Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository"/>
+        <service id="Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface" alias="Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore"/>
         <service id="Ucp\Sdk\Service\RuntimeConfigurationResolverInterface" alias="Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver"/>
 
         <service id="Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCatalogSearchTool">

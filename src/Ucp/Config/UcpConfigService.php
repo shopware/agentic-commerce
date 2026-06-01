@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
-use Shopware\Core\System\SystemConfig\SystemConfigService;
 
 #[Package('framework')]
 final readonly class UcpConfigService
@@ -36,7 +35,7 @@ final readonly class UcpConfigService
 
     public function __construct(
         private UcpConfigRepositoryInterface $repository,
-        private SystemConfigService $systemConfigService,
+        private LegacyConfigStoreInterface $legacyConfigStore,
     ) {
     }
 
@@ -47,7 +46,7 @@ final readonly class UcpConfigService
         }
 
         $config = $this->repository->find($salesChannelId);
-        if ($config !== null) {
+        if (null !== $config) {
             return $config;
         }
 
@@ -68,7 +67,7 @@ final readonly class UcpConfigService
      */
     public function getConfigs(array $salesChannelIds): array
     {
-        if ($salesChannelIds === []) {
+        if ([] === $salesChannelIds) {
             return [];
         }
 
@@ -94,7 +93,7 @@ final readonly class UcpConfigService
 
         if (null === $salesChannelId) {
             foreach ($config->toArray() as $key => $value) {
-                $this->systemConfigService->set(self::DOMAIN.$key, $value, null);
+                $this->legacyConfigStore->set(self::DOMAIN.$key, $value, null);
             }
 
             return $config;
@@ -112,7 +111,7 @@ final readonly class UcpConfigService
     {
         $payload = [];
         foreach (self::KEYS as $key) {
-            $payload[$key] = $this->systemConfigService->get(self::DOMAIN.$key, $salesChannelId);
+            $payload[$key] = $this->legacyConfigStore->get(self::DOMAIN.$key, $salesChannelId);
         }
 
         return $payload;
@@ -124,7 +123,7 @@ final readonly class UcpConfigService
     private function hasLegacyValues(array $payload): bool
     {
         foreach ($payload as $value) {
-            if ($value !== null) {
+            if (null !== $value) {
                 return true;
             }
         }

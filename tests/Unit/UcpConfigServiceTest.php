@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Shopware\Core\System\SystemConfig\SystemConfigService;
+use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -21,10 +21,10 @@ final class UcpConfigServiceTest extends TestCase
             ]),
         ]);
 
-        $systemConfig = $this->createMock(SystemConfigService::class);
-        $systemConfig->expects(static::never())->method('get');
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->expects(static::never())->method('get');
 
-        $service = new UcpConfigService($repository, $systemConfig);
+        $service = new UcpConfigService($repository, $legacyStore);
 
         static::assertTrue($service->getConfig('sales-channel-a')->active);
         static::assertSame(['catalog', 'checkout'], $service->getConfig('sales-channel-a')->enabledCapabilities);
@@ -33,8 +33,8 @@ final class UcpConfigServiceTest extends TestCase
     public function testItMigratesLegacySystemConfigIntoRepositoryOnRead(): void
     {
         $repository = new InMemoryUcpConfigRepository();
-        $systemConfig = $this->createMock(SystemConfigService::class);
-        $systemConfig->method('get')->willReturnCallback(
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(
             static function (string $key, ?string $salesChannelId): mixed {
                 static::assertSame('sales-channel-b', $salesChannelId);
 
@@ -47,7 +47,7 @@ final class UcpConfigServiceTest extends TestCase
             },
         );
 
-        $service = new UcpConfigService($repository, $systemConfig);
+        $service = new UcpConfigService($repository, $legacyStore);
         $config = $service->getConfig('sales-channel-b');
 
         static::assertTrue($config->active);
@@ -61,10 +61,10 @@ final class UcpConfigServiceTest extends TestCase
             'sales-channel-a' => UcpConfig::fromArray(['active' => true]),
         ]);
 
-        $systemConfig = $this->createMock(SystemConfigService::class);
-        $systemConfig->method('get')->willReturnCallback(
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(
             static function (string $key, ?string $salesChannelId): mixed {
-                if ($salesChannelId !== 'sales-channel-b') {
+                if ('sales-channel-b' !== $salesChannelId) {
                     return null;
                 }
 
@@ -76,7 +76,7 @@ final class UcpConfigServiceTest extends TestCase
             },
         );
 
-        $service = new UcpConfigService($repository, $systemConfig);
+        $service = new UcpConfigService($repository, $legacyStore);
         $configs = $service->getConfigs(['sales-channel-a', 'sales-channel-b']);
 
         static::assertCount(2, $configs);
