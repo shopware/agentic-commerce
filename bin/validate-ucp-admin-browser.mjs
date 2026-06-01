@@ -26,6 +26,7 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const consoleErrors = [];
+const networkFailures = [];
 
 page.on('console', (message) => {
   if (['error', 'warning'].includes(message.type()) && /ucp|swag-agentic-commerce|chunk|module/i.test(message.text())) {
@@ -36,6 +37,12 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => {
   if (/ucp|swag-agentic-commerce|chunk|module/i.test(error.message)) {
     consoleErrors.push(`pageerror: ${error.message}`);
+  }
+});
+
+page.on('requestfailed', (request) => {
+  if (/\/admin|administration|swagagenticcommerce|swag-agentic-commerce|\.js|\.css/i.test(request.url())) {
+    networkFailures.push(`${request.failure()?.errorText || 'request failed'}: ${request.method()} ${request.url()}`);
   }
 });
 
@@ -156,20 +163,40 @@ try {
 }
 
 async function login(page, baseUrl, user, pass) {
-  await page.goto(`${baseUrl}/admin`);
-  await page.waitForLoadState('domcontentloaded');
-
   const usernameInput = page.locator('input[name="sw-field--username"], input[name="username"]').first();
   const adminShell = page.locator('.sw-admin-menu, .sw-desktop, .sw-page').first();
+  let lastError = null;
 
-  try {
-    await Promise.any([
-      usernameInput.waitFor({ state: 'visible', timeout: adminBootTimeout }),
-      adminShell.waitFor({ state: 'visible', timeout: adminBootTimeout }),
-    ]);
-  } catch (error) {
-    await page.screenshot({ path: path.join(screenshotDir, `admin-login-${safeName(lane)}-timeout.png`), fullPage: true });
-    throw error;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded', timeout: adminBootTimeout });
+      await Promise.any([
+        usernameInput.waitFor({ state: 'visible', timeout: adminBootTimeout }),
+        adminShell.waitFor({ state: 'visible', timeout: adminBootTimeout }),
+      ]);
+
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      await page.screenshot({ path: path.join(screenshotDir, `admin-login-${safeName(lane)}-attempt-${attempt}.png`), fullPage: true }).catch(() => {});
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: adminBootTimeout }).catch(() => {});
+    }
+  }
+
+  if (lastError !== null) {
+    const title = await page.title().catch(() => '');
+    const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+    const diagnostics = [
+      `Admin login shell did not become visible for ${baseUrl}/admin.`,
+      `Current URL: ${page.url()}`,
+      `Title: ${title}`,
+      `Body: ${bodyText.replace(/\s+/g, ' ').slice(0, 1000)}`,
+      ...consoleErrors.slice(-20),
+      ...networkFailures.slice(-20),
+    ].filter(Boolean);
+
+    fail(`${diagnostics.join('\n')}\n${lastError.stack || lastError.message || lastError}`);
   }
 
   if (await adminShell.isVisible().catch(() => false)) {
