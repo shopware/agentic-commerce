@@ -51,6 +51,7 @@ services:
       APP_ENV: \${APP_ENV-prod}
       APP_DEBUG: \${APP_DEBUG-0}
       SHELL_VERBOSITY: \${SHELL_VERBOSITY--1}
+      ADMIN_VITE: \${ADMIN_VITE-0}
       COMPOSER_ROOT_VERSION: ${root_version}
       HOST: "0.0.0.0"
       APP_URL: http://localhost:8000

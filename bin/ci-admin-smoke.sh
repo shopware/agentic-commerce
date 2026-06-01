@@ -136,6 +136,12 @@ if [[ "${resolved_mode}" == "auto" ]]; then
   resolved_mode="auto"
 fi
 
+admin_vite_env=0
+if [[ "${resolved_mode}" == "vite" ]]; then
+  admin_vite_env=1
+fi
+
+ADMIN_VITE="${admin_vite_env}" \
 CI_SMOKE_MODE="${BOOTSTRAP_MODE}" \
 CI_SMOKE_KEEP_STACK=1 \
 CI_SMOKE_BOOTSTRAP_ONLY=1 \
