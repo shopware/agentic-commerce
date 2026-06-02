@@ -9,9 +9,6 @@ use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Profile\ProfilePreviewBuilder;
-use Ucp\Sdk\Model\Profile\PlatformProfile;
-use Ucp\Sdk\Model\Profile\ProfileBuildInput;
-use Ucp\Sdk\Service\ProfileBuilderInterface;
 
 /** @internal */
 final class ProfilePreviewBuilderTest extends TestCase
@@ -29,23 +26,5 @@ final class ProfilePreviewBuilderTest extends TestCase
 
         self::assertSame([], $profileBuilder->lastInput?->supportedVersions);
         self::assertArrayNotHasKey('supported_versions', $preview['ucp']);
-    }
-}
-
-final class RecordingProfileBuilder implements ProfileBuilderInterface
-{
-    public ?ProfileBuildInput $lastInput = null;
-
-    public function build(ProfileBuildInput $input): PlatformProfile
-    {
-        $this->lastInput = $input;
-
-        return new PlatformProfile(
-            $input->version,
-            [],
-            [],
-            [],
-            supportedVersions: $input->supportedVersions,
-        );
     }
 }

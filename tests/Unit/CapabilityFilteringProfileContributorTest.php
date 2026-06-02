@@ -67,7 +67,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             UcpProtocol::VERSION,
             'https://ucp.dev/specification/test/',
             'https://ucp.dev/schemas/test.json',
-            $name === UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT ? [
+            UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT === $name ? [
                 UcpCapabilityCatalog::DESCRIPTOR_CART,
                 UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
             ] : null,

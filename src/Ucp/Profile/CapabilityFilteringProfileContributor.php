@@ -85,7 +85,7 @@ final readonly class CapabilityFilteringProfileContributor implements ProfileCon
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
         ], array_keys($capabilities)));
 
-        if ($extends === []) {
+        if ([] === $extends) {
             unset($capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT]);
 
             return $capabilities;
