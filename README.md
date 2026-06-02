@@ -150,7 +150,7 @@ GitHub Actions checks out public `shopware/shopware` directly and private `shopw
 
 The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane-local Composer installs do not collide with the Shopware runtime dependency graph.
 
-Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is resolved transitively by that bundle. Local and CI runs configure path repositories for both SDK packages only because the SDK is currently private/local. The plugin repo still keeps its own Composer file for repo-local tooling and standalone QA.
+Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is resolved transitively by that bundle. Local and CI runs configure path repositories for both SDK packages only because the SDK is currently private/local. Those path repositories use stable `0.0.1` aliases so Composer can resolve the transitive SDK core package from the Shopware root project. The plugin repo still keeps its own Composer file for repo-local tooling and standalone QA.
 
 `bin/ci-smoke.sh` supports two execution modes:
 

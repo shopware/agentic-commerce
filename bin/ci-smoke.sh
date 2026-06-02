@@ -344,8 +344,9 @@ fi
 
 web sh -lc "cd /var/www/html \
   && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true}}' \
-  && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1-alpha1\"}}}' \
-  && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1-alpha1\"}}}' \
+  && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1\"}}}' \
+  && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1\"}}}' \
+  && { composer remove --no-update --no-interaction shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
   && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:@dev --with-all-dependencies"
 
 # Composer may update core service definitions while a prod container compiled
