@@ -39,6 +39,25 @@ detect_shopware_lane() {
 
 SHOPWARE_BRANCH="$(detect_shopware_lane)"
 
+plugin_composer_version() {
+  case "${SHOPWARE_BRANCH}" in
+    6.5.x)
+      printf '6.5.9999999-dev\n'
+      ;;
+    6.6.x)
+      printf '6.6.9999999-dev\n'
+      ;;
+    trunk)
+      printf '6.7.9999999-dev\n'
+      ;;
+    *)
+      printf 'dev-main\n'
+      ;;
+  esac
+}
+
+PLUGIN_COMPOSER_VERSION="$(plugin_composer_version)"
+
 if [[ -z "${SMOKE_MODE}" ]]; then
   if [[ -n "${CI:-}" ]]; then
     SMOKE_MODE="cold"
@@ -343,11 +362,11 @@ if ! db_table_exists plugin; then
 fi
 
 web sh -lc "cd /var/www/html \
-  && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true}}' \
+  && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
   && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1\"}}}' \
   && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1\"}}}' \
   && { composer remove --no-update --no-interaction shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
-  && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:@dev --with-all-dependencies"
+  && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console
@@ -355,9 +374,7 @@ web sh -lc "cd /var/www/html \
 web sh -lc 'cd /var/www/html && rm -rf var/cache/*'
 web php /var/www/html/bin/console plugin:refresh
 web php /var/www/html/bin/console cache:clear >/dev/null
-web php /var/www/html/bin/console plugin:install --activate SwagAgenticCommerce \
-  || web php /var/www/html/bin/console plugin:update SwagAgenticCommerce \
-  || web php /var/www/html/bin/console plugin:activate SwagAgenticCommerce
+web php /var/www/html/bin/console plugin:install --activate SwagAgenticCommerce
 
 sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://localhost:%' ORDER BY sales_channel_id LIMIT 1;")"
 if [[ -z "${sales_channel_id}" ]]; then

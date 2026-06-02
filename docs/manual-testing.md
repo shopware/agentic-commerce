@@ -123,10 +123,14 @@ repositories against the synced container paths and require only the plugin:
 composer config repositories.swag-agentic-commerce '{"type":"path","url":"custom/plugins/SwagAgenticCommerce","options":{"symlink":true}}'
 composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"shopware/ucp-php-sdk-core":"0.0.1"}}}'
 composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.1"}}}'
-composer require shopware/agentic-commerce:@dev --with-all-dependencies
+composer require shopware/agentic-commerce:6.6.9999999-dev --with-all-dependencies
 bin/console plugin:refresh
 bin/console plugin:install --activate SwagAgenticCommerce
 ```
+
+Use the matching lane version when requiring the plugin manually:
+`6.5.9999999-dev` for 6.5, `6.6.9999999-dev` for 6.6, and
+`6.7.9999999-dev` for trunk/current 6.7.
 
 The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is
 resolved transitively by that bundle. The local path repositories above are
