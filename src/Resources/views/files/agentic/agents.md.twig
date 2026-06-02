@@ -1,0 +1,17 @@
+{% sw_extends 'files/agentic/agents.md.twig' %}
+
+{% block agentic_agents_extensions %}
+    {{ parent() }}
+
+    {% if swag_agentic_commerce_ucp_active(salesChannel) %}
+        ## Agentic commerce via UCP
+
+        - Check `/.well-known/ucp` before using UCP. Only use capabilities and transports advertised for this sales channel.
+        - Use catalog capabilities for product discovery and product detail lookup.
+        - Use cart, discount, checkout, and order capabilities only for actions the user explicitly requested.
+        - Do not complete checkout, submit payment, link identity, access account data, or retrieve order information without explicit user confirmation and the required authentication or consent flow.
+        - Treat returned checkout, payment, identity, and continuation URLs as merchant-approved user interaction points. Do not bypass them.
+        - For state-changing requests, use idempotency where required and respect the advertised signature policy, agent allowlist, and protocol version.
+        - Payment tokenization and identity linking are available only when explicitly advertised by the UCP profile.
+    {% endif %}
+{% endblock %}
