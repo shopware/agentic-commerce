@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Swag\AgenticCommerce\Tests\Unit;
+namespace Swag\AgenticCommerce\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;

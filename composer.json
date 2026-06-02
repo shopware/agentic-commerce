@@ -17,8 +17,7 @@
         "phpstan/phpstan": "^1.12",
         "phpunit/phpunit": "^11.5",
         "rector/rector": "^1.1",
-        "roave/backward-compatibility-check": "^8.13",
-        "twig/twig": "^3.0"
+        "roave/backward-compatibility-check": "^8.13"
     },
     "repositories": [
         {
