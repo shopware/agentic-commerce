@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ title }}</title>
+    <title>{% block ucp_embedded_title %}{{ title }}{% endblock %}</title>
+    {% block ucp_embedded_styles %}
     <style>
         :root { color-scheme: light; --ink: #17202a; --muted: #667085; --line: #d0d5dd; --surface: #fff; --accent: #0b5fff; }
         * { box-sizing: border-box; }
@@ -23,12 +24,14 @@
         .status { display: inline-flex; padding: 5px 10px; border-radius: 999px; background: #e8f0ff; color: #053ca6; font-weight: 600; }
         .cta { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 14px; border-radius: 10px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; }
     </style>
+    {% endblock %}
 </head>
 <body>
 {% set lineItems = data.line_items is defined and data.line_items is iterable ? data.line_items : [] %}
 {% set totals = data.totals is defined and data.totals is iterable ? data.totals : [] %}
 <main>
     <section class="card" aria-label="UCP embedded {{ type }}">
+        {% block ucp_embedded_header %}
         <header>
             <div>
                 <h1>{{ title }}</h1>
@@ -38,7 +41,9 @@
                 <span class="status">{{ data.status }}</span>
             {% endif %}
         </header>
+        {% endblock %}
         <div class="content">
+            {% block ucp_embedded_line_items %}
             {% if lineItems is empty %}
                 <p class="empty">No line items.</p>
             {% else %}
@@ -64,7 +69,9 @@
                     </tbody>
                 </table>
             {% endif %}
+            {% endblock %}
 
+            {% block ucp_embedded_totals %}
             {% if totals is not empty %}
                 <div class="totals">
                     {% for total in totals %}
@@ -75,13 +82,17 @@
                     {% endfor %}
                 </div>
             {% endif %}
+            {% endblock %}
 
+            {% block ucp_embedded_cta %}
             {% if data.continue_url is defined and data.continue_url is not empty %}
                 <a class="cta" target="_top" rel="noopener" href="{{ data.continue_url }}">Continue checkout</a>
             {% endif %}
+            {% endblock %}
         </div>
     </section>
 </main>
+{% block ucp_embedded_script %}
 <script>
 (() => {
     const state = {{ stateJson|raw }};
@@ -115,5 +126,6 @@
     emit('ucp.embedded.state');
 })();
 </script>
+{% endblock %}
 </body>
 </html>
