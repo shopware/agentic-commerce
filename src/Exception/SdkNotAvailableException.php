@@ -11,6 +11,6 @@ final class SdkNotAvailableException extends \RuntimeException
 {
     public static function bundleCouldNotBeLoaded(): self
     {
-        return new self('Unable to load the UCP SDK bundle from the standalone plugin checkout.');
+        return new self('Unable to load the UCP SDK Symfony bundle from Composer dependencies.');
     }
 }

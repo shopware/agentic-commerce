@@ -18,7 +18,7 @@ These features should share sales-channel awareness, admin UX patterns, compatib
 
 ## Where Changes Belong
 
-Keep protocol and Shopware responsibilities separated. This plugin depends on `../ucp-php-sdk`, but it should not copy SDK protocol behavior or push Shopware-specific decisions into the SDK.
+Keep protocol and Shopware responsibilities separated. This plugin directly requires the `ucp-php-sdk/symfony-bundle` Composer package, which in turn requires SDK core. The plugin should not copy SDK protocol behavior or push Shopware-specific decisions into the SDK.
 
 | Layer | Owns | Should not own |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ Keep protocol and Shopware responsibilities separated. This plugin depends on `.
 
 Default rule: if multiple merchants/frameworks could reuse it, start in the SDK. If it depends on Shopware runtime state, sales channels, Store API, Administration, or storefront rendering, finish it in the plugin. Touch core only when the primitive is generally useful outside this plugin line.
 
-The SDK is a required runtime dependency for this plugin line. If a future release should boot with UCP disabled when the SDK is missing, implement that as an explicit conditional service-loading mode in the plugin. Do not only suppress `getAdditionalBundles()` errors; the plugin service graph contains SDK interfaces and transport contracts.
+The SDK is a required runtime dependency for this plugin line. Shopware installs it through plugin Composer commands, so `SwagAgenticCommerce::executeComposerCommands()` must stay enabled. If a future release should boot with UCP disabled when the SDK is missing, implement that as an explicit conditional service-loading mode in the plugin. Do not only suppress `getAdditionalBundles()` errors; the plugin service graph contains SDK interfaces and transport contracts.
 
 ## UCP
 
@@ -150,7 +150,7 @@ GitHub Actions checks out public `shopware/shopware` directly and private `shopw
 
 The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane-local Composer installs do not collide with the Shopware runtime dependency graph.
 
-Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin repo still keeps its own Composer file for repo-local tooling and standalone QA.
+Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is resolved transitively by that bundle. Local and CI runs configure path repositories for both SDK packages only because the SDK is currently private/local. The plugin repo still keeps its own Composer file for repo-local tooling and standalone QA.
 
 `bin/ci-smoke.sh` supports two execution modes:
 

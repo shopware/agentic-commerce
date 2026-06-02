@@ -346,7 +346,7 @@ web sh -lc "cd /var/www/html \
   && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true}}' \
   && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1-alpha1\"}}}' \
   && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1-alpha1\"}}}' \
-  && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:@dev shopware/ucp-php-sdk-core:0.0.1-alpha1 ucp-php-sdk/symfony-bundle:0.0.1-alpha1 --with-all-dependencies"
+  && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:@dev --with-all-dependencies"
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console

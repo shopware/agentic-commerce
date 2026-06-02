@@ -117,16 +117,20 @@ The normal local path repository setup is handled by:
 ```
 
 If you must install manually inside a lane container, configure Composer path
-repositories against the synced container paths and require the packages:
+repositories against the synced container paths and require only the plugin:
 
 ```bash
 composer config repositories.swag-agentic-commerce '{"type":"path","url":"custom/plugins/SwagAgenticCommerce","options":{"symlink":true}}'
 composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"shopware/ucp-php-sdk-core":"0.0.1-alpha1"}}}'
 composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.1-alpha1"}}}'
-composer require shopware/agentic-commerce:@dev shopware/ucp-php-sdk-core:0.0.1-alpha1 ucp-php-sdk/symfony-bundle:0.0.1-alpha1 --with-all-dependencies
+composer require shopware/agentic-commerce:@dev --with-all-dependencies
 bin/console plugin:refresh
 bin/console plugin:install --activate SwagAgenticCommerce
 ```
+
+The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is
+resolved transitively by that bundle. The local path repositories above are
+only needed while the SDK packages are private/local.
 
 The Composer `symlink` option is container-local package behavior. It is not
 the old host-plugin-symlink workflow.
