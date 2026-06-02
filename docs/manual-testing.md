@@ -314,7 +314,7 @@ curl -s http://sw65.localhost:8088/.well-known/ucp | jq .
 Expected result:
 
 - only enabled and implemented capabilities are advertised
-- `payment_handlers` is an empty list unless a real tokenizing payment handler
+- `payment_handlers` is an empty object unless a real tokenizing payment handler
   is installed and `payment_tokenization` is enabled
 - 6.5/6.6 advertise REST/A2A/embedded when enabled, but never MCP
 - 6.7/trunk advertises MCP only when the Store API MCP core endpoint is available

@@ -11,6 +11,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Contract\ProfileContributorInterface;
 use Ucp\Sdk\Enum\Transport;
+use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Model\Profile\ServiceEndpoint;
@@ -44,6 +45,7 @@ final readonly class CapabilityFilteringProfileContributor implements ProfileCon
         );
 
         $capabilities = array_intersect_key($profile->capabilities, array_flip($enabledDescriptors));
+        $capabilities = $this->withPrunedDiscountExtension($capabilities);
         $services = $profile->services;
 
         if (!$config->active) {
@@ -65,5 +67,42 @@ final readonly class CapabilityFilteringProfileContributor implements ProfileCon
             $profile->signingKeys,
             $profile->supportedVersions,
         );
+    }
+
+    /**
+     * @param array<string, list<CapabilityDescriptor>> $capabilities
+     *
+     * @return array<string, list<CapabilityDescriptor>>
+     */
+    private function withPrunedDiscountExtension(array $capabilities): array
+    {
+        if (!isset($capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT])) {
+            return $capabilities;
+        }
+
+        $extends = array_values(array_intersect([
+            UcpCapabilityCatalog::DESCRIPTOR_CART,
+            UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
+        ], array_keys($capabilities)));
+
+        if ($extends === []) {
+            unset($capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT]);
+
+            return $capabilities;
+        }
+
+        $capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT] = array_map(
+            static fn (CapabilityDescriptor $descriptor): CapabilityDescriptor => new CapabilityDescriptor(
+                $descriptor->name,
+                $descriptor->version,
+                $descriptor->specUrl,
+                $descriptor->schemaUrl,
+                $extends,
+                $descriptor->config,
+            ),
+            $capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT],
+        );
+
+        return $capabilities;
     }
 }

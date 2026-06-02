@@ -167,7 +167,7 @@ final readonly class UcpConfig
             $this->idempotencyRequired,
             $allowedProfileHosts,
             $allowedAgentDomains,
-            [$this->ucpVersion => $baseUri.'/.well-known/ucp'],
+            [],
             $this->runtimeTransports($storeApiMcpAvailable),
             $this->runtimeEnabledCapabilityDescriptors(),
             $tenantIdentifier,

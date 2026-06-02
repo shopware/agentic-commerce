@@ -35,7 +35,7 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
 
 - The plugin registers the tokenization capability wrapper and a non-tokenizing Shopware invoice payment-handler descriptor.
 - `/ucp/v1/tokenize` must return `501` until at least one real payment handler supports UCP tokenization and the capability is enabled.
-- `payment_handlers` must stay an empty list in `/.well-known/ucp` unless tokenization is enabled and a real tokenizing handler is registered.
+- `payment_handlers` must stay an empty object in `/.well-known/ucp` unless tokenization is enabled and a real tokenizing handler is registered.
 - Store API customer login/context-token APIs and Shopware checkout payment tokens are not sufficient substitutes. They do not provide the UCP identity-linking consent model or a reusable payment-tokenization contract.
 - Implementation TODO and example PSP handler shape live in
   [docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md).
@@ -77,7 +77,7 @@ Use `bin/validate-ucp-store.sh <base-url> <profile-url> conformance` with
 
 The validation script also asserts the default shipped optional capability decision:
 
-- `payment_handlers` is an empty list in the UCP profile.
+- `payment_handlers` is an empty object in the UCP profile.
 - `/.well-known/oauth-authorization-server` returns `501` until
   `identity_linking` is enabled for the sales channel.
 - With `identity_linking` enabled, OAuth metadata returns `200` and authorize

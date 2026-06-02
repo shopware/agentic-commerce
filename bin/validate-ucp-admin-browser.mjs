@@ -121,10 +121,14 @@ try {
   const previewResponse = await api.get(`/api/_admin/ucp/sales-channels/${salesChannel.id}/profile-preview`);
   await assertOk(previewResponse, 'Unable to fetch UCP profile preview.');
   const preview = (await previewResponse.json()).data;
-  const previewTransports = [...new Set((preview.services?.['dev.ucp.shopping'] || []).map((entry) => entry.transport))].sort();
+  const previewProfile = preview.ucp || preview;
+  const previewTransports = [...new Set((previewProfile.services?.['dev.ucp.shopping'] || []).map((entry) => entry.transport))].sort();
+  const previewPaymentHandlers = previewProfile.payment_handlers || {};
 
   assertEqualArrays(previewTransports, [...expectedTransports].sort(), 'Profile preview transports do not match the lane-aware admin expectation.');
-  assertEqualArrays(preview.payment_handlers || [], [], 'Profile preview must not advertise payment handlers.');
+  if (Object.keys(previewPaymentHandlers).length > 0) {
+    fail('Profile preview must not advertise payment handlers.');
+  }
 
   createdKid = `admin-qa-${Date.now()}`;
   const createKeyResponse = await api.post(`/api/_admin/ucp/sales-channels/${salesChannel.id}/keys`, {

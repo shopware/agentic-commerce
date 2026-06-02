@@ -19,7 +19,7 @@ true:
 
 Until then:
 
-- `/.well-known/ucp` must expose an empty `payment_handlers` list.
+- `/.well-known/ucp` must expose an empty `payment_handlers` object.
 - `/.well-known/ucp` must not advertise
   `dev.ucp.shopping.payment_tokenization`.
 - `POST /ucp/v1/tokenize` must return a controlled `501`.

@@ -28,7 +28,6 @@ final readonly class ProfilePreviewBuilder
             $config->ucpVersion,
             $config->resolveBaseUri($baseUri),
             $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()),
-            supportedVersions: [$config->ucpVersion => $config->resolveBaseUri($baseUri).'/.well-known/ucp'],
             transportEndpoints: $config->transportEndpoints($baseUri, $this->versionDetector->supportsStoreApiMcp()),
             tenantIdentifier: $tenantIdentifier,
         ))->toArray();

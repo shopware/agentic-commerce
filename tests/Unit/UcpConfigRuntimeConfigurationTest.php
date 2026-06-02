@@ -31,6 +31,7 @@ final class UcpConfigRuntimeConfigurationTest extends TestCase
         self::assertSame(SignaturePolicy::Strict, $runtimeConfiguration->signaturePolicy);
         self::assertTrue($runtimeConfiguration->idempotencyRequired);
         self::assertSame('sales-channel-id', $runtimeConfiguration->tenantIdentifier);
+        self::assertSame([], $runtimeConfiguration->supportedVersions);
         self::assertSame([Transport::Rest], $runtimeConfiguration->transports);
         self::assertSame(UcpCapabilityCatalog::descriptorNamesForConfigKeys(UcpCapabilityCatalog::defaultConfigKeys()), $runtimeConfiguration->enabledCapabilities);
     }

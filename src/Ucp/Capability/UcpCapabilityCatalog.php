@@ -27,14 +27,21 @@ final class UcpCapabilityCatalog
     public const DESCRIPTOR_PAYMENT_TOKENIZATION = 'dev.ucp.shopping.payment_tokenization';
 
     /**
-     * @return array<string, array{descriptor: string, path: string, specUrl?: string, schemaUrl?: string}>
+     * @return array<string, array{descriptor: string, path: string, specUrl?: string, schemaUrl?: string, extends?: list<string>}>
      */
     private static function definitions(): array
     {
         return [
             self::CONFIG_CATALOG => ['descriptor' => self::DESCRIPTOR_CATALOG, 'path' => 'catalog'],
             self::CONFIG_CART => ['descriptor' => self::DESCRIPTOR_CART, 'path' => 'cart'],
-            self::CONFIG_DISCOUNT => ['descriptor' => self::DESCRIPTOR_DISCOUNT, 'path' => 'discount'],
+            self::CONFIG_DISCOUNT => [
+                'descriptor' => self::DESCRIPTOR_DISCOUNT,
+                'path' => 'discount',
+                'extends' => [
+                    self::DESCRIPTOR_CART,
+                    self::DESCRIPTOR_CHECKOUT,
+                ],
+            ],
             self::CONFIG_CHECKOUT => ['descriptor' => self::DESCRIPTOR_CHECKOUT, 'path' => 'checkout'],
             self::CONFIG_ORDER => ['descriptor' => self::DESCRIPTOR_ORDER, 'path' => 'order'],
             self::CONFIG_IDENTITY_LINKING => [
@@ -112,6 +119,7 @@ final class UcpCapabilityCatalog
             UcpProtocol::VERSION,
             $definition['specUrl'] ?? UcpProtocol::specificationUrl($definition['path']),
             $definition['schemaUrl'] ?? UcpProtocol::schemaUrl($definition['path']),
+            $definition['extends'] ?? null,
         );
     }
 

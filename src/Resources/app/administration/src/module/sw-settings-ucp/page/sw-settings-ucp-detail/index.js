@@ -153,20 +153,28 @@ export default {
             return JSON.stringify(this.preview, null, 2);
         },
 
+        profileMetadata() {
+            if (!this.preview) {
+                return {};
+            }
+
+            return this.preview.ucp || this.preview;
+        },
+
         profileCapabilityNames() {
-            if (!this.preview || !this.preview.capabilities) {
+            if (!this.profileMetadata.capabilities) {
                 return [];
             }
 
-            return Object.keys(this.preview.capabilities);
+            return Object.keys(this.profileMetadata.capabilities);
         },
 
         serviceEndpointCount() {
-            if (!this.preview || !this.preview.services) {
+            if (!this.profileMetadata.services) {
                 return 0;
             }
 
-            return Object.values(this.preview.services).reduce((count, endpoints) => {
+            return Object.values(this.profileMetadata.services).reduce((count, endpoints) => {
                 return count + (Array.isArray(endpoints) ? endpoints.length : 0);
             }, 0);
         },

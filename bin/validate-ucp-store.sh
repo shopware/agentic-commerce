@@ -36,16 +36,16 @@ trap cleanup EXIT
 echo "Validating UCP profile: ${PROFILE_URL}"
 profile_json="$(curl -fsS "${PROFILE_URL}")"
 
-jq -e '.version | type == "string"' >/dev/null <<<"${profile_json}"
-jq -e '.services["dev.ucp.shopping"] | type == "array" and length >= 1' >/dev/null <<<"${profile_json}"
-jq -e '.capabilities | type == "object"' >/dev/null <<<"${profile_json}"
-jq -e '.payment_handlers | type == "array" and length == 0' >/dev/null <<<"${profile_json}"
+jq -e '.ucp.version | type == "string"' >/dev/null <<<"${profile_json}"
+jq -e '.ucp.services["dev.ucp.shopping"] | type == "array" and length >= 1' >/dev/null <<<"${profile_json}"
+jq -e '.ucp.capabilities | type == "object"' >/dev/null <<<"${profile_json}"
+jq -e '.ucp.payment_handlers | type == "object" and length == 0' >/dev/null <<<"${profile_json}"
 
 echo "Profile transports:"
-jq -r '.services["dev.ucp.shopping"][].transport' <<<"${profile_json}" | sort -u
+jq -r '.ucp.services["dev.ucp.shopping"][].transport' <<<"${profile_json}" | sort -u
 
-if jq -e '.services["dev.ucp.shopping"][] | select(.transport == "mcp")' >/dev/null <<<"${profile_json}"; then
-  mcp_endpoint="$(jq -r '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
+if jq -e '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp")' >/dev/null <<<"${profile_json}"; then
+  mcp_endpoint="$(jq -r '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
   if [[ "${mcp_endpoint}" != "${BASE_URL}/ucp/mcp" ]]; then
     echo "MCP endpoint must be ${BASE_URL}/ucp/mcp, got ${mcp_endpoint}" >&2
     exit 1
@@ -67,7 +67,7 @@ if [[ "${tokenize_status}" != "501" ]]; then
 fi
 
 has_transport() {
-  jq -e --arg transport "$1" '.services["dev.ucp.shopping"][] | select(.transport == $transport)' >/dev/null <<<"${profile_json}"
+  jq -e --arg transport "$1" '.ucp.services["dev.ucp.shopping"][] | select(.transport == $transport)' >/dev/null <<<"${profile_json}"
 }
 
 jsonrpc_call() {
@@ -91,7 +91,7 @@ run_extended_checks() {
   local cart_id=""
 
   if has_transport a2a; then
-    a2a_endpoint="$(jq -r '.services["dev.ucp.shopping"][] | select(.transport == "a2a") | .endpoint' <<<"${profile_json}" | head -n1)"
+    a2a_endpoint="$(jq -r '.ucp.services["dev.ucp.shopping"][] | select(.transport == "a2a") | .endpoint' <<<"${profile_json}" | head -n1)"
     echo "Validating A2A catalog.search: ${a2a_endpoint}"
     search_response="$(jsonrpc_call "${a2a_endpoint}" catalog.search "$(jq -nc --arg query "${query}" '{query:$query, limit:1}')" 101)"
     jq -e '.jsonrpc == "2.0" and (.result | type == "object")' >/dev/null <<<"${search_response}"
@@ -134,7 +134,7 @@ run_extended_checks() {
     local session_id
     local tools_response
 
-    mcp_endpoint="$(jq -r '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
+    mcp_endpoint="$(jq -r '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
 
     echo "Validating MCP tools/list: ${mcp_endpoint}"
     curl -fsS \

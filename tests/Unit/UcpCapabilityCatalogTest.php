@@ -45,11 +45,16 @@ final class UcpCapabilityCatalogTest extends TestCase
     public function testItBuildsCapabilityDescriptorsFromCentralMetadata(): void
     {
         $descriptor = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_CHECKOUT);
+        $discount = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_DISCOUNT);
 
         self::assertSame(UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT, $descriptor->name);
         self::assertSame(UcpProtocol::VERSION, $descriptor->version);
         self::assertSame('https://ucp.dev/specification/checkout/', $descriptor->specUrl);
         self::assertSame('https://ucp.dev/schemas/shopping/checkout.json', $descriptor->schemaUrl);
+        self::assertSame([
+            UcpCapabilityCatalog::DESCRIPTOR_CART,
+            UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
+        ], $discount->extends);
     }
 
     #[Test]
