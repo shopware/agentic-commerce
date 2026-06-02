@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Swag\AgenticCommerce\Tests\Unit;
+namespace Swag\AgenticCommerce\Tests\Integration;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
 use Swag\AgenticCommerce\Ucp\Identity\OAuthTokenSet;
 use Swag\AgenticCommerce\Ucp\Identity\UcpOAuthSchema;
-use Swag\AgenticCommerce\Ucp\UuidConverter;
 
 /** @internal */
 final class DoctrineDbalUcpOAuthStoreTest extends TestCase
@@ -30,7 +30,7 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
             'revoked_at' => null,
         ]);
 
-        $store = new DoctrineDbalUcpOAuthStore($connection, $this->uuidConverter());
+        $store = new DoctrineDbalUcpOAuthStore($connection);
 
         $tokenSet = $store->refreshTokenSet('ucp_refresh_existing', 'https://agent.example/profile', '00000000000000000000000000000001');
 
@@ -59,11 +59,36 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
             'revoked_at' => '2026-01-01 00:00:00.000',
         ]);
 
-        $store = new DoctrineDbalUcpOAuthStore($connection, $this->uuidConverter());
+        $store = new DoctrineDbalUcpOAuthStore($connection);
 
         self::assertNull($store->refreshTokenSet('ucp_refresh_reused', 'https://agent.example/profile', '00000000000000000000000000000001'));
         self::assertSame([], $inserts);
         self::assertCount(1, $this->updatesContaining($statements, 'WHERE sales_channel_id = :salesChannelId AND client_id = :clientId AND subject = :subject'));
+    }
+
+    #[Test]
+    public function testAuthorizationCodeHashCollisionDoesNotOverwriteExistingCode(): void
+    {
+        $statements = [];
+        $inserts = [];
+        $connection = $this->connection($statements, $inserts);
+        $connection->method('insert')->willThrowException($this->uniqueConstraintViolation());
+        $connection->expects(static::never())->method('update');
+
+        $store = new DoctrineDbalUcpOAuthStore($connection);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        $store->saveAuthorizationCode(
+            '00000000000000000000000000000001',
+            'ucp_code_collision',
+            'https://agent.example/profile',
+            'https://agent.example/callback',
+            'customer-id',
+            'dev.ucp.shopping.cart:manage',
+            'challenge',
+            'S256',
+        );
     }
 
     /**
@@ -92,19 +117,12 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
         return $connection;
     }
 
-    private function uuidConverter(): UuidConverter
+    private function uniqueConstraintViolation(): UniqueConstraintViolationException
     {
-        return new class () implements UuidConverter {
-            public function fromHexToBytes(string $hex): string
-            {
-                $bytes = hex2bin($hex);
-                if (false === $bytes) {
-                    throw new \InvalidArgumentException(\sprintf('Invalid hex UUID: "%s".', $hex));
-                }
+        /** @var UniqueConstraintViolationException $exception */
+        $exception = (new \ReflectionClass(UniqueConstraintViolationException::class))->newInstanceWithoutConstructor();
 
-                return $bytes;
-            }
-        };
+        return $exception;
     }
 
     /**

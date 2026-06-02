@@ -40,8 +40,6 @@ use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
-use Swag\AgenticCommerce\Ucp\ShopwareUuidConverter;
-use Swag\AgenticCommerce\Ucp\UuidConverter;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -214,7 +212,6 @@ return static function (ContainerConfigurator $container): void {
 
     // Config layer.
 
-    $services->alias(UuidConverter::class, ShopwareUuidConverter::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);

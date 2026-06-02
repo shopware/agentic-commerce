@@ -7,15 +7,15 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
-use Swag\AgenticCommerce\Ucp\UuidConverter;
+use Shopware\Core\Framework\Uuid\Uuid;
 
 #[Package('framework')]
 final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
 {
     public function __construct(
         private Connection $connection,
-        private UuidConverter $uuidConverter,
     ) {
         // Warm local Shopware lanes can carry an already-installed plugin volume
         // before the new plugin migration has been applied. Keep the repository
@@ -28,7 +28,7 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
     {
         $row = $this->connection->fetchAssociative(
             \sprintf('SELECT config_json FROM `%s` WHERE sales_channel_id = :salesChannelId', UcpConfigSchema::TABLE),
-            ['salesChannelId' => $this->uuidConverter->fromHexToBytes($salesChannelId)],
+            ['salesChannelId' => Uuid::fromHexToBytes($salesChannelId)],
         );
 
         if (false === $row) {
@@ -68,8 +68,8 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
 
     public function save(string $salesChannelId, UcpConfig $config): void
     {
-        $timestamp = (new \DateTime())->format('Y-m-d H:i:s.v');
-        $criteria = ['sales_channel_id' => $this->uuidConverter->fromHexToBytes($salesChannelId)];
+        $timestamp = (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT);
+        $criteria = ['sales_channel_id' => Uuid::fromHexToBytes($salesChannelId)];
         $payload = [
             'config_json' => $this->encode($config),
             'updated_at' => $timestamp,
