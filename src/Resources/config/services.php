@@ -20,13 +20,13 @@ use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
+use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
+use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileSyncSubscriber;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
-use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
-use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
