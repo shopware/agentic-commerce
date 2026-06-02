@@ -98,13 +98,13 @@ final readonly class SalesChannelViewProvider
         ];
     }
 
-    public function firstDomainUrl(string $salesChannelId, Context $context): ?string
+    public function firstDomainUrl(string $salesChannelId, ?Context $context = null): ?string
     {
         $criteria = new Criteria([$salesChannelId]);
         $criteria->addAssociation('domains');
         $criteria->setLimit(1);
 
-        $salesChannel = $this->salesChannelRepository->search($criteria, $context)->first();
+        $salesChannel = $this->salesChannelRepository->search($criteria, $context ?? Context::createDefaultContext())->first();
         if (!$salesChannel instanceof SalesChannelEntity) {
             return null;
         }

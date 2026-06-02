@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
-use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Ucp\Sdk\Exception\ValidationException;
@@ -16,7 +15,7 @@ final readonly class CheckoutWebhookUrlGuard
     ) {
     }
 
-    public function assertAllowed(string $webhookUrl, UcpConfig $config, SalesChannelContext $salesChannelContext): void
+    public function assertAllowed(string $webhookUrl, UcpConfig $config, string $salesChannelId): void
     {
         $scheme = parse_url($webhookUrl, \PHP_URL_SCHEME);
         $host = parse_url($webhookUrl, \PHP_URL_HOST);
@@ -27,10 +26,7 @@ final readonly class CheckoutWebhookUrlGuard
 
         $allowedHosts = array_map('strtolower', [] !== $config->agentAllowlist ? $config->agentAllowlist : $config->platformAllowlist);
         if ([] === $allowedHosts) {
-            $salesChannelBaseUrl = $this->salesChannelViewProvider->firstDomainUrl(
-                $salesChannelContext->getSalesChannelId(),
-                $salesChannelContext->getContext(),
-            );
+            $salesChannelBaseUrl = $this->salesChannelViewProvider->firstDomainUrl($salesChannelId);
             $salesChannelHost = parse_url((string) $salesChannelBaseUrl, \PHP_URL_HOST);
 
             if (\is_string($salesChannelHost) && '' !== $salesChannelHost) {

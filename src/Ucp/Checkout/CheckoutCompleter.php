@@ -49,7 +49,7 @@ final readonly class CheckoutCompleter
 
         $config = $this->configService->getConfig($customerContext->getSalesChannelId());
         if (null !== $config->webhookUrlOverride) {
-            $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext);
+            $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
         }
 
         $order = $this->orderGateway->placeOrder($cart, $customerContext);

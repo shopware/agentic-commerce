@@ -6,8 +6,6 @@ namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use Shopware\Core\Defaults;
-use Shopware\Core\Framework\Uuid\Uuid;
 
 final readonly class DoctrineDbalUcpOAuthStore
 {
@@ -33,7 +31,7 @@ final readonly class DoctrineDbalUcpOAuthStore
     ): void {
         $payload = [
             'code_hash' => $this->hashBytes($code),
-            'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
+            'sales_channel_id' => (string) hex2bin($salesChannelId),
             'client_id' => $clientId,
             'redirect_uri' => $redirectUri,
             'subject' => $subject,
@@ -55,7 +53,7 @@ final readonly class DoctrineDbalUcpOAuthStore
     public function consumeAuthorizationCode(string $code, string $salesChannelId): ?OAuthAuthorization
     {
         $codeHash = $this->hashBytes($code);
-        $salesChannelIdBytes = Uuid::fromHexToBytes($salesChannelId);
+        $salesChannelIdBytes = (string) hex2bin($salesChannelId);
         $now = time();
 
         return $this->connection->transactional(function () use ($codeHash, $salesChannelIdBytes, $now): ?OAuthAuthorization {
@@ -98,7 +96,7 @@ final readonly class DoctrineDbalUcpOAuthStore
 
         $this->connection->insert(UcpOAuthSchema::REFRESH_TOKEN_TABLE, [
             'token_hash' => $refreshTokenHash,
-            'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
+            'sales_channel_id' => (string) hex2bin($salesChannelId),
             'client_id' => $clientId,
             'subject' => $subject,
             'scope' => $scope,
@@ -110,7 +108,7 @@ final readonly class DoctrineDbalUcpOAuthStore
         $this->connection->insert(UcpOAuthSchema::ACCESS_TOKEN_TABLE, [
             'token_hash' => $this->hashBytes($accessToken),
             'refresh_token_hash' => $refreshTokenHash,
-            'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
+            'sales_channel_id' => (string) hex2bin($salesChannelId),
             'client_id' => $clientId,
             'subject' => $subject,
             'scope' => $scope,
@@ -131,27 +129,63 @@ final readonly class DoctrineDbalUcpOAuthStore
         $salesChannelCondition = '';
         if (null !== $salesChannelId && '' !== $salesChannelId) {
             $salesChannelCondition = ' AND sales_channel_id = :salesChannelId';
-            $criteria['salesChannelId'] = Uuid::fromHexToBytes($salesChannelId);
+            $criteria['salesChannelId'] = (string) hex2bin($salesChannelId);
         }
 
-        $row = $this->connection->fetchAssociative(
-            \sprintf('SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, client_id, subject, scope FROM `%s` WHERE token_hash = :tokenHash%s AND revoked_at IS NULL AND expires_at >= :now', UcpOAuthSchema::REFRESH_TOKEN_TABLE, $salesChannelCondition),
-            $criteria,
-        );
+        return $this->connection->transactional(function () use ($criteria, $salesChannelCondition, $clientId): ?OAuthTokenSet {
+            $row = $this->connection->fetchAssociative(
+                \sprintf('SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, client_id, subject, scope, expires_at, revoked_at FROM `%s` WHERE token_hash = :tokenHash%s', UcpOAuthSchema::REFRESH_TOKEN_TABLE, $salesChannelCondition),
+                $criteria,
+            );
 
-        if (false === $row) {
-            return null;
-        }
+            if (false === $row) {
+                return null;
+            }
 
-        if (null !== $clientId && '' !== $clientId && !hash_equals((string) $row['client_id'], $clientId)) {
-            return null;
-        }
+            if (null !== $clientId && '' !== $clientId && !hash_equals((string) $row['client_id'], $clientId)) {
+                return null;
+            }
 
-        return $this->issueTokenSet(
-            (string) $row['sales_channel_id'],
-            (string) $row['client_id'],
-            (string) $row['subject'],
-            (string) $row['scope'],
+            if ((int) $row['expires_at'] < (int) $criteria['now']) {
+                return null;
+            }
+
+            if (null !== $row['revoked_at']) {
+                $this->revokeRefreshTokenFamily((string) $row['sales_channel_id'], (string) $row['client_id'], (string) $row['subject']);
+
+                return null;
+            }
+
+            $updated = $this->connection->executeStatement(
+                \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE token_hash = :tokenHash%s AND revoked_at IS NULL AND expires_at >= :now', UcpOAuthSchema::REFRESH_TOKEN_TABLE, $salesChannelCondition),
+                [...$criteria, 'revokedAt' => $this->now()],
+            );
+
+            if (1 !== $updated) {
+                $this->revokeRefreshTokenFamily((string) $row['sales_channel_id'], (string) $row['client_id'], (string) $row['subject']);
+
+                return null;
+            }
+
+            return $this->issueTokenSet(
+                (string) $row['sales_channel_id'],
+                (string) $row['client_id'],
+                (string) $row['subject'],
+                (string) $row['scope'],
+            );
+        });
+    }
+
+    private function revokeRefreshTokenFamily(string $salesChannelId, string $clientId, string $subject): void
+    {
+        $this->connection->executeStatement(
+            \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE sales_channel_id = :salesChannelId AND client_id = :clientId AND subject = :subject AND revoked_at IS NULL', UcpOAuthSchema::REFRESH_TOKEN_TABLE),
+            [
+                'revokedAt' => $this->now(),
+                'salesChannelId' => (string) hex2bin($salesChannelId),
+                'clientId' => $clientId,
+                'subject' => $subject,
+            ],
         );
     }
 
@@ -162,6 +196,6 @@ final readonly class DoctrineDbalUcpOAuthStore
 
     private function now(): string
     {
-        return (new \DateTimeImmutable())->format(Defaults::STORAGE_DATE_TIME_FORMAT);
+        return (new \DateTimeImmutable())->format('Y-m-d H:i:s.v');
     }
 }
