@@ -4,7 +4,7 @@ This document describes how a human tester validates `SwagAgenticCommerce`
 across the supported Shopware lanes.
 
 Before testing, also read
-[docs/shopware-version-differences.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/shopware-version-differences.md).
+[docs/shopware-version-differences.md](docs/shopware-version-differences.md).
 That file is the memory for lane-specific traps.
 
 ## Scope
@@ -29,7 +29,7 @@ is implemented but opt-in per sales channel. Payment tokenization is
 extension-ready and must remain hidden/`501` unless a real tokenizing payment
 handler is installed and enabled. The expected PSP implementation shape is
 documented in
-[docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md).
+[docs/payment-tokenization-handler.md](docs/payment-tokenization-handler.md).
 
 ## Supported Matrix
 
@@ -41,12 +41,18 @@ documented in
 
 ## Preconditions
 
-- Local checkouts exist for:
-  - `/Users/b.meyer/Documents/Projects/SwagAgenticCommerce`
-  - `/Users/b.meyer/Documents/Projects/ucp-php-sdk`
-  - `/Users/b.meyer/Documents/Projects/shopware-6-5-branch`
-  - `/Users/b.meyer/Documents/Projects/shopware-6-6-branch`
-  - `/Users/b.meyer/Documents/Projects/shopware-trunk`
+- Local checkouts exist for the plugin, SDK, and each Shopware lane. Set the
+  following environment variables to point at them (see `README.md` §
+  *Local development* for the full list and suggested shell profile setup):
+
+  | Variable | Points at |
+  | --- | --- |
+  | `AGENTIC_COMMERCE_PLUGIN_ROOT` | this repository |
+  | `AGENTIC_COMMERCE_SDK_ROOT` | `ucp-php-sdk` checkout |
+  | `AGENTIC_COMMERCE_SHOPWARE_65_ROOT` | `shopware` `6.5.x` checkout |
+  | `AGENTIC_COMMERCE_SHOPWARE_66_ROOT` | `shopware` `6.6.x` checkout |
+  | `AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT` | `shopware` `trunk` checkout |
+
 - Docker or Podman is available.
 - Mutagen is available.
 - `jq` and `curl` are available.
@@ -60,15 +66,15 @@ two-way Mutagen sessions.
 Start or repair one lane:
 
 ```bash
-/Users/b.meyer/scripts/agentic-commerce/ensure-lane-sync 65
-/Users/b.meyer/scripts/agentic-commerce/ensure-lane-sync 66
-/Users/b.meyer/scripts/agentic-commerce/ensure-lane-sync trunk
+~/scripts/agentic-commerce/ensure-lane-sync 65
+~/scripts/agentic-commerce/ensure-lane-sync 66
+~/scripts/agentic-commerce/ensure-lane-sync trunk
 ```
 
 Check all lanes:
 
 ```bash
-/Users/b.meyer/scripts/agentic-commerce/sync-status
+~/scripts/agentic-commerce/sync-status
 ```
 
 Expected result:
@@ -92,9 +98,9 @@ lane-local/disposable:
 Use the lane helpers instead of raw Compose commands:
 
 ```bash
-/Users/b.meyer/scripts/agentic-commerce/lane-exec 65 php -v
-/Users/b.meyer/scripts/agentic-commerce/lane-exec 66 composer run-script build:js:admin
-/Users/b.meyer/scripts/agentic-commerce/lane-shell trunk
+~/scripts/agentic-commerce/lane-exec 65 php -v
+~/scripts/agentic-commerce/lane-exec 66 composer run-script build:js:admin
+~/scripts/agentic-commerce/lane-shell trunk
 ```
 
 The Compose service is named `web` in every lane, but the helpers select the
@@ -105,9 +111,9 @@ correct project/container.
 The normal local path repository setup is handled by:
 
 ```bash
-/Users/b.meyer/scripts/agentic-commerce/bootstrap-lane 65
-/Users/b.meyer/scripts/agentic-commerce/bootstrap-lane 66
-/Users/b.meyer/scripts/agentic-commerce/bootstrap-lane trunk
+~/scripts/agentic-commerce/bootstrap-lane 65
+~/scripts/agentic-commerce/bootstrap-lane 66
+~/scripts/agentic-commerce/bootstrap-lane trunk
 ```
 
 If you must install manually inside a lane container, configure Composer path
@@ -154,9 +160,9 @@ Expected result: all commands pass.
 Use the existing smoke runner from the plugin repo:
 
 ```bash
-bin/ci-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-5-branch
-bin/ci-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-6-branch
-bin/ci-smoke.sh /Users/b.meyer/Documents/Projects/shopware-trunk
+bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_65_ROOT"
+bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT"
+bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT"
 ```
 
 Expected result:
@@ -176,20 +182,20 @@ Use lane-local builds or the smoke script.
 ### 6.5.x
 
 ```bash
-bin/ci-admin-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-5-branch webpack
+bin/ci-admin-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_65_ROOT" webpack
 ```
 
 ### 6.6.x
 
 ```bash
-bin/ci-admin-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-6-branch webpack
-bin/ci-admin-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-6-branch vite
+bin/ci-admin-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT" webpack
+bin/ci-admin-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT" vite
 ```
 
 ### trunk
 
 ```bash
-bin/ci-admin-smoke.sh /Users/b.meyer/Documents/Projects/shopware-trunk vite
+bin/ci-admin-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT" vite
 ```
 
 Expected result:
@@ -264,9 +270,9 @@ Validate the UCP module:
 Use the storefront smoke script:
 
 ```bash
-bin/ci-storefront-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-5-branch
-bin/ci-storefront-smoke.sh /Users/b.meyer/Documents/Projects/shopware-6-6-branch
-bin/ci-storefront-smoke.sh /Users/b.meyer/Documents/Projects/shopware-trunk
+bin/ci-storefront-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_65_ROOT"
+bin/ci-storefront-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT"
+bin/ci-storefront-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT"
 ```
 
 Expected result:
@@ -380,7 +386,7 @@ Expected result:
 - if a project installs real tokenization extensions, repeat this check with
   `payment_tokenization` enabled and verify the profile advertises only the
   installed implementation. Use
-  [docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md)
+  [docs/payment-tokenization-handler.md](docs/payment-tokenization-handler.md)
   as the implementer checklist.
 
 ### Seed Catalog If Needed
