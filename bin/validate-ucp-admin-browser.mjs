@@ -255,13 +255,23 @@ async function expectText(page, text) {
 
 async function assertUcpSettingsItem(page) {
   const state = await page.evaluate(() => {
+    const getSettingsGroups = () => {
+      try {
+        const groups = Shopware?.Store?.get?.('settingsItems')?.settingsGroups;
+        if (groups) {
+          return groups;
+        }
+      } catch {
+        // Shopware 6.5/6.6 can expose settings items through the legacy state
+        // store while the newer Store API is unavailable for browser evals.
+      }
+
+      return Shopware?.State?.get?.('settingsItems')?.settingsGroups ?? {};
+    };
+
     const registry = Shopware?.Module?.getModuleRegistry?.();
     const moduleExists = Boolean(registry?.get?.('sw-settings-ucp'));
-    const settingsGroups = (
-      Shopware?.Store?.get?.('settingsItems')?.settingsGroups
-      ?? Shopware?.State?.get?.('settingsItems')?.settingsGroups
-      ?? {}
-    );
+    const settingsGroups = getSettingsGroups();
     const groups = Object.fromEntries(
       Object.entries(settingsGroups).map(([group, items]) => [
         group,

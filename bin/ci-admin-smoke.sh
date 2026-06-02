@@ -159,9 +159,9 @@ CI_SMOKE_BOOTSTRAP_ONLY=1 \
 cleanup() {
   if [[ "${branch_name}" == "6.6.x" && -n "${feature_backup_mode:-}" ]]; then
     if [[ "${feature_file_preexisted:-0}" == "1" ]]; then
-      web sh -lc 'mv /var/www/html/var/config_js_features.json.swag-agentic-commerce.bak /var/www/html/var/config_js_features.json'
+      web sh -lc 'mv /var/www/html/var/config_js_features.json.swag-agentic-commerce.bak /var/www/html/var/config_js_features.json' || true
     else
-      web sh -lc 'rm -f /var/www/html/var/config_js_features.json /var/www/html/var/config_js_features.json.swag-agentic-commerce.bak'
+      web sh -lc 'rm -f /var/www/html/var/config_js_features.json /var/www/html/var/config_js_features.json.swag-agentic-commerce.bak' || true
     fi
   fi
 
@@ -174,7 +174,14 @@ trap cleanup EXIT
 
 admin_sh 'cd /var/www/html && if [ ! -x src/Administration/Resources/app/administration/node_modules/.bin/ts-node ]; then exit 10; fi' \
   || install_admin_dependencies
-web sh -lc 'cd /var/www/html && php bin/console bundle:dump && php bin/console feature:dump'
+web sh -lc 'cd /var/www/html && php bin/console bundle:dump'
+web sh -lc 'cd /var/www/html && php bin/console feature:dump' || {
+  if [[ "${CI:-}" != "true" && "${BOOTSTRAP_MODE}" != "ci" ]] && web sh -lc 'test -f /var/www/html/var/config_js_features.json'; then
+    echo "Unable to rewrite var/config_js_features.json; continuing with the existing local feature dump." >&2
+  else
+    exit 1
+  fi
+}
 web sh -lc 'cd /var/www/html && jq -e ".SwagAgenticCommerce.administration.entryFilePath == \"Resources/app/administration/src/main.js\"" var/plugins.json >/dev/null' \
   || {
     echo "SwagAgenticCommerce is missing from var/plugins.json after bundle:dump. Check filesystem sync/stale var/plugins.json before building administration." >&2
@@ -186,13 +193,32 @@ if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" != "auto" ]]; then
   feature_backup_mode="${resolved_mode}"
 
   if [[ "${feature_file_preexisted}" == "1" ]]; then
-    web sh -lc 'cp /var/www/html/var/config_js_features.json /var/www/html/var/config_js_features.json.swag-agentic-commerce.bak'
+    web sh -lc 'cp /var/www/html/var/config_js_features.json /var/www/html/var/config_js_features.json.swag-agentic-commerce.bak' || {
+      if [[ "${CI:-}" != "true" && "${BOOTSTRAP_MODE}" != "ci" ]]; then
+        echo "Unable to back up var/config_js_features.json in local 6.6.x; continuing without restore backup." >&2
+        feature_file_preexisted="0"
+      else
+        exit 1
+      fi
+    }
   fi
 
   if [[ "${resolved_mode}" == "vite" ]]; then
-    web sh -lc 'tmp_file="$(mktemp)"; if [ -f /var/www/html/var/config_js_features.json ]; then jq ".ADMIN_VITE = true" /var/www/html/var/config_js_features.json > "${tmp_file}"; else jq -n "{ADMIN_VITE: true}" > "${tmp_file}"; fi; mv "${tmp_file}" /var/www/html/var/config_js_features.json'
+    web sh -lc 'tmp_file="$(mktemp)"; if [ -f /var/www/html/var/config_js_features.json ]; then jq ".ADMIN_VITE = true | .\"admin.vite\" = true" /var/www/html/var/config_js_features.json > "${tmp_file}"; else jq -n "{ADMIN_VITE: true, \"admin.vite\": true}" > "${tmp_file}"; fi; mv "${tmp_file}" /var/www/html/var/config_js_features.json' || {
+      if [[ "${CI:-}" != "true" && "${BOOTSTRAP_MODE}" != "ci" ]]; then
+        echo "Unable to rewrite var/config_js_features.json for local 6.6.x Vite compile-only mode; continuing." >&2
+      else
+        exit 1
+      fi
+    }
   else
-    web sh -lc 'tmp_file="$(mktemp)"; if [ -f /var/www/html/var/config_js_features.json ]; then jq ".ADMIN_VITE = false" /var/www/html/var/config_js_features.json > "${tmp_file}"; else jq -n "{ADMIN_VITE: false}" > "${tmp_file}"; fi; mv "${tmp_file}" /var/www/html/var/config_js_features.json'
+    web sh -lc 'tmp_file="$(mktemp)"; if [ -f /var/www/html/var/config_js_features.json ]; then jq ".ADMIN_VITE = false | .\"admin.vite\" = false" /var/www/html/var/config_js_features.json > "${tmp_file}"; else jq -n "{ADMIN_VITE: false, \"admin.vite\": false}" > "${tmp_file}"; fi; mv "${tmp_file}" /var/www/html/var/config_js_features.json' || {
+      if [[ "${CI:-}" != "true" && "${BOOTSTRAP_MODE}" != "ci" ]]; then
+        echo "Unable to rewrite var/config_js_features.json for local 6.6.x webpack mode; continuing with the existing feature dump." >&2
+      else
+        exit 1
+      fi
+    }
   fi
 fi
 
@@ -208,12 +234,10 @@ fi
 
 web php /var/www/html/bin/console assets:install
 
-if [[ "${resolved_mode}" == "webpack" ]]; then
-  # A previous Vite/dev run can leave this file behind. On 6.6 with ADMIN_VITE
-  # disabled the admin can still pick it up and try loading plugins from a
-  # non-running dev server, so the built static plugin bundle never registers.
-  web sh -lc 'rm -f /var/www/html/public/bundles/administration/administration/sw-plugin-dev.json'
-fi
+# A previous Vite/dev run can leave this file behind. Production admin
+# validation must use the built static plugin bundle, not a non-running dev
+# server entry from sw-plugin-dev.json.
+web sh -lc 'rm -f /var/www/html/public/bundles/administration/administration/sw-plugin-dev.json'
 
 bundle_artifact="$(web sh -lc 'find /var/www/html/public -path "*swagagenticcommerce*" -type f | head -n 1')"
 
@@ -229,15 +253,17 @@ if ! grep -q 'Log in to Shopware' <<<"${admin_html}" && ! grep -q 'Administratio
 fi
 
 if [[ "${CI_ADMIN_BROWSER_VALIDATE:-0}" == "1" ]]; then
-  if [[ ! -d "${PLUGIN_ROOT}/node_modules/@playwright/test" ]]; then
+  if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
+    echo "Skipping browser validation for 6.6.x Vite compile-only mode. The 6.6 ADMIN_VITE feature is non-toggleable in this lane; browser/admin validation runs on webpack." >&2
+  elif [[ ! -d "${PLUGIN_ROOT}/node_modules/@playwright/test" ]]; then
     echo "Playwright dependencies are missing. Run 'npm install' in ${PLUGIN_ROOT} before enabling CI_ADMIN_BROWSER_VALIDATE=1." >&2
     exit 1
+  else
+    UCP_ADMIN_SCREENSHOT_DIR="${PLUGIN_ROOT}/var/qa/admin-screenshots/${branch_name}/${resolved_mode}" \
+      node "${PLUGIN_ROOT}/bin/validate-ucp-admin-browser.mjs" \
+        --base-url "${BASE_URL}" \
+        --lane "${branch_name}-${resolved_mode}"
   fi
-
-  UCP_ADMIN_SCREENSHOT_DIR="${PLUGIN_ROOT}/var/qa/admin-screenshots/${branch_name}/${resolved_mode}" \
-    node "${PLUGIN_ROOT}/bin/validate-ucp-admin-browser.mjs" \
-      --base-url "${BASE_URL}" \
-      --lane "${branch_name}-${resolved_mode}"
 fi
 
 echo "Administration build and login-shell smoke passed for ${SHOPWARE_DIR} (${branch_name:-unknown}, ${resolved_mode})."
