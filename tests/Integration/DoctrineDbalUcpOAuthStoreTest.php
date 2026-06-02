@@ -69,9 +69,8 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
     #[Test]
     public function testAuthorizationCodeHashCollisionDoesNotOverwriteExistingCode(): void
     {
-        $statements = [];
-        $inserts = [];
-        $connection = $this->connection($statements, $inserts);
+        $connection = $this->createMock(Connection::class);
+        $connection->method('executeStatement')->willReturn(0);
         $connection->method('insert')->willThrowException($this->uniqueConstraintViolation());
         $connection->expects(static::never())->method('update');
 

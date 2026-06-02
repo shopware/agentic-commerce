@@ -30,7 +30,7 @@ final class UcpConfigServiceTest extends TestCase
         static::assertSame(['catalog', 'checkout'], $service->getConfig('sales-channel-a')->enabledCapabilities);
     }
 
-    public function testItMigratesLegacySystemConfigIntoRepositoryOnRead(): void
+    public function testItBackfillsLegacySystemConfigForSalesChannelScopedCompatibility(): void
     {
         $repository = new InMemoryUcpConfigRepository();
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);

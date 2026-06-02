@@ -31,20 +31,14 @@ final readonly class EmbeddedResponseListener
         $config = $this->configService->getConfig($this->domainResolver->resolveByAbsoluteUri($request->getUri())?->salesChannelId);
         $origin = $request->headers->get('origin');
 
-        if (!\is_string($origin) || '' === $origin || [] === $config->embeddedAllowedOrigins) {
+        if ([] === $config->embeddedAllowedOrigins) {
+            $event->setResponse($this->forbidden('Embedded origins are not configured for this sales channel.'));
+
             return;
         }
 
-        if (!\in_array($origin, $config->embeddedAllowedOrigins, true)) {
-            $event->setResponse(new JsonResponse([
-                'ucp' => [
-                    'status' => 'error',
-                ],
-                'messages' => [[
-                    'type' => 'error',
-                    'content' => 'Embedded origin is not allowlisted for this sales channel.',
-                ]],
-            ], Response::HTTP_FORBIDDEN));
+        if (!\is_string($origin) || '' === $origin || !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
+            $event->setResponse($this->forbidden('Embedded origin is not allowlisted for this sales channel.'));
         }
     }
 
@@ -74,5 +68,18 @@ final readonly class EmbeddedResponseListener
     private function isEmbeddedRequest(string $path): bool
     {
         return str_starts_with($path, '/ucp/embedded/');
+    }
+
+    private function forbidden(string $message): JsonResponse
+    {
+        return new JsonResponse([
+            'ucp' => [
+                'status' => 'error',
+            ],
+            'messages' => [[
+                'type' => 'error',
+                'content' => $message,
+            ]],
+        ], Response::HTTP_FORBIDDEN);
     }
 }

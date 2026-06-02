@@ -10,12 +10,22 @@ function loadComponent(importComponent) {
 }
 
 function resolveSettingsGroup() {
+    const version = Shopware.Context?.app?.config?.version ?? '';
+
+    // The registry can still be incomplete while plugin modules are registered.
+    // Use the loaded administration version first so trunk/6.7 keeps the
+    // commerce placement while 6.5/6.6 stay in the legacy shop group.
+    if (/^6\.(5|6)\./.test(version)) {
+        return 'shop';
+    }
+
+    if (/^6\./.test(version)) {
+        return 'commerce';
+    }
+
     const settingsModule = Module.getModuleRegistry().get('sw-settings');
     const settingsChildren = settingsModule?.routes?.index?.children ?? {};
 
-    // Shopware 6.5 and 6.6 only expose the legacy "shop" settings group. The
-    // newer commerce taxonomy is available on trunk/6.7+ and should stay the
-    // preferred placement there.
     if (Object.prototype.hasOwnProperty.call(settingsChildren, 'commerce')) {
         return 'commerce';
     }

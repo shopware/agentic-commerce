@@ -54,6 +54,11 @@ try {
 
   await login(page, baseUrl, username, password);
 
+  await page.goto(`${baseUrl}/admin#/sw/settings/index`);
+  await page.locator('.sw-settings-index').first().waitFor({ state: 'visible', timeout: routeTimeout });
+  await assertUcpSettingsItem(page);
+  await page.screenshot({ path: path.join(screenshotDir, `admin-ucp-${safeName(lane)}-settings.png`), fullPage: true });
+
   await page.goto(`${baseUrl}/admin#/sw/settings/ucp/index`);
   await page.locator('.sw-settings-ucp-index').first().waitFor({ state: 'visible', timeout: routeTimeout });
   await expectText(page, 'UCP');
@@ -75,6 +80,12 @@ try {
   if (!salesChannel?.id) {
     fail('No sales channel returned by the UCP admin API.');
   }
+
+  await page.goto(`${baseUrl}/admin#/sw/sales/channel/detail/${salesChannel.id}/base`);
+  await page.locator('.sw-sales-channel-detail').first().waitFor({ state: 'visible', timeout: routeTimeout });
+  await expectText(page, 'Agent access');
+  await expectText(page, 'Configure UCP');
+  await page.screenshot({ path: path.join(screenshotDir, `admin-ucp-${safeName(lane)}-sales-channel.png`), fullPage: true });
 
   const expectedTransports = salesChannelsPayload.meta?.supportsStoreApiMcp === true
     ? ['rest', 'a2a', 'embedded', 'mcp']
@@ -240,6 +251,49 @@ async function createAdminApiContext(baseUrl, user, pass) {
 
 async function expectText(page, text) {
   await page.getByText(text, { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 });
+}
+
+async function assertUcpSettingsItem(page) {
+  const state = await page.evaluate(() => {
+    const registry = Shopware?.Module?.getModuleRegistry?.();
+    const moduleExists = Boolean(registry?.get?.('sw-settings-ucp'));
+    const settingsGroups = (
+      Shopware?.Store?.get?.('settingsItems')?.settingsGroups
+      ?? Shopware?.State?.get?.('settingsItems')?.settingsGroups
+      ?? {}
+    );
+    const groups = Object.fromEntries(
+      Object.entries(settingsGroups).map(([group, items]) => [
+        group,
+        (items || []).map((item) => ({
+          name: item.name ?? null,
+          to: typeof item.to === 'string' ? item.to : item.to?.name ?? null,
+          label: typeof item.label === 'string' ? item.label : item.label?.label ?? null,
+        })),
+      ]),
+    );
+
+    return {
+      moduleExists,
+      groups,
+      ucpItems: Object.entries(groups).flatMap(([group, items]) => (
+        items
+          .filter((item) => item.name === 'sw-settings-ucp' || item.to === 'sw.settings.ucp.index' || /ucp/i.test(item.label || ''))
+          .map((item) => ({ group, ...item }))
+      )),
+    };
+  });
+
+  if (!state.moduleExists) {
+    fail('The sw-settings-ucp administration module was not registered.');
+  }
+
+  if (state.ucpItems.length === 0) {
+    fail(`The UCP settings item was not registered in the settings item store.\n${JSON.stringify(state.groups, null, 2)}`);
+  }
+
+  const settingsLink = page.locator('a[href*="sw/settings/ucp/index"], a[href*="sw.settings.ucp.index"]').first();
+  await settingsLink.waitFor({ state: 'visible', timeout: routeTimeout });
 }
 
 async function assertOk(response, message) {

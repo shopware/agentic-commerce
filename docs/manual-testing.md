@@ -77,8 +77,15 @@ Expected result:
 - every session is watching for changes
 - plugin and SDK files exist inside each lane container
 
-Generated files are created inside the lane containers and sync back to the
-host. This is intentional. Shopware checkouts can become dirty after builds.
+Generated files are created inside the lane containers. Some Shopware checkout
+changes can sync back and become dirty after builds, but UCP admin bundles are
+lane-local/disposable:
+
+- `var/plugins.json` is generated per lane by Shopware and must not be copied
+  between lanes.
+- `src/Resources/public/` and `public/bundles/swagagenticcommerce/` are ignored
+  by the lane sync helper and cleaned by `bin/ci-admin-smoke.sh` before each
+  admin build.
 
 ## Running Commands In A Lane
 
@@ -248,7 +255,8 @@ Validate the UCP module:
 - save works
 - key create, retire, and delete actions respond
 - profile preview renders
-- profile preview shows REST/A2A/embedded on 6.5/6.6 and REST/A2A/embedded/MCP on trunk only when `/store-api/_mcp` exists
+- profile preview shows REST/A2A/embedded on 6.5/6.6 and REST/A2A/embedded/MCP on trunk only when the Store API MCP core route exists
+- trunk profile advertises MCP at `/ucp/mcp`; the plugin proxies internally to `/store-api/_mcp` without exposing the sales-channel access key
 - browser console has no UCP runtime error
 
 ## Storefront Build Validation

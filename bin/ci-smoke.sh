@@ -16,8 +16,28 @@ done
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
 SDK_ROOT="${SDK_ROOT:-${PLUGIN_ROOT}/../ucp-php-sdk}"
-SHOPWARE_BRANCH="${SHOPWARE_REF:-$(git -C "${SHOPWARE_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)}"
 SMOKE_MODE="${CI_SMOKE_MODE:-}"
+
+detect_shopware_lane() {
+  if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
+    printf '%s\n' "${SHOPWARE_REF}"
+    return 0
+  fi
+
+  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
+    printf 'trunk\n'
+    return 0
+  fi
+
+  if grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
+    printf '6.6.x\n'
+    return 0
+  fi
+
+  printf '6.5.x\n'
+}
+
+SHOPWARE_BRANCH="$(detect_shopware_lane)"
 
 if [[ -z "${SMOKE_MODE}" ]]; then
   if [[ -n "${CI:-}" ]]; then
@@ -431,7 +451,7 @@ assert_jq "${profile_json}" 'Expected the profile to expose only the enabled sho
 assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.payment_handlers | type == "array" and length == 0'
 
 if [[ "${store_api_mcp_available}" == "1" ]]; then
-  assert_jq "${profile_json}" 'Expected MCP transport to point at the Store API MCP endpoint.' '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint == $endpoint' --arg endpoint "${BASE_URL}/store-api/_mcp"
+  assert_jq "${profile_json}" 'Expected MCP transport to point at the public UCP MCP endpoint.' '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint == $endpoint' --arg endpoint "${BASE_URL}/ucp/mcp"
 else
   assert_jq "${profile_json}" 'Expected MCP transport to stay hidden when Store API MCP is unavailable.' '[.services["dev.ucp.shopping"][] | select(.transport == "mcp")] | length == 0'
 fi

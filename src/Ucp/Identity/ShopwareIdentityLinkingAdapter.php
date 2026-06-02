@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
@@ -71,10 +72,8 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
             throw new OAuthException('Customer context token does not belong to the current sales channel.');
         }
 
-        $code = 'ucp_code_'.bin2hex(random_bytes(24));
-        $this->oauthStore->saveAuthorizationCode(
+        $code = $this->saveAuthorizationCode(
             $salesChannel->salesChannelId,
-            $code,
             $request->clientId,
             $request->redirectUri,
             $customer->getId(),
@@ -100,13 +99,14 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
 
     public function issueToken(OAuthTokenRequest $request, RequestContext $context): OAuthTokenResponse
     {
-        $salesChannel = $this->contextResolver->resolveSalesChannel($context);
-
         if ('refresh_token' === $request->grantType) {
             if (null === $request->refreshToken || '' === $request->refreshToken) {
                 throw new OAuthException('Missing refresh token.');
             }
 
+            $this->assertClientId($request->clientId ?? '');
+
+            $salesChannel = $this->contextResolver->resolveSalesChannel($context);
             $tokenSet = $this->oauthStore->refreshTokenSet($request->refreshToken, $request->clientId, $salesChannel->salesChannelId);
             if (null === $tokenSet) {
                 throw new OAuthException('Refresh token is invalid or expired.');
@@ -127,16 +127,23 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
             throw new OAuthException('PKCE code verifier is required.');
         }
 
+        if (null === $request->redirectUri || '' === $request->redirectUri) {
+            throw new OAuthException('Redirect URI is required for authorization code exchange.');
+        }
+
+        $this->assertClientId($request->clientId ?? '');
+
+        $salesChannel = $this->contextResolver->resolveSalesChannel($context);
         $authorization = $this->oauthStore->consumeAuthorizationCode($request->code, $salesChannel->salesChannelId);
         if (null === $authorization) {
             throw new OAuthException('Authorization code is invalid, expired, or already consumed.');
         }
 
-        if (null !== $request->clientId && '' !== $request->clientId && !hash_equals($authorization->clientId, $request->clientId)) {
+        if (!hash_equals($authorization->clientId, $request->clientId)) {
             throw new OAuthException('Client ID does not match the authorization code.');
         }
 
-        if (null !== $request->redirectUri && '' !== $request->redirectUri && !hash_equals($authorization->redirectUri, $request->redirectUri)) {
+        if (!hash_equals($authorization->redirectUri, $request->redirectUri)) {
             throw new OAuthException('Redirect URI does not match the authorization code.');
         }
 
@@ -156,6 +163,39 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
         );
 
         return new OAuthTokenResponse($tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
+    }
+
+    private function saveAuthorizationCode(
+        string $salesChannelId,
+        string $clientId,
+        string $redirectUri,
+        string $subject,
+        string $scope,
+        string $codeChallenge,
+        string $codeChallengeMethod,
+    ): string {
+        for ($attempt = 0; $attempt < 3; ++$attempt) {
+            $code = 'ucp_code_'.bin2hex(random_bytes(24));
+
+            try {
+                $this->oauthStore->saveAuthorizationCode(
+                    $salesChannelId,
+                    $code,
+                    $clientId,
+                    $redirectUri,
+                    $subject,
+                    $scope,
+                    $codeChallenge,
+                    $codeChallengeMethod,
+                );
+
+                return $code;
+            } catch (UniqueConstraintViolationException) {
+                continue;
+            }
+        }
+
+        throw new OAuthException('Unable to issue a unique OAuth authorization code.');
     }
 
     private function baseUri(RequestContext $context): string

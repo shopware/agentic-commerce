@@ -51,7 +51,7 @@
 
 .sw-settings-ucp-detail__summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
     gap: 14px;
     min-width: 0;
 }
@@ -62,6 +62,10 @@
     border: 1px solid #d9e3f0;
     border-radius: 16px;
     background: linear-gradient(180deg, #fbfdff 0%, #f3f8fc 100%);
+}
+
+.sw-settings-ucp-detail__summary-card:last-child {
+    grid-column: 1 / -1;
 }
 
 .sw-settings-ucp-detail__summary-label,
@@ -81,6 +85,12 @@
     font-size: 18px;
     font-weight: 700;
     color: #182432;
+}
+
+.sw-settings-ucp-detail__summary-value--domains {
+    font-size: 15px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
 }
 
 .sw-settings-ucp-detail__status-pill {
@@ -137,24 +147,211 @@
 }
 
 .sw-settings-ucp-detail__field-stack,
-.sw-settings-ucp-detail__checkbox-stack,
 .sw-settings-ucp-detail__keys {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
+.sw-settings-ucp-detail__section .sw-alert,
+.sw-settings-ucp-detail__section .mt-banner {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.sw-settings-ucp-detail__field-stack .sw-alert,
+.sw-settings-ucp-detail__field-stack .mt-banner {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.sw-settings-ucp-detail__checkbox-grid + .sw-alert,
+.sw-settings-ucp-detail__checkbox-grid + .mt-banner {
+    margin-top: 28px !important;
+}
+
+.sw-settings-ucp-detail__field-stack .sw-alert__message,
+.sw-settings-ucp-detail__field-stack .sw-alert__body,
+.sw-settings-ucp-detail__field-stack .mt-banner__message,
+.sw-settings-ucp-detail__field-stack .mt-banner__body,
+.sw-settings-ucp-detail__section .sw-alert .sw-alert__message,
+.sw-settings-ucp-detail__section .sw-alert .sw-alert__body,
+.sw-settings-ucp-detail__section .mt-banner .mt-banner__message,
+.sw-settings-ucp-detail__section .mt-banner .mt-banner__body {
+    font-size: 16px;
+    line-height: 1.55;
+}
+
+.sw-settings-ucp-detail__field-stack .mt-banner__body,
+.sw-settings-ucp-detail__section .mt-banner .mt-banner__body {
+    flex: 1 1 auto;
+    max-width: none;
+}
+
+.sw-settings-ucp-detail__form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+}
+
+.sw-settings-ucp-detail__form-full,
+.sw-settings-ucp-detail__security-full {
+    grid-column: 1 / -1;
+}
+
+.sw-settings-ucp-detail__form-grid .sw-field,
+.sw-settings-ucp-detail__form-grid .mt-field,
+.sw-settings-ucp-detail__form-grid .sw-block-field,
+.sw-settings-ucp-detail__form-grid .mt-text-field,
+.sw-settings-ucp-detail__form-grid .sw-single-select,
+.sw-settings-ucp-detail__form-grid .mt-select,
+.sw-settings-ucp-detail__security-grid .sw-field,
+.sw-settings-ucp-detail__security-grid .mt-field,
+.sw-settings-ucp-detail__security-grid .sw-block-field,
+.sw-settings-ucp-detail__security-grid .mt-text-field,
+.sw-settings-ucp-detail__security-grid .sw-single-select,
+.sw-settings-ucp-detail__security-grid .mt-select {
+    margin-bottom: 0 !important;
+}
+
+.sw-settings-ucp-detail__form-switch,
+.sw-settings-ucp-detail__security-grid .sw-switch-field,
+.sw-settings-ucp-detail__security-grid .mt-switch,
+.sw-settings-ucp-detail__security-grid .mt-field--switch {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+.sw-settings-ucp-detail__security-grid .sw-switch-field,
+.sw-settings-ucp-detail__security-grid .mt-switch,
+.sw-settings-ucp-detail__security-grid .mt-field--switch {
+    margin-top: 27px !important;
+}
+
+.sw-settings-ucp-detail__switch-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 46px;
+    align-self: end;
+    margin-top: 0;
+}
+
+.sw-settings-ucp-detail__switch-inline .sw-switch-field,
+.sw-settings-ucp-detail__switch-inline .mt-switch,
+.sw-settings-ucp-detail__switch-inline .mt-field--switch {
+    margin: 0 !important;
+}
+
+.sw-settings-ucp-detail__switch-inline .sw-field,
+.sw-settings-ucp-detail__switch-inline .mt-field {
+    width: auto !important;
+}
+
+.sw-settings-ucp-detail__switch-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 60px);
+    white-space: normal;
+}
+
+.sw-settings-ucp-detail__checkbox-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 18px 28px;
+}
+
+.sw-settings-ucp-detail__checkbox-grid > * {
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 0 !important;
+}
+
+.sw-settings-ucp-detail__checkbox-grid .sw-field,
+.sw-settings-ucp-detail__checkbox-grid .mt-field,
+.sw-settings-ucp-detail__checkbox-grid .sw-checkbox-field,
+.sw-settings-ucp-detail__checkbox-grid .mt-checkbox,
+.sw-settings-ucp-detail__checkbox-grid .mt-field--checkbox,
+.sw-settings-ucp-detail__checkbox-grid .mt-field--checkbox__container {
+    width: auto !important;
+    max-width: 100%;
+    margin: 0 !important;
+}
+
+.sw-settings-ucp-detail__checkbox-grid .sw-field--checkbox__content,
+.sw-settings-ucp-detail__checkbox-grid .sw-checkbox-field__content,
+.sw-settings-ucp-detail__checkbox-grid .mt-field--checkbox__container,
+.sw-settings-ucp-detail__checkbox-grid .mt-checkbox__content {
+    display: inline-flex;
+    align-items: center;
+    width: auto !important;
+    min-width: 0;
+}
+
+.sw-settings-ucp-detail__checkbox-grid .sw-field--checkbox__content {
+    gap: 0;
+}
+
+.sw-settings-ucp-detail__checkbox-grid .sw-field__label,
+.sw-settings-ucp-detail__checkbox-grid .sw-checkbox-field__label,
+.sw-settings-ucp-detail__checkbox-grid .mt-field__label,
+.sw-settings-ucp-detail__checkbox-grid .mt-checkbox__label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex: 0 0 auto;
+    margin-left: 8px;
+    margin-right: 0;
+    white-space: nowrap;
+}
+
+.sw-settings-ucp-detail__checkbox-grid .sw-field__label label,
+.sw-settings-ucp-detail__checkbox-grid .sw-checkbox-field__label label,
+.sw-settings-ucp-detail__checkbox-grid .mt-field__label label,
+.sw-settings-ucp-detail__checkbox-grid .mt-checkbox__label label {
+    margin-right: 6px;
+}
+
+.sw-settings-ucp-detail__checkbox-grid .sw-help-text,
+.sw-settings-ucp-detail__checkbox-grid .sw-help-text__icon,
+.sw-settings-ucp-detail__checkbox-grid .mt-help-text,
+.sw-settings-ucp-detail__checkbox-grid .mt-help-text__icon {
+    flex: 0 0 auto;
+    margin-left: 0 !important;
+}
+
 .sw-settings-ucp-detail__key-create {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(180px, 0.8fr) auto;
-    gap: 16px;
+    grid-template-columns: minmax(210px, 1fr) minmax(170px, 240px) minmax(220px, 240px);
+    gap: 18px;
     align-items: end;
+    max-width: 1040px;
     margin-bottom: 20px;
 }
 
 .sw-settings-ucp-detail__key-create-button {
+    grid-column: auto;
+    justify-self: stretch;
     align-self: end;
+    min-width: 220px !important;
+    width: 100% !important;
+    height: 48px;
     margin: 0;
+}
+
+.sw-settings-ucp-detail__key-create .sw-field,
+.sw-settings-ucp-detail__key-create .mt-field,
+.sw-settings-ucp-detail__key-create .sw-block-field,
+.sw-settings-ucp-detail__key-create .mt-text-field,
+.sw-settings-ucp-detail__key-create .sw-single-select,
+.sw-settings-ucp-detail__key-create .mt-select {
+    margin-bottom: 0 !important;
 }
 
 .sw-settings-ucp-detail__key-row {
@@ -237,8 +434,7 @@
     border-radius: 18px;
     background: #182432;
     color: #f7fbff;
-    font-size: 13px;
-    line-height: 1.6;
+    font: 16px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     overflow: auto;
 }
 
@@ -246,12 +442,34 @@
     .sw-settings-ucp-detail__summary-grid,
     .sw-settings-ucp-detail__preview-summary,
     .sw-settings-ucp-detail__key-meta,
+    .sw-settings-ucp-detail__form-grid,
+    .sw-settings-ucp-detail__security-grid,
     .sw-settings-ucp-detail__key-create {
         grid-template-columns: 1fr;
+    }
+
+    .sw-settings-ucp-detail__checkbox-grid {
+        gap: 10px 18px;
+    }
+
+    .sw-settings-ucp-detail__switch-inline {
+        margin-top: 0;
+        flex-wrap: wrap;
+    }
+
+    .sw-settings-ucp-detail__switch-label {
+        white-space: normal;
     }
 
     .sw-settings-ucp-detail__key-header,
     .sw-settings-ucp-detail__key-actions {
         justify-content: flex-start;
+    }
+
+    .sw-settings-ucp-detail__key-create-button {
+        grid-column: 1;
+        justify-self: stretch;
+        min-width: 0 !important;
+        width: 100% !important;
     }
 }

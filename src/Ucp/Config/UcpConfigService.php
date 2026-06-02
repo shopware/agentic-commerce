@@ -54,6 +54,10 @@ final readonly class UcpConfigService
         $config = UcpConfig::fromArray($legacyPayload);
 
         if ($this->hasLegacyValues($legacyPayload)) {
+            // Compatibility bridge for legacy SystemConfig-backed setups,
+            // including warm local installations that existed before the
+            // sales-channel scoped config table was populated. Keep this until a
+            // dedicated backfill migration/command replaces read-time migration.
             $this->repository->save($salesChannelId, $config);
         }
 

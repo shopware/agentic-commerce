@@ -15,9 +15,14 @@ The plugin targets UCP parity with the Shopware 6.7 UCP work while keeping the a
 | REST | enabled | enabled | enabled |
 | A2A | configurable | configurable | configurable |
 | Embedded | configurable | configurable | configurable |
-| MCP | hidden from runtime, disabled in admin | hidden from runtime, disabled in admin | enabled only when core `/store-api/_mcp` exists |
+| MCP | hidden from runtime, disabled in admin | hidden from runtime, disabled in admin | enabled only when core Store API MCP exists |
 
-MCP must use the Store API endpoint `/store-api/_mcp`, with `sw-access-key` and `sw-context-token`. The admin MCP endpoint `/api/_mcp` remains for merchant/admin automation and is not used for buyer-facing UCP.
+UCP advertises the buyer-facing MCP endpoint as `/ucp/mcp`. On trunk, the
+plugin proxies that route to the core Store API MCP endpoint `/store-api/_mcp`
+and injects the sales-channel access key server-side. The access key must never
+be exposed in the UCP profile or required from the MCP client. The admin MCP
+endpoint `/api/_mcp` remains for merchant/admin automation and is not used for
+buyer-facing UCP.
 
 OAuth identity linking is implemented as an optional plugin-backed capability:
 
@@ -38,7 +43,8 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
 ## Implementation Decisions
 
 - Keep REST/A2A/embedded in the plugin/SDK transport surface.
-- Do not ship a plugin-owned `/ucp/mcp`; MCP depends on the 6.7 core Store API MCP endpoint.
+- Ship a plugin-owned `/ucp/mcp` discovery endpoint that delegates to the 6.7
+  core Store API MCP endpoint without leaking the sales-channel access key.
 - Register UCP MCP tools into the Store API MCP registry once the core PR is available.
 - Keep all transports behind the same capability layer so catalog/cart/checkout/order behavior does not fork per protocol.
 - Show unsupported transports in admin as disabled with concrete reasons.
@@ -84,9 +90,10 @@ Validated local profile matrix:
 - 6.6: `bin/validate-ucp-store.sh http://music-66.localhost:8101` returns REST/A2A/embedded.
 - 6.7/trunk: `bin/validate-ucp-store.sh http://music-trunk.localhost:8100` returns REST/MCP/A2A/embedded when the Store API MCP core branch is present.
 
-For trunk MCP validation, initialize `/store-api/_mcp` with a sales-channel
-`sw-access-key`, then call `tools/list`. The expected UCP tool names cover the
-shopping operation matrix: `shopware-ucp-catalog-search`,
+For trunk MCP validation, initialize `/ucp/mcp`, then call `tools/list`. The
+plugin resolves the current sales-channel access key internally before
+delegating to `/store-api/_mcp`. The expected UCP tool names cover the shopping
+operation matrix: `shopware-ucp-catalog-search`,
 `shopware-ucp-catalog-lookup`, cart create/get/update/cancel, discount apply,
 checkout create/get/update/complete/cancel, and order get.
 
@@ -109,7 +116,8 @@ Required browser assertions:
 
 - 6.5 admin: MCP disabled, REST/A2A/embedded visible.
 - 6.6 admin: MCP disabled, REST/A2A/embedded visible.
-- 6.7/trunk admin: MCP enabled only when `/store-api/_mcp` exists.
+- 6.7/trunk admin: MCP enabled only when the core Store API MCP route exists;
+  the profile advertises `/ucp/mcp`.
 - Profile preview: effective transports match the runtime matrix.
 - Sales-channel shortcut: opens the UCP detail page for the selected sales channel.
 

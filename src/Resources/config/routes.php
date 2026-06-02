@@ -8,6 +8,7 @@ use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
 return static function (RoutingConfigurator $routes): void {
     $routes->import('../../Ucp/Admin/Api/', 'attribute');
+    $routes->import('../../Ucp/Mcp/Api/', 'attribute');
     $routes->import('../../Ucp/Test/Api/', 'attribute');
 
     $sdkRouteCandidates = [

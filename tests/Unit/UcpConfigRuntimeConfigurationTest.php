@@ -47,7 +47,7 @@ final class UcpConfigRuntimeConfigurationTest extends TestCase
 
         self::assertSame([Transport::Rest, Transport::Mcp], $runtimeConfiguration->transports);
         self::assertSame([
-            'mcp' => 'https://merchant.example/store-api/_mcp',
+            'mcp' => 'https://merchant.example/ucp/mcp',
         ], $runtimeConfiguration->transportEndpoints);
     }
 }

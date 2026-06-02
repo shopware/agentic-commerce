@@ -136,10 +136,17 @@ administration builds, browser validation, or local lane tooling.
 - Base Shopware syncs must still ignore the separately synced runtime checkouts:
   - `/custom/plugins/SwagAgenticCommerce`
   - `/custom/ucp-php-sdk`
+- Base Shopware syncs must also ignore installed plugin admin bundles:
+  - `/public/bundles/swagagenticcommerce`
 - Base Shopware syncs must still ignore heavy runtime dependency/state folders:
   - `/vendor/`
   - `**/node_modules/`
   - `/var/`
+- Plugin syncs must ignore generated plugin admin bundles:
+  - `/src/Resources/public/`
+- `var/plugins.json` is lane-local generated Shopware metadata. Never copy it
+  between lanes or sync it from the plugin checkout; rerun `bundle:dump` or the
+  admin smoke script when the admin shell does not advertise UCP.
 - Do not run multiple lanes against the same container name. Two-way sync is
   safe only because each lane now has its own container target.
 - Use `/Users/b.meyer/scripts/agentic-commerce/sync-status` before blaming a
@@ -176,8 +183,10 @@ administration builds, browser validation, or local lane tooling.
   containers.
 - The source of truth is the persistent Mutagen session for each lane:
   Shopware base checkout, plugin checkout, and SDK checkout.
-- Generated files are produced inside the lane containers and sync back to the
-  host. Dirty Shopware checkouts after builds are expected.
+- Generated source-independent files are produced inside the lane containers.
+  Dirty Shopware checkouts after builds are expected, but plugin admin bundles
+  under `src/Resources/public/` and installed UCP bundles under
+  `public/bundles/swagagenticcommerce/` must stay lane-local/disposable.
 - If a file looks stale, check `sync-status` before rebuilding or copying
   anything manually.
 

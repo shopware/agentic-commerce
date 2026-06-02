@@ -148,7 +148,7 @@ final readonly class UcpConfig
         }
 
         return [
-            Transport::Mcp->value => $this->resolveBaseUri($fallbackBaseUri).'/store-api/_mcp',
+            Transport::Mcp->value => $this->resolveBaseUri($fallbackBaseUri).'/ucp/mcp',
         ];
     }
 

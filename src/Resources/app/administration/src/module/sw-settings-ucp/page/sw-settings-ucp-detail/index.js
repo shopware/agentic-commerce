@@ -356,12 +356,15 @@ export default {
             this.keys = response.data.data || [];
         },
 
-        firstDomainUrl() {
+        domainUrls() {
             if (!this.salesChannel || !Array.isArray(this.salesChannel.domains) || this.salesChannel.domains.length === 0) {
                 return this.$tc('sw-settings-ucp.general.noDomainLabel');
             }
 
-            return this.salesChannel.domains[0].url;
+            return this.salesChannel.domains
+                .map((domain) => domain.url)
+                .filter((url) => !!url)
+                .join(', ');
         },
 
         formatKeyStatus(status) {

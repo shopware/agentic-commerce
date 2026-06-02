@@ -42,6 +42,13 @@ The script handles the important differences:
 - `6.5.x` can still consume legacy static administration assets. If the browser
   shows stale labels or layout, check installed assets under
   `public/bundles/swagagenticcommerce/` before changing source code.
+- Do not copy or sync `var/plugins.json` manually. It is generated per Shopware
+  lane by `bundle:dump`; if UCP is missing from the admin shell, rerun the lane
+  admin smoke instead of reusing metadata from another lane.
+- Treat `src/Resources/public/` and
+  `public/bundles/swagagenticcommerce/` as generated admin output. The lane sync
+  helper ignores these paths and the admin smoke script cleans them before each
+  build to avoid webpack/Vite cross-lane pollution.
 - Browser validation is mandatory on each lane after admin UI changes.
 
 ## Further References

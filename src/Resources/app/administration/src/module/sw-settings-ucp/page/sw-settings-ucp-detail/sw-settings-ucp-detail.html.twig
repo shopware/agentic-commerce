@@ -19,7 +19,7 @@
     <template #content>
         <sw-card-view>
             <sw-card class="sw-settings-ucp-detail__hero" :isLoading="isLoading">
-                <div class="sw-settings-ucp-detail__hero-shell" style="display:flex; flex-direction:column; gap:24px;">
+                <div class="sw-settings-ucp-detail__hero-shell">
                     <div>
                         <p class="sw-settings-ucp-detail__eyebrow">{{ $tc('sw-settings-ucp.general.salesChannelLabel') }}</p>
                         <h3 class="sw-settings-ucp-detail__title">{{ salesChannel ? salesChannel.name : $tc('sw-settings-ucp.general.detailTitle') }}</h3>
@@ -57,8 +57,8 @@
                                 <span class="sw-settings-ucp-detail__summary-value">{{ transportSummaryLabel }}</span>
                             </div>
                             <div class="sw-settings-ucp-detail__summary-card">
-                                <span class="sw-settings-ucp-detail__summary-label">{{ $tc('sw-settings-ucp.general.primaryDomainLabel') }}</span>
-                                <span class="sw-settings-ucp-detail__summary-value">{{ firstDomainUrl() }}</span>
+                                <span class="sw-settings-ucp-detail__summary-label">{{ $tc('sw-settings-ucp.general.domainsLabel') }}</span>
+                                <span class="sw-settings-ucp-detail__summary-value sw-settings-ucp-detail__summary-value--domains">{{ domainUrls() }}</span>
                             </div>
                         </div>
 
@@ -73,15 +73,16 @@
                 </div>
             </sw-card>
 
-            <div class="sw-settings-ucp-detail__layout" style="display:flex; flex-direction:column; gap:24px;">
+            <div class="sw-settings-ucp-detail__layout">
                 <sw-card
                     class="sw-settings-ucp-detail__section"
                     :title="$tc('sw-settings-ucp.general.exposureCardTitle')"
                     :isLoading="isLoading">
                     <p class="sw-settings-ucp-detail__section-copy">{{ $tc('sw-settings-ucp.general.exposureCardDescription') }}</p>
 
-                    <div class="sw-settings-ucp-detail__field-stack">
+                    <div class="sw-settings-ucp-detail__field-stack sw-settings-ucp-detail__form-grid">
                         <sw-switch-field
+                            class="sw-settings-ucp-detail__form-full sw-settings-ucp-detail__form-switch"
                             :value="form.active"
                             :label="$tc('sw-settings-ucp.general.activeLabel')"
                             :disabled="!canEditConfig"
@@ -105,6 +106,7 @@
                             @update:value="form.customProfileUri = $event" />
 
                         <sw-text-field
+                            class="sw-settings-ucp-detail__form-full"
                             :value="form.continueUrlTemplate"
                             :label="$tc('sw-settings-ucp.general.continueUrlTemplateLabel')"
                             :placeholder="$tc('sw-settings-ucp.general.continueUrlTemplatePlaceholder')"
@@ -117,8 +119,9 @@
                     class="sw-settings-ucp-detail__section"
                     :title="$tc('sw-settings-ucp.general.securityCardTitle')"
                     :isLoading="isLoading">
-                    <div class="sw-settings-ucp-detail__field-stack">
+                    <div class="sw-settings-ucp-detail__field-stack sw-settings-ucp-detail__form-grid sw-settings-ucp-detail__security-grid">
                         <sw-alert
+                            class="sw-settings-ucp-detail__security-full"
                             v-if="showSignaturePolicyWarning"
                             variant="warning"
                             :title="$tc('sw-settings-ucp.general.signaturePolicyWarningTitle')">
@@ -126,6 +129,7 @@
                         </sw-alert>
 
                         <sw-alert
+                            class="sw-settings-ucp-detail__security-full"
                             v-if="showAllowlistWarning"
                             variant="info"
                             :title="$tc('sw-settings-ucp.general.allowlistWarningTitle')">
@@ -141,13 +145,25 @@
                             :disabled="!canEditConfig"
                             @update:value="form.signaturePolicy = $event" />
 
-                        <sw-switch-field
-                            :value="form.idempotencyRequired"
-                            :label="$tc('sw-settings-ucp.general.idempotencyRequiredLabel')"
-                            :disabled="!canEditConfig"
-                            @update:value="form.idempotencyRequired = $event" />
+                        <div class="sw-settings-ucp-detail__switch-inline">
+                            <sw-switch-field
+                                class="sw-settings-ucp-detail__form-switch"
+                                :value="form.idempotencyRequired"
+                                label=""
+                                :aria-label="$tc('sw-settings-ucp.general.idempotencyRequiredLabel')"
+                                :disabled="!canEditConfig"
+                                @update:value="form.idempotencyRequired = $event" />
+
+                            <span class="sw-settings-ucp-detail__switch-label">
+                                {{ $tc('sw-settings-ucp.general.idempotencyRequiredLabel') }}
+                            </span>
+
+                            <sw-help-text
+                                :text="$tc('sw-settings-ucp.general.idempotencyRequiredHelpText')" />
+                        </div>
 
                         <sw-alert
+                            class="sw-settings-ucp-detail__security-full"
                             v-if="showDeferredDiscoveryBudgetNotice"
                             variant="info"
                             :title="$tc('sw-settings-ucp.general.discoveryBudgetDeferredTitle')">
@@ -204,7 +220,7 @@
                     :isLoading="isLoading">
                     <p class="sw-settings-ucp-detail__section-copy">{{ $tc('sw-settings-ucp.general.capabilitiesCardDescription') }}</p>
 
-                    <div class="sw-settings-ucp-detail__checkbox-stack">
+                    <div class="sw-settings-ucp-detail__checkbox-grid sw-settings-ucp-detail__checkbox-grid--capabilities">
                         <sw-checkbox-field
                             v-for="capability in capabilityOptions"
                             :key="capability.value"
@@ -221,7 +237,7 @@
                     :isLoading="isLoading">
                     <p class="sw-settings-ucp-detail__section-copy">{{ $tc('sw-settings-ucp.general.transportsCardDescription') }}</p>
 
-                    <div class="sw-settings-ucp-detail__checkbox-stack">
+                    <div class="sw-settings-ucp-detail__checkbox-grid sw-settings-ucp-detail__checkbox-grid--transports">
                         <sw-checkbox-field
                             v-for="transport in transportOptions"
                             :key="transport.value"
@@ -245,7 +261,7 @@
                     :isLoading="isLoading || isKeyActionLoading">
                     <p class="sw-settings-ucp-detail__section-copy">{{ $tc('sw-settings-ucp.general.keysCardDescription') }}</p>
 
-                    <div class="sw-settings-ucp-detail__key-create" style="margin-bottom: 20px;">
+                    <div class="sw-settings-ucp-detail__key-create">
                         <sw-text-field
                             :value="newKeyKid"
                             :label="$tc('sw-settings-ucp.general.newKeyKidLabel')"
@@ -264,8 +280,6 @@
 
                         <sw-button-process
                             class="sw-settings-ucp-detail__key-create-button"
-                            style="align-self: end;"
-                            size="small"
                             variant="primary"
                             :isLoading="isKeyActionLoading"
                             :disabled="!canRotateKeys"

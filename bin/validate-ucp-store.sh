@@ -46,8 +46,8 @@ jq -r '.services["dev.ucp.shopping"][].transport' <<<"${profile_json}" | sort -u
 
 if jq -e '.services["dev.ucp.shopping"][] | select(.transport == "mcp")' >/dev/null <<<"${profile_json}"; then
   mcp_endpoint="$(jq -r '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
-  if [[ "${mcp_endpoint}" != "${BASE_URL}/store-api/_mcp" ]]; then
-    echo "MCP endpoint must be ${BASE_URL}/store-api/_mcp, got ${mcp_endpoint}" >&2
+  if [[ "${mcp_endpoint}" != "${BASE_URL}/ucp/mcp" ]]; then
+    echo "MCP endpoint must be ${BASE_URL}/ucp/mcp, got ${mcp_endpoint}" >&2
     exit 1
   fi
 fi
@@ -130,38 +130,32 @@ run_extended_checks() {
   fi
 
   if has_transport mcp; then
-    if [[ -z "${UCP_STORE_API_ACCESS_KEY:-}" ]]; then
-      echo "Skipping MCP tools/list: set UCP_STORE_API_ACCESS_KEY for Store API MCP auth."
-    else
-      local mcp_endpoint
-      local session_id
-      local tools_response
+    local mcp_endpoint
+    local session_id
+    local tools_response
 
-      mcp_endpoint="$(jq -r '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
+    mcp_endpoint="$(jq -r '.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
 
-      echo "Validating MCP tools/list: ${mcp_endpoint}"
-      curl -fsS \
-        -D "${init_header_file}" \
-        -o /dev/null \
-        -X POST "${mcp_endpoint}" \
-        -H 'content-type: application/json' \
-        -H "sw-access-key: ${UCP_STORE_API_ACCESS_KEY}" \
-        -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ucp-store-validator","version":"1.0"}},"id":201}'
+    echo "Validating MCP tools/list: ${mcp_endpoint}"
+    curl -fsS \
+      -D "${init_header_file}" \
+      -o /dev/null \
+      -X POST "${mcp_endpoint}" \
+      -H 'content-type: application/json' \
+      -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ucp-store-validator","version":"1.0"}},"id":201}'
 
-      session_id="$(awk 'tolower($1) == "mcp-session-id:" {gsub(/\r/,"",$2); print $2; exit}' "${init_header_file}")"
-      if [[ -z "${session_id}" ]]; then
-        echo "MCP initialize did not return Mcp-Session-Id." >&2
-        exit 1
-      fi
-
-      tools_response="$(curl -fsS \
-        -X POST "${mcp_endpoint}" \
-        -H 'content-type: application/json' \
-        -H "mcp-session-id: ${session_id}" \
-        -H "sw-access-key: ${UCP_STORE_API_ACCESS_KEY}" \
-        -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":202}')"
-      jq -e '.result.tools | map(.name) | index("shopware-ucp-catalog-search") and index("shopware-ucp-cart-create") and index("shopware-ucp-checkout-create") and index("shopware-ucp-order-get")' >/dev/null <<<"${tools_response}"
+    session_id="$(awk 'tolower($1) == "mcp-session-id:" {gsub(/\r/,"",$2); print $2; exit}' "${init_header_file}")"
+    if [[ -z "${session_id}" ]]; then
+      echo "MCP initialize did not return Mcp-Session-Id." >&2
+      exit 1
     fi
+
+    tools_response="$(curl -fsS \
+      -X POST "${mcp_endpoint}" \
+      -H 'content-type: application/json' \
+      -H "mcp-session-id: ${session_id}" \
+      -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":202}')"
+    jq -e '.result.tools | map(.name) | index("shopware-ucp-catalog-search") and index("shopware-ucp-cart-create") and index("shopware-ucp-checkout-create") and index("shopware-ucp-order-get")' >/dev/null <<<"${tools_response}"
   else
     echo "Skipping MCP checks: transport is not advertised."
   fi

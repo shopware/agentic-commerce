@@ -26,12 +26,24 @@ final class UcpConfigSchema
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         SQL;
 
+    /**
+     * @var \WeakMap<Connection, true>|null
+     */
+    private static ?\WeakMap $ensuredConnections = null;
+
     private function __construct()
     {
     }
 
     public static function ensure(Connection $connection): void
     {
+        self::$ensuredConnections ??= new \WeakMap();
+
+        if (isset(self::$ensuredConnections[$connection])) {
+            return;
+        }
+
         $connection->executeStatement(self::CREATE_TABLE_SQL);
+        self::$ensuredConnections[$connection] = true;
     }
 }

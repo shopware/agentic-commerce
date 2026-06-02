@@ -12,12 +12,23 @@ final class UcpOAuthSchema
     public const ACCESS_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_access_token';
     public const REFRESH_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_refresh_token';
 
+    /**
+     * @var \WeakMap<Connection, true>|null
+     */
+    private static ?\WeakMap $ensuredConnections = null;
+
     private function __construct()
     {
     }
 
     public static function ensure(Connection $connection): void
     {
+        self::$ensuredConnections ??= new \WeakMap();
+
+        if (isset(self::$ensuredConnections[$connection])) {
+            return;
+        }
+
         $connection->executeStatement(
             \sprintf(
                 'CREATE TABLE IF NOT EXISTS `%s` (
@@ -87,5 +98,7 @@ final class UcpOAuthSchema
                 self::REFRESH_TOKEN_TABLE,
             ),
         );
+
+        self::$ensuredConnections[$connection] = true;
     }
 }

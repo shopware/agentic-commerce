@@ -63,6 +63,25 @@ detect_base_url() {
   printf 'http://localhost:8000\n'
 }
 
+detect_shopware_lane() {
+  if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
+    printf '%s\n' "${SHOPWARE_REF}"
+    return 0
+  fi
+
+  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
+    printf 'trunk\n'
+    return 0
+  fi
+
+  if grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
+    printf '6.6.x\n'
+    return 0
+  fi
+
+  printf '6.5.x\n'
+}
+
 BASE_URL="${BASE_URL:-$(detect_base_url)}"
 
 compose=("${compose_cmd[@]}")
@@ -97,17 +116,7 @@ install_admin_dependencies() {
   admin_sh 'cd /var/www/html && composer init:js'
 }
 
-branch_name="${SHOPWARE_REF:-$(git -C "${SHOPWARE_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)}"
-
-if [[ -z "${branch_name}" || "${branch_name}" == "HEAD" ]]; then
-  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
-    branch_name="trunk"
-  elif grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
-    branch_name="6.6.x"
-  else
-    branch_name="6.5.x"
-  fi
-fi
+branch_name="$(detect_shopware_lane)"
 
 case "${branch_name}" in
   6.5.x)
@@ -166,6 +175,11 @@ trap cleanup EXIT
 admin_sh 'cd /var/www/html && if [ ! -x src/Administration/Resources/app/administration/node_modules/.bin/ts-node ]; then exit 10; fi' \
   || install_admin_dependencies
 web sh -lc 'cd /var/www/html && php bin/console bundle:dump && php bin/console feature:dump'
+web sh -lc 'cd /var/www/html && jq -e ".SwagAgenticCommerce.administration.entryFilePath == \"Resources/app/administration/src/main.js\"" var/plugins.json >/dev/null' \
+  || {
+    echo "SwagAgenticCommerce is missing from var/plugins.json after bundle:dump. Check filesystem sync/stale var/plugins.json before building administration." >&2
+    exit 1
+  }
 
 if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" != "auto" ]]; then
   feature_file_preexisted="$(web sh -lc 'if [ -f /var/www/html/var/config_js_features.json ]; then echo 1; else echo 0; fi')"
@@ -184,6 +198,8 @@ fi
 
 admin_sh 'cd /var/www/html && composer admin:generate-entity-schema-types'
 
+web sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/administration /var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/static /var/www/html/public/bundles/swagagenticcommerce/administration /var/www/html/public/bundles/swagagenticcommerce/static'
+
 if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
   web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run vite build && ts-node -T build/plugins.vite.ts'
 else
@@ -191,6 +207,13 @@ else
 fi
 
 web php /var/www/html/bin/console assets:install
+
+if [[ "${resolved_mode}" == "webpack" ]]; then
+  # A previous Vite/dev run can leave this file behind. On 6.6 with ADMIN_VITE
+  # disabled the admin can still pick it up and try loading plugins from a
+  # non-running dev server, so the built static plugin bundle never registers.
+  web sh -lc 'rm -f /var/www/html/public/bundles/administration/administration/sw-plugin-dev.json'
+fi
 
 bundle_artifact="$(web sh -lc 'find /var/www/html/public -path "*swagagenticcommerce*" -type f | head -n 1')"
 

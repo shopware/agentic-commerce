@@ -13,6 +13,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
+use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Model\RequestContext;
 
 final readonly class ShopwareOrderGateway
@@ -45,7 +46,7 @@ final readonly class ShopwareOrderGateway
 
         $order = $this->orderRepository->search($criteria, $context->getContext())->first();
         if (!$order instanceof OrderEntity) {
-            throw new \RuntimeException(\sprintf('Order "%s" was not found for this sales channel.', $orderId));
+            throw new ResourceNotFoundException(\sprintf('Order "%s" was not found for this sales channel.', $orderId));
         }
 
         return $order;

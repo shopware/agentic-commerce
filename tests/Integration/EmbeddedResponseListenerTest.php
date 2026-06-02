@@ -66,7 +66,7 @@ final class EmbeddedResponseListenerTest extends TestCase
 
     private function configService(UcpConfig $config): UcpConfigService
     {
-        $repository = new class ($config) implements UcpConfigRepositoryInterface {
+        $repository = new class($config) implements UcpConfigRepositoryInterface {
             public function __construct(private UcpConfig $config)
             {
             }

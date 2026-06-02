@@ -49,6 +49,8 @@ final readonly class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendere
      */
     private function html(string $type, string $id, array $data, Request $request): string
     {
+        // Cross-origin requests are filtered by EmbeddedResponseListener before
+        // rendering; the fallback keeps same-origin iframes target-pinned.
         $targetOrigin = $request->headers->get('origin') ?: $request->getSchemeAndHttpHost();
         $state = [
             'channel' => 'ucp.embedded',
