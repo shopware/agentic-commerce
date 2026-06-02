@@ -40,6 +40,8 @@ use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
+use Swag\AgenticCommerce\Ucp\ShopwareUuidConverter;
+use Swag\AgenticCommerce\Ucp\UuidConverter;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -61,6 +63,8 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutGetTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
+use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
+use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -185,7 +189,15 @@ return static function (ContainerConfigurator $container): void {
     $services->set(UcpCheckoutCancelTool::class)->tag('shopware.store_api_mcp.tool');
     $services->set(UcpOrderGetTool::class)->tag('shopware.store_api_mcp.tool');
 
+    $services->set(StoreApiMcpRouteScopeWhitelist::class)
+        ->tag('shopware.route_scope_whitelist');
+
     // Public controllers.
+
+    $services->set(UcpMcpProxyController::class)
+        ->public()
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->tag('controller.service_arguments');
 
     $services->set(UcpAdminController::class)
         ->public()
@@ -202,6 +214,7 @@ return static function (ContainerConfigurator $container): void {
 
     // Config layer.
 
+    $services->alias(UuidConverter::class, ShopwareUuidConverter::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);

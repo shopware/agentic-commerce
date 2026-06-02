@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Swag\AgenticCommerce\Ucp\UuidConverter;
 
 final readonly class DoctrineDbalUcpOAuthStore
 {
@@ -15,6 +16,7 @@ final readonly class DoctrineDbalUcpOAuthStore
 
     public function __construct(
         private Connection $connection,
+        private UuidConverter $uuidConverter,
     ) {
         UcpOAuthSchema::ensure($this->connection);
     }
@@ -31,7 +33,7 @@ final readonly class DoctrineDbalUcpOAuthStore
     ): void {
         $payload = [
             'code_hash' => $this->hashBytes($code),
-            'sales_channel_id' => (string) hex2bin($salesChannelId),
+            'sales_channel_id' => $this->uuidConverter->fromHexToBytes($salesChannelId),
             'client_id' => $clientId,
             'redirect_uri' => $redirectUri,
             'subject' => $subject,
@@ -53,7 +55,7 @@ final readonly class DoctrineDbalUcpOAuthStore
     public function consumeAuthorizationCode(string $code, string $salesChannelId): ?OAuthAuthorization
     {
         $codeHash = $this->hashBytes($code);
-        $salesChannelIdBytes = (string) hex2bin($salesChannelId);
+        $salesChannelIdBytes = $this->uuidConverter->fromHexToBytes($salesChannelId);
         $now = time();
 
         return $this->connection->transactional(function () use ($codeHash, $salesChannelIdBytes, $now): ?OAuthAuthorization {
@@ -96,7 +98,7 @@ final readonly class DoctrineDbalUcpOAuthStore
 
         $this->connection->insert(UcpOAuthSchema::REFRESH_TOKEN_TABLE, [
             'token_hash' => $refreshTokenHash,
-            'sales_channel_id' => (string) hex2bin($salesChannelId),
+            'sales_channel_id' => $this->uuidConverter->fromHexToBytes($salesChannelId),
             'client_id' => $clientId,
             'subject' => $subject,
             'scope' => $scope,
@@ -108,7 +110,7 @@ final readonly class DoctrineDbalUcpOAuthStore
         $this->connection->insert(UcpOAuthSchema::ACCESS_TOKEN_TABLE, [
             'token_hash' => $this->hashBytes($accessToken),
             'refresh_token_hash' => $refreshTokenHash,
-            'sales_channel_id' => (string) hex2bin($salesChannelId),
+            'sales_channel_id' => $this->uuidConverter->fromHexToBytes($salesChannelId),
             'client_id' => $clientId,
             'subject' => $subject,
             'scope' => $scope,
@@ -129,7 +131,7 @@ final readonly class DoctrineDbalUcpOAuthStore
         $salesChannelCondition = '';
         if (null !== $salesChannelId && '' !== $salesChannelId) {
             $salesChannelCondition = ' AND sales_channel_id = :salesChannelId';
-            $criteria['salesChannelId'] = (string) hex2bin($salesChannelId);
+            $criteria['salesChannelId'] = $this->uuidConverter->fromHexToBytes($salesChannelId);
         }
 
         return $this->connection->transactional(function () use ($criteria, $salesChannelCondition, $clientId): ?OAuthTokenSet {
@@ -182,7 +184,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE sales_channel_id = :salesChannelId AND client_id = :clientId AND subject = :subject AND revoked_at IS NULL', UcpOAuthSchema::REFRESH_TOKEN_TABLE),
             [
                 'revokedAt' => $this->now(),
-                'salesChannelId' => (string) hex2bin($salesChannelId),
+                'salesChannelId' => $this->uuidConverter->fromHexToBytes($salesChannelId),
                 'clientId' => $clientId,
                 'subject' => $subject,
             ],
