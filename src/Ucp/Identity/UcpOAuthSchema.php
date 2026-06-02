@@ -23,9 +23,14 @@ final class UcpOAuthSchema
 
     public static function ensure(Connection $connection): void
     {
-        self::$ensuredConnections ??= new \WeakMap();
+        $ensuredConnections = self::$ensuredConnections;
+        if (null === $ensuredConnections) {
+            /** @var \WeakMap<Connection, true> $ensuredConnections */
+            $ensuredConnections = new \WeakMap();
+            self::$ensuredConnections = $ensuredConnections;
+        }
 
-        if (isset(self::$ensuredConnections[$connection])) {
+        if (isset($ensuredConnections[$connection])) {
             return;
         }
 
@@ -99,6 +104,6 @@ final class UcpOAuthSchema
             ),
         );
 
-        self::$ensuredConnections[$connection] = true;
+        $ensuredConnections[$connection] = true;
     }
 }

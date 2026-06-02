@@ -112,6 +112,9 @@ final class UcpMcpProxyControllerTest extends TestCase
         return new SalesChannelDomainResolver($repository);
     }
 
+    /**
+     * @return EntityRepository<SalesChannelCollection>
+     */
     private function salesChannelRepository(SalesChannelCollection $salesChannels): EntityRepository
     {
         $repository = $this->createMock(EntityRepository::class);

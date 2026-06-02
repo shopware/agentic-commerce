@@ -30,7 +30,6 @@ final readonly class SalesChannelViewProvider
     {
         $criteria = new Criteria();
         $criteria->addAssociation('domains');
-        $criteria->setLimit(250);
 
         $channels = $this->salesChannelRepository->search($criteria, $context)->getEntities();
         $payload = [];

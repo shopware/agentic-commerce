@@ -37,13 +37,18 @@ final class UcpConfigSchema
 
     public static function ensure(Connection $connection): void
     {
-        self::$ensuredConnections ??= new \WeakMap();
+        $ensuredConnections = self::$ensuredConnections;
+        if (null === $ensuredConnections) {
+            /** @var \WeakMap<Connection, true> $ensuredConnections */
+            $ensuredConnections = new \WeakMap();
+            self::$ensuredConnections = $ensuredConnections;
+        }
 
-        if (isset(self::$ensuredConnections[$connection])) {
+        if (isset($ensuredConnections[$connection])) {
             return;
         }
 
         $connection->executeStatement(self::CREATE_TABLE_SQL);
-        self::$ensuredConnections[$connection] = true;
+        $ensuredConnections[$connection] = true;
     }
 }

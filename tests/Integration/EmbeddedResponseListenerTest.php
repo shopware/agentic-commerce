@@ -42,7 +42,7 @@ final class EmbeddedResponseListenerTest extends TestCase
         $listener->onKernelRequest($event);
 
         self::assertTrue($event->hasResponse());
-        self::assertSame(Response::HTTP_FORBIDDEN, $event->getResponse()?->getStatusCode());
+        self::assertSame(Response::HTTP_FORBIDDEN, $event->getResponse()->getStatusCode());
     }
 
     #[Test]

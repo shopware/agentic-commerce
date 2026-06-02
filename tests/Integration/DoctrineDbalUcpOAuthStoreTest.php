@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Tests\Integration;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
 use Swag\AgenticCommerce\Ucp\Identity\OAuthTokenSet;
@@ -94,7 +95,7 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
      * @param list<array{sql: string, params: array<string, mixed>}> $statements
      * @param list<array{table: string, data: array<string, mixed>}> $inserts
      */
-    private function connection(array &$statements, array &$inserts): Connection
+    private function connection(array &$statements, array &$inserts): Connection&MockObject
     {
         $connection = $this->createMock(Connection::class);
         $connection->method('transactional')->willReturnCallback(static fn (\Closure $callback): mixed => $callback());
