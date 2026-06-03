@@ -490,27 +490,73 @@ Expected result: exactly the requested product is returned.
 
 ### Cart And Checkout
 
-Create a cart with a real product id, then create and complete a checkout.
-Completion must include a real shipping address. Placeholder addresses are
-intentionally rejected.
+Create a cart with a real product id, then create a checkout session from that
+cart or from line items. Buyer and fulfillment data must be stored on the
+checkout session during create or update. The complete call reads the stored
+session state and uses an empty request body.
 
-Example completion payload:
+Example checkout-create payload from line items:
 
 ```json
 {
+  "line_items": [
+    {
+      "item": {
+        "id": "<product-id>",
+        "title": "Manual test product",
+        "price": 1.0
+      },
+      "quantity": 1
+    }
+  ],
   "buyer": {
     "email": "manual-test@example.com",
-    "firstName": "Manual",
-    "lastName": "Tester",
-    "phoneNumber": "+49123456789",
-    "shippingAddress": {
+    "first_name": "Manual",
+    "last_name": "Tester",
+    "phone_number": "+49123456789"
+  },
+  "fulfillment": {
+    "type": "shipping",
+    "shipping_address": {
       "street": "Test Street 1",
       "zipcode": "12345",
       "city": "Berlin",
-      "countryCode": "DE"
+      "country_code": "DE"
     }
   }
 }
+```
+
+Example checkout-create payload from an existing cart:
+
+```json
+{
+  "cart_id": "<cart-id>",
+  "buyer": {
+    "email": "manual-test@example.com",
+    "first_name": "Manual",
+    "last_name": "Tester",
+    "phone_number": "+49123456789"
+  },
+  "fulfillment": {
+    "type": "shipping",
+    "shipping_address": {
+      "street": "Test Street 1",
+      "zipcode": "12345",
+      "city": "Berlin",
+      "country_code": "DE"
+    }
+  }
+}
+```
+
+Then complete with an empty JSON body:
+
+```bash
+curl -s -X POST http://sw65.localhost:8088/ucp/v1/checkout-sessions/<checkout-id>/complete \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: manual-test-complete-1' \
+  -d '{}' | jq .
 ```
 
 Expected result:
