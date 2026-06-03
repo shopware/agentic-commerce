@@ -38,7 +38,7 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
 - `payment_handlers` must stay an empty object in `/.well-known/ucp` unless tokenization is enabled and a real tokenizing handler is registered.
 - Store API customer login/context-token APIs and Shopware checkout payment tokens are not sufficient substitutes. They do not provide the UCP identity-linking consent model or a reusable payment-tokenization contract.
 - Implementation TODO and example PSP handler shape live in
-  [docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md).
+  [docs/payment-tokenization-handler.md](payment-tokenization-handler.md).
 
 ## Implementation Decisions
 
@@ -137,7 +137,7 @@ The top screenshots verify the lane transport summary. The security screenshots 
 - Payment tokenization stays hidden/unsupported by default until a real
   PSP-backed tokenizing payment handler is registered and enabled per sales
   channel. See
-  [docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md)
+  [docs/payment-tokenization-handler.md](payment-tokenization-handler.md)
   for the required service contract and validation checklist. Identity linking
   is implemented but remains opt-in per sales channel.
 - Embedded now renders plugin-owned cart/checkout bridge pages with CSP,
