@@ -20,3 +20,13 @@ parameters:
             identifier: shopware.missingPackageAttribute
         -
             identifier: shopware.domainException
+        # addFlags is deprecated in trunk (v6.8.0 return-type-change only); cross-version code must keep using it.
+        -
+            identifier: method.deprecated
+            path: src/Content/ProductExport/Tracking
+        # MigrationStep::addColumn() is trunk-only; migrations run on 6.5/6.6 too.
+        -
+            identifier: shopware.addColumn
+        # CoversClass on unit tests in subdirs — rule incorrectly rejects sub-paths under tests/Unit/.
+        -
+            identifier: shopware.unexpectedTestCovers
