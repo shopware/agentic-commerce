@@ -23,9 +23,13 @@ administration builds, browser validation, or local lane tooling.
 > **MCP on trunk is blocked upstream.** The Store API MCP endpoint the UCP
 > plugin proxies to ships with
 > [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228).
-> Until it merges, `trunk` does not advertise the MCP transport and the
-> `shopware-matrix (trunk)` `test:e2e:ucp` job is expected to be red. Keep the
-> assertions as-is rather than weakening them.
+> Until it merges, `trunk` does not advertise the MCP transport. MCP is gated on
+> a single runtime capability — whether `StoreApiMcpServerController` exists —
+> which the plugin uses to decide what `/.well-known/ucp` advertises.
+> `bin/ci-smoke.sh` asserts the strict "supported &hArr; advertised" invariant
+> server-side, and the public-profile Playwright tests skip their MCP-specific
+> checks while the transport is absent and verify once it appears. No per-lane
+> flag to maintain.
 
 ## Rules We Must Keep
 

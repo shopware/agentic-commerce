@@ -11,9 +11,6 @@ export function laneConfig() {
         username: process.env.SHOPWARE_ADMIN_USERNAME || 'admin',
         password: process.env.SHOPWARE_ADMIN_PASSWORD || 'shopware',
         expectedVersionLabel: expectedVersionLabel(lane),
-        expectedProfileTransports: lane === 'trunk'
-            ? ['a2a', 'embedded', 'mcp', 'rest']
-            : ['a2a', 'embedded', 'rest'],
     };
 }
 

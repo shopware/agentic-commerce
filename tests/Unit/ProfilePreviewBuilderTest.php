@@ -59,15 +59,19 @@ final class ProfilePreviewBuilderTest extends TestCase
         );
 
         $previewBuilder->build(UcpConfig::fromArray($payload), $fallbackBaseUri, 'sales-channel-id');
+
+        $lastInput = $profileBuilder->lastInput;
+        self::assertNotNull($lastInput);
+
         $actualTransports = array_map(
             static fn (Transport $transport): string => $transport->value,
-            $profileBuilder->lastInput?->transports ?? [],
+            $lastInput->transports,
         );
 
-        self::assertSame($expectedBaseUri, $profileBuilder->lastInput?->baseUri);
+        self::assertSame($expectedBaseUri, $lastInput->baseUri);
         self::assertSame($expectedTransports, $actualTransports);
-        self::assertSame($expectedTransportEndpoints, $profileBuilder->lastInput?->transportEndpoints);
-        self::assertSame('sales-channel-id', $profileBuilder->lastInput?->tenantIdentifier);
+        self::assertSame($expectedTransportEndpoints, $lastInput->transportEndpoints);
+        self::assertSame('sales-channel-id', $lastInput->tenantIdentifier);
     }
 
     /**

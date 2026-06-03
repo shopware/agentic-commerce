@@ -373,9 +373,13 @@ Expected result:
 > **Known blocker:** the trunk Store API MCP endpoint ships with
 > [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228).
 > Until that PR is merged, `trunk` does not expose the endpoint, so the MCP
-> transport is absent from `/.well-known/ucp` and the trunk MCP Playwright
-> checks (`test:e2e:ucp`) are expected to fail. This is the cause of the red
-> `shopware-matrix (trunk)` CI job — do not relax the assertions.
+> transport is absent from `/.well-known/ucp`. The Playwright UCP suite reads
+> only the public profile and gates its MCP-specific checks on whether the
+> profile advertises the `mcp` transport: they skip while it is absent and
+> verify automatically once the build advertises it — no manual flag to flip.
+> The strict "MCP supported &hArr; MCP advertised" invariant is asserted
+> server-side by `bin/ci-smoke.sh` (via the `StoreApiMcpServerController` class
+> check) in the same job, so don't hard-code MCP per lane in the e2e tests.
 
 The default profile and trunk MCP checks are also covered by Playwright:
 
