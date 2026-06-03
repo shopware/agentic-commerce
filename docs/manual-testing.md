@@ -370,6 +370,13 @@ Expected result:
 - 6.5/6.6 advertise REST/A2A/embedded when enabled, but never MCP
 - 6.7/trunk advertises MCP only when the Store API MCP core endpoint is available
 
+> **Known blocker:** the trunk Store API MCP endpoint ships with
+> [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228).
+> Until that PR is merged, `trunk` does not expose the endpoint, so the MCP
+> transport is absent from `/.well-known/ucp` and the trunk MCP Playwright
+> checks (`test:e2e:ucp`) are expected to fail. This is the cause of the red
+> `shopware-matrix (trunk)` CI job — do not relax the assertions.
+
 The default profile and trunk MCP checks are also covered by Playwright:
 
 ```bash

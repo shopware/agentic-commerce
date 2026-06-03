@@ -195,5 +195,16 @@ function requireIfExists(basePath, relativePath) {
         return null;
     }
 
-    return require(absolutePath);
+    try {
+        return require(absolutePath);
+    } catch (error) {
+        // The Shopware rule packs pull in transitive dependencies (e.g.
+        // eslint-plugin-vue/lib/utils) that only exist once the administration's
+        // own node_modules are installed. In a rule-only Shopware checkout
+        // (CI admin-static) those are missing, so degrade gracefully to the base
+        // ruleset instead of crashing the whole lint.
+        console.warn(`Skipping Shopware ESLint rules from "${absolutePath}": ${error.message}`);
+
+        return null;
+    }
 }

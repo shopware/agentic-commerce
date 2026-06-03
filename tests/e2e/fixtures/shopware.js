@@ -85,8 +85,16 @@ export function attachBrowserFailureCollectors(page) {
     });
 
     page.on('requestfailed', (failedRequest) => {
+        const errorText = failedRequest.failure()?.errorText || 'request failed';
+
+        // Navigating between admin views cancels in-flight lazy chunks and fonts.
+        // These aborts are a navigation artifact, not a real load failure.
+        if (/ERR_ABORTED|ERR_CANCELED/i.test(errorText)) {
+            return;
+        }
+
         if (/\/admin|administration|swagagenticcommerce|swag-agentic-commerce|\.js|\.css/i.test(failedRequest.url())) {
-            networkFailures.push(`${failedRequest.failure()?.errorText || 'request failed'}: ${failedRequest.method()} ${failedRequest.url()}`);
+            networkFailures.push(`${errorText}: ${failedRequest.method()} ${failedRequest.url()}`);
         }
     });
 

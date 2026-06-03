@@ -38,8 +38,8 @@ final class ProfilePreviewBuilderTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param list<string> $expectedTransports
+     * @param array<string, mixed>  $payload
+     * @param list<string>          $expectedTransports
      * @param array<string, string> $expectedTransportEndpoints
      */
     #[DataProvider('profileTransportProvider')]

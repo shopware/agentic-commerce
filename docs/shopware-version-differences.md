@@ -17,7 +17,15 @@ administration builds, browser validation, or local lane tooling.
 | Admin card implementation | legacy `sw-card` is common | mixed | Meteor `mt-card` is common |
 | Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths | Vite assets |
 | Discovery support | unavailable | unavailable | available only when the trunk bridge exists |
+| MCP transport | never | never | only once the Store API MCP endpoint exists (see note) |
 | Local PHP runtime | `8.2` | `8.3` | `8.4` |
+
+> **MCP on trunk is blocked upstream.** The Store API MCP endpoint the UCP
+> plugin proxies to ships with
+> [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228).
+> Until it merges, `trunk` does not advertise the MCP transport and the
+> `shopware-matrix (trunk)` `test:e2e:ucp` job is expected to be red. Keep the
+> assertions as-is rather than weakening them.
 
 ## Rules We Must Keep
 
