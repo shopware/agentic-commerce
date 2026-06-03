@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block ucp_embedded_title %}{{ title }}{% endblock %}</title>
+    {% block ucp_embedded_styles %}
+    <style>
+        :root { color-scheme: light; --ink: #17202a; --muted: #667085; --line: #d0d5dd; --surface: #fff; --accent: #0b5fff; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f7f9fc; color: var(--ink); font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        main { max-width: 760px; margin: 0 auto; padding: 20px; }
+        .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 30px rgba(16, 24, 40, .08); overflow: hidden; }
+        header { padding: 20px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; justify-content: space-between; align-items: start; }
+        h1 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+        .meta, .empty { color: var(--muted); }
+        .content { padding: 20px; display: grid; gap: 18px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 0; border-bottom: 1px solid #eef2f6; text-align: left; vertical-align: top; }
+        th:last-child, td:last-child { text-align: right; }
+        .totals { margin-left: auto; width: min(320px, 100%); }
+        .total { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #eef2f6; }
+        .total:last-child { font-weight: 700; border-bottom: 0; }
+        .status { display: inline-flex; padding: 5px 10px; border-radius: 999px; background: #e8f0ff; color: #053ca6; font-weight: 600; }
+        .cta { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 14px; border-radius: 10px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; }
+    </style>
+    {% endblock %}
+</head>
+<body>
+{% set lineItems = data.line_items is defined and data.line_items is iterable ? data.line_items : [] %}
+{% set totals = data.totals is defined and data.totals is iterable ? data.totals : [] %}
+<main>
+    <section class="card" aria-label="UCP embedded {{ type }}">
+        {% block ucp_embedded_header %}
+        <header>
+            <div>
+                <h1>{{ title }}</h1>
+                <div class="meta">ID {{ id }}</div>
+            </div>
+            {% if data.status is defined and data.status is not empty %}
+                <span class="status">{{ data.status }}</span>
+            {% endif %}
+        </header>
+        {% endblock %}
+        <div class="content">
+            {% block ucp_embedded_line_items %}
+            {% if lineItems is empty %}
+                <p class="empty">No line items.</p>
+            {% else %}
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Total</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for lineItem in lineItems %}
+                        {% set item = lineItem.item is defined and lineItem.item is iterable ? lineItem.item : {} %}
+                        {% set quantity = lineItem.quantity is defined ? lineItem.quantity : 1 %}
+                        {% set price = item.price is defined ? item.price : null %}
+                        <tr>
+                            <td>{{ item.title|default(item.id|default('Item')) }}</td>
+                            <td>{{ quantity }}</td>
+                            <td>{% if price is not null %}{{ (price * quantity)|number_format(2) }}{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+            {% endblock %}
+
+            {% block ucp_embedded_totals %}
+            {% if totals is not empty %}
+                <div class="totals">
+                    {% for total in totals %}
+                        <div class="total">
+                            <span>{{ (total.type is defined ? total.type : 'total')|replace({'_': ' '})|capitalize }}</span>
+                            <span>{{ total.display_text is defined ? total.display_text : (total.amount is defined ? total.amount : '') }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% endblock %}
+
+            {% block ucp_embedded_cta %}
+            {% if data.continue_url is defined and data.continue_url is not empty %}
+                <a class="cta" target="_top" rel="noopener" href="{{ data.continue_url }}">Continue checkout</a>
+            {% endif %}
+            {% endblock %}
+        </div>
+    </section>
+</main>
+{% block ucp_embedded_script %}
+<script>
+(() => {
+    const state = {{ stateJson|raw }};
+    const targetOrigin = state.targetOrigin || window.location.origin;
+    function emit(type, detail = {}) {
+        window.parent.postMessage({
+            channel: state.channel,
+            type,
+            surface: state.type,
+            id: state.id,
+            payload: state.data,
+            detail
+        }, targetOrigin);
+    }
+    window.addEventListener('message', (event) => {
+        if (event.origin !== targetOrigin && targetOrigin !== window.location.origin) {
+            return;
+        }
+        const data = event.data || {};
+        if (data.channel !== state.channel) {
+            return;
+        }
+        if (data.type === 'ucp.embedded.ping') {
+            emit('ucp.embedded.pong');
+        }
+        if (data.type === 'ucp.embedded.refresh') {
+            emit('ucp.embedded.state');
+        }
+    });
+    emit('ucp.embedded.ready');
+    emit('ucp.embedded.state');
+})();
+</script>
+{% endblock %}
+</body>
+</html>

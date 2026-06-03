@@ -1,0 +1,11 @@
+{
+  "name": "swag-agentic-commerce-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "qa:admin": "node bin/validate-ucp-admin-browser.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

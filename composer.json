@@ -1,0 +1,98 @@
+{
+    "name": "shopware/agentic-commerce",
+    "description": "Shopware plugin for UCP and agentic commerce discovery",
+    "type": "shopware-platform-plugin",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "ucp-php-sdk/symfony-bundle": "^0.0.1@alpha",
+        "symfony/config": "^6.4 || ^7.0",
+        "symfony/dependency-injection": "^6.4 || ^7.0",
+        "symfony/http-foundation": "^6.4 || ^7.0",
+        "symfony/http-kernel": "^6.4 || ^7.0",
+        "symfony/routing": "^6.4 || ^7.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.88",
+        "phpstan/phpstan": "^1.12",
+        "phpunit/phpunit": "^11.5",
+        "rector/rector": "^1.1",
+        "roave/backward-compatibility-check": "^8.13"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../ucp-php-sdk/packages/core",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "shopware/ucp-php-sdk-core": "0.0.1"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "../ucp-php-sdk/packages/symfony-bundle",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "ucp-php-sdk/symfony-bundle": "0.0.1"
+                }
+            }
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Swag\\AgenticCommerce\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Swag\\AgenticCommerce\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "@php bin/run.php phpunit --testsuite unit",
+        "test:integration": "@php bin/run.php phpunit --testsuite integration",
+        "phpstan": "@php bin/run.php phpstan analyse --memory-limit=1G -c phpstan.neon",
+        "cs": "@php bin/run.php php-cs-fixer fix --config=.php-cs-fixer.dist.php --using-cache=no --dry-run --diff",
+        "cs-fix": "@php bin/run.php php-cs-fixer fix --config=.php-cs-fixer.dist.php --using-cache=no",
+        "rector": "@php bin/run.php rector process --dry-run",
+        "rector-fix": "@php bin/run.php rector process",
+        "bc-check": "@php bin/run.php roave-backward-compatibility-check --from=HEAD^ --to=HEAD",
+        "ci": [
+            "@cs",
+            "@phpstan",
+            "@rector",
+            "@test"
+        ]
+    },
+    "extra": {
+        "shopware-plugin-class": "Swag\\AgenticCommerce\\SwagAgenticCommerce",
+        "label": {
+            "de-DE": "Agentic Commerce",
+            "en-GB": "Agentic Commerce"
+        },
+        "description": {
+            "de-DE": "UCP- und Agentic-Commerce-Plugin fuer Shopware",
+            "en-GB": "UCP and agentic commerce plugin for Shopware"
+        }
+    },
+    "suggest": {
+        "shopware/core": "Provided by the active Shopware lane during plugin runtime and integration testing.",
+        "shopware/storefront": "Provided by the active Shopware lane during plugin runtime and integration testing."
+    },
+    "config": {
+        "sort-packages": true,
+        "vendor-dir": ".tools/vendor",
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true,
+            "symfony/runtime": true
+        },
+        "platform": {
+            "php": "8.2.0"
+        }
+    },
+    "minimum-stability": "alpha",
+    "prefer-stable": true
+}
