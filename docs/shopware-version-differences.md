@@ -125,9 +125,9 @@ administration builds, browser validation, or local lane tooling.
 
 - Lanes run in parallel. There is no active-lane switch in the intended
   workflow.
-- Use `/Users/b.meyer/scripts/agentic-commerce/ensure-lane-sync {65|66|trunk}`
+- Use `$HOME/scripts/agentic-commerce/ensure-lane-sync {65|66|trunk}`
   to start a lane and ensure its persistent sync sessions are healthy.
-- `/Users/b.meyer/scripts/dev-startup.sh` delegates the three agentic lanes to
+- `$HOME/scripts/dev-startup.sh` delegates the three agentic lanes to
   that helper, so a reboot startup must not recreate plugin/SDK sessions as
   one-way replicas.
 - Base Shopware, plugin, and SDK sync sessions must be `two-way-resolved`.
@@ -149,7 +149,7 @@ administration builds, browser validation, or local lane tooling.
   admin smoke script when the admin shell does not advertise UCP.
 - Do not run multiple lanes against the same container name. Two-way sync is
   safe only because each lane now has its own container target.
-- Use `/Users/b.meyer/scripts/agentic-commerce/sync-status` before blaming a
+- Use `$HOME/scripts/agentic-commerce/sync-status` before blaming a
   lane. It prints the Mutagen mode and container file presence for every lane.
 
 ### Compose targeting
@@ -157,11 +157,11 @@ administration builds, browser validation, or local lane tooling.
 - The Compose service is intentionally named `web` in every lane. Service names
   are project-local; the project/container names are what make them unique.
 - Prefer the lane helpers when jumping into containers:
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-shell 65`
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-shell 66`
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-shell trunk`
+  - `$HOME/scripts/agentic-commerce/lane-shell 65`
+  - `$HOME/scripts/agentic-commerce/lane-shell 66`
+  - `$HOME/scripts/agentic-commerce/lane-shell trunk`
 - For one-off commands, use:
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-exec 65 php -v`
+  - `$HOME/scripts/agentic-commerce/lane-exec 65 php -v`
 - Plain `docker compose exec web bash` also works from a lane directory because
   the local `.env` pins `COMPOSE_FILE=compose.yaml:compose.override.yaml`.
 - Do not remove the upstream `docker-compose.yaml` in `6.5`; use explicit

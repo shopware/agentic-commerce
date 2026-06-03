@@ -53,6 +53,6 @@ The script handles the important differences:
 
 ## Further References
 
-- [docs/shopware-version-differences.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/shopware-version-differences.md)
-- [docs/manual-testing.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/manual-testing.md)
-- [docs/full-ucp-parity-plan.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/full-ucp-parity-plan.md)
+- [docs/shopware-version-differences.md](docs/shopware-version-differences.md)
+- [docs/manual-testing.md](docs/manual-testing.md)
+- [docs/full-ucp-parity-plan.md](docs/full-ucp-parity-plan.md)
