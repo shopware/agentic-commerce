@@ -5,5 +5,9 @@
 /phpstan.neon
 /.phpunit.cache/
 /.phpunit.result.cache
+/.eslintcache
 /node_modules/
+/coverage/
+/tests/jest/administration/.jestcache/
+/tests/jest/administration/coverage/
 /src/Resources/public/

@@ -218,29 +218,60 @@ Expected result:
 - `/admin` still renders after the build
 
 Build success is not enough. Browser validation is required on every lane.
-The CI admin matrix runs the browser validator automatically when
+The CI admin matrix runs Playwright automatically when
 `CI_ADMIN_BROWSER_VALIDATE=1` is set.
 
 Install the local browser QA dependency before running it manually:
 
 ```bash
-npm install --no-audit --no-fund
+npm ci --no-audit --no-fund
 npx playwright install chromium
 ```
 
-Then run the reusable browser validator against each lane:
+Then run the same Playwright tests that CI uses against local always-on lanes:
 
 ```bash
-BASE_URL=http://sw65.localhost:8088 npm run qa:admin -- --lane 6.5-webpack
-BASE_URL=http://sw66.localhost:8088 npm run qa:admin -- --lane 6.6-webpack
-BASE_URL=http://sw66.localhost:8088 npm run qa:admin -- --lane 6.6-vite
-BASE_URL=http://trunk.localhost:8088 npm run qa:admin -- --lane trunk-vite
+BASE_URL=http://sw65.localhost:8088 SHOPWARE_REF=6.5.x ADMIN_BUILD_MODE=webpack npm run test:e2e:admin
+BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=webpack npm run test:e2e:admin
+BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk ADMIN_BUILD_MODE=vite npm run test:e2e:admin
 ```
 
-The validator logs into the administration, opens the UCP overview/detail
-screens, saves a lane-aware config through the authenticated admin API, verifies
-profile-preview transports, creates/retires/deletes a signing key, fails on UCP
-console errors, captures screenshots, and restores the original config.
+6.6 Vite is still build-validated separately. Browser validation should run
+against the active 6.6 administration runtime after that build:
+
+```bash
+BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=vite npm run test:e2e:admin
+```
+
+`npm run test:e2e:local:all` intentionally uses one current 6.6 runtime. Do
+not treat it as proof for both 6.6 build modes unless the 6.6 admin was rebuilt
+between the webpack and Vite checks.
+
+The Playwright admin suite logs into the administration, opens the UCP
+overview/detail screens, verifies the native sales-channel shortcut, saves a
+lane-aware config through the authenticated admin API, verifies profile-preview
+transports, creates/retires/deletes a signing key, fails on UCP console/network
+errors, and restores the original config.
+
+The Playwright suite replaces these older smoke checks:
+
+- legacy ad-hoc UCP admin browser validation
+- HTML grep checks in `bin/ci-storefront-smoke.sh` for homepage/cart rendering
+- manual `/.well-known/ucp` transport checks for the default lane profile
+- manual trunk `/ucp/mcp` initialize checks
+
+Keep manual browser checks for exploratory UX review only, not release
+confidence.
+
+Typical local runtime once the lane is already running and built:
+
+- admin Playwright project: about 60-120 seconds per lane
+- storefront Playwright project: about 15-45 seconds per lane
+- UCP API Playwright project: about 5-20 seconds per lane
+- all local browser/API E2E across 6.5, 6.6, and trunk: about 4-8 minutes
+
+Cold CI jobs remain slower because they also install Composer/NPM dependencies,
+build assets, compile themes, and bootstrap Shopware.
 
 ## Administration Browser Validation
 
@@ -292,7 +323,7 @@ Expected result:
 - storefront JavaScript builds
 - active theme compiles
 - built storefront assets exist under `public/theme`
-- homepage and `/checkout/cart` render after the build
+- Playwright verifies homepage and `/checkout/cart` render after the build
 
 ## Storefront Browser Validation
 
@@ -308,6 +339,14 @@ Verify:
 - header, navigation, and cart shell are visible
 - `/checkout/cart` renders
 - after a storefront build, the live page still loads and stays interactive
+
+Or run the browser check directly against the local lane:
+
+```bash
+BASE_URL=http://sw65.localhost:8088 SHOPWARE_REF=6.5.x npm run test:e2e:storefront
+BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x npm run test:e2e:storefront
+BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk npm run test:e2e:storefront
+```
 
 If demo data exists, open a product detail page and verify add-to-cart. If the
 database is empty, validate the storefront shell and seed catalog data before
@@ -330,6 +369,14 @@ Expected result:
   is installed and `payment_tokenization` is enabled
 - 6.5/6.6 advertise REST/A2A/embedded when enabled, but never MCP
 - 6.7/trunk advertises MCP only when the Store API MCP core endpoint is available
+
+The default profile and trunk MCP checks are also covered by Playwright:
+
+```bash
+BASE_URL=http://sw65.localhost:8088 SHOPWARE_REF=6.5.x npm run test:e2e:ucp
+BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x npm run test:e2e:ucp
+BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk npm run test:e2e:ucp
+```
 
 ### Validator Script
 
