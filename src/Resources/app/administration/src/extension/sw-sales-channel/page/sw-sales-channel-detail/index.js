@@ -23,7 +23,19 @@ export const swSalesChannelDetailOverride = {
     data() {
         return {
             agenticCommerceExportConfig: [],
+            previousTemplateName: null,
         };
+    },
+
+    watch: {
+        'productComparison.templateOptions'(options) {
+            if (options?.length) {
+                this.detectCurrentTemplate();
+            }
+        },
+        'productExport.bodyTemplate'() {
+            this.detectCurrentTemplate();
+        },
     },
 
     computed: {
@@ -135,10 +147,19 @@ export const swSalesChannelDetailOverride = {
             });
 
             if (!contentChanged) {
+                this.productComparison.templateName = templateName;
                 return;
             }
 
+            this.previousTemplateName = this.productComparison.templateName;
             this.productComparison.showTemplateModal = true;
+        },
+
+        onTemplateModalClose() {
+            this.productComparison.selectedTemplate = null;
+            this.productComparison.templateName = this.previousTemplateName ?? null;
+            this.previousTemplateName = null;
+            this.productComparison.showTemplateModal = false;
         },
 
         onTemplateModalConfirm() {
@@ -153,7 +174,10 @@ export const swSalesChannelDetailOverride = {
                 this.productExport[key] = selectedTemplate[key];
             });
 
-            this.onTemplateModalClose();
+            this.productComparison.templateName = selectedTemplate.name ?? null;
+            this.productComparison.selectedTemplate = null;
+            this.previousTemplateName = null;
+            this.productComparison.showTemplateModal = false;
 
             this.createNotificationInfo({
                 message: this.$t('sw-sales-channel.detail.productComparison.templates.message.template-applied-message'),
@@ -274,6 +298,25 @@ export const swSalesChannelDetailOverride = {
                     }
                 }),
             );
+        },
+
+        detectCurrentTemplate() {
+            if (!this.productComparison.templateOptions?.length || !this.productExport) {
+                return;
+            }
+
+            const matchedTemplate = this.productComparison.templateOptions.find((template) => {
+                return (
+                    template.bodyTemplate !== undefined &&
+                    template.bodyTemplate === this.productExport.bodyTemplate &&
+                    template.headerTemplate === this.productExport.headerTemplate &&
+                    template.footerTemplate === this.productExport.footerTemplate
+                );
+            });
+
+            if (matchedTemplate) {
+                this.productComparison.templateName = matchedTemplate.name;
+            }
         },
 
         async saveAgenticCommerceExportConfig(salesChannelIdOverride = null, exportConfigOverride = null) {
