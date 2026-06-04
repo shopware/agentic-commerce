@@ -26,6 +26,10 @@ export const swSalesChannelDetailBaseOverride = {
         },
     },
 
+    data() {
+        return {};
+    },
+
     computed: {
         isAgenticCommerce() {
             return this.salesChannel && this.salesChannel.typeId === Defaults.agenticCommerceTypeId;
@@ -115,6 +119,27 @@ export const swSalesChannelDetailBaseOverride = {
                 ) || []).length === 0,
             ) ?? [];
         },
+    },
+
+    mounted() {
+        this.$nextTick(() => {
+            const selectEl = this.$el?.querySelector?.('[data-ac-template-select] select');
+            if (selectEl) {
+                this._acTemplateSelectHandler = (e) => {
+                    if (e.target.value) {
+                        this.$emit('template-selected', e.target.value);
+                    }
+                };
+                selectEl.addEventListener('change', this._acTemplateSelectHandler);
+            }
+        });
+    },
+
+    beforeDestroy() {
+        const selectEl = this.$el?.querySelector?.('[data-ac-template-select] select');
+        if (selectEl && this._acTemplateSelectHandler) {
+            selectEl.removeEventListener('change', this._acTemplateSelectHandler);
+        }
     },
 
     methods: {

@@ -36,6 +36,7 @@
 <sw-select-field
     v-if="isProductComparison"
     v-model="templateName"
+    data-ac-template-select
     :disabled="!acl.can('sales_channel.editor')"
     :label="$tc('sw-sales-channel.detail.productComparison.templates.label')"
     :placeholder="$tc('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"

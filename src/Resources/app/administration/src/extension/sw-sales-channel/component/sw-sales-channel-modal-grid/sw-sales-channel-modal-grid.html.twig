@@ -3,6 +3,7 @@
     flex="85px"
     data-index="icon"
     class="sw-sales-channel-modal-grid__icon-column"
+    label="icon"
 >
     <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events -->
     <span
@@ -12,6 +13,7 @@
         <sw-icon
             v-if="isAgenticCommerceSalesChannelType(item.id)"
             name="regular-sparkle"
+            size="20px"
         />
         <sw-icon
             v-else-if="item.iconName"

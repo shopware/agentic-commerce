@@ -33,12 +33,17 @@ export const swSalesChannelDetailOverride = {
                 this.detectCurrentTemplate();
             }
         },
-        'productExport.bodyTemplate'() {
+        'productExport.bodyTemplate'(val) {
             this.detectCurrentTemplate();
         },
     },
 
     computed: {
+        useRouterViewSlot() {
+            const result = typeof this.$router?.hasRoute === 'function';
+            return result;
+        },
+
         isAgenticCommerce() {
             if (!this.salesChannel) {
                 return this.$route.params.typeId === Defaults.agenticCommerceTypeId;
@@ -301,6 +306,8 @@ export const swSalesChannelDetailOverride = {
         },
 
         detectCurrentTemplate() {
+            const optCount = this.productComparison.templateOptions?.length ?? 0;
+            const bodyTpl = this.productExport?.bodyTemplate?.substring?.(0, 30);
             if (!this.productComparison.templateOptions?.length || !this.productExport) {
                 return;
             }
