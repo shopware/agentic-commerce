@@ -40,7 +40,8 @@
     :label="$tc('sw-sales-channel.detail.productComparison.templates.label')"
     :placeholder="$tc('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"
     :options="templateSelectOptions"
-    @change="$emit('template-selected', arguments[0])"
+    @change="$emit('template-selected', $event)"
+    @update:value="(templateName) => $emit('template-selected', templateName)"
 >
     <option
         v-for="option in templateSelectOptions"
