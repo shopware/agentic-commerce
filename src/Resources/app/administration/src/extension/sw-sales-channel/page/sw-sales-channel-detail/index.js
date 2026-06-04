@@ -33,7 +33,7 @@ export const swSalesChannelDetailOverride = {
                 this.detectCurrentTemplate();
             }
         },
-        'productExport.bodyTemplate'(val) {
+        'productExport.provider'() {
             this.detectCurrentTemplate();
         },
     },
@@ -306,19 +306,12 @@ export const swSalesChannelDetailOverride = {
         },
 
         detectCurrentTemplate() {
-            const optCount = this.productComparison.templateOptions?.length ?? 0;
-            const bodyTpl = this.productExport?.bodyTemplate?.substring?.(0, 30);
-            if (!this.productComparison.templateOptions?.length || !this.productExport) {
+            if (!this.productComparison.templateOptions?.length || !this.productExport?.provider) {
                 return;
             }
 
             const matchedTemplate = this.productComparison.templateOptions.find((template) => {
-                return (
-                    template.bodyTemplate !== undefined &&
-                    template.bodyTemplate === this.productExport.bodyTemplate &&
-                    template.headerTemplate === this.productExport.headerTemplate &&
-                    template.footerTemplate === this.productExport.footerTemplate
-                );
+                return template.providerName === this.productExport.provider;
             });
 
             if (matchedTemplate) {
