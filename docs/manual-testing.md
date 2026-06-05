@@ -20,6 +20,7 @@ Current manual scope:
 - A2A endpoint validation through the shared UCP capability layer
 - embedded cart/checkout bridge rendering, security headers, and postMessage events
 - Store API MCP shopping-tool validation on trunk when the core branch is present
+- admin platform-profile cache list/delete validation
 - signed webhook validation
 - version-specific behavior on `6.5.x`, `6.6.x`, and `trunk`
 
@@ -92,6 +93,9 @@ lane-local/disposable:
 - `src/Resources/public/` and `public/bundles/swagagenticcommerce/` are ignored
   by the lane sync helper and cleaned by `bin/ci-admin-smoke.sh` before each
   admin build.
+- UCP sales-channel config is stored in `swag_agentic_commerce_ucp_config`.
+  Legacy `SystemConfig` values are compatibility input only and should not be
+  copied or edited as the source of truth.
 
 ## Running Commands In A Lane
 
@@ -306,6 +310,7 @@ Validate the UCP module:
 - profile preview renders
 - profile preview shows REST/A2A/embedded on 6.5/6.6 and REST/A2A/embedded/MCP on trunk only when the Store API MCP core route exists
 - trunk profile advertises MCP at `/ucp/mcp`; the plugin proxies internally to `/store-api/_mcp` without exposing the sales-channel access key
+- platform-profile cache list/delete endpoints respond in the UCP admin API
 - browser console has no UCP runtime error
 
 ## Storefront Build Validation
@@ -411,6 +416,9 @@ Expected result:
 
 - A2A `catalog.search` and sample `cart.create` work when A2A is advertised
 - embedded cart page returns `frame-ancestors`, CORS origin, and bridge markup
+- embedded requests without configured `embeddedAllowedOrigins`, without an
+  `Origin` header, or from a non-allowlisted origin return controlled `403`
+  UCP errors
 - trunk MCP `tools/list` is skipped unless `UCP_STORE_API_ACCESS_KEY` is set
 - when MCP auth is configured, `tools/list` contains catalog, cart, discount,
   checkout, and order UCP tools

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Embedded;
 
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
@@ -39,6 +41,12 @@ final readonly class EmbeddedResponseListener
 
         if (!\is_string($origin) || '' === $origin || !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
             $event->setResponse($this->forbidden('Embedded origin is not allowlisted for this sales channel.'));
+
+            return;
+        }
+
+        if (Request::METHOD_OPTIONS === $request->getMethod()) {
+            $event->setResponse($this->preflight($origin, $config));
         }
     }
 
@@ -81,5 +89,20 @@ final readonly class EmbeddedResponseListener
                 'content' => $message,
             ]],
         ], Response::HTTP_FORBIDDEN);
+    }
+
+    private function preflight(string $origin, UcpConfig $config): Response
+    {
+        $response = new Response('', Response::HTTP_NO_CONTENT);
+        $frameAncestors = [] !== $config->embeddedFrameAncestors ? $config->embeddedFrameAncestors : ["'self'"];
+
+        $response->headers->set('Access-Control-Allow-Origin', $origin);
+        $response->headers->set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Accept');
+        $response->headers->set('Content-Security-Policy', 'frame-ancestors '.implode(' ', $frameAncestors));
+        $response->headers->remove('X-Frame-Options');
+        $response->headers->set('Vary', 'Origin');
+
+        return $response;
     }
 }

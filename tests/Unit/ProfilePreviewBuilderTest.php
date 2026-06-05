@@ -12,6 +12,8 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Profile\ProfilePreviewBuilder;
 use Ucp\Sdk\Enum\Transport;
 
+require_once __DIR__.'/RecordingProfileBuilder.php';
+
 /** @internal */
 final class ProfilePreviewBuilderTest extends TestCase
 {
