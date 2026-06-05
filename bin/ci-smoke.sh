@@ -16,6 +16,7 @@ done
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
 SDK_ROOT="${SDK_ROOT:-${PLUGIN_ROOT}/../ucp-php-sdk}"
+PLUGIN_ZIP="${CI_SMOKE_PLUGIN_ZIP:-}"
 SMOKE_MODE="${CI_SMOKE_MODE:-}"
 
 detect_shopware_lane() {
@@ -99,7 +100,19 @@ if [[ ! -d "${SHOPWARE_DIR}" ]]; then
   exit 1
 fi
 
-if [[ ! -d "${SDK_ROOT}" ]]; then
+if [[ -n "${PLUGIN_ZIP}" ]]; then
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "Required dependency 'unzip' is not available." >&2
+    exit 1
+  fi
+
+  if [[ ! -f "${PLUGIN_ZIP}" ]]; then
+    echo "Plugin zip not found at ${PLUGIN_ZIP}." >&2
+    exit 1
+  fi
+
+  PLUGIN_ZIP="$(cd "$(dirname "${PLUGIN_ZIP}")" && pwd)/$(basename "${PLUGIN_ZIP}")"
+elif [[ ! -d "${SDK_ROOT}" ]]; then
   echo "SDK checkout not found at ${SDK_ROOT}." >&2
   exit 1
 fi
@@ -261,16 +274,27 @@ wait_for_capture() {
 }
 
 rm -rf "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
-mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
-rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
-rsync -a --delete \
-  --exclude='.git' \
-  --exclude='vendor' \
-  --exclude='var' \
-  --exclude='examples/bootstrap-symfony-app/var' \
-  --exclude='examples/merchant-symfony-app/var' \
-  "${SDK_ROOT}/" "${SHOPWARE_DIR}/custom/ucp-php-sdk/"
-chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
+mkdir -p "${SHOPWARE_DIR}/custom/plugins"
+
+if [[ -n "${PLUGIN_ZIP}" ]]; then
+  unzip -q "${PLUGIN_ZIP}" -d "${SHOPWARE_DIR}/custom/plugins"
+  if [[ ! -d "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" ]]; then
+    echo "Plugin zip must contain a top-level SwagAgenticCommerce directory." >&2
+    exit 1
+  fi
+  chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce"
+else
+  mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
+  rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
+  rsync -a --delete \
+    --exclude='.git' \
+    --exclude='vendor' \
+    --exclude='var' \
+    --exclude='examples/bootstrap-symfony-app/var' \
+    --exclude='examples/merchant-symfony-app/var' \
+    "${SDK_ROOT}/" "${SHOPWARE_DIR}/custom/ucp-php-sdk/"
+  chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
+fi
 
 stage_shopware_checkout() {
   rsync -a --delete \
@@ -306,10 +330,15 @@ sync_custom_sources_into_web_volume() {
     exit 1
   fi
 
-  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/plugins/ucp-php-sdk /var/www/html/custom/ucp-php-sdk && mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
+  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/plugins/ucp-php-sdk /var/www/html/custom/ucp-php-sdk && mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce'
   "${container_runtime}" cp "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/." "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce"
-  "${container_runtime}" cp "${SHOPWARE_DIR}/custom/ucp-php-sdk/." "${web_id}:/var/www/html/custom/ucp-php-sdk"
-  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
+  if [[ -z "${PLUGIN_ZIP}" ]]; then
+    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/ucp-php-sdk'
+    "${container_runtime}" cp "${SHOPWARE_DIR}/custom/ucp-php-sdk/." "${web_id}:/var/www/html/custom/ucp-php-sdk"
+    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
+  else
+    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce'
+  fi
 }
 
 bootstrap_web_volume_if_needed() {
@@ -361,12 +390,20 @@ if ! db_table_exists plugin; then
   web php /var/www/html/bin/console system:install --basic-setup --force
 fi
 
-web sh -lc "cd /var/www/html \
-  && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
-  && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1\"}}}' \
-  && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1\"}}}' \
-  && { composer remove --no-update --no-interaction shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
-  && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
+if [[ -n "${PLUGIN_ZIP}" ]]; then
+  web sh -lc 'cd /var/www/html \
+    && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
+    && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
+    && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+else
+  web sh -lc "cd /var/www/html \
+    && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
+    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1\"}}}' \
+    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1\"}}}' \
+    && { composer remove --no-update --no-interaction shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
+    && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
+fi
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console

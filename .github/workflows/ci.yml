@@ -9,7 +9,7 @@ on:
     inputs:
       sdk_ref:
         description: 'ucp-php-sdk ref to test against'
-        default: 'feat/alpha-release'
+        default: 'main'
         required: true
       shopware_65_ref:
         description: 'Shopware 6.5 ref'
@@ -25,7 +25,7 @@ on:
         required: true
 
 env:
-  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'feat/alpha-release' }}
+  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
@@ -34,20 +34,20 @@ jobs:
   php-quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
@@ -65,15 +65,15 @@ jobs:
   admin-static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
@@ -96,21 +96,21 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
@@ -145,15 +145,15 @@ jobs:
           - lane: 'trunk'
             mode: vite
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
@@ -184,21 +184,21 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
@@ -215,3 +215,135 @@ jobs:
           SHOPWARE_REF: ${{ matrix.lane }}
           CI_STOREFRONT_BOOTSTRAP_MODE: cold
           CI_STOREFRONT_KEEP_STACK: 0
+
+  package-test-zip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name != 'pull_request'
+    needs:
+      - php-quality
+      - admin-static
+      - shopware-matrix
+      - admin-matrix
+      - storefront-matrix
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+          token: ${{ secrets.PLUGINS_PAT }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: shopware/shopware-cli-action@v3
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh agentic-commerce/bin/ci-package-test-zip.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" trunk
+      - run: agentic-commerce/bin/ci-admin-smoke.sh "$GITHUB_WORKSPACE/shopware" vite
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: trunk
+          CI_ADMIN_BOOTSTRAP_MODE: cold
+          CI_ADMIN_BROWSER_VALIDATE: 0
+          CI_ADMIN_EXPORT_PLUGIN_PUBLIC: ${{ github.workspace }}/package-admin-public
+          CI_ADMIN_KEEP_STACK: 0
+      - run: agentic-commerce/bin/ci-package-test-zip.sh "$GITHUB_WORKSPACE/test-zip"
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          ADMIN_PUBLIC_SOURCE: ${{ github.workspace }}/package-admin-public
+          UCP_SDK_REF: ${{ env.UCP_SDK_REF }}
+          SHOPWARE_65_REF: ${{ env.SHOPWARE_65_REF }}
+          SHOPWARE_66_REF: ${{ env.SHOPWARE_66_REF }}
+          SHOPWARE_TRUNK_REF: ${{ env.SHOPWARE_TRUNK_REF }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: swag-agentic-commerce-test-zip-candidate-${{ github.run_id }}
+          path: |
+            test-zip/SwagAgenticCommerce-main-*.zip
+            test-zip/SwagAgenticCommerce-main-*.zip.sha256
+            test-zip/artifact-metadata.json
+          retention-days: 1
+
+  zip-install-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event_name != 'pull_request'
+    needs:
+      - package-test-zip
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+          - lane: '6.6.x'
+          - lane: 'trunk'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/download-artifact@v8
+        with:
+          name: swag-agentic-commerce-test-zip-candidate-${{ github.run_id }}
+          path: test-zip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
+      - run: |
+          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name 'SwagAgenticCommerce-main-*.zip' -print -quit)"
+          if [ -z "$zip_path" ]; then
+            echo "Unable to find packaged SwagAgenticCommerce zip." >&2
+            exit 1
+          fi
+          echo "ZIP_PATH=$zip_path" >> "$GITHUB_ENV"
+      - run: CI_SMOKE_PLUGIN_ZIP="$ZIP_PATH" agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          CI_SMOKE_KEEP_STACK: 1
+          CI_SMOKE_MODE: cold
+          SHOPWARE_REF: ${{ matrix.lane }}
+      - run: npm run test:e2e:admin -- --reporter=list
+        working-directory: agentic-commerce
+        env:
+          BASE_URL: http://localhost:8000
+          SHOPWARE_REF: ${{ matrix.lane }}
+      - if: always()
+        run: docker compose -f "$GITHUB_WORKSPACE/shopware/compose.yaml" down -v
+
+  publish-test-zip:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    needs:
+      - zip-install-smoke
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: swag-agentic-commerce-test-zip-candidate-${{ github.run_id }}
+          path: test-zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: swag-agentic-commerce-test-zip
+          path: |
+            test-zip/SwagAgenticCommerce-main-*.zip
+            test-zip/SwagAgenticCommerce-main-*.zip.sha256
+            test-zip/artifact-metadata.json

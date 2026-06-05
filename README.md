@@ -140,6 +140,8 @@ Manual human test steps are documented in [docs/manual-testing.md](docs/manual-t
 
 Lane-specific administration, build, and local-runtime differences are documented in [docs/shopware-version-differences.md](docs/shopware-version-differences.md). Short-form guidance for future coding agents is kept in [AGENTS.md](AGENTS.md).
 
+The main-merge tester zip workflow is documented in [docs/main-merge-test-zip-artifact.md](docs/main-merge-test-zip-artifact.md).
+
 Administration build compatibility is intentionally validated as a matrix:
 
 - `6.5.x`: webpack only
