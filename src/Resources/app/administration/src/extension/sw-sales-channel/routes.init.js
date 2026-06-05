@@ -6,7 +6,11 @@ const COMPONENT_STATISTICS   = 'sw-sales-channel-detail-agentic-commerce-statist
 // Component.build() builds from Shopware's component registry, which is
 // populated before routes are resolved.
 function makeComponentFactory(componentName) {
-    return () => Shopware.Component.build(componentName);
+    return async () => {
+        const component = await Shopware.Component.build(componentName);
+
+        return component;
+    };
 }
 
 const childRoutes = [

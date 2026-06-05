@@ -111,18 +111,18 @@ export const swSalesChannelDetailBaseOverride = {
         },
     },
 
-    mounted() {
-        this.$nextTick(() => {
-            const selectEl = this.$el?.querySelector?.('[data-ac-template-select] select');
-            if (selectEl) {
-                this._acTemplateSelectHandler = (e) => {
-                    if (e.target.value) {
-                        this.$emit('template-selected', e.target.value);
-                    }
-                };
-                selectEl.addEventListener('change', this._acTemplateSelectHandler);
-            }
-        });
+    async mounted() {
+        await this.$nextTick();
+
+        const selectEl = this.$el?.querySelector?.('[data-ac-template-select] select');
+        if (selectEl) {
+            this._acTemplateSelectHandler = (e) => {
+                if (e.target.value) {
+                    this.$emit('template-selected', e.target.value);
+                }
+            };
+            selectEl.addEventListener('change', this._acTemplateSelectHandler);
+        }
     },
 
     beforeDestroy() {
