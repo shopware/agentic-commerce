@@ -335,9 +335,11 @@ return static function (ContainerConfigurator $container): void {
 
     // ── Sales channel type protection subscriber ──────────────────────────────
 
-    $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class);
+    $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class)
+        ->tag('kernel.event_subscriber');
 
     // ── CompatConfigReader: fixes libxml2 2.13+ rejection of 6.5 XSD ─────────
 
-    $services->set(ConfigReader::class, CompatConfigReader::class);
+    $services->set(ConfigReader::class, CompatConfigReader::class)
+        ->public();
 };
