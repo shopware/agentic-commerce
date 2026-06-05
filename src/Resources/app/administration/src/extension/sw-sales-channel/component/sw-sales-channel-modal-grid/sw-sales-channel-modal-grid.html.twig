@@ -1,0 +1,88 @@
+{% block sw_sales_channel_grid_columns_icon %}
+<sw-grid-column
+    flex="85px"
+    data-index="icon"
+    class="sw-sales-channel-modal-grid__icon-column"
+    label="icon"
+>
+    <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events -->
+    <span
+        class="sw-sales-channel-modal-grid__icon"
+        @click="onOpenDetail(item.id)"
+    >
+        <sw-icon
+            v-if="isAgenticCommerceSalesChannelType(item.id)"
+            name="regular-sparkle"
+            size="20px"
+        />
+        <sw-icon
+            v-else-if="item.iconName"
+            :name="item.iconName"
+        />
+    </span>
+</sw-grid-column>
+{% endblock %}
+
+{% block sw_sales_channel_grid_columns_content %}
+<sw-grid-column
+    flex="minmax(150px, 1fr)"
+    data-index="content"
+    label="content"
+>
+    <div class="sw-sales-channel-modal-grid__item-content">
+        <h3
+            class="sw-sales-channel-modal-grid__item-name"
+            role="button"
+            tabindex="0"
+            @click="onOpenDetail(item.id)"
+            @keydown.enter="onOpenDetail(item.id)"
+        >
+            <span>{{ item.translated.name }}</span>
+            <sw-label
+                v-if="isAgenticCommerceSalesChannelType(item.id)"
+                appearance="pill"
+                variant="success"
+                size="small"
+                class="sw-sales-channel-modal-grid__agentic-badge"
+            >
+                {{ $t('swagAgenticCommerce.modalGrid.agenticCommerceBadge') }}
+            </sw-label>
+        </h3>
+        <div
+            class="sw-sales-channel-modal-grid__item-description"
+            role="button"
+            tabindex="0"
+            @click="onOpenDetail(item.id)"
+            @keydown.enter="onOpenDetail(item.id)"
+        >{{ item.translated.description }}</div>
+    </div>
+</sw-grid-column>
+{% endblock %}
+
+{% block sw_sales_channel_grid_columns_actions %}
+<sw-grid-column
+    flex="auto"
+    align="center"
+    data-index="actions"
+    class="sw-sales-channel-modal-grid__actions"
+    label="actions"
+>
+    <sw-button
+        v-tooltip="{
+            message: $t('sw-sales-channel.modal.messageNoProductStreams'),
+            showOnDisabledElements: true,
+            disabled: !addChannelAction.disabled(item.id)
+        }"
+        class="sw-sales-channel-modal__add-channel-action"
+        size="small"
+        variant="primary"
+        :is-loading="addChannelAction.loading(item.id)"
+        :disabled="addChannelAction.disabled(item.id)"
+        data-analytics-id="sw_sales_channel.modal_grid.sales_channel_add"
+        :data-analytics-sales-channel-type-id="item.id"
+        @click="onAddChannel(item.id)"
+    >
+        {{ $t('sw-sales-channel.modal.buttonAddChannel') }}
+    </sw-button>
+</sw-grid-column>
+{% endblock %}

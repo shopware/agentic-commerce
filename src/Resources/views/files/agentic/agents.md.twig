@@ -1,0 +1,7 @@
+{% sw_extends 'files/agentic/agents.md.twig' %}
+
+{% block agentic_agents_extensions %}
+    {{ parent() }}
+
+    {% include 'files/agentic/includes/ucp-agents.md.twig' %}
+{% endblock %}

@@ -13,5 +13,6 @@
     </testsuites>
     <php>
         <ini name="date.timezone" value="UTC"/>
+        <env name="SWAG_AGENTIC_COMMERCE_SHOPWARE_BOOTSTRAP" value="1"/>
     </php>
 </phpunit>

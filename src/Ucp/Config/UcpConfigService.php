@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 
 #[Package('framework')]
 final readonly class UcpConfigService
@@ -36,6 +37,7 @@ final readonly class UcpConfigService
     public function __construct(
         private UcpConfigRepositoryInterface $repository,
         private LegacyConfigStoreInterface $legacyConfigStore,
+        private ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
     ) {
     }
 
@@ -104,6 +106,10 @@ final readonly class UcpConfigService
         }
 
         $this->repository->save($salesChannelId, $config);
+
+        if ($config->active) {
+            $this->agenticFilesCoreBridge?->enableForSalesChannel($salesChannelId);
+        }
 
         return $config;
     }

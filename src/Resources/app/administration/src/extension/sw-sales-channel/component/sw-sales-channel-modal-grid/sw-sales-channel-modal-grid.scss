@@ -1,0 +1,16 @@
+.sw-sales-channel-modal-grid {
+    .sw-sales-channel-modal-grid__item-name {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .sw-sales-channel-modal-grid__agentic-badge {
+        min-width: 0;
+        margin: 0;
+
+        .sw-label__caption {
+            width: auto;
+        }
+    }
+}
