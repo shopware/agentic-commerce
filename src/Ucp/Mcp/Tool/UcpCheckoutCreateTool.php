@@ -5,28 +5,36 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Mcp\Capability\Attribute\Schema;
 use Shopware\Core\Framework\Log\Package;
-use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
-use Ucp\Sdk\Symfony\Bridge\HttpPayloadMapper;
+use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
+use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
+use Ucp\Sdk\Symfony\Operation\ShoppingOperationToolSchemas;
 
-#[McpTool(name: 'shopware-ucp-checkout-create', title: 'UCP Checkout Create', description: 'Create a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object matching the UCP checkout.create request.')]
+#[McpTool(name: 'shopware-ucp-checkout-create', title: 'UCP Checkout Create', description: 'Create a checkout session through the shared UCP checkout capability. Pass payload as a UCP checkout.create request object.')]
 #[Package('checkout')]
 final readonly class UcpCheckoutCreateTool
 {
     public function __construct(
-        private CheckoutCapabilityInterface $checkoutCapability,
-        private HttpPayloadMapper $payloadMapper,
+        private ShoppingOperationExecutor $operationExecutor,
         private UcpMcpToolContext $toolContext,
     ) {
     }
 
-    public function __invoke(string $payload = '{}'): string
+    /**
+     * @param array<string, mixed> $payload
+     */
+    #[Schema(definition: ShoppingOperationToolSchemas::CHECKOUT_CREATE_INPUT)]
+    public function __invoke(array $payload): string
     {
-        $checkout = $this->checkoutCapability->createCheckout(
-            $this->payloadMapper->toCheckoutCreateRequest($this->toolContext->decodeObject($payload)),
-            $this->toolContext->requestContext(),
-        );
-
-        return $this->toolContext->success($checkout->toArray());
+        try {
+            return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
+                'checkout.create',
+                $payload,
+                $this->toolContext->requestContext(),
+            )));
+        } catch (\Throwable $exception) {
+            throw $this->toolContext->toToolCallException($exception);
+        }
     }
 }

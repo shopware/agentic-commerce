@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
+use Mcp\Exception\ToolCallException;
 use Shopware\Core\Framework\Log\Package;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Ucp\Sdk\Exception\UcpException;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
@@ -50,6 +54,28 @@ final readonly class UcpMcpToolContext
         $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
 
         return array_values(array_map('strval', \is_array($decoded) ? $decoded : []));
+    }
+
+    public function toToolCallException(\Throwable $exception): ToolCallException
+    {
+        if ($exception instanceof ValidationException) {
+            $violations = $exception->getViolations();
+            $message = [] === $violations
+                ? $exception->getMessage()
+                : $exception->getMessage().': '.implode('; ', $violations);
+
+            return new ToolCallException($message, previous: $exception);
+        }
+
+        if ($exception instanceof UcpException) {
+            return new ToolCallException($exception->getMessage(), previous: $exception);
+        }
+
+        if ($exception instanceof HttpExceptionInterface) {
+            return new ToolCallException($exception->getMessage(), previous: $exception);
+        }
+
+        return new ToolCallException('UCP MCP tool execution failed.', previous: $exception);
     }
 
     /**

@@ -11,3 +11,4 @@
 /tests/jest/administration/.jestcache/
 /tests/jest/administration/coverage/
 /src/Resources/public/
+.claude

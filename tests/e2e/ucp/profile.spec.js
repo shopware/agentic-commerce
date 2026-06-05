@@ -13,6 +13,42 @@ function shoppingTransports(profile) {
     return profileRoot.services?.['dev.ucp.shopping'] || [];
 }
 
+async function initializeMcpSession(mcpApi, mcpEndpoint) {
+    const initializeResponse = await mcpApi.post(mcpEndpoint, {
+        headers: {
+            'content-type': 'application/json',
+        },
+        data: {
+            jsonrpc: '2.0',
+            method: 'initialize',
+            params: {
+                protocolVersion: '2025-03-26',
+                capabilities: {},
+                clientInfo: { name: 'ucp-playwright', version: '1.0.0' },
+            },
+            id: 201,
+        },
+    });
+
+    await expect(initializeResponse, await initializeResponse.text()).toBeOK();
+    const sessionId = initializeResponse.headers()['mcp-session-id'];
+    expect(sessionId).toEqual(expect.any(String));
+
+    await mcpApi.post(mcpEndpoint, {
+        headers: {
+            'content-type': 'application/json',
+            'Mcp-Session-Id': sessionId,
+        },
+        data: {
+            jsonrpc: '2.0',
+            method: 'notifications/initialized',
+            params: {},
+        },
+    });
+
+    return { initializeResponse, sessionId };
+}
+
 test.describe('UCP public profile and transports', () => {
     // This is a public-profile suite by design: it reads /.well-known/ucp only.
     // MCP availability depends on the running build (the core Store API MCP
@@ -73,26 +109,81 @@ test.describe('UCP public profile and transports', () => {
         expect(mcpEndpoint).toBe(`${config.baseUrl}/ucp/mcp`);
 
         const mcpApi = await request.newContext();
-        const initializeResponse = await mcpApi.post(mcpEndpoint, {
+        const { initializeResponse } = await initializeMcpSession(mcpApi, mcpEndpoint);
+
+        const body = await initializeResponse.json();
+        expect(body.result.serverInfo.name).toContain('Shopware Store API');
+
+        await mcpApi.dispose();
+    });
+
+    test('exposes object payload schemas for MCP write tools', async ({ request: api }) => {
+        const profile = await readPublicProfile(api);
+        const mcpEndpoint = shoppingTransports(profile).find((entry) => entry.transport === 'mcp')?.endpoint;
+
+        test.skip(!mcpEndpoint, 'Store API MCP endpoint is not exposed by this lane.');
+
+        const expectedTools = [
+            'shopware-ucp-cart-create',
+            'shopware-ucp-cart-update',
+            'shopware-ucp-checkout-create',
+            'shopware-ucp-checkout-update',
+        ];
+
+        const mcpApi = await request.newContext();
+        const { sessionId } = await initializeMcpSession(mcpApi, mcpEndpoint);
+
+        const toolsResponse = await mcpApi.post(mcpEndpoint, {
             headers: {
                 'content-type': 'application/json',
+                'Mcp-Session-Id': sessionId,
             },
             data: {
                 jsonrpc: '2.0',
-                method: 'initialize',
-                params: {
-                    protocolVersion: '2025-03-26',
-                    capabilities: {},
-                    clientInfo: { name: 'ucp-playwright', version: '1.0.0' },
-                },
-                id: 201,
+                method: 'tools/list',
+                params: {},
+                id: 202,
             },
         });
 
-        await expect(initializeResponse, await initializeResponse.text()).toBeOK();
-        expect(initializeResponse.headers()['mcp-session-id']).toEqual(expect.any(String));
-        const body = await initializeResponse.json();
-        expect(body.result.serverInfo.name).toContain('Shopware Store API');
+        await expect(toolsResponse, await toolsResponse.text()).toBeOK();
+        const toolsBody = await toolsResponse.json();
+        const tools = new Map(toolsBody.result.tools.map((tool) => [tool.name, tool]));
+
+        for (const toolName of expectedTools) {
+            const tool = tools.get(toolName);
+            expect(tool, `${toolName} must be listed`).toBeTruthy();
+            expect(tool.inputSchema.required).toContain('payload');
+            expect(tool.inputSchema.properties.payload.type).toBe('object');
+            expect(tool.inputSchema.properties.payload.default).toBeUndefined();
+            expect(JSON.stringify(tool.inputSchema)).not.toContain('"default":{}');
+        }
+
+        for (const toolName of ['shopware-ucp-cart-update', 'shopware-ucp-checkout-update']) {
+            expect(tools.get(toolName).inputSchema.required).toContain('id');
+            expect(tools.get(toolName).inputSchema.properties.id.minLength).toBe(1);
+        }
+
+        const invalidCallResponse = await mcpApi.post(mcpEndpoint, {
+            headers: {
+                'content-type': 'application/json',
+                'Mcp-Session-Id': sessionId,
+            },
+            data: {
+                jsonrpc: '2.0',
+                method: 'tools/call',
+                params: {
+                    name: 'shopware-ucp-cart-create',
+                    arguments: {},
+                },
+                id: 203,
+            },
+        });
+
+        await expect(invalidCallResponse, await invalidCallResponse.text()).toBeOK();
+        const invalidCallBody = await invalidCallResponse.json();
+        expect(invalidCallBody.error.code).toBe(-32602);
+        expect(invalidCallBody.error.message).toContain('payload');
 
         await mcpApi.dispose();
     });
