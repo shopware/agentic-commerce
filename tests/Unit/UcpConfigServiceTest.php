@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -83,6 +84,30 @@ final class UcpConfigServiceTest extends TestCase
         static::assertTrue($configs['sales-channel-a']->active);
         static::assertSame(['catalog'], $configs['sales-channel-b']->enabledCapabilities);
     }
+
+    public function testItEnablesCoreAgenticFilesWhenSalesChannelConfigIsSavedActive(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $bridge = new RecordingAgenticFilesCoreBridge();
+        $service = new UcpConfigService($repository, $legacyStore, $bridge);
+
+        $service->saveConfig(['active' => true], 'sales-channel-a');
+
+        static::assertSame(['sales-channel-a'], $bridge->enabledSalesChannelIds);
+    }
+
+    public function testItDoesNotEnableCoreAgenticFilesWhenSalesChannelConfigIsSavedInactive(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $bridge = new RecordingAgenticFilesCoreBridge();
+        $service = new UcpConfigService($repository, $legacyStore, $bridge);
+
+        $service->saveConfig(['active' => false], 'sales-channel-a');
+
+        static::assertSame([], $bridge->enabledSalesChannelIds);
+    }
 }
 
 final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
@@ -112,5 +137,22 @@ final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
     public function save(string $salesChannelId, UcpConfig $config): void
     {
         $this->configs[$salesChannelId] = $config;
+    }
+}
+
+final class RecordingAgenticFilesCoreBridge implements AgenticFilesCoreBridgeInterface
+{
+    /**
+     * @var list<string>
+     */
+    public array $enabledSalesChannelIds = [];
+
+    public function enableForSalesChannel(string $salesChannelId): void
+    {
+        $this->enabledSalesChannelIds[] = $salesChannelId;
+    }
+
+    public function syncActiveUcpSalesChannels(): void
+    {
     }
 }

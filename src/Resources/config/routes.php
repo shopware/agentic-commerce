@@ -6,12 +6,17 @@ use Composer\InstalledVersions;
 use RuntimeException as RouteRuntimeException;
 use Shopware\Core\PlatformRequest;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
 return static function (RoutingConfigurator $routes): void {
     $routes->import('../../Ucp/Admin/Api/', 'attribute');
     $routes->import('../../Ucp/Mcp/Api/', 'attribute');
     $routes->import('../../Ucp/Test/Api/', 'attribute');
+
+    if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
+        $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
+    }
 
     $sdkBundlePath = InstalledVersions::getInstallPath('ucp-php-sdk/symfony-bundle');
     $sdkRoutes = \is_string($sdkBundlePath) ? $sdkBundlePath.'/src/Resources/config/routes.php' : null;

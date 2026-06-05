@@ -7,6 +7,13 @@ namespace Swag\AgenticCommerce;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
 use Shopware\Core\Framework\Plugin;
+use Shopware\Core\Framework\Plugin\Context\ActivateContext;
+use Shopware\Core\Framework\Plugin\Context\InstallContext;
+use Shopware\Core\Framework\Plugin\Context\UpdateContext;
+use Shopware\Core\Kernel;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
+use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 
@@ -23,9 +30,35 @@ final class SwagAgenticCommerce extends Plugin
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
         }
 
-        return [
-            new $bundleClass(),
-        ];
+        /** @var list<Bundle> $bundles */
+        $bundles = [new $bundleClass()];
+
+        if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
+            $bundles[] = new AgenticFilesFallbackBundle();
+        }
+
+        return $bundles;
+    }
+
+    public function install(InstallContext $installContext): void
+    {
+        parent::install($installContext);
+
+        $this->syncCoreAgenticFiles();
+    }
+
+    public function update(UpdateContext $updateContext): void
+    {
+        parent::update($updateContext);
+
+        $this->syncCoreAgenticFiles();
+    }
+
+    public function activate(ActivateContext $activateContext): void
+    {
+        parent::activate($activateContext);
+
+        $this->syncCoreAgenticFiles();
     }
 
     public function executeComposerCommands(): bool
@@ -43,5 +76,10 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    private function syncCoreAgenticFiles(): void
+    {
+        CoreSalesChannelFileBridge::syncActiveUcpSalesChannelsWithConnection(Kernel::getConnection());
     }
 }

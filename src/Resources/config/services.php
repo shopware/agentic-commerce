@@ -22,6 +22,13 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
 use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
+use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileSyncSubscriber;
+use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
+use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
+use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
@@ -107,6 +114,14 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(SalesChannelDomainResolver::class)
         ->arg('$domainRepository', service('sales_channel_domain.repository'));
+
+    $services->set(FallbackAgenticFileRenderer::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'));
+
+    if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
+        $services->set(RemoveLeadingSpacesTwigExtension::class)
+            ->tag('twig.extension');
+    }
 
     $services->set(GuestCustomerContextProvisioner::class)
         ->arg('$customerRepository', service('customer.repository'))
@@ -210,16 +225,24 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
         ->tag('controller.service_arguments');
 
+    $services->set(FallbackAgenticFileController::class)
+        ->public()
+        ->tag('controller.service_arguments');
+
     // Config layer.
 
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
     $services->alias(DiscoveryBridgeInterface::class, TrunkDiscoveryBridge::class);
+    $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class);
 
     // Event listeners.
 
     $services->set(EmbeddedResponseListener::class)
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
+
+    $services->set(CoreSalesChannelFileSyncSubscriber::class)
+        ->tag('kernel.event_subscriber');
 };
