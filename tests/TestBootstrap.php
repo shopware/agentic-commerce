@@ -5,8 +5,28 @@ declare(strict_types=1);
 use Composer\InstalledVersions;
 use Shopware\Core\TestBootstrapper;
 
+$shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
+
+// When SHOPWARE_PROJECT_DIR is set (CI): load Shopware's vendor autoloader directly.
+// The full TestBootstrapper->bootstrap() initialises the kernel and compiles the DI
+// container, which is too heavy for unit tests and fails on CI test fixtures.
+if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
+    $vendorAutoload = $shopwareProjectDir.'/vendor/autoload.php';
+    if (is_file($vendorAutoload)) {
+        /** @var Composer\Autoload\ClassLoader $classLoader */
+        $classLoader = require $vendorAutoload;
+        $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
+        $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
+
+        return $classLoader;
+    }
+}
+
+// Fallback: full TestBootstrapper for local/monorepo development.
 if (!class_exists(TestBootstrapper::class)) {
-    $installed = class_exists(InstalledVersions::class) ? InstalledVersions::getInstallPath('shopware/core') : null;
+    $installed = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
+        ? InstalledVersions::getInstallPath('shopware/core')
+        : null;
     if (\is_string($installed) && is_file($installed.'/TestBootstrapper.php')) {
         require_once $installed.'/TestBootstrapper.php';
     }
@@ -23,12 +43,14 @@ if (!class_exists(TestBootstrapper::class)) {
     throw new RuntimeException('Could not locate Shopware TestBootstrapper.');
 }
 
-$corePath = class_exists(InstalledVersions::class) ? InstalledVersions::getInstallPath('shopware/core') : null;
+$corePath = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
+    ? InstalledVersions::getInstallPath('shopware/core')
+    : null;
 if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
     $corePath = \dirname(__DIR__, 4).'/src/Core';
 }
-
 $projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
+
 $classLoader = (new TestBootstrapper())
     ->setProjectDir($projectDir)
     ->setLoadEnvFile(true)

@@ -18,8 +18,10 @@ use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
+use Shopware\Core\Content\ProductExport\ProductExportDefinition;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
+use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
 use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
@@ -30,6 +32,25 @@ use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportDefinition;
+use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportHydrator;
+use Swag\AgenticCommerce\Content\ProductExport\Provider\AgenticCommerceProductExportProviderRegistry;
+use Swag\AgenticCommerce\Content\ProductExport\Provider\GoogleProductExportProvider;
+use Swag\AgenticCommerce\Content\ProductExport\Provider\OpenAiProductExportProvider;
+use Swag\AgenticCommerce\Content\ProductExport\Service\JsonlAwareProductExportRenderer;
+use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportProviderContextSubscriber;
+use Swag\AgenticCommerce\Content\ProductExport\Subscriber\JsonlContentTypeSubscriber;
+use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\CustomerSalesChannelTrackingExtension;
+use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\OrderSalesChannelTrackingExtension;
+use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\SalesChannelProductExportTrackingExtension;
+use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerDefinition;
+use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingListener;
+use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderDefinition;
+use Swag\AgenticCommerce\Content\ProductExport\Validator\GoogleProductExportValidator;
+use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
+use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
+use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
+use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
@@ -98,6 +119,7 @@ use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services();
+    $services->defaults()->public();
 
     $services->defaults()
         ->autowire()
@@ -119,8 +141,7 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
-        $services->set(RemoveLeadingSpacesTwigExtension::class)
-            ->tag('twig.extension');
+        $services->set(RemoveLeadingSpacesTwigExtension::class);
     }
 
     $services->set(GuestCustomerContextProvisioner::class)
@@ -208,25 +229,21 @@ return static function (ContainerConfigurator $container): void {
     // Public controllers.
 
     $services->set(UcpMcpProxyController::class)
-        ->public()
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
         ->tag('controller.service_arguments');
 
     $services->set(UcpAdminController::class)
-        ->public()
         ->tag('controller.service_arguments');
 
     $services->set(WebhookCaptureStore::class)
         ->arg('$projectDir', param('kernel.project_dir'));
 
     $services->set(TestWebhookController::class)
-        ->public()
         ->arg('$appEnv', param('kernel.environment'))
         ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
         ->tag('controller.service_arguments');
 
     $services->set(FallbackAgenticFileController::class)
-        ->public()
         ->tag('controller.service_arguments');
 
     // Config layer.
@@ -243,6 +260,86 @@ return static function (ContainerConfigurator $container): void {
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
 
-    $services->set(CoreSalesChannelFileSyncSubscriber::class)
+    $services->set(CoreSalesChannelFileSyncSubscriber::class);
+
+    // ── Product export: entity definition override ────────────────────────────
+
+    // Replace core ProductExportDefinition with our subclass that adds the `provider` field.
+    $services->set(ProductExportDefinition::class, AgenticProductExportDefinition::class)
+        ->tag('shopware.entity.definition');
+
+    $services->set(AgenticProductExportHydrator::class)
+        ->arg('$container', service('service_container'));
+
+    // ── Product export: providers ─────────────────────────────────────────────
+
+    $services->set(AgenticCommerceProductExportProviderRegistry::class)
+        ->arg('$providers', tagged_iterator('swag_agentic_commerce.product_export.provider'));
+
+    $services->set(OpenAiProductExportProvider::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->tag('swag_agentic_commerce.product_export.provider');
+
+    $services->set(GoogleProductExportProvider::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->tag('swag_agentic_commerce.product_export.provider');
+
+    // ── Product export: renderer decorator ───────────────────────────────────
+
+    $services->set(JsonlAwareProductExportRenderer::class)
+        ->decorate('Shopware\\Core\\Content\\ProductExport\\Service\\ProductExportRenderer')
+        ->arg('$inner', service('.inner'));
+
+    // ── Product export: subscribers ───────────────────────────────────────────
+
+    $services->set(AgenticCommerceProductExportProviderContextSubscriber::class);
+
+    $services->set(JsonlContentTypeSubscriber::class);
+
+    // ── Product export: validators ────────────────────────────────────────────
+
+    $services->set(JsonlRowParser::class);
+
+    $services->set(OpenAiProductExportValidator::class)
+        ->tag('shopware.product_export.validator');
+
+    $services->set(GoogleProductExportValidator::class)
+        ->tag('shopware.product_export.validator');
+
+    // ── Tracking: entity definitions (plugin-owned until SW 6.7.10+) ─────────
+
+    $services->set(SalesChannelTrackingOrderDefinition::class)
+        ->tag('shopware.entity.definition', ['entity' => 'sales_channel_tracking_order']);
+
+    $services->set(SalesChannelTrackingCustomerDefinition::class)
+        ->tag('shopware.entity.definition', ['entity' => 'sales_channel_tracking_customer']);
+
+    // ── Tracking: entity extensions ───────────────────────────────────────────
+
+    $services->set(OrderSalesChannelTrackingExtension::class)
+        ->tag('shopware.entity.extension');
+
+    $services->set(CustomerSalesChannelTrackingExtension::class)
+        ->tag('shopware.entity.extension');
+
+    $services->set(SalesChannelProductExportTrackingExtension::class)
+        ->tag('shopware.entity.extension');
+
+    // ── Tracking: listener (guards internally via coreShipsTrackingTables()) ──
+
+    $services->set(SalesChannelTrackingListener::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->arg('$salesChannelTrackingOrderRepository', service('sales_channel_tracking_order.repository'))
+        ->arg('$salesChannelTrackingCustomerRepository', service('sales_channel_tracking_customer.repository'))
+        ->arg('$cache', service('cache.object'));
+
+    // ── Sales channel type protection subscriber ──────────────────────────────
+
+    $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class)
         ->tag('kernel.event_subscriber');
+
+    // ── CompatConfigReader: fixes libxml2 2.13+ rejection of 6.5 XSD ─────────
+
+    $services->set(ConfigReader::class, CompatConfigReader::class)
+        ->public();
 };

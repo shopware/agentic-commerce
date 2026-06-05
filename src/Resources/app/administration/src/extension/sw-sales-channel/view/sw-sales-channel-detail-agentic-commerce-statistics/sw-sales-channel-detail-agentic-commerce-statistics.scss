@@ -1,0 +1,44 @@
+.sw-sales-channel-detail-agentic-commerce-statistics {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: 1fr;
+
+    &__orders,
+    &__customers,
+    &__turnover {
+        .sw-field.sw-field--select {
+            select {
+                padding-right: 30px;
+            }
+
+            .sw-block-field__block {
+                height: auto;
+
+                .sw-field--select__options {
+                    top: 50%;
+                    transform: translateY(-50%);
+
+                    .mt-icon {
+                        padding: 0;
+                        margin-bottom: 0;
+
+                        > svg {
+                            width: 12px;
+                            height: 12px;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    &__summary {
+        margin: 12px 0 0;
+        font-size: 14px;
+        color: var(--color-darkgray-200);
+
+        strong {
+            color: var(--color-text-primary-default, #131c2c);
+        }
+    }
+}
