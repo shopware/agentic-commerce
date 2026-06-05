@@ -52,20 +52,12 @@ export const swSalesChannelDetailOverride = {
             return this.salesChannel.typeId === Defaults.agenticCommerceTypeId;
         },
 
-        // Emit the plugin's own agentic tabs only when core doesn't (avoids
-        // duplication). On native cores core emits the tabs; they open this
-        // override's (overridden) views.
         shouldRenderAgenticUi() {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
         },
 
-        /**
-         * Core gates product-export logic on `isProductComparison`. Re-implement
-         * the upstream check inline and widen it for agentic commerce so the
-         * product-comparison tab/cards render on AC sales channels too —
-         * `$super(...)` is unreliable in the 6.5/6.6 range (parent ref may be
-         * unresolved during the create flow), so we don't rely on it here.
-         */
+        // Widened to include AC channels so they reuse the product-export blocks.
+        // $super() is skipped — it is unreliable during the create flow in 6.5/6.6.
         isProductComparison() {
             if (this.isAgenticCommerce) {
                 return true;
@@ -190,20 +182,19 @@ export const swSalesChannelDetailOverride = {
         },
 
         async onSave() {
-            /**
-             * 6.7.9.0+ exposes a dedicated saveSalesChannel(); on 6.7.0–6.7.8.x the
-             * save logic is still inlined in onSave(), so fall back to $super and
-             * read isSaveSuccessful as the result signal.
-             */
+            if (!this.validateAgenticCommerceExportConfig()) {
+                this.isLoading = false;
+                return;
+            }
+
+            // 6.7.9.0+ provides saveSalesChannel(); earlier versions inline the save in onSave().
             const isLegacyOnSave = typeof this.saveSalesChannel !== 'function';
 
-            /**
-             * Snapshot the channel id and the config entries before saving:
-             * legacy core onSave triggers loadEntityData() which nulls this.salesChannel
-             * and resets agenticCommerceExportConfig before the export-config write runs.
-             */
+            // Snapshot before saving: legacy onSave triggers loadEntityData() which nulls
+            // salesChannel and resets agenticCommerceExportConfig mid-flight.
             const channelIdAtSave = this.salesChannel?.id;
             const exportConfigAtSave = this.agenticCommerceExportConfig;
+            const providerAtSave = this.productExport?.provider;
 
             let saveSuccessful;
             if (isLegacyOnSave) {
@@ -217,27 +208,16 @@ export const swSalesChannelDetailOverride = {
                 return;
             }
 
-            /**
-             * Run AC config validation after the channel saves successfully.
-             * This marks required fields in red (field-level highlights) without
-             * blocking the channel save — backend validates channel-level fields,
-             * frontend validates AC config fields. Both paths produce visible errors
-             * consistent with how other channel types behave in Shopware 6.5.
-             */
-            this.validateAgenticCommerceExportConfig();
-
             const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
                 channelIdAtSave,
                 exportConfigAtSave,
+                providerAtSave,
             );
 
             if (!configSaveSuccessful) {
                 return;
             }
 
-            /**
-             * v6.7.9.0+ saveSalesChannel does not reload; legacy onSave already did.
-             */
             if (!isLegacyOnSave) {
                 this.loadEntityData();
             }
@@ -294,7 +274,7 @@ export const swSalesChannelDetailOverride = {
                         configEntry.elements = config.flatMap((card) => card.elements);
                         configEntry.values = values;
                         configEntry.isLoaded = true;
-                    } catch (_error) {
+                    } catch {
                         this.createNotificationError({
                             message: this.$t('sw-sales-channel.detail.messageAPIError'),
                         });
@@ -306,6 +286,10 @@ export const swSalesChannelDetailOverride = {
         },
 
         detectCurrentTemplate() {
+            if (this.$route.params.typeId) {
+                return;
+            }
+
             if (!this.productComparison.templateOptions?.length || !this.productExport?.provider) {
                 return;
             }
@@ -319,15 +303,12 @@ export const swSalesChannelDetailOverride = {
             }
         },
 
-        async saveAgenticCommerceExportConfig(salesChannelIdOverride = null, exportConfigOverride = null) {
+        async saveAgenticCommerceExportConfig(salesChannelIdOverride = null, exportConfigOverride = null, providerOverride = null) {
             const salesChannelId = salesChannelIdOverride ?? this.salesChannel?.id;
             const exportConfig = exportConfigOverride ?? this.agenticCommerceExportConfig;
 
-            /**
-             * When overrides are provided the caller has already established this is an
-             * agentic-commerce save; we must not re-check isAgenticCommerce because the
-             * live salesChannel may have been nulled by the legacy onSave reload path.
-             */
+            // When overrides are provided, skip isAgenticCommerce — salesChannel may
+            // have been nulled by the legacy onSave reload path by this point.
             const isAgenticContext = salesChannelIdOverride !== null
                 ? Boolean(salesChannelId)
                 : this.isAgenticCommerce && Boolean(salesChannelId);
@@ -336,7 +317,13 @@ export const swSalesChannelDetailOverride = {
                 return true;
             }
 
-            const loadedConfigs = exportConfig.filter((configEntry) => configEntry.isLoaded);
+            const activeProvider = providerOverride
+                ?? this.productExport?.provider
+                ?? this.defaultAgenticCommerceExportConfig[0]?.provider;
+
+            const loadedConfigs = exportConfig.filter((configEntry) => {
+                return configEntry.isLoaded && configEntry.provider === activeProvider;
+            });
 
             if (loadedConfigs.length === 0) {
                 return true;
@@ -355,7 +342,7 @@ export const swSalesChannelDetailOverride = {
                 });
 
                 return true;
-            } catch (_error) {
+            } catch {
                 this.createNotificationError({
                     message: this.$t('sw-sales-channel.detail.messageSaveError', {
                         name: this.salesChannel?.name || this.placeholder(this.salesChannel ?? {}, 'name'),

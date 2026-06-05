@@ -39,22 +39,12 @@ export const swSalesChannelDetailBaseOverride = {
             return coreShipsAgenticCommerce;
         },
 
-        // Emit the plugin's own card/tracking markup only when core doesn't (avoids
-        // duplication). On native cores core emits the shell, but this overridden
-        // component's methods still fill it.
         shouldRenderAgenticUi() {
             return this.isAgenticCommerce && !this.coreShipsAgenticCommerce;
         },
 
-        /**
-         * Widen the product-comparison flag so that Agentic Commerce sales
-         * channels reuse the same product-export blocks in the detail view.
-         *
-         * Avoid $super() here: it is unreliable in the 6.5/6.6 range when the
-         * component is rendered during the create-channel flow (the parent
-         * component reference may not yet be resolved, causing a TypeError).
-         * Re-implement the upstream check inline instead.
-         */
+        // Widened to include AC channels so they reuse the product-export blocks.
+        // $super() is skipped — it is unreliable during the create flow in 6.5/6.6.
         isProductComparison() {
             if (this.isAgenticCommerce) {
                 return true;

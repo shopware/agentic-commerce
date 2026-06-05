@@ -10,6 +10,7 @@
     :data-analytics-sales-channel-type-id="salesChannel?.typeId ?? ''"
     :data-analytics-sales-channel-is-new="salesChannel?.isNew?.() ?? false"
     @process-finish="saveFinish"
+    @update:process-success="saveFinish"
     @click.prevent="onSave"
 >
     {{ $t('sw-sales-channel.detail.buttonSave') }}
