@@ -53,6 +53,21 @@ final readonly class UcpMcpToolContext
     }
 
     /**
+     * Normalises a tool failure before it bubbles up to the MCP server.
+     *
+     * Intentionally a pass-through for now: the pinned mcp/sdk ^0.5 (via
+     * symfony/mcp-bundle in shopware trunk) does not ship
+     * Mcp\Exception\ToolCallException, so the original exception propagates and
+     * the server returns a generic tool error. Once mcp/sdk ^0.6 is available,
+     * map failures to a ToolCallException here (per-violation messages and
+     * -32602 for invalid input). See docs/mcp-sdk-upgrade.md.
+     */
+    public function toToolCallException(\Throwable $exception): \Throwable
+    {
+        return $exception;
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     public function success(array $data): string

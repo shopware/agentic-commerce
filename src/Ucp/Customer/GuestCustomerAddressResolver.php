@@ -30,22 +30,22 @@ final readonly class GuestCustomerAddressResolver
     public function resolve(SalesChannelContext $context, ?array $guestAddress): array
     {
         if (null === $guestAddress) {
-            throw new ValidationException('Checkout completion requires a shipping address in fulfillment.extra.shipping_address.', ['$.fulfillment.extra.shipping_address is required']);
+            throw new ValidationException('Checkout session is missing fulfillment.shipping_address; set it on checkout create or update before completion.', ['$.checkout_session.fulfillment.shipping_address is required']);
         }
 
         $missingFields = [];
         foreach (['street', 'zipcode', 'city'] as $field) {
             if (!isset($guestAddress[$field]) || !\is_string($guestAddress[$field]) || '' === $guestAddress[$field]) {
-                $missingFields[] = '$.fulfillment.extra.shipping_address.'.$field;
+                $missingFields[] = '$.checkout_session.fulfillment.shipping_address.'.$field;
             }
         }
 
         if (!isset($guestAddress['countryId']) && !isset($guestAddress['countryCode'])) {
-            $missingFields[] = '$.fulfillment.extra.shipping_address.country_code';
+            $missingFields[] = '$.checkout_session.fulfillment.shipping_address.country_code';
         }
 
         if ([] !== $missingFields) {
-            throw new ValidationException('Checkout completion requires a complete shipping address.', $missingFields);
+            throw new ValidationException('Checkout session has an incomplete fulfillment.shipping_address; set a complete address before completion.', $missingFields);
         }
 
         return [
@@ -72,7 +72,7 @@ final readonly class GuestCustomerAddressResolver
 
         $country = $this->countryRepository->search($criteria, $context->getContext())->first();
         if (null === $country) {
-            throw new ValidationException(\sprintf('Unknown country code "%s" provided for guest checkout.', $countryCode), ['$.fulfillment.extra.shipping_address.country_code is invalid']);
+            throw new ValidationException(\sprintf('Unknown country code "%s" stored on the checkout session.', $countryCode), ['$.checkout_session.fulfillment.shipping_address.country_code is invalid']);
         }
 
         /** @var string $countryId */

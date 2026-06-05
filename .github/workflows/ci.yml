@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
     inputs:
@@ -32,20 +34,20 @@ jobs:
   php-quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: agentic-commerce
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
@@ -60,6 +62,29 @@ jobs:
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
 
+  admin-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v4
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npm run ci:admin-static
+        working-directory: agentic-commerce
+        env:
+          ADMIN_PATH: ${{ github.workspace }}/shopware/src/Administration/Resources/app/administration
+
   shopware-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -71,25 +96,37 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
           SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: ${{ matrix.lane }}
+      - run: npm run test:e2e:ucp -- --reporter=list
+        working-directory: agentic-commerce
+        env:
+          BASE_URL: http://localhost:8000
           SHOPWARE_REF: ${{ matrix.lane }}
 
   admin-matrix:
@@ -108,21 +145,21 @@ jobs:
           - lane: 'trunk'
             mode: vite
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
         working-directory: agentic-commerce
       - run: npx playwright install chromium --with-deps
         working-directory: agentic-commerce
@@ -147,20 +184,29 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-storefront-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-storefront-smoke.sh "$GITHUB_WORKSPACE/shopware"

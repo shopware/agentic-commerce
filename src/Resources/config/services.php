@@ -233,7 +233,7 @@ return static function (ContainerConfigurator $container): void {
     // Event listeners.
 
     $services->set(EmbeddedResponseListener::class)
-        ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest'])
+        ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
 
     $services->set(CoreSalesChannelFileSyncSubscriber::class)

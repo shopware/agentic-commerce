@@ -31,6 +31,12 @@ OAuth identity linking is implemented as an optional plugin-backed capability:
 - Authorization Code + PKCE S256 is supported. Authorization requires a logged-in Shopware customer context token so anonymous requests cannot mint identity-linked tokens.
 - Access and refresh tokens are stored sales-channel scoped in plugin tables.
 
+Sales-channel configuration is also plugin-table backed:
+
+- The canonical UCP config table is `swag_agentic_commerce_ucp_config`.
+- Legacy `SystemConfig` keys are read only as a compatibility fallback for older local installs and are backfilled into the plugin table when found.
+- New admin fields and runtime policy should be added to `UcpConfig`, `UcpConfigService`, and the plugin table payload, not as new `SystemConfig` state.
+
 Payment tokenization remains extension-ready but not bundled as a shipped tokenizer:
 
 - The plugin registers the tokenization capability wrapper and a non-tokenizing Shopware invoice payment-handler descriptor.
@@ -38,14 +44,16 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
 - `payment_handlers` must stay an empty object in `/.well-known/ucp` unless tokenization is enabled and a real tokenizing handler is registered.
 - Store API customer login/context-token APIs and Shopware checkout payment tokens are not sufficient substitutes. They do not provide the UCP identity-linking consent model or a reusable payment-tokenization contract.
 - Implementation TODO and example PSP handler shape live in
-  [docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md).
+  [docs/payment-tokenization-handler.md](payment-tokenization-handler.md).
 
 ## Implementation Decisions
 
 - Keep REST/A2A/embedded in the plugin/SDK transport surface.
 - Ship a plugin-owned `/ucp/mcp` discovery endpoint that delegates to the 6.7
   core Store API MCP endpoint without leaking the sales-channel access key.
-- Register UCP MCP tools into the Store API MCP registry once the core PR is available.
+- Register UCP MCP tools into the Store API MCP registry through the shared
+  `shopware.store_api_mcp.tool` tag. Write tools expose structured object
+  payload schemas instead of JSON-string payload arguments.
 - Keep all transports behind the same capability layer so catalog/cart/checkout/order behavior does not fork per protocol.
 - Show unsupported transports in admin as disabled with concrete reasons.
 - Do not implement placeholder tokenization adapters. The identity adapter is real and customer-context backed; tokenization still requires a PSP-backed handler.
@@ -137,13 +145,14 @@ The top screenshots verify the lane transport summary. The security screenshots 
 - Payment tokenization stays hidden/unsupported by default until a real
   PSP-backed tokenizing payment handler is registered and enabled per sales
   channel. See
-  [docs/payment-tokenization-handler.md](/Users/b.meyer/Documents/Projects/SwagAgenticCommerce/docs/payment-tokenization-handler.md)
+  [docs/payment-tokenization-handler.md](payment-tokenization-handler.md)
   for the required service contract and validation checklist. Identity linking
   is implemented but remains opt-in per sales channel.
 - Embedded now renders plugin-owned cart/checkout bridge pages with CSP,
-  allowed-origin validation, and `postMessage` ready/state messages. Follow-up
-  UX work should focus on visual polish and deeper storefront theme integration,
-  not transport correctness.
+  explicit allowed-origin validation, and `postMessage` ready/state messages.
+  Missing `embeddedAllowedOrigins` or non-allowlisted `Origin` headers return a
+  controlled `403`. Follow-up UX work should focus on visual polish and deeper
+  storefront theme integration, not transport correctness.
 - MCP and A2A now route the shopping operation matrix through the shared
   capability layer. Follow-up validation should target lane builds and real demo
   storefront data rather than adding protocol-specific business logic.
