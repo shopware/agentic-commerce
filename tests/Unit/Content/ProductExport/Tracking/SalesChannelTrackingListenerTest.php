@@ -277,7 +277,7 @@ class SalesChannelTrackingListenerTest extends TestCase
             ->with(
                 'Sales channel tracking: failed to write order tracking record',
                 static::callback(static fn (array $ctx): bool => $ctx['salesChannelId'] === $referralCode
-                    && $ctx['exception'] === 'db unavailable'),
+                    && 'db unavailable' === $ctx['exception']),
             );
 
         $listener = $this->createListener(
@@ -299,8 +299,8 @@ class SalesChannelTrackingListenerTest extends TestCase
         $cache->expects($this->once())
             ->method('invalidateTags')
             ->with([
-                'trackable-sales-channel-' . $ids[0],
-                'trackable-sales-channel-' . $ids[1],
+                'trackable-sales-channel-'.$ids[0],
+                'trackable-sales-channel-'.$ids[1],
             ]);
 
         $listener = $this->createListener(cache: $cache);
@@ -312,8 +312,8 @@ class SalesChannelTrackingListenerTest extends TestCase
     }
 
     /**
-     * @param EntityRepository<SalesChannelCollection>|null $salesChannelRepository
-     * @param EntityRepository<SalesChannelTrackingOrderCollection>|null $orderRepository
+     * @param EntityRepository<SalesChannelCollection>|null                 $salesChannelRepository
+     * @param EntityRepository<SalesChannelTrackingOrderCollection>|null    $orderRepository
      * @param EntityRepository<SalesChannelTrackingCustomerCollection>|null $customerRepository
      */
     private function createListener(
@@ -330,7 +330,7 @@ class SalesChannelTrackingListenerTest extends TestCase
         $orderRepository ??= new StaticEntityRepository([new SalesChannelTrackingOrderCollection()]);
         /** @var StaticEntityRepository<SalesChannelTrackingOrderCollection> $orderRepository */
         $customerRepository ??= new StaticEntityRepository([new SalesChannelTrackingCustomerCollection()]);
-        /** @var StaticEntityRepository<SalesChannelTrackingCustomerCollection> $customerRepository */
+        /* @var StaticEntityRepository<SalesChannelTrackingCustomerCollection> $customerRepository */
 
         return new SalesChannelTrackingListener(
             $salesChannelRepository,
