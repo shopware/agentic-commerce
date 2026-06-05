@@ -28,6 +28,13 @@ if [[ ! -f "${ADMIN_PUBLIC_SOURCE}/administration/.vite/entrypoints.json" ]]; th
   exit 1
 fi
 
+legacy_admin_bootstrap="${PLUGIN_ROOT}/src/Resources/app/administration/src/public/js/swag-agentic-commerce.js"
+
+if [[ ! -f "${legacy_admin_bootstrap}" ]]; then
+  echo "Legacy administration bootstrap is missing at ${legacy_admin_bootstrap}." >&2
+  exit 1
+fi
+
 short_sha="${GITHUB_SHA:-$(git -C "${PLUGIN_ROOT}" rev-parse HEAD)}"
 short_sha="${short_sha:0:12}"
 package_version="${PACKAGE_VERSION:-0.0.1+${short_sha}}"
@@ -65,6 +72,8 @@ rsync -a --delete \
 
 mkdir -p "${stage_dir}/src/Resources/public"
 rsync -a --delete "${ADMIN_PUBLIC_SOURCE}/" "${stage_dir}/src/Resources/public/"
+mkdir -p "${stage_dir}/src/Resources/public/administration/js"
+cp "${legacy_admin_bootstrap}" "${stage_dir}/src/Resources/public/administration/js/swag-agentic-commerce.js"
 
 printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
 
@@ -127,6 +136,7 @@ rm -f "${stage_dir}/composer.lock"
 rm -rf \
   "${stage_dir}/vendor/shopware/ucp-php-sdk-core/tests" \
   "${stage_dir}/vendor/ucp-php-sdk/symfony-bundle/tests"
+find "${stage_dir}" \( -name '.DS_Store' -o -name '._*' \) -delete
 
 if find "${stage_dir}/vendor" -mindepth 1 -maxdepth 1 -type d \( -name doctrine -o -name symfony \) | grep -q .; then
   echo "Packaged vendor must not include Shopware-provided Symfony or Doctrine packages." >&2
@@ -138,7 +148,8 @@ for required_path in \
   "${stage_dir}/vendor/ucp-php-sdk/symfony-bundle/src" \
   "${stage_dir}/vendor/autoload.php" \
   "${stage_dir}/.swag-agentic-commerce-bundled-sdk" \
-  "${stage_dir}/src/Resources/public/administration/.vite/entrypoints.json"; do
+  "${stage_dir}/src/Resources/public/administration/.vite/entrypoints.json" \
+  "${stage_dir}/src/Resources/public/administration/js/swag-agentic-commerce.js"; do
   if [[ ! -e "${required_path}" ]]; then
     echo "Packaged artifact is missing ${required_path}." >&2
     exit 1
@@ -172,7 +183,12 @@ if ! grep -q 'SwagAgenticCommerce/.swag-agentic-commerce-bundled-sdk' <<<"${zip_
   exit 1
 fi
 
-if grep -Eq 'SwagAgenticCommerce/(\.git|\.github|\.claude|\.tools|\.phpunit\.cache|coverage|node_modules|tests|var)/|SwagAgenticCommerce/(\.eslintcache|\.phpunit\.result\.cache|composer\.lock)|SwagAgenticCommerce/vendor/(shopware/ucp-php-sdk-core|ucp-php-sdk/symfony-bundle)/tests/|SwagAgenticCommerce/vendor/(doctrine|symfony)/' <<<"${zip_listing}"; then
+if ! grep -q 'SwagAgenticCommerce/src/Resources/public/administration/js/swag-agentic-commerce.js' <<<"${zip_listing}"; then
+  echo "Artifact is missing the legacy administration bootstrap." >&2
+  exit 1
+fi
+
+if grep -Eq 'SwagAgenticCommerce/(\.git|\.github|\.claude|\.tools|\.phpunit\.cache|coverage|node_modules|tests|var)/|SwagAgenticCommerce/(\.DS_Store|._[^/]*|\.eslintcache|\.phpunit\.result\.cache|composer\.lock)|SwagAgenticCommerce/vendor/(shopware/ucp-php-sdk-core|ucp-php-sdk/symfony-bundle)/tests/|SwagAgenticCommerce/vendor/(doctrine|symfony)/' <<<"${zip_listing}"; then
   echo "Artifact contains excluded development files." >&2
   exit 1
 fi

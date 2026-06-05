@@ -413,6 +413,24 @@ web php /var/www/html/bin/console plugin:refresh
 web php /var/www/html/bin/console cache:clear >/dev/null
 web php /var/www/html/bin/console plugin:install --activate SwagAgenticCommerce
 
+if [[ -n "${PLUGIN_ZIP}" ]]; then
+  web sh -lc 'cd /var/www/html \
+    && php bin/console bundle:dump \
+    && php bin/console feature:dump \
+    && php bin/console assets:install \
+    && rm -f public/bundles/administration/administration/sw-plugin-dev.json'
+
+  if ! web sh -lc 'test -f /var/www/html/public/bundles/swagagenticcommerce/administration/.vite/entrypoints.json'; then
+    echo "Zip-installed administration Vite entrypoints were not published to public/bundles." >&2
+    exit 1
+  fi
+
+  if ! web sh -lc 'test -f /var/www/html/public/bundles/swagagenticcommerce/administration/js/swag-agentic-commerce.js'; then
+    echo "Zip-installed legacy administration bootstrap was not published to public/bundles." >&2
+    exit 1
+  fi
+fi
+
 sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://localhost:%' ORDER BY sales_channel_id LIMIT 1;")"
 if [[ -z "${sales_channel_id}" ]]; then
   sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://%' ORDER BY sales_channel_id LIMIT 1;")"

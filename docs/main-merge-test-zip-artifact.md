@@ -96,6 +96,8 @@ The script stages a clean `SwagAgenticCommerce` directory and excludes:
 - `.github`
 - `.claude`
 - `.tools`
+- `.DS_Store`
+- `._*`
 - `.eslintcache`
 - `.phpunit.cache`
 - `.phpunit.result.cache`
@@ -108,7 +110,8 @@ The script stages a clean `SwagAgenticCommerce` directory and excludes:
 - `var`
 - `vendor`
 
-It copies the exported admin assets into `src/Resources/public/` and writes:
+It copies the exported admin assets into `src/Resources/public/`, copies the
+legacy bootstrap into `src/Resources/public/administration/js/`, and writes:
 
 ```text
 .swag-agentic-commerce-bundled-sdk
@@ -203,8 +206,15 @@ The tester archive ships one Vite-built administration asset set.
 Older admin runtimes continue to rely on the legacy public bootstrap that reads:
 
 ```text
-administration/.vite/entrypoints.json
+src/Resources/public/administration/js/swag-agentic-commerce.js
+src/Resources/public/administration/.vite/entrypoints.json
 ```
+
+The source bootstrap lives under
+`src/Resources/app/administration/src/public/js/swag-agentic-commerce.js`.
+The package script copies it into `src/Resources/public` because zip installs
+run `assets:install` against that directory and do not rebuild administration
+assets.
 
 Required source validation remains:
 
@@ -242,6 +252,9 @@ Zip mode in `bin/ci-smoke.sh`:
 - does not require the plugin through the Shopware root Composer project
 - runs `plugin:refresh`
 - runs `plugin:install --activate SwagAgenticCommerce`
+- runs `bundle:dump`, `feature:dump`, and `assets:install`
+- asserts the packaged Vite entrypoints and legacy bootstrap were published to
+  `public/bundles/swagagenticcommerce`
 - validates `/.well-known/ucp`
 
 ## Artifact Assertions
@@ -253,6 +266,7 @@ The package script asserts the archive contains:
 - `vendor/autoload.php`
 - `.swag-agentic-commerce-bundled-sdk`
 - `src/Resources/public/administration/.vite/entrypoints.json`
+- `src/Resources/public/administration/js/swag-agentic-commerce.js`
 
 It asserts the archive excludes:
 
