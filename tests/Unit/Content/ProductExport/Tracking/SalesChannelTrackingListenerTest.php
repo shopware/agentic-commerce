@@ -27,6 +27,7 @@ use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEvents;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerCollection;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingListener;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderCollection;
@@ -37,7 +38,6 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
-use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
@@ -272,12 +272,12 @@ class SalesChannelTrackingListenerTest extends TestCase
         $orderRepo->method('upsert')->willThrowException(new \RuntimeException('db unavailable'));
 
         $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects(static::once())
+        $logger->expects($this->once())
             ->method('warning')
             ->with(
                 'Sales channel tracking: failed to write order tracking record',
                 static::callback(static fn (array $ctx): bool => $ctx['salesChannelId'] === $referralCode
-                    && 'db unavailable' === $ctx['exception']),
+                    && $ctx['exception'] === 'db unavailable'),
             );
 
         $listener = $this->createListener(
@@ -296,11 +296,11 @@ class SalesChannelTrackingListenerTest extends TestCase
         $ids = [Uuid::randomHex(), Uuid::randomHex()];
 
         $cache = $this->createMock(TagAwareCacheInterface::class);
-        $cache->expects(static::once())
+        $cache->expects($this->once())
             ->method('invalidateTags')
             ->with([
-                'trackable-sales-channel-'.$ids[0],
-                'trackable-sales-channel-'.$ids[1],
+                'trackable-sales-channel-' . $ids[0],
+                'trackable-sales-channel-' . $ids[1],
             ]);
 
         $listener = $this->createListener(cache: $cache);
@@ -312,8 +312,8 @@ class SalesChannelTrackingListenerTest extends TestCase
     }
 
     /**
-     * @param EntityRepository<SalesChannelCollection>|null                 $salesChannelRepository
-     * @param EntityRepository<SalesChannelTrackingOrderCollection>|null    $orderRepository
+     * @param EntityRepository<SalesChannelCollection>|null $salesChannelRepository
+     * @param EntityRepository<SalesChannelTrackingOrderCollection>|null $orderRepository
      * @param EntityRepository<SalesChannelTrackingCustomerCollection>|null $customerRepository
      */
     private function createListener(
