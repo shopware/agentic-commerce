@@ -229,6 +229,18 @@ assert_jq() {
   fi
 }
 
+assert_contains() {
+  local content="$1"
+  local message="$2"
+  local expected="$3"
+
+  if [[ "${content}" != *"${expected}"* ]]; then
+    echo "${message}" >&2
+    printf '%s\n' "${content}" >&2
+    exit 1
+  fi
+}
+
 idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
 smoke_email="${idempotency_run_prefix}@example.com"
 
@@ -405,6 +417,7 @@ web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.w
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.continueUrlTemplate "${BASE_URL}/checkout/confirm?checkoutId={checkoutId}" --salesChannelId="${sales_channel_id}"
 
 store_api_mcp_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo class_exists("Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController") ? "1" : "0";')"
+core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass() ? "1" : "0";')"
 enabled_transports='["rest","a2a","embedded"]'
 expected_transports_json='["a2a","embedded","rest"]'
 if [[ "${store_api_mcp_available}" == "1" ]]; then
@@ -472,6 +485,39 @@ if [[ "${store_api_mcp_available}" == "1" ]]; then
   assert_jq "${profile_json}" 'Expected MCP transport to point at the public UCP MCP endpoint.' '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint == $endpoint' --arg endpoint "${BASE_URL}/ucp/mcp"
 else
   assert_jq "${profile_json}" 'Expected MCP transport to stay hidden when Store API MCP is unavailable.' '[.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp")] | length == 0'
+fi
+
+if [[ "${core_agentic_files_available}" == "0" ]]; then
+  echo "Verifying fallback agentic discovery files."
+  llms_headers_file="$(mktemp)"
+  agents_headers_file="$(mktemp)"
+  llms_txt="$(curl -fsS -D "${llms_headers_file}" "${BASE_URL}/llms.txt")"
+  agents_md="$(curl -fsS -D "${agents_headers_file}" "${BASE_URL}/agents.md")"
+
+  if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
+    echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
+    cat "${llms_headers_file}" >&2
+    exit 1
+  fi
+
+  if ! grep -Eiq '^content-type:[[:space:]]*text/markdown; charset=utf-8' "${agents_headers_file}"; then
+    echo "Expected fallback /agents.md to use text/markdown; charset=utf-8." >&2
+    cat "${agents_headers_file}" >&2
+    exit 1
+  fi
+
+  assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include localization guidance.' '## Localization'
+  assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include the UCP profile link.' '- [UCP profile](/.well-known/ucp)'
+  assert_contains "${agents_md}" 'Expected fallback /agents.md to include UCP agent guidance.' '## Agentic commerce via UCP'
+
+  localization_next_line="$(printf '%s\n' "${llms_txt}" | awk '/^## Localization$/ {getline; print; exit}')"
+  if [[ "${localization_next_line}" != "- Current language:"* ]]; then
+    echo "Expected fallback /llms.txt localization details to start immediately after the heading." >&2
+    printf '%s\n' "${llms_txt}" >&2
+    exit 1
+  fi
+
+  rm -f "${llms_headers_file}" "${agents_headers_file}"
 fi
 
 oauth_body_file="$(mktemp)"

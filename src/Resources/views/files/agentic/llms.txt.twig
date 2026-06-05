@@ -1,0 +1,7 @@
+{% sw_extends 'files/agentic/llms.txt.twig' %}
+
+{% block agentic_llms_extensions %}
+    {{ parent() }}
+
+    {% include 'files/agentic/includes/ucp-llms.txt.twig' %}
+{% endblock %}
