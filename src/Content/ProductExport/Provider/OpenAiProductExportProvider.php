@@ -43,7 +43,7 @@ class OpenAiProductExportProvider extends AbstractAgenticCommerceProductExportPr
     ): array {
         $storeCountry = $salesChannelContext->getShippingLocation()->getCountry()->getIso();
         $targetCountries = $this->resolveTargetCountries($salesChannelContext);
-        $sellerUrl = $productExport->getSalesChannelDomain()?->getUrl() ?? '';
+        $sellerUrl = $productExport->getSalesChannelDomain()->getUrl();
 
         $config = $this->getSystemConfigValues($productExport);
         $returnPolicyUrl = $this->normalizeStringValue($config, 'returnPolicyUrl', $sellerUrl);

@@ -30,3 +30,12 @@ parameters:
         # CoversClass on unit tests in subdirs — rule incorrectly rejects sub-paths under tests/Unit/.
         -
             identifier: shopware.unexpectedTestCovers
+        # DBAL fetchAllKeyValue() declares array<int|string, mixed>; the actual keys/values are strings.
+        -
+            identifier: return.type
+            path: src/Migration/Migration1773329152AddAgenticCommerceSalesChannelType.php
+        # In SW 6.6, Error::getErrorMessages() declares array<string, mixed>; our list<ErrorMessage> is
+        # a valid subtype at runtime but PHPStan's key-type variance rejects it across versions.
+        -
+            identifier: method.childReturnType
+            path: src/Content/ProductExport/Error

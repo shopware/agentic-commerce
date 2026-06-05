@@ -37,6 +37,7 @@ use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\HttpKernel\Event\ControllerEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
@@ -322,13 +323,14 @@ class SalesChannelTrackingListenerTest extends TestCase
         ?LoggerInterface $logger = null,
         ?RequestStack $requestStack = null,
         ?TagAwareCacheInterface $cache = null,
+        ?ShopwareVersionDetector $versionDetector = null,
     ): SalesChannelTrackingListener {
-        /** @var StaticEntityRepository<SalesChannelCollection> $salesChannelRepository */
         $salesChannelRepository ??= new StaticEntityRepository([new SalesChannelCollection()]);
-        /** @var StaticEntityRepository<SalesChannelTrackingOrderCollection> $orderRepository */
+        /** @var StaticEntityRepository<SalesChannelCollection> $salesChannelRepository */
         $orderRepository ??= new StaticEntityRepository([new SalesChannelTrackingOrderCollection()]);
-        /** @var StaticEntityRepository<SalesChannelTrackingCustomerCollection> $customerRepository */
+        /** @var StaticEntityRepository<SalesChannelTrackingOrderCollection> $orderRepository */
         $customerRepository ??= new StaticEntityRepository([new SalesChannelTrackingCustomerCollection()]);
+        /** @var StaticEntityRepository<SalesChannelTrackingCustomerCollection> $customerRepository */
 
         return new SalesChannelTrackingListener(
             $salesChannelRepository,
@@ -337,6 +339,7 @@ class SalesChannelTrackingListenerTest extends TestCase
             $logger ?? new NullLogger(),
             $requestStack ?? new RequestStack(),
             $cache ?? $this->createMock(TagAwareCacheInterface::class),
+            $versionDetector ?? new ShopwareVersionDetector(),
         );
     }
 

@@ -233,7 +233,7 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
     }
 
     /**
-     * @param list<EntityWriteResult> $results
+     * @param array<EntityWriteResult> $results
      *
      * @return list<EntityWriteResult>
      */

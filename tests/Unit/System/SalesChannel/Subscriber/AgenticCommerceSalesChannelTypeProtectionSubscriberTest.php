@@ -20,6 +20,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Write\WriteContext;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelType\SalesChannelTypeDefinition;
 use Shopware\Core\System\SalesChannel\Exception\DefaultSalesChannelTypeCannotBeDeleted;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
 
@@ -44,7 +45,7 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
             $this->createDeleteCommand(SalesChannelTypeDefinition::ENTITY_NAME, SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE),
         ]);
 
-        (new AgenticCommerceSalesChannelTypeProtectionSubscriber())->preWriteValidateEvent($event);
+        $this->createSubscriber()->preWriteValidateEvent($event);
 
         $exceptions = $event->getExceptions()->getExceptions();
         static::assertCount(1, $exceptions);
@@ -59,7 +60,7 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
             $this->createDeleteCommand(SalesChannelTypeDefinition::ENTITY_NAME, Uuid::randomHex()),
         ]);
 
-        (new AgenticCommerceSalesChannelTypeProtectionSubscriber())->preWriteValidateEvent($event);
+        $this->createSubscriber()->preWriteValidateEvent($event);
 
         static::assertSame([], $event->getExceptions()->getExceptions());
     }
@@ -75,7 +76,7 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
 
         $event = new PreWriteValidationEvent($writeContext, [$insertCommand]);
 
-        (new AgenticCommerceSalesChannelTypeProtectionSubscriber())->preWriteValidateEvent($event);
+        $this->createSubscriber()->preWriteValidateEvent($event);
 
         static::assertSame([], $event->getExceptions()->getExceptions());
     }
@@ -87,9 +88,14 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
             $this->createDeleteCommand('product', SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE),
         ]);
 
-        (new AgenticCommerceSalesChannelTypeProtectionSubscriber())->preWriteValidateEvent($event);
+        $this->createSubscriber()->preWriteValidateEvent($event);
 
         static::assertSame([], $event->getExceptions()->getExceptions());
+    }
+
+    private function createSubscriber(): AgenticCommerceSalesChannelTypeProtectionSubscriber
+    {
+        return new AgenticCommerceSalesChannelTypeProtectionSubscriber(new ShopwareVersionDetector());
     }
 
     private function createDeleteCommand(string $entityName, string $hexId): DeleteCommand
