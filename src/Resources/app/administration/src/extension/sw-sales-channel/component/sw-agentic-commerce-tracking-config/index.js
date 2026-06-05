@@ -31,12 +31,14 @@ registerOrOverride('sw-agentic-commerce-tracking-config', {
 
     methods: {
         onAffiliateCodeChange(value) {
-            this.trackingConfig.affiliateCode = value;
+            if (value instanceof Event) return;
+            this.trackingConfig.affiliateCode = value ?? '';
             this.$emit('change', { ...this.trackingConfig });
         },
 
         onCampaignCodeChange(value) {
-            this.trackingConfig.campaignCode = value;
+            if (value instanceof Event) return;
+            this.trackingConfig.campaignCode = value ?? '';
             this.$emit('change', { ...this.trackingConfig });
         },
     },

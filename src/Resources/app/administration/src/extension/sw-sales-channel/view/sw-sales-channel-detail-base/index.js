@@ -180,6 +180,7 @@ export const swSalesChannelDetailBaseOverride = {
         },
 
         onAgenticCommerceExportFieldUpdate(configEntry, fieldName, value) {
+            if (value instanceof Event) return;
             configEntry.values[fieldName] = value;
 
             if (configEntry.errors?.[fieldName]) {

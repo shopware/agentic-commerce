@@ -19,6 +19,7 @@
                 :error="configEntry.errors && configEntry.errors[element.name] ? configEntry.errors[element.name] : null"
                 :disabled="!acl.can('sales_channel.editor') || isLoading || configEntry.isLoading"
                 @input="onAgenticCommerceExportFieldUpdate(configEntry, element.name, $event)"
+                @update:value="onAgenticCommerceExportFieldUpdate(configEntry, element.name, $event)"
             />
         </template>
     </sw-card>
