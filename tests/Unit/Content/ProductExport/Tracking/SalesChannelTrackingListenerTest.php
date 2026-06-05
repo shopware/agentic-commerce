@@ -329,8 +329,8 @@ class SalesChannelTrackingListenerTest extends TestCase
         /** @var StaticEntityRepository<SalesChannelCollection> $salesChannelRepository */
         $orderRepository ??= new StaticEntityRepository([new SalesChannelTrackingOrderCollection()]);
         /** @var StaticEntityRepository<SalesChannelTrackingOrderCollection> $orderRepository */
+        /** @var StaticEntityRepository<SalesChannelTrackingCustomerCollection> $customerRepository */
         $customerRepository ??= new StaticEntityRepository([new SalesChannelTrackingCustomerCollection()]);
-        /* @var StaticEntityRepository<SalesChannelTrackingCustomerCollection> $customerRepository */
 
         return new SalesChannelTrackingListener(
             $salesChannelRepository,
