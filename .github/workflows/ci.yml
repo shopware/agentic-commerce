@@ -61,6 +61,7 @@ jobs:
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+          SWAG_AGENTIC_COMMERCE_SHOPWARE_BOOTSTRAP: '1'
 
   admin-static:
     runs-on: ubuntu-latest
