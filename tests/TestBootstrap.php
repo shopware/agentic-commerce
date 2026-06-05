@@ -6,7 +6,9 @@ use Composer\InstalledVersions;
 use Shopware\Core\TestBootstrapper;
 
 if (!class_exists(TestBootstrapper::class)) {
-    $installed = class_exists(InstalledVersions::class) ? InstalledVersions::getInstallPath('shopware/core') : null;
+    $installed = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
+    ? InstalledVersions::getInstallPath('shopware/core')
+    : null;
     if (\is_string($installed) && is_file($installed.'/TestBootstrapper.php')) {
         require_once $installed.'/TestBootstrapper.php';
     }
@@ -35,7 +37,9 @@ if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
     $corePath = $shopwareProjectDir.'/src/Core';
     $projectDir = $shopwareProjectDir;
 } else {
-    $corePath = class_exists(InstalledVersions::class) ? InstalledVersions::getInstallPath('shopware/core') : null;
+    $corePath = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
+        ? InstalledVersions::getInstallPath('shopware/core')
+        : null;
     if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
         $corePath = \dirname(__DIR__, 4).'/src/Core';
     }
