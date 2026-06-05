@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
-use Mcp\Exception\ToolCallException;
 use Shopware\Core\Framework\Log\Package;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
-use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
-use Ucp\Sdk\Exception\UcpException;
-use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
@@ -56,26 +52,19 @@ final readonly class UcpMcpToolContext
         return array_values(array_map('strval', \is_array($decoded) ? $decoded : []));
     }
 
-    public function toToolCallException(\Throwable $exception): ToolCallException
+    /**
+     * Normalises a tool failure before it bubbles up to the MCP server.
+     *
+     * Intentionally a pass-through for now: the pinned mcp/sdk ^0.5 (via
+     * symfony/mcp-bundle in shopware trunk) does not ship
+     * Mcp\Exception\ToolCallException, so the original exception propagates and
+     * the server returns a generic tool error. Once mcp/sdk ^0.6 is available,
+     * map failures to a ToolCallException here (per-violation messages and
+     * -32602 for invalid input). See docs/mcp-sdk-upgrade.md.
+     */
+    public function toToolCallException(\Throwable $exception): \Throwable
     {
-        if ($exception instanceof ValidationException) {
-            $violations = $exception->getViolations();
-            $message = [] === $violations
-                ? $exception->getMessage()
-                : $exception->getMessage().': '.implode('; ', $violations);
-
-            return new ToolCallException($message, previous: $exception);
-        }
-
-        if ($exception instanceof UcpException) {
-            return new ToolCallException($exception->getMessage(), previous: $exception);
-        }
-
-        if ($exception instanceof HttpExceptionInterface) {
-            return new ToolCallException($exception->getMessage(), previous: $exception);
-        }
-
-        return new ToolCallException('UCP MCP tool execution failed.', previous: $exception);
+        return $exception;
     }
 
     /**

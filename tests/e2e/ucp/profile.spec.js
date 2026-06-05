@@ -118,6 +118,12 @@ test.describe('UCP public profile and transports', () => {
     });
 
     test('exposes object payload schemas for MCP write tools', async ({ request: api }) => {
+        // Object payload schemas (#[Schema]) and -32602 invalid-input errors need
+        // mcp/sdk ^0.6; shopware trunk pins ^0.5 (via symfony/mcp-bundle), so the
+        // write tools currently take a JSON-string payload. Re-enable this once the
+        // SDK is bumped — see docs/mcp-sdk-upgrade.md.
+        test.skip(true, 'Requires mcp/sdk ^0.6 object schemas; see docs/mcp-sdk-upgrade.md.');
+
         const profile = await readPublicProfile(api);
         const mcpEndpoint = shoppingTransports(profile).find((entry) => entry.transport === 'mcp')?.endpoint;
 
