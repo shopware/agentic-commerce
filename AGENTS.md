@@ -51,6 +51,20 @@ The script handles the important differences:
   build to avoid webpack/Vite cross-lane pollution.
 - Browser validation is mandatory on each lane after admin UI changes.
 
+## Runtime Compatibility Rules
+
+- Sales-channel UCP config lives in the plugin table
+  `swag_agentic_commerce_ucp_config`. `SystemConfig` is only a legacy fallback
+  and read-through backfill path; do not add new UCP settings there.
+- Keep REST, A2A, embedded, and MCP on the shared SDK operation/capability
+  layer. Shopware-specific MCP code is limited to the `/ucp/mcp` proxy and
+  Store API MCP tool registrations.
+- MCP write tools must expose object payload schemas (`payload` plus `id` where
+  needed), not JSON-string payload arguments.
+- Embedded pages require configured `embeddedAllowedOrigins`; the plugin returns
+  controlled `403` responses for missing or non-allowlisted `Origin` headers and
+  sets CSP frame ancestors from `embeddedFrameAncestors`.
+
 ## Further References
 
 - [docs/shopware-version-differences.md](docs/shopware-version-differences.md)

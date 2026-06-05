@@ -53,8 +53,8 @@ final readonly class UcpConfig
             self::stringValue($payload['ucpVersion'] ?? UcpProtocol::VERSION, UcpProtocol::VERSION),
             self::stringValue($payload['profileUriStrategy'] ?? 'domain', 'domain'),
             self::nullableStringValue($payload['customProfileUri'] ?? null),
-            self::capabilityList($payload['enabledCapabilities'] ?? UcpCapabilityCatalog::defaultConfigKeys()) ?: UcpCapabilityCatalog::defaultConfigKeys(),
-            self::transportList($payload['enabledTransports'] ?? ['rest']) ?: ['rest'],
+            self::enabledCapabilityList($payload),
+            self::enabledTransportList($payload),
             self::nullableStringValue($payload['continueUrlTemplate'] ?? null),
             self::stringList($payload['platformAllowlist'] ?? []),
             self::stringList($payload['remoteProfileAllowlist'] ?? []),
@@ -202,6 +202,34 @@ final readonly class UcpConfig
         }
 
         return null !== SignaturePolicy::tryFrom($value) ? $value : 'strict';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     *
+     * @return list<string>
+     */
+    private static function enabledCapabilityList(array $payload): array
+    {
+        if (!\array_key_exists('enabledCapabilities', $payload) || !\is_array($payload['enabledCapabilities'])) {
+            return UcpCapabilityCatalog::defaultConfigKeys();
+        }
+
+        return self::capabilityList($payload['enabledCapabilities']);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     *
+     * @return list<string>
+     */
+    private static function enabledTransportList(array $payload): array
+    {
+        if (!\array_key_exists('enabledTransports', $payload) || !\is_array($payload['enabledTransports'])) {
+            return ['rest'];
+        }
+
+        return self::transportList($payload['enabledTransports']);
     }
 
     /**

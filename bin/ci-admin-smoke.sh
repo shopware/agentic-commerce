@@ -259,10 +259,14 @@ if [[ "${CI_ADMIN_BROWSER_VALIDATE:-0}" == "1" ]]; then
     echo "Playwright dependencies are missing. Run 'npm install' in ${PLUGIN_ROOT} before enabling CI_ADMIN_BROWSER_VALIDATE=1." >&2
     exit 1
   else
-    UCP_ADMIN_SCREENSHOT_DIR="${PLUGIN_ROOT}/var/qa/admin-screenshots/${branch_name}/${resolved_mode}" \
-      node "${PLUGIN_ROOT}/bin/validate-ucp-admin-browser.mjs" \
-        --base-url "${BASE_URL}" \
-        --lane "${branch_name}-${resolved_mode}"
+    (
+      cd "${PLUGIN_ROOT}"
+      BASE_URL="${BASE_URL}" \
+        SHOPWARE_REF="${branch_name}" \
+        ADMIN_BUILD_MODE="${resolved_mode}" \
+        PLAYWRIGHT_OUTPUT_DIR="${PLUGIN_ROOT}/var/playwright-results/${branch_name}/${resolved_mode}/admin" \
+        npm run test:e2e:admin -- --reporter=list
+    )
   fi
 fi
 
