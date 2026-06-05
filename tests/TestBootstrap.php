@@ -5,10 +5,28 @@ declare(strict_types=1);
 use Composer\InstalledVersions;
 use Shopware\Core\TestBootstrapper;
 
+$shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
+
+// When SHOPWARE_PROJECT_DIR is set (CI): load Shopware's vendor autoloader directly.
+// The full TestBootstrapper->bootstrap() initialises the kernel and compiles the DI
+// container, which is too heavy for unit tests and fails on CI test fixtures.
+if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
+    $vendorAutoload = $shopwareProjectDir.'/vendor/autoload.php';
+    if (is_file($vendorAutoload)) {
+        /** @var Composer\Autoload\ClassLoader $classLoader */
+        $classLoader = require $vendorAutoload;
+        $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
+        $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
+
+        return $classLoader;
+    }
+}
+
+// Fallback: full TestBootstrapper for local/monorepo development.
 if (!class_exists(TestBootstrapper::class)) {
     $installed = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
-    ? InstalledVersions::getInstallPath('shopware/core')
-    : null;
+        ? InstalledVersions::getInstallPath('shopware/core')
+        : null;
     if (\is_string($installed) && is_file($installed.'/TestBootstrapper.php')) {
         require_once $installed.'/TestBootstrapper.php';
     }
@@ -22,40 +40,23 @@ if (!class_exists(TestBootstrapper::class)) {
 }
 
 if (!class_exists(TestBootstrapper::class)) {
-    $shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
-    if (\is_string($shopwareProjectDir) && is_file($shopwareProjectDir.'/src/Core/TestBootstrapper.php')) {
-        require_once $shopwareProjectDir.'/src/Core/TestBootstrapper.php';
-    }
-}
-
-if (!class_exists(TestBootstrapper::class)) {
     throw new RuntimeException('Could not locate Shopware TestBootstrapper.');
 }
 
-$shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
-if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
-    $corePath = $shopwareProjectDir.'/src/Core';
-    $projectDir = $shopwareProjectDir;
-} else {
-    $corePath = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
-        ? InstalledVersions::getInstallPath('shopware/core')
-        : null;
-    if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
-        $corePath = \dirname(__DIR__, 4).'/src/Core';
-    }
-    $projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
+$corePath = (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core'))
+    ? InstalledVersions::getInstallPath('shopware/core')
+    : null;
+if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
+    $corePath = \dirname(__DIR__, 4).'/src/Core';
 }
-$bootstrapper = (new TestBootstrapper())
+$projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
+
+$classLoader = (new TestBootstrapper())
     ->setProjectDir($projectDir)
-    ->setLoadEnvFile(true);
-
-// addCallingPlugin() looks for the plugin inside Shopware's custom/plugins/;
-// skip it when SHOPWARE_PROJECT_DIR is set (CI) as the plugin is a separate checkout.
-if (!getenv('SHOPWARE_PROJECT_DIR')) {
-    $bootstrapper->addCallingPlugin();
-}
-
-$classLoader = $bootstrapper->bootstrap()->getClassLoader();
+    ->setLoadEnvFile(true)
+    ->addCallingPlugin()
+    ->bootstrap()
+    ->getClassLoader();
 
 $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
 $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
