@@ -3,9 +3,36 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "qa:admin": "node bin/validate-ucp-admin-browser.mjs"
+    "ci:admin-static": "npm run lint:admin && npm run test:admin",
+    "lint:admin": "eslint src/Resources/app/administration/src tests/jest/administration tests/e2e playwright.config.js --cache --cache-location .eslintcache",
+    "lint:admin:fix": "npm run lint:admin -- --fix",
+    "test:admin": "jest --config tests/jest/administration/jest.config.js --ci",
+    "test:admin:watch": "jest --config tests/jest/administration/jest.config.js --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:admin": "playwright test --project=admin-chromium",
+    "test:e2e:storefront": "playwright test --project=storefront-chromium",
+    "test:e2e:ucp": "playwright test --project=ucp-api",
+    "test:e2e:local:65": "BASE_URL=http://sw65.localhost:8088 SHOPWARE_REF=6.5.x ADMIN_BUILD_MODE=webpack npm run test:e2e",
+    "test:e2e:local:66": "BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=webpack npm run test:e2e",
+    "test:e2e:local:66:vite": "BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=vite npm run test:e2e",
+    "test:e2e:local:trunk": "BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk ADMIN_BUILD_MODE=vite npm run test:e2e",
+    "test:e2e:local:all": "npm run test:e2e:local:trunk && npm run test:e2e:local:66 && npm run test:e2e:local:65",
+    "qa:admin": "npm run test:e2e:admin"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@eslint/js": "^9.39.3",
+    "@playwright/test": "^1.55.0",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^9.39.3",
+    "eslint-plugin-jest": "^28.14.0",
+    "eslint-plugin-vue": "^9.32.0",
+    "globals": "^15.15.0",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "jest-junit": "^17.0.0",
+    "typescript-eslint": "^8.56.1"
   }
 }

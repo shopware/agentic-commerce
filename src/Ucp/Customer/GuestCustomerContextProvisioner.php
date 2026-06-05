@@ -43,7 +43,7 @@ final readonly class GuestCustomerContextProvisioner
         }
 
         if (null === $buyer || null === $buyer->email || '' === $buyer->email) {
-            throw new ValidationException('Checkout completion requires buyer.email for guest order creation.', ['$.buyer.email is required']);
+            throw new ValidationException('Checkout session is missing buyer.email; set it on checkout create or update before completion.', ['$.checkout_session.buyer.email is required']);
         }
 
         $customerId = Uuid::randomHex();

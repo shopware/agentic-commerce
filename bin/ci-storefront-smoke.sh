@@ -130,40 +130,17 @@ storefront_sh 'cd /var/www/html && composer build:js:storefront'
 web php /var/www/html/bin/console theme:compile >/dev/null
 web php /var/www/html/bin/console assets:install >/dev/null
 
-home_html="$(curl -fsS "${BASE_URL}/")"
-if ! grep -q '/theme/' <<<"${home_html}"; then
-  if ! grep -q 'themeAssetsPublicPath' <<<"${home_html}"; then
-    echo "Storefront home page did not expose the expected theme asset bootstrap." >&2
-    exit 1
-  fi
-
-  theme_assets_url="$(sed -nE "s/.*themeAssetsPublicPath = '([^']+)'.*/\\1/p" <<<"${home_html}" | head -n 1)"
-  theme_js_url="$(sed -nE "s/.*themeJsPublicPath = '([^']+)'.*/\\1/p" <<<"${home_html}" | head -n 1)"
-
-  bootstrap_ok=0
-  if [[ -n "${theme_assets_url}" ]] && curl -fsSI "${theme_assets_url}" >/dev/null 2>&1; then
-    bootstrap_ok=1
-  fi
-
-  if [[ "${bootstrap_ok}" -eq 0 && -n "${theme_js_url}" ]] && curl -fsSI "${theme_js_url}" >/dev/null 2>&1; then
-    bootstrap_ok=1
-  fi
-
-  if [[ "${bootstrap_ok}" -eq 0 ]]; then
-    echo "Storefront home page exposed only unresolved theme asset bootstrap paths." >&2
-    exit 1
-  fi
-fi
-
-if ! grep -q 'class="header-main"' <<<"${home_html}" || ! grep -q 'is-ctl-navigation' <<<"${home_html}"; then
-  echo "Storefront home page did not render the expected shell." >&2
+if [[ ! -d "${PLUGIN_ROOT}/node_modules/@playwright/test" ]]; then
+  echo "Playwright dependencies are missing. Run 'npm install' in ${PLUGIN_ROOT} before storefront browser validation." >&2
   exit 1
 fi
 
-cart_html="$(curl -fsS "${BASE_URL}/checkout/cart")"
-if ! grep -q 'Shopping cart' <<<"${cart_html}" && ! grep -q 'shopping cart' <<<"${cart_html}"; then
-  echo "Storefront cart page did not render the expected cart shell." >&2
-  exit 1
-fi
+(
+  cd "${PLUGIN_ROOT}"
+  BASE_URL="${BASE_URL}" \
+    SHOPWARE_REF="${branch_name}" \
+    PLAYWRIGHT_OUTPUT_DIR="${PLUGIN_ROOT}/var/playwright-results/${branch_name}/storefront" \
+    npm run test:e2e:storefront -- --reporter=list
+)
 
 echo "Storefront build and UI smoke passed for ${SHOPWARE_DIR} (${branch_name:-unknown})."
