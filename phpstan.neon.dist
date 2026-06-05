@@ -39,3 +39,8 @@ parameters:
         -
             identifier: method.childReturnType
             path: src/Content/ProductExport/Error
+        # @var annotation placed before ??= to prevent PHP CS Fixer converting /** to /*; PHPStan
+        # correctly sees the narrowed type as non-null after the annotation.
+        -
+            identifier: nullCoalesce.leftNotNullable
+            path: tests/Unit/Content/ProductExport/Tracking/SalesChannelTrackingListenerTest.php
