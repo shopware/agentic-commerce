@@ -20,6 +20,8 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
 #[Package('framework')]
 final class SwagAgenticCommerce extends Plugin
 {
+    private const BUNDLED_SDK_MARKER = __DIR__.'/../.swag-agentic-commerce-bundled-sdk';
+
     /**
      * Mirror of Shopware\Core\Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE in 6.7.10+.
      * Stable UUID shared across all versions so sales channels survive plugin/core transitions.
@@ -38,6 +40,8 @@ final class SwagAgenticCommerce extends Plugin
      */
     public function getAdditionalBundles(AdditionalBundleParameters $parameters): array
     {
+        $this->loadBundledSdkAutoload();
+
         $bundleClass = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
         if (!class_exists($bundleClass)) {
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
@@ -76,7 +80,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function executeComposerCommands(): bool
     {
-        return true;
+        return !is_file(self::BUNDLED_SDK_MARKER);
     }
 
     /**
@@ -89,6 +93,18 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    private function loadBundledSdkAutoload(): void
+    {
+        if (!is_file(self::BUNDLED_SDK_MARKER)) {
+            return;
+        }
+
+        $autoloadPath = __DIR__.'/../vendor/autoload.php';
+        if (is_file($autoloadPath)) {
+            require_once $autoloadPath;
+        }
     }
 
     private function syncCoreAgenticFiles(): void
