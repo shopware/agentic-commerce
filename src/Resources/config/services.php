@@ -119,6 +119,7 @@ use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services();
+    $services->defaults()->public();
 
     $services->defaults()
         ->autowire()
@@ -140,8 +141,7 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
-        $services->set(RemoveLeadingSpacesTwigExtension::class)
-            ->tag('twig.extension');
+        $services->set(RemoveLeadingSpacesTwigExtension::class);
     }
 
     $services->set(GuestCustomerContextProvisioner::class)
@@ -229,25 +229,21 @@ return static function (ContainerConfigurator $container): void {
     // Public controllers.
 
     $services->set(UcpMcpProxyController::class)
-        ->public()
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
         ->tag('controller.service_arguments');
 
     $services->set(UcpAdminController::class)
-        ->public()
         ->tag('controller.service_arguments');
 
     $services->set(WebhookCaptureStore::class)
         ->arg('$projectDir', param('kernel.project_dir'));
 
     $services->set(TestWebhookController::class)
-        ->public()
         ->arg('$appEnv', param('kernel.environment'))
         ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
         ->tag('controller.service_arguments');
 
     $services->set(FallbackAgenticFileController::class)
-        ->public()
         ->tag('controller.service_arguments');
 
     // Config layer.
@@ -264,8 +260,7 @@ return static function (ContainerConfigurator $container): void {
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
 
-    $services->set(CoreSalesChannelFileSyncSubscriber::class)
-        ->tag('kernel.event_subscriber');
+    $services->set(CoreSalesChannelFileSyncSubscriber::class);
 
     // ── Product export: entity definition override ────────────────────────────
 
@@ -274,7 +269,6 @@ return static function (ContainerConfigurator $container): void {
         ->tag('shopware.entity.definition');
 
     $services->set(AgenticProductExportHydrator::class)
-        ->public()
         ->arg('$container', service('service_container'));
 
     // ── Product export: providers ─────────────────────────────────────────────
@@ -298,11 +292,9 @@ return static function (ContainerConfigurator $container): void {
 
     // ── Product export: subscribers ───────────────────────────────────────────
 
-    $services->set(AgenticCommerceProductExportProviderContextSubscriber::class)
-        ->tag('kernel.event_subscriber');
+    $services->set(AgenticCommerceProductExportProviderContextSubscriber::class);
 
-    $services->set(JsonlContentTypeSubscriber::class)
-        ->tag('kernel.event_subscriber');
+    $services->set(JsonlContentTypeSubscriber::class);
 
     // ── Product export: validators ────────────────────────────────────────────
 
@@ -339,16 +331,13 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
         ->arg('$salesChannelTrackingOrderRepository', service('sales_channel_tracking_order.repository'))
         ->arg('$salesChannelTrackingCustomerRepository', service('sales_channel_tracking_customer.repository'))
-        ->arg('$cache', service('cache.object'))
-        ->tag('kernel.event_subscriber');
+        ->arg('$cache', service('cache.object'));
 
     // ── Sales channel type protection subscriber ──────────────────────────────
 
-    $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class)
-        ->tag('kernel.event_subscriber');
+    $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class);
 
     // ── CompatConfigReader: fixes libxml2 2.13+ rejection of 6.5 XSD ─────────
 
-    $services->set(ConfigReader::class, CompatConfigReader::class)
-        ->public();
+    $services->set(ConfigReader::class, CompatConfigReader::class);
 };
