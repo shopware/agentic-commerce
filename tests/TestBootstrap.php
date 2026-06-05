@@ -45,12 +45,17 @@ if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
     }
     $projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
 }
-$classLoader = (new TestBootstrapper())
+$bootstrapper = (new TestBootstrapper())
     ->setProjectDir($projectDir)
-    ->setLoadEnvFile(true)
-    ->addCallingPlugin()
-    ->bootstrap()
-    ->getClassLoader();
+    ->setLoadEnvFile(true);
+
+// addCallingPlugin() looks for the plugin inside Shopware's custom/plugins/;
+// skip it when SHOPWARE_PROJECT_DIR is set (CI) as the plugin is a separate checkout.
+if (!getenv('SHOPWARE_PROJECT_DIR')) {
+    $bootstrapper->addCallingPlugin();
+}
+
+$classLoader = $bootstrapper->bootstrap()->getClassLoader();
 
 $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
 $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
