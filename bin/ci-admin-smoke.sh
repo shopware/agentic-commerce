@@ -250,7 +250,7 @@ else
 fi
 
 if [[ "${CORE_ONLY}" == "1" && "${resolved_mode}" == "vite" ]]; then
-  web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run vite build'
+  web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run build'
 elif [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
   web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run vite build && ts-node -T build/plugins.vite.ts'
 else
