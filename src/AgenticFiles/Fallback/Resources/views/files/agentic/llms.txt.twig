@@ -19,23 +19,23 @@
         - [Sitemap]({{ seoUrl('frontend.sitemap.xml') }}): Public sitemap for discoverable pages.
 {% set imprintPageId = config('core.basicInformation.imprintPage') -%}
 {% if imprintPageId -%}
-        - [Imprint]({{ path('frontend.cms.page.full', { id: imprintPageId }) }})
+        - [Imprint]({{ path(cmsPageRouteName, { id: imprintPageId }) }})
 {% endif -%}
 {% set privacyPageId = config('core.basicInformation.privacyPage') -%}
 {% if privacyPageId -%}
-        - [Privacy policy]({{ path('frontend.cms.page.full', { id: privacyPageId }) }})
+        - [Privacy policy]({{ path(cmsPageRouteName, { id: privacyPageId }) }})
 {% endif -%}
 {% set tosPageId = config('core.basicInformation.tosPage') -%}
 {% if tosPageId -%}
-        - [Terms]({{ path('frontend.cms.page.full', { id: tosPageId }) }})
+        - [Terms]({{ path(cmsPageRouteName, { id: tosPageId }) }})
 {% endif -%}
 {% set shippingPaymentInfoPageId = config('core.basicInformation.shippingPaymentInfoPage') -%}
 {% if shippingPaymentInfoPageId -%}
-        - [Shipping/payment information]({{ path('frontend.cms.page.full', { id: shippingPaymentInfoPageId }) }})
+        - [Shipping/payment information]({{ path(cmsPageRouteName, { id: shippingPaymentInfoPageId }) }})
 {% endif -%}
 {% set revocationPageId = config('core.basicInformation.revocationPage') -%}
 {% if revocationPageId -%}
-        - [Revocation/cancellation policy]({{ path('frontend.cms.page.full', { id: revocationPageId }) }})
+        - [Revocation/cancellation policy]({{ path(cmsPageRouteName, { id: revocationPageId }) }})
 {% endif -%}
 {% else -%}
         - [Sales channel context]({{ path('store-api.context') }}): Public context information for this sales channel.
@@ -48,13 +48,20 @@
 
     {% block agentic_llms_localization %}
         {%- set supportedLanguages = [] -%}
+        {%- set currentLanguageId = context.context.languageId|default(null) -%}
+        {%- set currentLanguageName = null -%}
+        {%- set currentLanguageLocaleCode = null -%}
         {%- for language in salesChannel.languages -%}
-            {%- set languageCode = language.translationCode.code|default(language.name) -%}
-            {%- set languageName = language.translationCode.translated.name|default(language.name) -%}
+            {%- set languageCode = language.translationCode.code|default(language.locale.code|default(language.name)) -%}
+            {%- set languageName = language.translationCode.translated.name|default(language.translationCode.name|default(language.name)) -%}
             {%- set languageTerritory = language.translationCode.translated.territory|default(null) -%}
             {%- set supportedLanguage = languageCode -%}
             {%- if languageName -%}
                 {%- set supportedLanguage = supportedLanguage ~ ' (' ~ languageName ~ (languageTerritory ? ', ' ~ languageTerritory : '') ~ ')' -%}
+            {%- endif -%}
+            {%- if language.id == currentLanguageId -%}
+                {%- set currentLanguageName = languageName -%}
+                {%- set currentLanguageLocaleCode = languageCode -%}
             {%- endif -%}
             {%- set supportedLanguages = supportedLanguages|merge([supportedLanguage]) -%}
         {%- endfor -%}
@@ -64,11 +71,12 @@
             {%- set supportedCurrency = currency.isoCode ~ (currencyName ? ' (' ~ currencyName ~ ')' : '') -%}
             {%- set supportedCurrencies = supportedCurrencies|merge([supportedCurrency]) -%}
         {%- endfor -%}
+        {%- set currentLanguageName = currentLanguageName|default(currentLanguageId|default('unknown')) -%}
+        {%- set currentLanguageLocaleCode = currentLanguageLocaleCode|default(currentLanguageName) -%}
         {%- set currentCurrencyName = context.currency.translated.name|default(context.currency.name) -%}
         {%- set localizationLines = [
             '## Localization',
-            '',
-            '- Current language: ' ~ context.languageInfo.name ~ ' (' ~ context.languageInfo.localeCode ~ ')',
+            '- Current language: ' ~ currentLanguageName ~ ' (' ~ currentLanguageLocaleCode ~ ')',
             '- Current currency: ' ~ context.currency.isoCode ~ (currentCurrencyName ? ' (' ~ currentCurrencyName ~ ')' : ''),
         ] -%}
         {%- if supportedLanguages|length > 0 -%}
@@ -90,7 +98,9 @@
         - Respect `robots.txt`, rate limits, and normal checkout boundaries.
     {% endblock %}
 
-    {% block agentic_llms_extensions %}{% endblock %}
+    {% block agentic_llms_extensions %}
+        {% include 'files/agentic/includes/ucp-llms.txt.twig' %}
+    {% endblock %}
 
     {% block user_provided_content %}{% endblock %}
 {% endapply %}{% endblock %}

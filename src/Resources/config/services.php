@@ -24,9 +24,11 @@ use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
 use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
+use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileSyncSubscriber;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
+use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
@@ -115,6 +117,11 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
+
+    if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
+        $services->set(RemoveLeadingSpacesTwigExtension::class)
+            ->tag('twig.extension');
+    }
 
     $services->set(GuestCustomerContextProvisioner::class)
         ->arg('$customerRepository', service('customer.repository'))
