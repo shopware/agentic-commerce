@@ -18,6 +18,7 @@ SHOPWARE_DIR="$(cd "$1" && pwd)"
 REQUESTED_MODE="${2:-auto}"
 BOOTSTRAP_MODE="${CI_ADMIN_BOOTSTRAP_MODE:-warm}"
 KEEP_STACK="${CI_ADMIN_KEEP_STACK:-1}"
+CORE_ONLY="${CI_ADMIN_CORE_ONLY:-0}"
 
 case "${REQUESTED_MODE}" in
   auto|webpack|vite)
@@ -30,6 +31,11 @@ esac
 
 if [[ ! -d "${SHOPWARE_DIR}" ]]; then
   echo "Shopware checkout not found at ${SHOPWARE_DIR}." >&2
+  exit 1
+fi
+
+if [[ "${CORE_ONLY}" != "0" && "${CORE_ONLY}" != "1" ]]; then
+  echo "Unsupported CI_ADMIN_CORE_ONLY '${CORE_ONLY}'. Use '0' or '1'." >&2
   exit 1
 fi
 
@@ -158,6 +164,7 @@ ADMIN_VITE="${admin_vite_env}" \
 CI_SMOKE_MODE="${BOOTSTRAP_MODE}" \
 CI_SMOKE_KEEP_STACK=1 \
 CI_SMOKE_BOOTSTRAP_ONLY=1 \
+CI_SMOKE_SKIP_PLUGIN="${CORE_ONLY}" \
 "${PLUGIN_ROOT}/bin/ci-smoke.sh" "${SHOPWARE_DIR}"
 
 cleanup() {
@@ -186,11 +193,19 @@ web sh -lc 'cd /var/www/html && php bin/console feature:dump' || {
     exit 1
   fi
 }
-web sh -lc 'cd /var/www/html && jq -e ".SwagAgenticCommerce.administration.entryFilePath == \"Resources/app/administration/src/main.js\"" var/plugins.json >/dev/null' \
-  || {
-    echo "SwagAgenticCommerce is missing from var/plugins.json after bundle:dump. Check filesystem sync/stale var/plugins.json before building administration." >&2
-    exit 1
-  }
+if [[ "${CORE_ONLY}" == "1" ]]; then
+  web sh -lc 'cd /var/www/html && jq -e "has(\"SwagAgenticCommerce\") | not" var/plugins.json >/dev/null' \
+    || {
+      echo "SwagAgenticCommerce must not be present while building the core administration shell for zip-install smoke." >&2
+      exit 1
+    }
+else
+  web sh -lc 'cd /var/www/html && jq -e ".SwagAgenticCommerce.administration.entryFilePath == \"Resources/app/administration/src/main.js\"" var/plugins.json >/dev/null' \
+    || {
+      echo "SwagAgenticCommerce is missing from var/plugins.json after bundle:dump. Check filesystem sync/stale var/plugins.json before building administration." >&2
+      exit 1
+    }
+fi
 
 if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" != "auto" ]]; then
   feature_file_preexisted="$(web sh -lc 'if [ -f /var/www/html/var/config_js_features.json ]; then echo 1; else echo 0; fi')"
@@ -228,9 +243,15 @@ fi
 
 admin_sh 'cd /var/www/html && composer admin:generate-entity-schema-types'
 
-web sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/administration /var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/static /var/www/html/public/bundles/swagagenticcommerce/administration /var/www/html/public/bundles/swagagenticcommerce/static'
+if [[ "${CORE_ONLY}" == "1" ]]; then
+  web sh -lc 'rm -rf /var/www/html/public/bundles/administration /var/www/html/src/Administration/Resources/public/administration'
+else
+  web sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/administration /var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/static /var/www/html/public/bundles/swagagenticcommerce/administration /var/www/html/public/bundles/swagagenticcommerce/static'
+fi
 
-if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
+if [[ "${CORE_ONLY}" == "1" && "${resolved_mode}" == "vite" ]]; then
+  web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run vite build'
+elif [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
   web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run vite build && ts-node -T build/plugins.vite.ts'
 else
   admin_sh 'cd /var/www/html && composer npm:admin run build'
@@ -243,10 +264,18 @@ web php /var/www/html/bin/console assets:install
 # server entry from sw-plugin-dev.json.
 web sh -lc 'rm -f /var/www/html/public/bundles/administration/administration/sw-plugin-dev.json'
 
-bundle_artifact="$(web sh -lc 'find /var/www/html/public -path "*swagagenticcommerce*" -type f | head -n 1')"
+if [[ "${CORE_ONLY}" == "1" ]]; then
+  bundle_artifact="$(web sh -lc 'find /var/www/html/public/bundles/administration -type f | head -n 1')"
+else
+  bundle_artifact="$(web sh -lc 'find /var/www/html/public -path "*swagagenticcommerce*" -type f | head -n 1')"
+fi
 
 if [[ -z "${bundle_artifact}" ]]; then
-  echo "Unable to locate a built SwagAgenticCommerce administration asset under /var/www/html/public." >&2
+  if [[ "${CORE_ONLY}" == "1" ]]; then
+    echo "Unable to locate a built core administration asset under /var/www/html/public/bundles/administration." >&2
+  else
+    echo "Unable to locate a built SwagAgenticCommerce administration asset under /var/www/html/public." >&2
+  fi
   exit 1
 fi
 

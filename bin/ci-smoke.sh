@@ -18,6 +18,7 @@ SHOPWARE_DIR="$(cd "$1" && pwd)"
 SDK_ROOT="${SDK_ROOT:-${PLUGIN_ROOT}/../ucp-php-sdk}"
 PLUGIN_ZIP="${CI_SMOKE_PLUGIN_ZIP:-}"
 SMOKE_MODE="${CI_SMOKE_MODE:-}"
+SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 
 detect_shopware_lane() {
   if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
@@ -91,6 +92,21 @@ if [[ "${BOOTSTRAP_ONLY}" != "0" && "${BOOTSTRAP_ONLY}" != "1" ]]; then
   exit 1
 fi
 
+if [[ "${SKIP_PLUGIN}" != "0" && "${SKIP_PLUGIN}" != "1" ]]; then
+  echo "Unsupported CI_SMOKE_SKIP_PLUGIN '${SKIP_PLUGIN}'. Use '0' or '1'." >&2
+  exit 1
+fi
+
+if [[ "${SKIP_PLUGIN}" == "1" && -n "${PLUGIN_ZIP}" ]]; then
+  echo "CI_SMOKE_SKIP_PLUGIN cannot be combined with CI_SMOKE_PLUGIN_ZIP." >&2
+  exit 1
+fi
+
+if [[ "${SKIP_PLUGIN}" == "1" && "${BOOTSTRAP_ONLY}" != "1" ]]; then
+  echo "CI_SMOKE_SKIP_PLUGIN requires CI_SMOKE_BOOTSTRAP_ONLY=1." >&2
+  exit 1
+fi
+
 export APP_ENV="${APP_ENV:-dev}"
 export APP_DEBUG="${APP_DEBUG:-0}"
 export SHELL_VERBOSITY="${SHELL_VERBOSITY:--1}"
@@ -112,7 +128,7 @@ if [[ -n "${PLUGIN_ZIP}" ]]; then
   fi
 
   PLUGIN_ZIP="$(cd "$(dirname "${PLUGIN_ZIP}")" && pwd)/$(basename "${PLUGIN_ZIP}")"
-elif [[ ! -d "${SDK_ROOT}" ]]; then
+elif [[ "${SKIP_PLUGIN}" != "1" && ! -d "${SDK_ROOT}" ]]; then
   echo "SDK checkout not found at ${SDK_ROOT}." >&2
   exit 1
 fi
@@ -276,7 +292,9 @@ wait_for_capture() {
 rm -rf "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
 mkdir -p "${SHOPWARE_DIR}/custom/plugins"
 
-if [[ -n "${PLUGIN_ZIP}" ]]; then
+if [[ "${SKIP_PLUGIN}" == "1" ]]; then
+  :
+elif [[ -n "${PLUGIN_ZIP}" ]]; then
   unzip -q "${PLUGIN_ZIP}" -d "${SHOPWARE_DIR}/custom/plugins"
   if [[ ! -d "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" ]]; then
     echo "Plugin zip must contain a top-level SwagAgenticCommerce directory." >&2
@@ -330,13 +348,18 @@ sync_custom_sources_into_web_volume() {
     exit 1
   fi
 
-  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/plugins/ucp-php-sdk /var/www/html/custom/ucp-php-sdk && mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce'
-  "${container_runtime}" cp "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/." "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce"
-  if [[ -z "${PLUGIN_ZIP}" ]]; then
+  "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'rm -rf /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/plugins/ucp-php-sdk /var/www/html/custom/ucp-php-sdk && mkdir -p /var/www/html/custom/plugins'
+  if [[ "${SKIP_PLUGIN}" == "1" ]]; then
+    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom && chmod -R a+rwX /var/www/html/custom'
+  else
+    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce'
+    "${container_runtime}" cp "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/." "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce"
+  fi
+  if [[ "${SKIP_PLUGIN}" != "1" && -z "${PLUGIN_ZIP}" ]]; then
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/ucp-php-sdk'
     "${container_runtime}" cp "${SHOPWARE_DIR}/custom/ucp-php-sdk/." "${web_id}:/var/www/html/custom/ucp-php-sdk"
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
-  else
+  elif [[ "${SKIP_PLUGIN}" != "1" ]]; then
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce'
   fi
 }
@@ -380,6 +403,14 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
+if [[ "${SKIP_PLUGIN}" == "1" || -n "${PLUGIN_ZIP}" ]]; then
+  web sh -lc 'cd /var/www/html \
+    && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
+    && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
+    && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+fi
+
 if [[ ! -f "${SHOPWARE_DIR}/composer.lock" && "${SHOPWARE_BRANCH}" == "6.5.x" ]]; then
   web sh -lc 'cd /var/www/html && composer update --no-dev --no-scripts --no-interaction --no-security-blocking --prefer-dist --with="shopware/conflicts:0.1.30" --with="twig/twig:^3.20,<3.27"'
 else
@@ -390,7 +421,13 @@ if ! db_table_exists plugin; then
   web php /var/www/html/bin/console system:install --basic-setup --force
 fi
 
-if [[ -n "${PLUGIN_ZIP}" ]]; then
+if [[ "${SKIP_PLUGIN}" == "1" ]]; then
+  web sh -lc 'cd /var/www/html \
+    && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
+    && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
+    && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+elif [[ -n "${PLUGIN_ZIP}" ]]; then
   web sh -lc 'cd /var/www/html \
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
@@ -409,6 +446,12 @@ fi
 # for the previous checkout is still present. Remove it before booting console
 # commands such as plugin:refresh.
 web sh -lc 'cd /var/www/html && rm -rf var/cache/*'
+
+if [[ "${SKIP_PLUGIN}" == "1" ]]; then
+  echo "Core bootstrap completed for ${SHOPWARE_DIR}."
+  exit 0
+fi
+
 web php /var/www/html/bin/console plugin:refresh
 web php /var/www/html/bin/console cache:clear >/dev/null
 web php /var/www/html/bin/console plugin:install --activate SwagAgenticCommerce

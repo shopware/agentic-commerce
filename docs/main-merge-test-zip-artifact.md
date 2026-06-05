@@ -240,9 +240,23 @@ Each run:
 1. Checks out the plugin for test scripts and Playwright tests.
 2. Checks out the matching Shopware lane.
 3. Downloads the candidate zip.
-4. Runs `bin/ci-smoke.sh` with `CI_SMOKE_PLUGIN_ZIP`.
-5. Runs the admin Playwright suite.
-6. Tears down the stack.
+4. Builds the core Shopware administration shell with
+   `CI_ADMIN_CORE_ONLY=1`.
+5. Runs `bin/ci-smoke.sh` with `CI_SMOKE_PLUGIN_ZIP`.
+6. Runs the admin Playwright suite.
+7. Tears down the stack.
+
+The core administration shell build intentionally runs before the zip is
+installed. It keeps `custom/plugins/SwagAgenticCommerce` absent while compiling
+the Shopware shell:
+
+- `6.5.x`: webpack shell build
+- `6.6.x`: webpack shell build
+- `trunk` / current `6.7`: Vite shell build
+
+This gives the browser tests a real `/admin` shell without rebuilding
+`SwagAgenticCommerce` assets per lane. The plugin assets used by the browser are
+still the single packaged asset set from the zip.
 
 Zip mode in `bin/ci-smoke.sh`:
 
