@@ -159,14 +159,12 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
 
         static::assertIsString($statement);
-        static::assertStringContainsString('INSERT INTO `migration`', $statement);
-        static::assertStringContainsString('ON DUPLICATE KEY UPDATE', $statement);
-        static::assertStringContainsString('COALESCE(`update`, VALUES(`update`))', $statement);
+        static::assertStringContainsString('INSERT IGNORE INTO `migration`', $statement);
         static::assertSame(
             'Shopware\\Core\\Migration\\V6_7\\Migration1773329152AddAgenticAiSalesChannelType',
             $params['class'] ?? null,
         );
-        static::assertSame(1773329152, $params['timestamp'] ?? null);
+        static::assertSame(1773329152, $params['ts'] ?? null);
     }
 
     public function testUpdateShadowsCoreMigrationEvenWhenSalesChannelTypeAlreadyExists(): void

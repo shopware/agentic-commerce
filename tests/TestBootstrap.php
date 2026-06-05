@@ -20,15 +20,27 @@ if (!class_exists(TestBootstrapper::class)) {
 }
 
 if (!class_exists(TestBootstrapper::class)) {
+    $shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
+    if (\is_string($shopwareProjectDir) && is_file($shopwareProjectDir.'/src/Core/TestBootstrapper.php')) {
+        require_once $shopwareProjectDir.'/src/Core/TestBootstrapper.php';
+    }
+}
+
+if (!class_exists(TestBootstrapper::class)) {
     throw new RuntimeException('Could not locate Shopware TestBootstrapper.');
 }
 
-$corePath = class_exists(InstalledVersions::class) ? InstalledVersions::getInstallPath('shopware/core') : null;
-if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
-    $corePath = \dirname(__DIR__, 4).'/src/Core';
+$shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
+if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
+    $corePath = $shopwareProjectDir.'/src/Core';
+    $projectDir = $shopwareProjectDir;
+} else {
+    $corePath = class_exists(InstalledVersions::class) ? InstalledVersions::getInstallPath('shopware/core') : null;
+    if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
+        $corePath = \dirname(__DIR__, 4).'/src/Core';
+    }
+    $projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
 }
-
-$projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
 $classLoader = (new TestBootstrapper())
     ->setProjectDir($projectDir)
     ->setLoadEnvFile(true)
