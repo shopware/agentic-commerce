@@ -467,6 +467,56 @@ fi
 web php /var/www/html/bin/console plugin:refresh
 web php /var/www/html/bin/console cache:clear >/dev/null
 web php /var/www/html/bin/console plugin:install --activate SwagAgenticCommerce
+web php <<'PHP'
+<?php
+
+declare(strict_types=1);
+
+require '/var/www/html/vendor/autoload.php';
+
+$pluginAutoload = '/var/www/html/custom/plugins/SwagAgenticCommerce/vendor/autoload.php';
+if (is_file($pluginAutoload)) {
+    require_once $pluginAutoload;
+}
+
+$configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
+if (is_file($configPath) && str_contains((string) file_get_contents($configPath), 'sqlite:')) {
+    fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+    exit(1);
+}
+
+$connectionFactory = 'Ucp\\Sdk\\Symfony\\Bridge\\DoctrineDbal\\ConnectionFactory';
+$schemaBootstrapper = 'Ucp\\Sdk\\Symfony\\Bridge\\DoctrineDbal\\SchemaBootstrapper';
+if (!class_exists($connectionFactory) || !class_exists($schemaBootstrapper)) {
+    fwrite(STDERR, "UCP SDK DBAL storage classes are not available.\n");
+    exit(1);
+}
+
+$databaseUrl = getenv('DATABASE_URL') ?: ($_SERVER['DATABASE_URL'] ?? '');
+if (!is_string($databaseUrl) || $databaseUrl === '') {
+    fwrite(STDERR, "DATABASE_URL is not available for UCP SDK storage validation.\n");
+    exit(1);
+}
+
+$connection = $connectionFactory::create($databaseUrl);
+(new $schemaBootstrapper($connection))->ensureSchema();
+
+foreach ([
+    'ucp_signing_keys',
+    'ucp_idempotency',
+    'ucp_oauth_state',
+    'ucp_platform_profile_cache',
+    'ucp_negotiation_sessions',
+    'ucp_signature_nonces',
+] as $table) {
+    if (!$connection->createSchemaManager()->tablesExist([$table])) {
+        fwrite(STDERR, sprintf("UCP SDK storage table %s was not created.\n", $table));
+        exit(1);
+    }
+}
+
+echo "UCP SDK storage schema is available on Shopware database.\n";
+PHP
 
 if [[ -n "${PLUGIN_ZIP}" ]]; then
   web sh -lc 'cd /var/www/html \
