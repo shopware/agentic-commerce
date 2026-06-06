@@ -9,4 +9,4 @@ ucp_sdk:
         retire_after: 'P30D'
         retired_key_retention: 'P30D'
     storage:
-        dsn: 'sqlite:///%kernel.project_dir%/var/swag_agentic_commerce_ucp.sqlite'
+        dsn: '%env(resolve:DATABASE_URL)%'
