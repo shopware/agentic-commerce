@@ -66,24 +66,24 @@ export default {
         transportOptions() {
             return transportOptions.map((option) => ({
                 ...option,
-                label: option.label.includes('.') ? this.$tc(option.label) : option.label,
-                description: option.description ? this.$tc(option.description) : '',
+                label: option.label.includes('.') ? this.$t(option.label) : option.label,
+                description: option.description ? this.$t(option.description) : '',
                 disabled: this.isTransportUnsupported(option),
-                disabledReason: option.disabledReason ? this.$tc(option.disabledReason) : '',
+                disabledReason: option.disabledReason ? this.$t(option.disabledReason) : '',
             }));
         },
 
         signaturePolicyOptions() {
             return signaturePolicyOptions.map((option) => ({
                 ...option,
-                label: this.$tc(option.label),
+                label: this.$t(option.label),
             }));
         },
 
         profileUriStrategyOptions() {
             return profileUriStrategyOptions.map((option) => ({
                 ...option,
-                label: this.$tc(option.label),
+                label: this.$t(option.label),
             }));
         },
 
@@ -121,8 +121,8 @@ export default {
 
         activeStatusLabel() {
             return this.form.active
-                ? this.$tc('sw-settings-ucp.general.statusActive')
-                : this.$tc('sw-settings-ucp.general.statusInactive');
+                ? this.$t('sw-settings-ucp.general.statusActive')
+                : this.$t('sw-settings-ucp.general.statusInactive');
         },
 
         enabledCapabilityCount() {
@@ -131,7 +131,7 @@ export default {
 
         transportSummaryLabel() {
             if (this.form.enabledTransports.length === 0) {
-                return this.$tc('sw-settings-ucp.general.noTransportLabel');
+                return this.$t('sw-settings-ucp.general.noTransportLabel');
             }
 
             return this.form.enabledTransports.map((entry) => entry.toUpperCase()).join(', ');
@@ -191,7 +191,7 @@ export default {
         signaturePolicyLabelText() {
             const option = this.signaturePolicyOptions.find((entry) => entry.value === this.form.signaturePolicy);
 
-            return option ? option.label : (this.form.signaturePolicy || this.$tc('sw-settings-ucp.general.keyStatusUnknown'));
+            return option ? option.label : (this.form.signaturePolicy || this.$t('sw-settings-ucp.general.keyStatusUnknown'));
         },
     },
 
@@ -214,7 +214,6 @@ export default {
                 this.keys = keysResponse.data.data || [];
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {
@@ -244,12 +243,10 @@ export default {
                 await this.load();
 
                 this.createNotificationSuccess({
-                    title: this.$tc('global.default.success'),
-                    message: this.$tc('sw-settings-ucp.general.configSaved'),
+                    message: this.$t('sw-settings-ucp.general.configSaved'),
                 });
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {
@@ -304,12 +301,10 @@ export default {
                 await this.refreshKeys();
 
                 this.createNotificationSuccess({
-                    title: this.$tc('global.default.success'),
-                    message: this.$tc('sw-settings-ucp.general.keyCreated'),
+                    message: this.$t('sw-settings-ucp.general.keyCreated'),
                 });
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {
@@ -325,12 +320,10 @@ export default {
                 await this.refreshKeys();
 
                 this.createNotificationSuccess({
-                    title: this.$tc('global.default.success'),
-                    message: this.$tc('sw-settings-ucp.general.keyRetired'),
+                    message: this.$t('sw-settings-ucp.general.keyRetired'),
                 });
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {
@@ -346,12 +339,10 @@ export default {
                 await this.refreshKeys();
 
                 this.createNotificationSuccess({
-                    title: this.$tc('global.default.success'),
-                    message: this.$tc('sw-settings-ucp.general.keyDeleted'),
+                    message: this.$t('sw-settings-ucp.general.keyDeleted'),
                 });
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {
@@ -366,7 +357,7 @@ export default {
 
         domainUrls() {
             if (!this.salesChannel || !Array.isArray(this.salesChannel.domains) || this.salesChannel.domains.length === 0) {
-                return this.$tc('sw-settings-ucp.general.noDomainLabel');
+                return this.$t('sw-settings-ucp.general.noDomainLabel');
             }
 
             return this.salesChannel.domains
@@ -377,7 +368,7 @@ export default {
 
         formatKeyStatus(status) {
             if (!status) {
-                return this.$tc('sw-settings-ucp.general.keyStatusUnknown');
+                return this.$t('sw-settings-ucp.general.keyStatusUnknown');
             }
 
             return status.charAt(0).toUpperCase() + status.slice(1);

@@ -39,8 +39,8 @@
     v-model="templateName"
     data-ac-template-select
     :disabled="!acl.can('sales_channel.editor')"
-    :label="$tc('sw-sales-channel.detail.productComparison.templates.label')"
-    :placeholder="$tc('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"
+    :label="$t('sw-sales-channel.detail.productComparison.templates.label')"
+    :placeholder="$t('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"
     :options="templateSelectOptions"
     @change="$emit('template-selected', $event)"
     @update:value="(templateName) => $emit('template-selected', templateName)"

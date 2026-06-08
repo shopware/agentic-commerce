@@ -114,6 +114,6 @@ function createContext(overrides = {}) {
             ...(overrides.meta || {}),
         },
         transportOptions: overrides.transportOptions || [],
-        $tc: (key) => key,
+        $t: (key) => key,
     };
 }
