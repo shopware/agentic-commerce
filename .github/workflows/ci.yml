@@ -527,6 +527,9 @@ jobs:
 
   publish-test-zip:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     if: >-
       ${{
         github.event_name != 'pull_request' &&
@@ -612,6 +615,7 @@ jobs:
           )
 
           cp "${zip_path}" "${final_zip_path}"
+          cmp -s "${zip_path}" "${final_zip_path}"
 
           (
             cd "$GITHUB_WORKSPACE/test-zip"
@@ -621,6 +625,16 @@ jobs:
               shasum -a 256 "$(basename "${final_zip_path}")" >"$(basename "${final_checksum_path}")"
             fi
           )
+
+          untested_hash="$(awk '{print $1}' "${checksum_path}")"
+          final_hash="$(awk '{print $1}' "${final_checksum_path}")"
+
+          if [[ "${untested_hash}" != "${final_hash}" ]]; then
+            echo "Final ZIP checksum does not match untested RC checksum." >&2
+            echo "untested=${untested_hash}" >&2
+            echo "final=${final_hash}" >&2
+            exit 1
+          fi
 
           jq \
             --arg eventName "${{ github.event_name }}" \
@@ -663,3 +677,35 @@ jobs:
           path: test-zip/release-candidate-final-metadata.json
           archive: false
           if-no-files-found: error
+      - name: Delete untested RC artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          artifacts_json="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+          for artifact_name in \
+            release-candidate-untested.zip \
+            release-candidate-untested.zip.sha256 \
+            release-candidate-untested-metadata.json
+          do
+            mapfile -t artifact_ids < <(
+              jq -r --arg name "${artifact_name}" \
+                '.artifacts[] | select(.name == $name) | .id' \
+                "${artifacts_json}"
+            )
+
+            if [[ "${#artifact_ids[@]}" -eq 0 ]]; then
+              echo "No ${artifact_name} artifact found to delete."
+              continue
+            fi
+
+            for artifact_id in "${artifact_ids[@]}"; do
+              echo "Deleting ${artifact_name} artifact ${artifact_id}."
+              gh api \
+                --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+            done
+          done

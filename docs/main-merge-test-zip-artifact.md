@@ -9,16 +9,19 @@ strategy.
 
 ## Output
 
-Successful `main` and manual workflow runs produce raw GitHub Actions artifacts:
+Successful `main` and manual workflow runs leave these raw GitHub Actions
+artifacts:
 
 ```text
-release-candidate-untested.zip
-release-candidate-untested.zip.sha256
-release-candidate-untested-metadata.json
 release-candidate-final.zip
 release-candidate-final.zip.sha256
 release-candidate-final-metadata.json
 ```
+
+The workflow also creates transient `release-candidate-untested*` artifacts so
+zip smoke can consume the candidate before final promotion. After
+`publish-test-zip` uploads the final artifacts successfully, it deletes those
+untested artifacts from the run.
 
 The `*.zip` artifacts are uploaded with `actions/upload-artifact@v7` and
 `archive: false`. GitHub therefore serves the plugin ZIP itself, not a wrapper
@@ -350,14 +353,19 @@ release-candidate-untested-metadata.json
 These downloads also use the raw Actions artifact API, not
 `actions/download-artifact`, so promotion uses the exact candidate ZIP bytes. It
 verifies the untested checksum, copies the same ZIP bytes to
-`release-candidate-final.zip`, writes a final checksum, enriches the metadata
-with `main_validation`, and uploads:
+`release-candidate-final.zip`, verifies byte equality, verifies that the
+untested and final checksum hashes match, writes final metadata with
+`main_validation`, and uploads:
 
 ```text
 release-candidate-final.zip
 release-candidate-final.zip.sha256
 release-candidate-final-metadata.json
 ```
+
+After all three final uploads succeed, the job deletes the transient
+`release-candidate-untested*` artifacts from the same workflow run. This cleanup
+requires the `publish-test-zip` job to have `actions: write` permission.
 
 ## Artifact Assertions
 
