@@ -135,7 +135,6 @@ return static function (ContainerConfigurator $container): void {
     ]);
 
     $services = $container->services();
-    $services->defaults()->public();
 
     $services->defaults()
         ->autowire()

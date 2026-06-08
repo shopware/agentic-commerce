@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 
+/** @internal */
 final class CoreSalesChannelFileFeatureTest extends TestCase
 {
     public function testItIsAvailableWhenAllRequiredClassesExist(): void
