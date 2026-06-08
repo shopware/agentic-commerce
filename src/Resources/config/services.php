@@ -269,6 +269,7 @@ return static function (ContainerConfigurator $container): void {
         ->tag('shopware.entity.definition');
 
     $services->set(AgenticProductExportHydrator::class)
+        ->public()
         ->arg('$container', service('service_container'));
 
     // ── Product export: providers ─────────────────────────────────────────────
