@@ -23,6 +23,11 @@ on:
         description: 'Shopware trunk/6.7 ref'
         default: 'trunk'
         required: true
+      run_full_matrix:
+        description: 'Run the full validation matrix before publishing the final RC artifact'
+        default: false
+        required: false
+        type: boolean
 
 env:
   UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
@@ -30,9 +35,126 @@ env:
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
 
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+
 jobs:
+  verify-main-validation:
+    runs-on: ubuntu-latest
+    outputs:
+      run_full_matrix: ${{ steps.decide.outputs.run_full_matrix }}
+      reason: ${{ steps.decide.outputs.reason }}
+      pr_number: ${{ steps.decide.outputs.pr_number }}
+      pr_url: ${{ steps.decide.outputs.pr_url }}
+      pr_head_sha: ${{ steps.decide.outputs.pr_head_sha }}
+      pr_merge_commit_sha: ${{ steps.decide.outputs.pr_merge_commit_sha }}
+      checked_at: ${{ steps.decide.outputs.checked_at }}
+    steps:
+      - id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_FULL_MATRIX_INPUT: ${{ github.event.inputs.run_full_matrix || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          checked_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          emit() {
+            echo "run_full_matrix=$1" >> "$GITHUB_OUTPUT"
+            echo "reason=$2" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${3:-}" >> "$GITHUB_OUTPUT"
+            echo "pr_url=${4:-}" >> "$GITHUB_OUTPUT"
+            echo "pr_head_sha=${5:-}" >> "$GITHUB_OUTPUT"
+            echo "pr_merge_commit_sha=${6:-}" >> "$GITHUB_OUTPUT"
+            echo "checked_at=${checked_at}" >> "$GITHUB_OUTPUT"
+            echo "Validation decision: run_full_matrix=$1 reason=$2"
+          }
+
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            emit true pull_request
+            exit 0
+          fi
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ "${RUN_FULL_MATRIX_INPUT}" == "true" ]]; then
+              emit true workflow_dispatch_requested
+            else
+              emit false workflow_dispatch_rc_only
+            fi
+            exit 0
+          fi
+
+          if [[ "${EVENT_NAME}" != "push" || "${REF_NAME}" != "main" ]]; then
+            emit true unsupported_event
+            exit 0
+          fi
+
+          pulls_json="$(gh api -H "Accept: application/vnd.github+json" "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" 2>/tmp/commit-pulls.err || true)"
+
+          if [[ -z "${pulls_json}" ]] || ! jq -e type >/dev/null 2>&1 <<<"${pulls_json}"; then
+            emit true commit_pr_lookup_failed
+            exit 0
+          fi
+
+          pr_json="$(jq -c '[.[] | select(.merged_at != null and .base.ref == "main")] | sort_by(.merged_at) | last // empty' <<<"${pulls_json}")"
+
+          if [[ -z "${pr_json}" ]]; then
+            emit true no_merged_pr_for_main_commit
+            exit 0
+          fi
+
+          pr_number="$(jq -r '.number' <<<"${pr_json}")"
+          pr_url="$(jq -r '.html_url' <<<"${pr_json}")"
+          pr_head_sha="$(jq -r '.head.sha' <<<"${pr_json}")"
+          pr_merge_commit_sha="$(jq -r '.merge_commit_sha // ""' <<<"${pr_json}")"
+
+          checks_file="$(mktemp)"
+          if ! gh pr checks "${pr_number}" --repo "${GITHUB_REPOSITORY}" --json name,state,bucket,workflow >"${checks_file}" 2>/tmp/pr-checks.err; then
+            emit true pr_checks_lookup_failed "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+            exit 0
+          fi
+
+          expected_checks=(
+            "admin-static"
+            "php-quality"
+            "shopware-matrix (6.5.x)"
+            "shopware-matrix (6.6.x)"
+            "shopware-matrix (trunk)"
+            "admin-matrix (6.5.x, webpack)"
+            "admin-matrix (6.6.x, webpack)"
+            "admin-matrix (6.6.x, vite)"
+            "admin-matrix (trunk, vite)"
+            "storefront-matrix (6.5.x)"
+            "storefront-matrix (6.6.x)"
+            "storefront-matrix (trunk)"
+          )
+
+          for check_name in "${expected_checks[@]}"; do
+            states="$(jq -r --arg name "${check_name}" '[.[] | select(.name == $name) | .state] | unique | join(",")' "${checks_file}")"
+
+            if [[ -z "${states}" ]]; then
+              emit true "missing_check:${check_name}" "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+              exit 0
+            fi
+
+            if [[ "${states}" != "SUCCESS" ]]; then
+              emit true "non_success_check:${check_name}:${states}" "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+              exit 0
+            fi
+          done
+
+          emit false trusted_pr_checks_success "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+
   php-quality:
     runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -64,6 +186,9 @@ jobs:
 
   admin-static:
     runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -88,6 +213,9 @@ jobs:
   shopware-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -132,6 +260,9 @@ jobs:
   admin-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -176,6 +307,9 @@ jobs:
   storefront-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -220,12 +354,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: github.event_name != 'pull_request'
-    needs:
-      - php-quality
-      - admin-static
-      - shopware-matrix
-      - admin-matrix
-      - storefront-matrix
     steps:
       - uses: actions/checkout@v6
         with:
@@ -264,13 +392,53 @@ jobs:
           SHOPWARE_65_REF: ${{ env.SHOPWARE_65_REF }}
           SHOPWARE_66_REF: ${{ env.SHOPWARE_66_REF }}
           SHOPWARE_TRUNK_REF: ${{ env.SHOPWARE_TRUNK_REF }}
+      - run: |
+          set -euo pipefail
+
+          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name 'SwagAgenticCommerce-main-*.zip' -print -quit)"
+          metadata_path="$GITHUB_WORKSPACE/test-zip/artifact-metadata.json"
+
+          if [[ -z "${zip_path}" || ! -f "${metadata_path}" ]]; then
+            echo "Release-candidate package is missing zip or metadata." >&2
+            exit 1
+          fi
+
+          cp "${zip_path}" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+
+          (
+            cd "$GITHUB_WORKSPACE/test-zip"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum release-candidate-untested.zip > release-candidate-untested.zip.sha256
+            else
+              shasum -a 256 release-candidate-untested.zip > release-candidate-untested.zip.sha256
+            fi
+          )
+
+          jq \
+            --arg originalZip "$(basename "${zip_path}")" \
+            '.artifact_files = {
+              original_zip: $originalZip,
+              rc_untested_zip: "release-candidate-untested.zip",
+              rc_untested_sha256: "release-candidate-untested.zip.sha256"
+            }' \
+            "${metadata_path}" >"$GITHUB_WORKSPACE/test-zip/release-candidate-untested-metadata.json"
       - uses: actions/upload-artifact@v7
         with:
-          name: swag-agentic-commerce-test-zip-candidate-${{ github.run_id }}
-          path: |
-            test-zip/SwagAgenticCommerce-main-*.zip
-            test-zip/SwagAgenticCommerce-main-*.zip.sha256
-            test-zip/artifact-metadata.json
+          path: test-zip/release-candidate-untested.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-untested.zip.sha256
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-untested-metadata.json
+          archive: false
+          if-no-files-found: error
           retention-days: 1
 
   zip-install-smoke:
@@ -300,7 +468,7 @@ jobs:
           path: shopware
       - uses: actions/download-artifact@v8
         with:
-          name: swag-agentic-commerce-test-zip-candidate-${{ github.run_id }}
+          name: release-candidate-untested.zip
           path: test-zip
       - uses: actions/setup-node@v6
         with:
@@ -321,7 +489,7 @@ jobs:
           CI_ADMIN_KEEP_STACK: 1
           SHOPWARE_REF: ${{ matrix.lane }}
       - run: |
-          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name 'SwagAgenticCommerce-main-*.zip' -print -quit)"
+          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name '*.zip' -print -quit)"
           if [ -z "$zip_path" ]; then
             echo "Unable to find packaged SwagAgenticCommerce zip." >&2
             exit 1
@@ -342,18 +510,117 @@ jobs:
 
   publish-test-zip:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: >-
+      ${{
+        github.event_name != 'pull_request' &&
+        always() &&
+        needs.verify-main-validation.result == 'success' &&
+        needs.zip-install-smoke.result == 'success' &&
+        (
+          needs.verify-main-validation.outputs.run_full_matrix != 'true' ||
+          (
+            needs.php-quality.result == 'success' &&
+            needs.admin-static.result == 'success' &&
+            needs.shopware-matrix.result == 'success' &&
+            needs.admin-matrix.result == 'success' &&
+            needs.storefront-matrix.result == 'success'
+          )
+        )
+      }}
     needs:
+      - verify-main-validation
+      - php-quality
+      - admin-static
+      - shopware-matrix
+      - admin-matrix
+      - storefront-matrix
       - zip-install-smoke
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: swag-agentic-commerce-test-zip-candidate-${{ github.run_id }}
+          name: release-candidate-untested.zip
           path: test-zip
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-candidate-untested.zip.sha256
+          path: test-zip
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-candidate-untested-metadata.json
+          path: test-zip
+      - run: |
+          set -euo pipefail
+
+          zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          checksum_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip.sha256"
+          metadata_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested-metadata.json"
+          final_zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final.zip"
+          final_checksum_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final.zip.sha256"
+          final_metadata_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final-metadata.json"
+
+          if [[ -z "${zip_path}" || -z "${checksum_path}" || ! -f "${metadata_path}" ]]; then
+            echo "Final RC publish is missing zip, checksum, or metadata." >&2
+            exit 1
+          fi
+
+          (
+            cd "$GITHUB_WORKSPACE/test-zip"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum -c "$(basename "${checksum_path}")"
+            else
+              shasum -a 256 -c "$(basename "${checksum_path}")"
+            fi
+          )
+
+          cp "${zip_path}" "${final_zip_path}"
+
+          (
+            cd "$GITHUB_WORKSPACE/test-zip"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$(basename "${final_zip_path}")" >"$(basename "${final_checksum_path}")"
+            else
+              shasum -a 256 "$(basename "${final_zip_path}")" >"$(basename "${final_checksum_path}")"
+            fi
+          )
+
+          jq \
+            --arg eventName "${{ github.event_name }}" \
+            --arg runFullMatrix "${{ needs.verify-main-validation.outputs.run_full_matrix }}" \
+            --arg reason "${{ needs.verify-main-validation.outputs.reason }}" \
+            --arg prNumber "${{ needs.verify-main-validation.outputs.pr_number }}" \
+            --arg prUrl "${{ needs.verify-main-validation.outputs.pr_url }}" \
+            --arg prHeadSha "${{ needs.verify-main-validation.outputs.pr_head_sha }}" \
+            --arg prMergeCommitSha "${{ needs.verify-main-validation.outputs.pr_merge_commit_sha }}" \
+            --arg checkedAt "${{ needs.verify-main-validation.outputs.checked_at }}" \
+            --arg workflowRunId "${{ github.run_id }}" \
+            --arg rcFinalZip "$(basename "${final_zip_path}")" \
+            --arg rcFinalSha256 "$(basename "${final_checksum_path}")" \
+            '.main_validation = {
+              event_name: $eventName,
+              run_full_matrix: ($runFullMatrix == "true"),
+              reason: $reason,
+              pr_number: $prNumber,
+              pr_url: $prUrl,
+              pr_head_sha: $prHeadSha,
+              pr_merge_commit_sha: $prMergeCommitSha,
+              checked_at: $checkedAt,
+              workflow_run_id: $workflowRunId
+            }
+            | .artifact_files.rc_final_zip = $rcFinalZip
+            | .artifact_files.rc_final_sha256 = $rcFinalSha256' \
+            "${metadata_path}" >"${final_metadata_path}"
       - uses: actions/upload-artifact@v7
         with:
-          name: swag-agentic-commerce-test-zip
-          path: |
-            test-zip/SwagAgenticCommerce-main-*.zip
-            test-zip/SwagAgenticCommerce-main-*.zip.sha256
-            test-zip/artifact-metadata.json
+          path: test-zip/release-candidate-final.zip
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-final.zip.sha256
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-final-metadata.json
+          archive: false
+          if-no-files-found: error
