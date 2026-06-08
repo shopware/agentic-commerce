@@ -28,6 +28,9 @@ class AgenticProductExportHydratorServiceTest extends TestCase
         $loader = new PhpFileLoader($container, new FileLocator());
         $loader->load(__DIR__.'/../../../../src/Resources/config/services.php');
 
+        // Core resolves the hydrator class from ProductExportDefinition::getHydratorClass()
+        // through a runtime service_container lookup, so Symfony cannot infer the
+        // reference during compilation. The hydrator must stay public for DAL hydration.
         static::assertTrue($container->getDefinition(AgenticProductExportHydrator::class)->isPublic());
     }
 }
