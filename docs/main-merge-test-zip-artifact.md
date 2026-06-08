@@ -1,7 +1,7 @@
-# Main-Merge Test Zip Artifact
+# Main-Merge Release-Candidate ZIP
 
 This document describes how `SwagAgenticCommerce` produces one self-contained
-tester zip after changes are merged to `main`.
+tester ZIP for Shopware admin upload.
 
 The archive is for tester distribution while the SDK packages are private or
 not reliably installable by testers. It is not the final store-ready release
@@ -9,41 +9,41 @@ strategy.
 
 ## Output
 
-Successful `main` and manual workflow runs publish one GitHub Actions artifact:
+Successful `main` and manual workflow runs leave these raw GitHub Actions
+artifacts:
 
 ```text
-swag-agentic-commerce-test-zip
+release-candidate-final.zip
+release-candidate-final.zip.sha256
+release-candidate-final-metadata.json
 ```
 
-It contains:
+The workflow also creates transient `release-candidate-untested*` artifacts so
+zip smoke can consume the candidate before final promotion. After
+`publish-test-zip` uploads the final artifacts successfully, it deletes those
+untested artifacts from the run.
 
-```text
-SwagAgenticCommerce-main-<short-sha>.zip
-SwagAgenticCommerce-main-<short-sha>.zip.sha256
-artifact-metadata.json
-```
+The `*.zip` artifacts are uploaded with `actions/upload-artifact@v7` and
+`archive: false`. GitHub therefore serves the plugin ZIP itself, not a wrapper
+ZIP containing the plugin ZIP.
 
-There must not be separate zips for `6.5.x`, `6.6.x`, and `trunk`. If one lane
+Use `release-candidate-final.zip` for tester installation. It can be uploaded
+directly in the Shopware administration extension upload flow.
+
+Internal workflow consumers must preserve those exact bytes. Do not use
+`actions/download-artifact` for the ZIP artifact inside CI: ZIP-aware download
+helpers can extract the plugin ZIP payload into a directory. The workflow uses
+the Actions artifact API to download `release-candidate-untested.zip` and
+metadata files as raw bytes before zip smoke and final promotion.
+
+There must not be separate ZIPs for `6.5.x`, `6.6.x`, and `trunk`. If one lane
 fails, fix shared compatibility or packaging layout.
 
 ## Workflow
 
-The package flow is in `.github/workflows/ci.yml` and runs on:
+The workflow lives in `.github/workflows/ci.yml`.
 
-- `push` to `main`
-- `workflow_dispatch`
-
-It is skipped for pull requests.
-
-The flow has three jobs:
-
-| Job | Purpose |
-| --- | --- |
-| `package-test-zip` | Builds the candidate zip from a prepared staging directory. |
-| `zip-install-smoke` | Installs the candidate zip on `6.5.x`, `6.6.x`, and `trunk`. |
-| `publish-test-zip` | Publishes the final tester artifact after all zip-install smoke jobs pass. |
-
-`package-test-zip` depends on the existing validation jobs:
+Pull requests run the full validation matrix:
 
 - `php-quality`
 - `admin-static`
@@ -51,9 +51,77 @@ The flow has three jobs:
 - `admin-matrix`
 - `storefront-matrix`
 
-## Package Job Steps
+Pull requests do not build or publish release-candidate artifacts.
 
-The package job:
+`push` to `main` and `workflow_dispatch` build and zip-smoke the release
+candidate:
+
+| Job | Purpose |
+| --- | --- |
+| `verify-main-validation` | Decides whether the full validation matrix must run on `main`. |
+| `package-test-zip` | Builds `release-candidate-untested.zip` immediately. |
+| `zip-install-smoke` | Prepares all lanes immediately, then installs the untested ZIP on `6.5.x`, `6.6.x`, and `trunk`. |
+| `publish-test-zip` | Promotes the exact same ZIP bytes to `release-candidate-final.zip`. |
+
+The main-run critical path is:
+
+```text
+package-test-zip ---------------------\
+zip-install-smoke lane preparation ----> zip install checks -> publish-test-zip
+```
+
+The ZIP is still created only on `main` or manual non-PR runs. The speedup comes
+from overlapping lane preparation with package creation, not from moving ZIP
+generation to pull requests.
+
+If `verify-main-validation` cannot prove that the merged PR checks were green,
+the full validation matrix also runs on `main`, and `publish-test-zip` waits for
+both zip smoke and that fallback matrix.
+
+## Validation Decision
+
+`verify-main-validation` handles event-specific behavior:
+
+| Event | Decision |
+| --- | --- |
+| `pull_request` | Run the full validation matrix. |
+| `workflow_dispatch` | Run only RC packaging and zip smoke unless `run_full_matrix` is enabled. |
+| `push` to `main` | Trust the associated merged PR only when all expected checks are successful. |
+
+For `push` to `main`, the job looks up the merged PR associated with
+`github.sha` and checks the expected PR checks:
+
+```text
+admin-static
+php-quality
+shopware-matrix (6.5.x)
+shopware-matrix (6.6.x)
+shopware-matrix (trunk)
+admin-matrix (6.5.x, webpack)
+admin-matrix (6.6.x, webpack)
+admin-matrix (6.6.x, vite)
+admin-matrix (trunk, vite)
+storefront-matrix (6.5.x)
+storefront-matrix (6.6.x)
+storefront-matrix (trunk)
+```
+
+It sets `run_full_matrix=false` only when all expected checks are present and
+successful. It sets `run_full_matrix=true` when the PR is missing, checks are
+missing, checks are not successful, or GitHub cannot be queried reliably.
+
+This treats direct pushes, bypassed merges, and unverifiable states as unsafe.
+They are slower, but safe: the full matrix must pass on `main` before the final
+release-candidate artifact is published.
+
+The final metadata records the validation decision under `main_validation`.
+
+## Package Job
+
+`package-test-zip` starts immediately for non-PR runs. It does not wait for the
+normal validation matrix.
+
+The job:
 
 1. Checks out the plugin into `agentic-commerce`.
 2. Checks out `shopware/shopware` trunk/current 6.7 into `shopware`.
@@ -62,7 +130,8 @@ The package job:
 5. Writes the CI Compose file for trunk.
 6. Runs trunk Vite admin smoke with `CI_ADMIN_EXPORT_PLUGIN_PUBLIC`.
 7. Runs `bin/ci-package-test-zip.sh`.
-8. Uploads a short-lived candidate artifact.
+8. Copies the generated package to `release-candidate-untested.zip`.
+9. Uploads the raw untested ZIP, checksum, and metadata with one-day retention.
 
 The admin export captures the Vite-built package asset set from:
 
@@ -135,7 +204,7 @@ It configures path repositories to:
 <SDK_ROOT>/packages/symfony-bundle
 ```
 
-with `symlink: false`, so the zip contains real package files:
+with `symlink: false`, so the ZIP contains real package files:
 
 ```text
 vendor/shopware/ucp-php-sdk-core
@@ -158,7 +227,7 @@ Normal source installs have no bundled SDK marker, so the plugin keeps:
 executeComposerCommands() === true
 ```
 
-The tester zip has:
+The tester ZIP has:
 
 ```text
 .swag-agentic-commerce-bundled-sdk
@@ -170,7 +239,7 @@ For that artifact:
 executeComposerCommands() === false
 ```
 
-This prevents Shopware from trying to run root Composer commands during zip
+This prevents Shopware from trying to run root Composer commands during ZIP
 installation. Testers do not need SDK path repositories or SDK Composer
 credentials.
 
@@ -181,7 +250,7 @@ otherwise.
 
 ## Shopware CLI
 
-The final archive is created with:
+The package archive is created with:
 
 ```bash
 shopware-cli extension zip "$stage_dir" "main-<short-sha>" \
@@ -212,7 +281,7 @@ src/Resources/public/administration/.vite/entrypoints.json
 
 The source bootstrap lives under
 `src/Resources/app/administration/src/public/js/swag-agentic-commerce.js`.
-The package script copies it into `src/Resources/public` because zip installs
+The package script copies it into `src/Resources/public` because ZIP installs
 run `assets:install` against that directory and do not rebuild administration
 assets.
 
@@ -225,11 +294,11 @@ Required source validation remains:
 | `trunk` / current `6.7` | Vite |
 
 If the packaged Vite asset set fails on `6.5.x` or `6.6.x`, fix the bootstrap
-or package layout. Do not split the artifact into lane-specific zips.
+or package layout. Do not split the artifact into lane-specific ZIPs.
 
 ## Zip-Install Smoke
 
-`zip-install-smoke` downloads the candidate artifact and runs once per lane:
+`zip-install-smoke` runs once per lane and starts immediately on non-PR runs:
 
 - `6.5.x`
 - `6.6.x`
@@ -239,16 +308,18 @@ Each run:
 
 1. Checks out the plugin for test scripts and Playwright tests.
 2. Checks out the matching Shopware lane.
-3. Downloads the candidate zip.
-4. Builds the core Shopware administration shell with
+3. Builds the core Shopware administration shell with
    `CI_ADMIN_CORE_ONLY=1`.
-5. Runs `bin/ci-smoke.sh` with `CI_SMOKE_PLUGIN_ZIP`.
-6. Runs the admin Playwright suite.
-7. Tears down the stack.
+4. Waits for `release-candidate-untested.zip` to be available in the same
+   workflow run.
+5. Downloads the raw untested ZIP through the Actions artifact API.
+6. Runs `bin/ci-smoke.sh` with `CI_SMOKE_PLUGIN_ZIP`.
+7. Runs the admin Playwright suite.
+8. Tears down the stack.
 
-The core administration shell build intentionally runs before the zip is
+The core administration shell build intentionally runs before the ZIP is
 installed. It keeps `custom/plugins/SwagAgenticCommerce` absent while compiling
-the Shopware shell:
+the Shopware shell and overlaps this work with `package-test-zip`:
 
 - `6.5.x`: webpack shell build
 - `6.6.x`: webpack shell build
@@ -256,7 +327,7 @@ the Shopware shell:
 
 This gives the browser tests a real `/admin` shell without rebuilding
 `SwagAgenticCommerce` assets per lane. The plugin assets used by the browser are
-still the single packaged asset set from the zip.
+still the single packaged asset set from the ZIP.
 
 Zip mode in `bin/ci-smoke.sh`:
 
@@ -270,6 +341,37 @@ Zip mode in `bin/ci-smoke.sh`:
 - asserts the packaged Vite entrypoints and legacy bootstrap were published to
   `public/bundles/swagagenticcommerce`
 - validates `/.well-known/ucp`
+
+## Final Promotion
+
+`publish-test-zip` runs only after zip-install smoke passes. If
+`verify-main-validation` requested fallback validation, it also waits for the
+full validation matrix to pass on `main`.
+
+The job downloads:
+
+```text
+release-candidate-untested.zip
+release-candidate-untested.zip.sha256
+release-candidate-untested-metadata.json
+```
+
+These downloads also use the raw Actions artifact API, not
+`actions/download-artifact`, so promotion uses the exact candidate ZIP bytes. It
+verifies the untested checksum, copies the same ZIP bytes to
+`release-candidate-final.zip`, verifies byte equality, verifies that the
+untested and final checksum hashes match, writes final metadata with
+`main_validation`, and uploads:
+
+```text
+release-candidate-final.zip
+release-candidate-final.zip.sha256
+release-candidate-final-metadata.json
+```
+
+After all three final uploads succeed, the job deletes the transient
+`release-candidate-untested*` artifacts from the same workflow run. This cleanup
+requires the `publish-test-zip` job to have `actions: write` permission.
 
 ## Artifact Assertions
 
@@ -302,20 +404,20 @@ It asserts the archive excludes:
 
 ## Manual Reproduction
 
-Do not run zip-install smoke against the local synced Shopware lanes while the
-two-way plugin Mutagen sync is active. The zip install replaces
+Do not run ZIP-install smoke against the local synced Shopware lanes while the
+two-way plugin Mutagen sync is active. The ZIP install replaces
 `custom/plugins/SwagAgenticCommerce`, and the existing plugin sync can copy the
 unzipped artifact back into this source checkout.
 
 For local packaging-only validation, use a throwaway container or CI-like
-workspace. Full zip-install validation should run through GitHub Actions.
+workspace. Full ZIP-install validation should run through GitHub Actions.
 
 ## Maintenance Rules
 
-- Keep one zip artifact for all supported lanes.
+- Keep one ZIP artifact for all supported lanes.
 - Keep normal source installs marker-free.
 - Keep `executeComposerCommands()` enabled unless the bundled SDK marker exists.
-- Keep SDK files in plugin-local `vendor/` only for packaged tester zips.
+- Keep SDK files in plugin-local `vendor/` only for packaged tester ZIPs.
 - Keep `.tools/vendor` for repo-local tooling only.
 - Keep package assets Vite-built.
-- Do not copy generated lane state into the artifact.
+- Keep raw RC artifacts as single files uploaded with `archive: false`.
