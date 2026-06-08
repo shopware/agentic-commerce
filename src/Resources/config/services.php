@@ -118,6 +118,22 @@ use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 return static function (ContainerConfigurator $container): void {
+    $container->extension('ucp_sdk', [
+        'version' => '2026-04-08',
+        'signature_policy' => 'strict',
+        'idempotency_required' => true,
+        'signing_keys' => [
+            'auto_generate' => true,
+            'default_kid' => 'default',
+            'algorithm' => 'ES256',
+            'retire_after' => 'P30D',
+            'retired_key_retention' => 'P30D',
+        ],
+        'storage' => [
+            'dsn' => env('DATABASE_URL')->resolve(),
+        ],
+    ]);
+
     $services = $container->services();
 
     $services->defaults()

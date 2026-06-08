@@ -97,10 +97,6 @@ final class SwagAgenticCommerce extends Plugin
 
     private function loadBundledSdkAutoload(): void
     {
-        if (!is_file(self::BUNDLED_SDK_MARKER)) {
-            return;
-        }
-
         $autoloadPath = __DIR__.'/../vendor/autoload.php';
         if (is_file($autoloadPath)) {
             require_once $autoloadPath;
