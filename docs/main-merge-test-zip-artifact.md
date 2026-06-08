@@ -27,6 +27,12 @@ ZIP containing the plugin ZIP.
 Use `release-candidate-final.zip` for tester installation. It can be uploaded
 directly in the Shopware administration extension upload flow.
 
+Internal workflow consumers must preserve those exact bytes. Do not use
+`actions/download-artifact` for the ZIP artifact inside CI: ZIP-aware download
+helpers can extract the plugin ZIP payload into a directory. The workflow uses
+the Actions artifact API to download `release-candidate-untested.zip` and
+metadata files as raw bytes before zip smoke and final promotion.
+
 There must not be separate ZIPs for `6.5.x`, `6.6.x`, and `trunk`. If one lane
 fails, fix shared compatibility or packaging layout.
 
@@ -284,8 +290,8 @@ or package layout. Do not split the artifact into lane-specific ZIPs.
 
 ## Zip-Install Smoke
 
-`zip-install-smoke` downloads `release-candidate-untested.zip` and runs once per
-lane:
+`zip-install-smoke` downloads `release-candidate-untested.zip` through the raw
+Actions artifact API and runs once per lane:
 
 - `6.5.x`
 - `6.6.x`
@@ -341,7 +347,9 @@ release-candidate-untested.zip.sha256
 release-candidate-untested-metadata.json
 ```
 
-It verifies the untested checksum, copies the same ZIP bytes to
+These downloads also use the raw Actions artifact API, not
+`actions/download-artifact`, so promotion uses the exact candidate ZIP bytes. It
+verifies the untested checksum, copies the same ZIP bytes to
 `release-candidate-final.zip`, writes a final checksum, enriches the metadata
 with `main_validation`, and uploads:
 

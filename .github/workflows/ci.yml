@@ -466,10 +466,34 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-candidate-untested.zip
-          path: test-zip
+      - name: Download untested RC ZIP bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$GITHUB_WORKSPACE/test-zip"
+
+          artifacts_json="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+          artifact_id="$(
+            jq -r --arg name "release-candidate-untested.zip" \
+              '.artifacts[] | select(.name == $name) | .id' \
+              "${artifacts_json}" | head -n 1
+          )"
+
+          if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
+            echo "Unable to find release-candidate-untested.zip artifact in this workflow run." >&2
+            jq -r '.artifacts[].name' "${artifacts_json}" >&2
+            exit 1
+          fi
+
+          zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${zip_path}"
+          unzip -tq "${zip_path}"
+
+          echo "ZIP_PATH=${zip_path}" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -488,13 +512,6 @@ jobs:
           CI_ADMIN_BROWSER_VALIDATE: 0
           CI_ADMIN_KEEP_STACK: 1
           SHOPWARE_REF: ${{ matrix.lane }}
-      - run: |
-          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name '*.zip' -print -quit)"
-          if [ -z "$zip_path" ]; then
-            echo "Unable to find packaged SwagAgenticCommerce zip." >&2
-            exit 1
-          fi
-          echo "ZIP_PATH=$zip_path" >> "$GITHUB_ENV"
       - run: CI_SMOKE_PLUGIN_ZIP="$ZIP_PATH" agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
           CI_SMOKE_KEEP_STACK: 1
@@ -536,18 +553,40 @@ jobs:
       - storefront-matrix
       - zip-install-smoke
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-candidate-untested.zip
-          path: test-zip
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-candidate-untested.zip.sha256
-          path: test-zip
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-candidate-untested-metadata.json
-          path: test-zip
+      - name: Download untested RC artifact bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$GITHUB_WORKSPACE/test-zip"
+
+          artifacts_json="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+          download_raw_artifact() {
+            local artifact_name="$1"
+            local target_path="$2"
+            local artifact_id
+
+            artifact_id="$(
+              jq -r --arg name "${artifact_name}" \
+                '.artifacts[] | select(.name == $name) | .id' \
+                "${artifacts_json}" | head -n 1
+            )"
+
+            if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
+              echo "Unable to find ${artifact_name} artifact in this workflow run." >&2
+              jq -r '.artifacts[].name' "${artifacts_json}" >&2
+              exit 1
+            fi
+
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${target_path}"
+          }
+
+          download_raw_artifact "release-candidate-untested.zip" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          download_raw_artifact "release-candidate-untested.zip.sha256" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip.sha256"
+          download_raw_artifact "release-candidate-untested-metadata.json" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested-metadata.json"
       - run: |
           set -euo pipefail
 
@@ -558,7 +597,7 @@ jobs:
           final_checksum_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final.zip.sha256"
           final_metadata_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final-metadata.json"
 
-          if [[ -z "${zip_path}" || -z "${checksum_path}" || ! -f "${metadata_path}" ]]; then
+          if [[ ! -f "${zip_path}" || ! -f "${checksum_path}" || ! -f "${metadata_path}" ]]; then
             echo "Final RC publish is missing zip, checksum, or metadata." >&2
             exit 1
           fi
