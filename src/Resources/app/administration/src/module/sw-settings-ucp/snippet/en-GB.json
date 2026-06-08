@@ -69,7 +69,7 @@
       "signaturePolicyWarningTitle": "Unsigned agent requests are still accepted",
       "signaturePolicyWarningMessage": "This sales channel is using the \"{policy}\" signature policy. Raise it to \"strict\" before exposing UCP to untrusted agents.",
       "allowlistWarningTitle": "No explicit allowlist is configured",
-      "allowlistWarningMessage": "The runtime falls back to the current sales channel host. Add explicit hosts before using custom webhook targets or profile fetches.",
+      "allowlistWarningMessage": "At runtime, the current sales channel host is used. Add your own hosts before using custom webhook targets or profile fetches.",
       "idempotencyRequiredLabel": "Require idempotency keys for write requests",
       "idempotencyRequiredHelpText": "Prevents duplicate cart, checkout, and order mutations during retries.",
       "discoveryBudgetLabel": "Discovery budget",
