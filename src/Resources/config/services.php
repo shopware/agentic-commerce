@@ -119,7 +119,6 @@ use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services();
-    $services->defaults()->public();
 
     $services->defaults()
         ->autowire()
@@ -269,6 +268,7 @@ return static function (ContainerConfigurator $container): void {
         ->tag('shopware.entity.definition');
 
     $services->set(AgenticProductExportHydrator::class)
+        ->public()
         ->arg('$container', service('service_container'));
 
     // ── Product export: providers ─────────────────────────────────────────────
