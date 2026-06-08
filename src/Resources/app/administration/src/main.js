@@ -4,7 +4,6 @@ import { coreShipsAgenticCommerce } from './core-feature';
 import './init/defaults.init';
 import './core/service/api/ucp-admin.api.service.js';
 import './module/sw-settings-ucp/index.js';
-import './extension/sw-admin-menu-item';
 import './extension/sw-customer/acl';
 import './extension/sw-sales-channel';
 

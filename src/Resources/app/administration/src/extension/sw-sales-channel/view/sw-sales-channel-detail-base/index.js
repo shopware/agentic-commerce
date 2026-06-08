@@ -111,27 +111,6 @@ export const swSalesChannelDetailBaseOverride = {
         },
     },
 
-    mounted() {
-        this.$nextTick(() => {
-            const selectEl = this.$el?.querySelector?.('[data-ac-template-select] select');
-            if (selectEl) {
-                this._acTemplateSelectHandler = (e) => {
-                    if (e.target.value) {
-                        this.$emit('template-selected', e.target.value);
-                    }
-                };
-                selectEl.addEventListener('change', this._acTemplateSelectHandler);
-            }
-        });
-    },
-
-    beforeDestroy() {
-        const selectEl = this.$el?.querySelector?.('[data-ac-template-select] select');
-        if (selectEl && this._acTemplateSelectHandler) {
-            selectEl.removeEventListener('change', this._acTemplateSelectHandler);
-        }
-    },
-
     methods: {
         getAgenticCommerceExportElementBind(element) {
             const bind = objectHelper.deepCopyObject(element);
