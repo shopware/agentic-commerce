@@ -60,14 +60,19 @@ candidate:
 | --- | --- |
 | `verify-main-validation` | Decides whether the full validation matrix must run on `main`. |
 | `package-test-zip` | Builds `release-candidate-untested.zip` immediately. |
-| `zip-install-smoke` | Installs the untested ZIP on `6.5.x`, `6.6.x`, and `trunk`. |
+| `zip-install-smoke` | Prepares all lanes immediately, then installs the untested ZIP on `6.5.x`, `6.6.x`, and `trunk`. |
 | `publish-test-zip` | Promotes the exact same ZIP bytes to `release-candidate-final.zip`. |
 
 The main-run critical path is:
 
 ```text
-package-test-zip -> zip-install-smoke -> publish-test-zip
+package-test-zip ---------------------\
+zip-install-smoke lane preparation ----> zip install checks -> publish-test-zip
 ```
+
+The ZIP is still created only on `main` or manual non-PR runs. The speedup comes
+from overlapping lane preparation with package creation, not from moving ZIP
+generation to pull requests.
 
 If `verify-main-validation` cannot prove that the merged PR checks were green,
 the full validation matrix also runs on `main`, and `publish-test-zip` waits for
@@ -293,8 +298,7 @@ or package layout. Do not split the artifact into lane-specific ZIPs.
 
 ## Zip-Install Smoke
 
-`zip-install-smoke` downloads `release-candidate-untested.zip` through the raw
-Actions artifact API and runs once per lane:
+`zip-install-smoke` runs once per lane and starts immediately on non-PR runs:
 
 - `6.5.x`
 - `6.6.x`
@@ -304,16 +308,18 @@ Each run:
 
 1. Checks out the plugin for test scripts and Playwright tests.
 2. Checks out the matching Shopware lane.
-3. Downloads the raw untested ZIP.
-4. Builds the core Shopware administration shell with
+3. Builds the core Shopware administration shell with
    `CI_ADMIN_CORE_ONLY=1`.
-5. Runs `bin/ci-smoke.sh` with `CI_SMOKE_PLUGIN_ZIP`.
-6. Runs the admin Playwright suite.
-7. Tears down the stack.
+4. Waits for `release-candidate-untested.zip` to be available in the same
+   workflow run.
+5. Downloads the raw untested ZIP through the Actions artifact API.
+6. Runs `bin/ci-smoke.sh` with `CI_SMOKE_PLUGIN_ZIP`.
+7. Runs the admin Playwright suite.
+8. Tears down the stack.
 
 The core administration shell build intentionally runs before the ZIP is
 installed. It keeps `custom/plugins/SwagAgenticCommerce` absent while compiling
-the Shopware shell:
+the Shopware shell and overlaps this work with `package-test-zip`:
 
 - `6.5.x`: webpack shell build
 - `6.6.x`: webpack shell build

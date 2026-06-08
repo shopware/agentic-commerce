@@ -445,8 +445,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: github.event_name != 'pull_request'
-    needs:
-      - package-test-zip
     strategy:
       fail-fast: false
       matrix:
@@ -466,34 +464,6 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - name: Download untested RC ZIP bytes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          mkdir -p "$GITHUB_WORKSPACE/test-zip"
-
-          artifacts_json="$(mktemp)"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
-
-          artifact_id="$(
-            jq -r --arg name "release-candidate-untested.zip" \
-              '.artifacts[] | select(.name == $name) | .id' \
-              "${artifacts_json}" | head -n 1
-          )"
-
-          if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
-            echo "Unable to find release-candidate-untested.zip artifact in this workflow run." >&2
-            jq -r '.artifacts[].name' "${artifacts_json}" >&2
-            exit 1
-          fi
-
-          zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${zip_path}"
-          unzip -tq "${zip_path}"
-
-          echo "ZIP_PATH=${zip_path}" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -512,6 +482,45 @@ jobs:
           CI_ADMIN_BROWSER_VALIDATE: 0
           CI_ADMIN_KEEP_STACK: 1
           SHOPWARE_REF: ${{ matrix.lane }}
+      - name: Download untested RC ZIP bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$GITHUB_WORKSPACE/test-zip"
+
+          artifact_id=""
+          artifacts_json="$(mktemp)"
+
+          for attempt in $(seq 1 90); do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+            artifact_id="$(
+              jq -r --arg name "release-candidate-untested.zip" \
+                '.artifacts[] | select(.name == $name) | .id' \
+                "${artifacts_json}" | head -n 1
+            )"
+
+            if [[ -n "${artifact_id}" && "${artifact_id}" != "null" ]]; then
+              break
+            fi
+
+            echo "Waiting for release-candidate-untested.zip artifact (${attempt}/90)."
+            sleep 10
+          done
+
+          if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
+            echo "Unable to find release-candidate-untested.zip artifact in this workflow run." >&2
+            jq -r '.artifacts[].name' "${artifacts_json}" >&2
+            exit 1
+          fi
+
+          zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${zip_path}"
+          unzip -tq "${zip_path}"
+
+          echo "ZIP_PATH=${zip_path}" >> "$GITHUB_ENV"
       - run: CI_SMOKE_PLUGIN_ZIP="$ZIP_PATH" agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
           CI_SMOKE_KEEP_STACK: 1
@@ -535,6 +544,7 @@ jobs:
         github.event_name != 'pull_request' &&
         always() &&
         needs.verify-main-validation.result == 'success' &&
+        needs.package-test-zip.result == 'success' &&
         needs.zip-install-smoke.result == 'success' &&
         (
           needs.verify-main-validation.outputs.run_full_matrix != 'true' ||
@@ -549,6 +559,7 @@ jobs:
       }}
     needs:
       - verify-main-validation
+      - package-test-zip
       - php-quality
       - admin-static
       - shopware-matrix
