@@ -1,0 +1,86 @@
+{% block sw_sales_channel_detail_base_general %}
+{% parent %}
+
+<template v-if="shouldRenderAgenticUi">
+    <sw-card
+        v-for="configEntry in resolvedAgenticCommerceExportConfig"
+        :key="configEntry.provider"
+        :position-identifier="getAgenticCommerceExportCardPositionIdentifier(configEntry)"
+        :title="getAgenticCommerceExportCardTitle(configEntry)"
+    >
+        <sw-skeleton v-if="configEntry.isLoading" />
+
+        <template v-else>
+            <sw-form-field-renderer
+                v-for="element in configEntry.elements"
+                v-bind="getAgenticCommerceExportElementBind(element)"
+                :key="`${configEntry.provider}-${element.name}`"
+                :value="configEntry.values[element.name]"
+                :error="configEntry.errors && configEntry.errors[element.name] ? configEntry.errors[element.name] : null"
+                :disabled="!acl.can('sales_channel.editor') || isLoading || configEntry.isLoading"
+                @input="onAgenticCommerceExportFieldUpdate(configEntry, element.name, $event)"
+                @update:value="onAgenticCommerceExportFieldUpdate(configEntry, element.name, $event)"
+            />
+        </template>
+    </sw-card>
+</template>
+
+<sw-agentic-commerce-tracking-config
+    v-if="shouldRenderAgenticUi"
+    :sales-channel="salesChannel"
+    :disabled="!acl.can('sales_channel.editor') || undefined"
+    @change="onTrackingConfigChange"
+/>
+{% endblock %}
+
+{% block sw_sales_channel_detail_base_general_input_product_comparison_template %}
+<sw-select-field
+    v-if="isProductComparison"
+    v-model="templateName"
+    data-ac-template-select
+    :disabled="!acl.can('sales_channel.editor')"
+    :label="$t('sw-sales-channel.detail.productComparison.templates.label')"
+    :placeholder="$t('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"
+    :options="templateSelectOptions"
+    @change="$emit('template-selected', $event)"
+    @update:value="(templateName) => $emit('template-selected', templateName)"
+>
+    <option
+        v-for="option in templateSelectOptions"
+        :key="option.id"
+        :value="option.value"
+    >
+        {{ option.label }}
+    </option>
+</sw-select-field>
+{% endblock %}
+
+{% block sw_sales_channel_detail_base_general_input_product_comparison_filename %}
+<template v-if="!isAgenticCommerce">
+    {% parent %}
+</template>
+{% endblock %}
+
+{% block sw_sales_channel_detail_base_general_input_product_comparison_encoding %}
+<template v-if="!isAgenticCommerce">
+    {% parent %}
+</template>
+{% endblock %}
+
+{% block sw_sales_channel_detail_base_general_input_product_comparison_file_format %}
+<template v-if="!isAgenticCommerce">
+    {% parent %}
+</template>
+{% endblock %}
+
+{% block sw_sales_channel_detail_base_options_api %}
+<template v-if="!isAgenticCommerce">
+    {% parent %}
+</template>
+{% endblock %}
+
+{% block sw_sales_channel_shipping_payment %}
+<template v-if="!isAgenticCommerce">
+    {% parent %}
+</template>
+{% endblock %}

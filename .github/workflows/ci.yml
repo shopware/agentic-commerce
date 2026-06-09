@@ -2,12 +2,14 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
     inputs:
       sdk_ref:
         description: 'ucp-php-sdk ref to test against'
-        default: 'feat/alpha-release'
+        default: 'main'
         required: true
       shopware_65_ref:
         description: 'Shopware 6.5 ref'
@@ -21,31 +23,153 @@ on:
         description: 'Shopware trunk/6.7 ref'
         default: 'trunk'
         required: true
+      run_full_matrix:
+        description: 'Run the full validation matrix before publishing the final RC artifact'
+        default: false
+        required: false
+        type: boolean
 
 env:
-  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'feat/alpha-release' }}
+  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
 
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+
 jobs:
+  verify-main-validation:
+    runs-on: ubuntu-latest
+    outputs:
+      run_full_matrix: ${{ steps.decide.outputs.run_full_matrix }}
+      reason: ${{ steps.decide.outputs.reason }}
+      pr_number: ${{ steps.decide.outputs.pr_number }}
+      pr_url: ${{ steps.decide.outputs.pr_url }}
+      pr_head_sha: ${{ steps.decide.outputs.pr_head_sha }}
+      pr_merge_commit_sha: ${{ steps.decide.outputs.pr_merge_commit_sha }}
+      checked_at: ${{ steps.decide.outputs.checked_at }}
+    steps:
+      - id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_FULL_MATRIX_INPUT: ${{ github.event.inputs.run_full_matrix || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          checked_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          emit() {
+            echo "run_full_matrix=$1" >> "$GITHUB_OUTPUT"
+            echo "reason=$2" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${3:-}" >> "$GITHUB_OUTPUT"
+            echo "pr_url=${4:-}" >> "$GITHUB_OUTPUT"
+            echo "pr_head_sha=${5:-}" >> "$GITHUB_OUTPUT"
+            echo "pr_merge_commit_sha=${6:-}" >> "$GITHUB_OUTPUT"
+            echo "checked_at=${checked_at}" >> "$GITHUB_OUTPUT"
+            echo "Validation decision: run_full_matrix=$1 reason=$2"
+          }
+
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            emit true pull_request
+            exit 0
+          fi
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ "${RUN_FULL_MATRIX_INPUT}" == "true" ]]; then
+              emit true workflow_dispatch_requested
+            else
+              emit false workflow_dispatch_rc_only
+            fi
+            exit 0
+          fi
+
+          if [[ "${EVENT_NAME}" != "push" || "${REF_NAME}" != "main" ]]; then
+            emit true unsupported_event
+            exit 0
+          fi
+
+          pulls_json="$(gh api -H "Accept: application/vnd.github+json" "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" 2>/tmp/commit-pulls.err || true)"
+
+          if [[ -z "${pulls_json}" ]] || ! jq -e type >/dev/null 2>&1 <<<"${pulls_json}"; then
+            emit true commit_pr_lookup_failed
+            exit 0
+          fi
+
+          pr_json="$(jq -c '[.[] | select(.merged_at != null and .base.ref == "main")] | sort_by(.merged_at) | last // empty' <<<"${pulls_json}")"
+
+          if [[ -z "${pr_json}" ]]; then
+            emit true no_merged_pr_for_main_commit
+            exit 0
+          fi
+
+          pr_number="$(jq -r '.number' <<<"${pr_json}")"
+          pr_url="$(jq -r '.html_url' <<<"${pr_json}")"
+          pr_head_sha="$(jq -r '.head.sha' <<<"${pr_json}")"
+          pr_merge_commit_sha="$(jq -r '.merge_commit_sha // ""' <<<"${pr_json}")"
+
+          checks_file="$(mktemp)"
+          if ! gh pr checks "${pr_number}" --repo "${GITHUB_REPOSITORY}" --json name,state,bucket,workflow >"${checks_file}" 2>/tmp/pr-checks.err; then
+            emit true pr_checks_lookup_failed "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+            exit 0
+          fi
+
+          expected_checks=(
+            "admin-static"
+            "php-quality"
+            "shopware-matrix (6.5.x)"
+            "shopware-matrix (6.6.x)"
+            "shopware-matrix (trunk)"
+            "admin-matrix (6.5.x, webpack)"
+            "admin-matrix (6.6.x, webpack)"
+            "admin-matrix (6.6.x, vite)"
+            "admin-matrix (trunk, vite)"
+            "storefront-matrix (6.5.x)"
+            "storefront-matrix (6.6.x)"
+            "storefront-matrix (trunk)"
+          )
+
+          for check_name in "${expected_checks[@]}"; do
+            states="$(jq -r --arg name "${check_name}" '[.[] | select(.name == $name) | .state] | unique | join(",")' "${checks_file}")"
+
+            if [[ -z "${states}" ]]; then
+              emit true "missing_check:${check_name}" "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+              exit 0
+            fi
+
+            if [[ "${states}" != "SUCCESS" ]]; then
+              emit true "non_success_check:${check_name}:${states}" "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+              exit 0
+            fi
+          done
+
+          emit false trusted_pr_checks_success "${pr_number}" "${pr_url}" "${pr_head_sha}" "${pr_merge_commit_sha}"
+
   php-quality:
     runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
@@ -60,9 +184,38 @@ jobs:
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
 
+  admin-static:
+    runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npm run ci:admin-static
+        working-directory: agentic-commerce
+        env:
+          ADMIN_PATH: ${{ github.workspace }}/shopware/src/Administration/Resources/app/administration
+
   shopware-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -71,30 +224,45 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
           SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
           SHOPWARE_REF: ${{ matrix.lane }}
+      - run: npm run test:e2e:ucp -- --reporter=list
+        working-directory: agentic-commerce
+        env:
+          BASE_URL: http://localhost:8000
+          SHOPWARE_REF: ${{ matrix.lane }}
 
   admin-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -108,21 +276,21 @@ jobs:
           - lane: 'trunk'
             mode: vite
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
         working-directory: agentic-commerce
       - run: npx playwright install chromium --with-deps
         working-directory: agentic-commerce
@@ -139,6 +307,9 @@ jobs:
   storefront-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -147,20 +318,29 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: shopware/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
           token: ${{ secrets.PLUGINS_PAT }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-storefront-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-storefront-smoke.sh "$GITHUB_WORKSPACE/shopware"
@@ -169,3 +349,374 @@ jobs:
           SHOPWARE_REF: ${{ matrix.lane }}
           CI_STOREFRONT_BOOTSTRAP_MODE: cold
           CI_STOREFRONT_KEEP_STACK: 0
+
+  package-test-zip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+          token: ${{ secrets.PLUGINS_PAT }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: shopware/shopware-cli-action@v3
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh agentic-commerce/bin/ci-package-test-zip.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" trunk
+      - run: agentic-commerce/bin/ci-admin-smoke.sh "$GITHUB_WORKSPACE/shopware" vite
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: trunk
+          CI_ADMIN_BOOTSTRAP_MODE: cold
+          CI_ADMIN_BROWSER_VALIDATE: 0
+          CI_ADMIN_EXPORT_PLUGIN_PUBLIC: ${{ github.workspace }}/package-admin-public
+          CI_ADMIN_KEEP_STACK: 0
+      - run: agentic-commerce/bin/ci-package-test-zip.sh "$GITHUB_WORKSPACE/test-zip"
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          ADMIN_PUBLIC_SOURCE: ${{ github.workspace }}/package-admin-public
+          UCP_SDK_REF: ${{ env.UCP_SDK_REF }}
+          SHOPWARE_65_REF: ${{ env.SHOPWARE_65_REF }}
+          SHOPWARE_66_REF: ${{ env.SHOPWARE_66_REF }}
+          SHOPWARE_TRUNK_REF: ${{ env.SHOPWARE_TRUNK_REF }}
+      - run: |
+          set -euo pipefail
+
+          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name 'SwagAgenticCommerce-main-*.zip' -print -quit)"
+          metadata_path="$GITHUB_WORKSPACE/test-zip/artifact-metadata.json"
+
+          if [[ -z "${zip_path}" || ! -f "${metadata_path}" ]]; then
+            echo "Release-candidate package is missing zip or metadata." >&2
+            exit 1
+          fi
+
+          cp "${zip_path}" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+
+          (
+            cd "$GITHUB_WORKSPACE/test-zip"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum release-candidate-untested.zip > release-candidate-untested.zip.sha256
+            else
+              shasum -a 256 release-candidate-untested.zip > release-candidate-untested.zip.sha256
+            fi
+          )
+
+          jq \
+            --arg originalZip "$(basename "${zip_path}")" \
+            '.artifact_files = {
+              original_zip: $originalZip,
+              rc_untested_zip: "release-candidate-untested.zip",
+              rc_untested_sha256: "release-candidate-untested.zip.sha256"
+            }' \
+            "${metadata_path}" >"$GITHUB_WORKSPACE/test-zip/release-candidate-untested-metadata.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-untested.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-untested.zip.sha256
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-untested-metadata.json
+          archive: false
+          if-no-files-found: error
+          retention-days: 1
+
+  zip-install-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+            admin_mode: webpack
+          - lane: '6.6.x'
+            admin_mode: webpack
+          - lane: 'trunk'
+            admin_mode: vite
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
+      - run: agentic-commerce/bin/ci-admin-smoke.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.admin_mode }}"
+        env:
+          CI_ADMIN_CORE_ONLY: 1
+          CI_ADMIN_BOOTSTRAP_MODE: cold
+          CI_ADMIN_BROWSER_VALIDATE: 0
+          CI_ADMIN_KEEP_STACK: 1
+          SHOPWARE_REF: ${{ matrix.lane }}
+      - name: Download untested RC ZIP bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$GITHUB_WORKSPACE/test-zip"
+
+          artifact_id=""
+          artifacts_json="$(mktemp)"
+
+          for attempt in $(seq 1 90); do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+            artifact_id="$(
+              jq -r --arg name "release-candidate-untested.zip" \
+                '.artifacts[] | select(.name == $name) | .id' \
+                "${artifacts_json}" | head -n 1
+            )"
+
+            if [[ -n "${artifact_id}" && "${artifact_id}" != "null" ]]; then
+              break
+            fi
+
+            echo "Waiting for release-candidate-untested.zip artifact (${attempt}/90)."
+            sleep 10
+          done
+
+          if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
+            echo "Unable to find release-candidate-untested.zip artifact in this workflow run." >&2
+            jq -r '.artifacts[].name' "${artifacts_json}" >&2
+            exit 1
+          fi
+
+          zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${zip_path}"
+          unzip -tq "${zip_path}"
+
+          echo "ZIP_PATH=${zip_path}" >> "$GITHUB_ENV"
+      - run: CI_SMOKE_PLUGIN_ZIP="$ZIP_PATH" agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          CI_SMOKE_KEEP_STACK: 1
+          CI_SMOKE_MODE: warm
+          SHOPWARE_REF: ${{ matrix.lane }}
+      - run: npm run test:e2e:admin -- --reporter=list
+        working-directory: agentic-commerce
+        env:
+          BASE_URL: http://localhost:8000
+          SHOPWARE_REF: ${{ matrix.lane }}
+      - if: always()
+        run: docker compose -f "$GITHUB_WORKSPACE/shopware/compose.yaml" down -v
+
+  publish-test-zip:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    if: >-
+      ${{
+        github.event_name != 'pull_request' &&
+        always() &&
+        needs.verify-main-validation.result == 'success' &&
+        needs.package-test-zip.result == 'success' &&
+        needs.zip-install-smoke.result == 'success' &&
+        (
+          needs.verify-main-validation.outputs.run_full_matrix != 'true' ||
+          (
+            needs.php-quality.result == 'success' &&
+            needs.admin-static.result == 'success' &&
+            needs.shopware-matrix.result == 'success' &&
+            needs.admin-matrix.result == 'success' &&
+            needs.storefront-matrix.result == 'success'
+          )
+        )
+      }}
+    needs:
+      - verify-main-validation
+      - package-test-zip
+      - php-quality
+      - admin-static
+      - shopware-matrix
+      - admin-matrix
+      - storefront-matrix
+      - zip-install-smoke
+    steps:
+      - name: Download untested RC artifact bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$GITHUB_WORKSPACE/test-zip"
+
+          artifacts_json="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+          download_raw_artifact() {
+            local artifact_name="$1"
+            local target_path="$2"
+            local artifact_id
+
+            artifact_id="$(
+              jq -r --arg name "${artifact_name}" \
+                '.artifacts[] | select(.name == $name) | .id' \
+                "${artifacts_json}" | head -n 1
+            )"
+
+            if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
+              echo "Unable to find ${artifact_name} artifact in this workflow run." >&2
+              jq -r '.artifacts[].name' "${artifacts_json}" >&2
+              exit 1
+            fi
+
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >"${target_path}"
+          }
+
+          download_raw_artifact "release-candidate-untested.zip" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          download_raw_artifact "release-candidate-untested.zip.sha256" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip.sha256"
+          download_raw_artifact "release-candidate-untested-metadata.json" "$GITHUB_WORKSPACE/test-zip/release-candidate-untested-metadata.json"
+      - run: |
+          set -euo pipefail
+
+          zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip"
+          checksum_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested.zip.sha256"
+          metadata_path="$GITHUB_WORKSPACE/test-zip/release-candidate-untested-metadata.json"
+          final_zip_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final.zip"
+          final_checksum_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final.zip.sha256"
+          final_metadata_path="$GITHUB_WORKSPACE/test-zip/release-candidate-final-metadata.json"
+
+          if [[ ! -f "${zip_path}" || ! -f "${checksum_path}" || ! -f "${metadata_path}" ]]; then
+            echo "Final RC publish is missing zip, checksum, or metadata." >&2
+            exit 1
+          fi
+
+          (
+            cd "$GITHUB_WORKSPACE/test-zip"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum -c "$(basename "${checksum_path}")"
+            else
+              shasum -a 256 -c "$(basename "${checksum_path}")"
+            fi
+          )
+
+          cp "${zip_path}" "${final_zip_path}"
+          cmp -s "${zip_path}" "${final_zip_path}"
+
+          (
+            cd "$GITHUB_WORKSPACE/test-zip"
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$(basename "${final_zip_path}")" >"$(basename "${final_checksum_path}")"
+            else
+              shasum -a 256 "$(basename "${final_zip_path}")" >"$(basename "${final_checksum_path}")"
+            fi
+          )
+
+          untested_hash="$(awk '{print $1}' "${checksum_path}")"
+          final_hash="$(awk '{print $1}' "${final_checksum_path}")"
+
+          if [[ "${untested_hash}" != "${final_hash}" ]]; then
+            echo "Final ZIP checksum does not match untested RC checksum." >&2
+            echo "untested=${untested_hash}" >&2
+            echo "final=${final_hash}" >&2
+            exit 1
+          fi
+
+          jq \
+            --arg eventName "${{ github.event_name }}" \
+            --arg runFullMatrix "${{ needs.verify-main-validation.outputs.run_full_matrix }}" \
+            --arg reason "${{ needs.verify-main-validation.outputs.reason }}" \
+            --arg prNumber "${{ needs.verify-main-validation.outputs.pr_number }}" \
+            --arg prUrl "${{ needs.verify-main-validation.outputs.pr_url }}" \
+            --arg prHeadSha "${{ needs.verify-main-validation.outputs.pr_head_sha }}" \
+            --arg prMergeCommitSha "${{ needs.verify-main-validation.outputs.pr_merge_commit_sha }}" \
+            --arg checkedAt "${{ needs.verify-main-validation.outputs.checked_at }}" \
+            --arg workflowRunId "${{ github.run_id }}" \
+            --arg rcFinalZip "$(basename "${final_zip_path}")" \
+            --arg rcFinalSha256 "$(basename "${final_checksum_path}")" \
+            '.main_validation = {
+              event_name: $eventName,
+              run_full_matrix: ($runFullMatrix == "true"),
+              reason: $reason,
+              pr_number: $prNumber,
+              pr_url: $prUrl,
+              pr_head_sha: $prHeadSha,
+              pr_merge_commit_sha: $prMergeCommitSha,
+              checked_at: $checkedAt,
+              workflow_run_id: $workflowRunId
+            }
+            | .artifact_files.rc_final_zip = $rcFinalZip
+            | .artifact_files.rc_final_sha256 = $rcFinalSha256' \
+            "${metadata_path}" >"${final_metadata_path}"
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-final.zip
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-final.zip.sha256
+          archive: false
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          path: test-zip/release-candidate-final-metadata.json
+          archive: false
+          if-no-files-found: error
+      - name: Delete untested RC artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          artifacts_json="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" >"${artifacts_json}"
+
+          for artifact_name in \
+            release-candidate-untested.zip \
+            release-candidate-untested.zip.sha256 \
+            release-candidate-untested-metadata.json
+          do
+            mapfile -t artifact_ids < <(
+              jq -r --arg name "${artifact_name}" \
+                '.artifacts[] | select(.name == $name) | .id' \
+                "${artifacts_json}"
+            )
+
+            if [[ "${#artifact_ids[@]}" -eq 0 ]]; then
+              echo "No ${artifact_name} artifact found to delete."
+              continue
+            fi
+
+            for artifact_id in "${artifact_ids[@]}"; do
+              echo "Deleting ${artifact_name} artifact ${artifact_id}."
+              gh api \
+                --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+            done
+          done

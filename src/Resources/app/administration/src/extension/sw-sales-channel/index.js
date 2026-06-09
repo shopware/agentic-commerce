@@ -1,0 +1,13 @@
+import './acl';
+import './agentic-product-export-templates';
+import './page/sw-sales-channel-list';
+import './component/sw-agentic-commerce-tracking-config';
+import './component/sw-sales-channel-modal-grid';
+import './component/sw-sales-channel-modal';
+import './page/sw-sales-channel-detail';
+import './view/sw-sales-channel-detail-base';
+import './view/sw-sales-channel-create-base';
+import './view/sw-sales-channel-detail-agentic-commerce-integration';
+import './view/sw-sales-channel-detail-agentic-commerce-statistics';
+import './view/sw-sales-channel-detail-product-comparison';
+import './routes.init';

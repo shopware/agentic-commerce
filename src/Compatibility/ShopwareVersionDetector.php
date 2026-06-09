@@ -57,6 +57,29 @@ final readonly class ShopwareVersionDetector
             && class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController');
     }
 
+    public function coreShipsAgenticCommerce(): bool
+    {
+        // Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE is defined in 6.7.10–6.7.11 only.
+        // From 6.7.12+ the feature moves back to plugin-only and the constant is removed.
+        return \defined('Shopware\\Core\\Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE');
+    }
+
+    public function coreShipsTrackingTables(): bool
+    {
+        // SalesChannelTrackingOrderDefinition is the canonical indicator that tracking
+        // tables exist natively in core (added in 6.7.10, remains permanently).
+        return class_exists('Shopware\\Core\\Content\\ProductExport\\Tracking\\SalesChannelTrackingOrderDefinition');
+    }
+
+    public function needsEntityDefinitionClass(): bool
+    {
+        // SW 6.5 and 6.6 declare EntityExtension::getDefinitionClass() as abstract.
+        // SW 6.7+ replaced it with getEntityName().
+        $ref = new \ReflectionClass('Shopware\\Core\\Framework\\DataAbstractionLayer\\EntityExtension');
+
+        return $ref->hasMethod('getDefinitionClass') && $ref->getMethod('getDefinitionClass')->isAbstract();
+    }
+
     private function normalizeVersion(string $version): string
     {
         $normalized = preg_replace('/[^0-9.].*$/', '', $version) ?? '0.0.0.0';

@@ -40,14 +40,9 @@ final readonly class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 
     public function createCheckout(CheckoutCreateRequest $request, RequestContext $context): Checkout
     {
-        $token = $this->contextTokenGenerator->generate();
+        $token = $request->cartId ?? $this->contextTokenGenerator->generate();
         $discountCodes = $this->discountCodes($request->discounts);
-        [$salesChannelContext, $cart] = $this->cartGateway->synchronizeCheckoutCart(
-            $token,
-            $request->lineItems,
-            $discountCodes,
-            $context,
-        );
+        [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $request, $discountCodes, $context);
 
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $request->buyer);
         $this->sessionManager->save(
@@ -64,6 +59,29 @@ final readonly class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $status,
             $request->buyer,
             $this->continueUrlBuilder->build($salesChannelContext->getToken(), $salesChannelContext->getSalesChannelId()),
+        );
+    }
+
+    /**
+     * @param list<string> $discountCodes
+     *
+     * @return array{0: \Shopware\Core\System\SalesChannel\SalesChannelContext, 1: \Shopware\Core\Checkout\Cart\Cart}
+     */
+    private function createOrReuseCheckoutCart(
+        string $token,
+        CheckoutCreateRequest $request,
+        array $discountCodes,
+        RequestContext $context,
+    ): array {
+        if ([] === $request->lineItems && null !== $request->cartId) {
+            return $this->cartGateway->loadCheckoutCart($token, $context);
+        }
+
+        return $this->cartGateway->synchronizeCheckoutCart(
+            $token,
+            $request->lineItems,
+            $discountCodes,
+            $context,
         );
     }
 

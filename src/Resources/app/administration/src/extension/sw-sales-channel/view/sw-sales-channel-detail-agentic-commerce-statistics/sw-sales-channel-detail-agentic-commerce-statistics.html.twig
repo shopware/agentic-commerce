@@ -1,0 +1,103 @@
+{% block sw_sales_channel_detail_agentic_commerce_statistics %}
+<sw-container class="sw-sales-channel-detail-agentic-commerce-statistics">
+
+    {% block sw_sales_channel_detail_agentic_commerce_statistics_orders_card %}
+    <template v-if="acl.can('order.viewer')">
+        <div>
+            <sw-chart-card
+                class="sw-sales-channel-detail-agentic-commerce-statistics__orders"
+                :card-subtitle="getChartRangeSubtitle(statisticDateRangesOrderCount)"
+                :series="orderCountSeries"
+                :options="chartOptionsOrderCount"
+                :fill-empty-values="getTimeUnitInterval(statisticDateRangesOrderCount)"
+                type="line"
+                position-identifier="sw-sales-channel-detail-agentic-commerce-statistics__orders"
+                sort
+                @sw-chart-card-range-update="onOrderCountRangeUpdate"
+            >
+                <template #header-title>
+                    {{ $t('sw-sales-channel.detail.productExport.insights.orderCardHeadline') }}
+                </template>
+
+                <template #range-option="{ range }">
+                    {{ $t(`sw-sales-channel.detail.productExport.insights.dateRanges.${range}`) }}
+                </template>
+
+                <template #default>
+                    <p class="sw-sales-channel-detail-agentic-commerce-statistics__summary">
+                        {{ $t('sw-sales-channel.detail.productExport.insights.summary') }}:
+                        <strong>{{ orderCountTotal }}</strong>
+                    </p>
+                </template>
+            </sw-chart-card>
+        </div>
+    </template>
+    {% endblock %}
+
+    {% block sw_sales_channel_detail_agentic_commerce_statistics_customers_card %}
+    <template v-if="acl.can('customer.viewer')">
+        <div>
+            <sw-chart-card
+                class="sw-sales-channel-detail-agentic-commerce-statistics__customers"
+                :card-subtitle="getChartRangeSubtitle(statisticDateRangesCustomerCount)"
+                :series="customerCountSeries"
+                :options="chartOptionsCustomerCount"
+                :fill-empty-values="getTimeUnitInterval(statisticDateRangesCustomerCount)"
+                type="line"
+                position-identifier="sw-sales-channel-detail-agentic-commerce-statistics__customers"
+                sort
+                @sw-chart-card-range-update="onCustomerCountRangeUpdate"
+            >
+                <template #header-title>
+                    {{ $t('sw-sales-channel.detail.productExport.insights.customerCardHeadline') }}
+                </template>
+
+                <template #range-option="{ range }">
+                    {{ $t(`sw-sales-channel.detail.productExport.insights.dateRanges.${range}`) }}
+                </template>
+
+                <template #default>
+                    <p class="sw-sales-channel-detail-agentic-commerce-statistics__summary">
+                        {{ $t('sw-sales-channel.detail.productExport.insights.summary') }}:
+                        <strong>{{ customerCountTotal }}</strong>
+                    </p>
+                </template>
+            </sw-chart-card>
+        </div>
+    </template>
+    {% endblock %}
+
+    {% block sw_sales_channel_detail_agentic_commerce_statistics_turnover_card %}
+    <template v-if="acl.can('order.viewer')">
+        <div>
+            <sw-chart-card
+                class="sw-sales-channel-detail-agentic-commerce-statistics__turnover"
+                :card-subtitle="getChartRangeSubtitle(statisticDateRangesOrderSum)"
+                :series="orderSumSeries"
+                :options="chartOptionsOrderSum"
+                :fill-empty-values="getTimeUnitInterval(statisticDateRangesOrderSum)"
+                type="line"
+                position-identifier="sw-sales-channel-detail-agentic-commerce-statistics__turnover"
+                sort
+                @sw-chart-card-range-update="onOrderSumRangeUpdate"
+            >
+                <template #header-title>
+                    {{ $t('sw-sales-channel.detail.productExport.insights.turnoverCardHeadline') }}
+                </template>
+
+                <template #range-option="{ range }">
+                    {{ $t(`sw-sales-channel.detail.productExport.insights.dateRanges.${range}`) }}
+                </template>
+
+                <template #default>
+                    <p class="sw-sales-channel-detail-agentic-commerce-statistics__summary">
+                        {{ $t('sw-sales-channel.detail.productExport.insights.summary') }}:
+                        <strong>{{ currencyFilter(orderSumTotal, systemCurrencyISOCode, 2) }}</strong>
+                    </p>
+                </template>
+            </sw-chart-card>
+        </div>
+    </template>
+    {% endblock %}
+</sw-container>
+{% endblock %}

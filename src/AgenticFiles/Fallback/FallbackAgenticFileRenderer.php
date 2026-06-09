@@ -12,6 +12,7 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Symfony\Component\Routing\RouterInterface;
 use Twig\Environment;
 
 #[Package('discovery')]
@@ -27,6 +28,7 @@ final readonly class FallbackAgenticFileRenderer
         private TemplateFinder $templateFinder,
         private SeoUrlPlaceholderHandlerInterface $seoUrlPlaceholderHandler,
         private EntityRepository $salesChannelRepository,
+        private RouterInterface $router,
     ) {
     }
 
@@ -40,6 +42,7 @@ final readonly class FallbackAgenticFileRenderer
             'context' => $context,
             'salesChannel' => $salesChannel,
             'salesChannelFile' => $file,
+            'cmsPageRouteName' => $this->cmsPageRouteName(),
         ]);
 
         return $this->seoUrlPlaceholderHandler->replace($content, '', $context);
@@ -66,10 +69,20 @@ final readonly class FallbackAgenticFileRenderer
         );
     }
 
+    private function cmsPageRouteName(): string
+    {
+        if (null !== $this->router->getRouteCollection()->get('frontend.cms.page.full')) {
+            return 'frontend.cms.page.full';
+        }
+
+        return 'frontend.cms.page';
+    }
+
     private function loadSalesChannel(SalesChannelContext $context): SalesChannelEntity
     {
         $criteria = (new Criteria([$context->getSalesChannelId()]))
             ->addAssociation('languages.translationCode')
+            ->addAssociation('languages.locale')
             ->addAssociation('currencies')
             ->setLimit(1);
 

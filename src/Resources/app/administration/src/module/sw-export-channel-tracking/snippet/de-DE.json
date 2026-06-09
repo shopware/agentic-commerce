@@ -1,0 +1,10 @@
+{
+  "sw-export-channel-tracking": {
+    "general": {
+      "mainMenuItemGeneral": "Exportkanal-Tracking",
+      "descriptionTextModule": "Fügt den Bestell- und Kundenlisten Spalten und Filter für den Exportkanal hinzu.",
+      "exportChannelLabel": "Exportkanal",
+      "exportChannelFilterPlaceholder": "Exportkanäle auswählen …"
+    }
+  }
+}

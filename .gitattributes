@@ -7,5 +7,4 @@
 /rector.php export-ignore
 /package.json export-ignore
 /bin/ci-*.sh export-ignore
-/bin/validate-ucp-admin-browser.mjs export-ignore
 /docs/manual-testing.md export-ignore

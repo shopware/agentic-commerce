@@ -37,9 +37,11 @@ UCP provides the transaction contract for agentic shopping. The plugin exposes l
 Current responsibilities:
 
 - Configure UCP per sales channel.
+- Store sales-channel UCP config in the plugin-owned `swag_agentic_commerce_ucp_config` table. Legacy `SystemConfig` values are read only as a compatibility fallback and backfilled into the table when found.
 - Publish `/.well-known/ucp` with only capabilities and transports that are usable on the current Shopware line.
-- Expose REST, A2A, embedded, and trunk/6.7 MCP flows through shared capability adapters.
-- Keep signing keys, OAuth identity linking, payment tokenization, profile cache, and allowlists scoped to sales-channel behavior.
+- Expose REST, A2A (`/.well-known/agent-card.json`, `/ucp/a2a`), embedded (`/ucp/embedded/*`), and trunk/6.7 MCP (`/ucp/mcp`) flows through shared capability adapters.
+- Keep signing keys, OAuth identity linking, payment tokenization, platform-profile cache, and allowlists scoped to sales-channel behavior.
+- Require explicit embedded origin and frame-ancestor configuration before embedded pages render cross-origin; disallowed or missing origins return controlled UCP errors.
 - Hide unsupported capabilities instead of advertising placeholders.
 
 Developer placeholders:
@@ -137,6 +139,8 @@ bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 Manual human test steps are documented in [docs/manual-testing.md](docs/manual-testing.md).
 
 Lane-specific administration, build, and local-runtime differences are documented in [docs/shopware-version-differences.md](docs/shopware-version-differences.md). Short-form guidance for future coding agents is kept in [AGENTS.md](AGENTS.md).
+
+The main-merge tester zip workflow is documented in [docs/main-merge-test-zip-artifact.md](docs/main-merge-test-zip-artifact.md).
 
 Administration build compatibility is intentionally validated as a matrix:
 

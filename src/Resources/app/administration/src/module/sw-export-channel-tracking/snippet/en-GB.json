@@ -1,0 +1,10 @@
+{
+  "sw-export-channel-tracking": {
+    "general": {
+      "mainMenuItemGeneral": "Export Channel Tracking",
+      "descriptionTextModule": "Adds export channel columns and filters to the order and customer lists.",
+      "exportChannelLabel": "Export channel",
+      "exportChannelFilterPlaceholder": "Select export channels…"
+    }
+  }
+}

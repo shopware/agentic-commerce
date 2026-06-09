@@ -1,0 +1,17 @@
+compatibility_date: 2026-06-05
+build:
+  shopwareVersionConstraint: ">=6.5.0 <6.8.0"
+  zip:
+    composer:
+      enabled: true
+    assets:
+      enabled: false
+    pack:
+      excludes:
+        paths:
+          - bin
+          - docs
+          - eslint.config.mjs
+          - package.json
+          - package-lock.json
+          - playwright.config.js

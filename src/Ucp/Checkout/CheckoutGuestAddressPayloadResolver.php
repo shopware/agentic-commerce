@@ -46,7 +46,7 @@ final readonly class CheckoutGuestAddressPayloadResolver
             $payload = $payload['extra'];
         }
 
-        $address = $payload['shipping_address'] ?? $payload['shippingAddress'] ?? null;
+        $address = $payload['shipping_address'] ?? null;
         if (!\is_array($address)) {
             return null;
         }

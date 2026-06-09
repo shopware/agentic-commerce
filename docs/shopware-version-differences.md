@@ -17,7 +17,19 @@ administration builds, browser validation, or local lane tooling.
 | Admin card implementation | legacy `sw-card` is common | mixed | Meteor `mt-card` is common |
 | Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths | Vite assets |
 | Discovery support | unavailable | unavailable | available only when the trunk bridge exists |
+| MCP transport | never | never | only once the Store API MCP endpoint exists (see note) |
 | Local PHP runtime | `8.2` | `8.3` | `8.4` |
+
+> **MCP on trunk is blocked upstream.** The Store API MCP endpoint the UCP
+> plugin proxies to ships with
+> [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228).
+> Until it merges, `trunk` does not advertise the MCP transport. MCP is gated on
+> a single runtime capability — whether `StoreApiMcpServerController` exists —
+> which the plugin uses to decide what `/.well-known/ucp` advertises.
+> `bin/ci-smoke.sh` asserts the strict "supported &hArr; advertised" invariant
+> server-side, and the public-profile Playwright tests skip their MCP-specific
+> checks while the transport is absent and verify once it appears. No per-lane
+> flag to maintain.
 
 ## Rules We Must Keep
 
@@ -125,9 +137,9 @@ administration builds, browser validation, or local lane tooling.
 
 - Lanes run in parallel. There is no active-lane switch in the intended
   workflow.
-- Use `/Users/b.meyer/scripts/agentic-commerce/ensure-lane-sync {65|66|trunk}`
+- Use `$HOME/scripts/agentic-commerce/ensure-lane-sync {65|66|trunk}`
   to start a lane and ensure its persistent sync sessions are healthy.
-- `/Users/b.meyer/scripts/dev-startup.sh` delegates the three agentic lanes to
+- `$HOME/scripts/dev-startup.sh` delegates the three agentic lanes to
   that helper, so a reboot startup must not recreate plugin/SDK sessions as
   one-way replicas.
 - Base Shopware, plugin, and SDK sync sessions must be `two-way-resolved`.
@@ -149,7 +161,7 @@ administration builds, browser validation, or local lane tooling.
   admin smoke script when the admin shell does not advertise UCP.
 - Do not run multiple lanes against the same container name. Two-way sync is
   safe only because each lane now has its own container target.
-- Use `/Users/b.meyer/scripts/agentic-commerce/sync-status` before blaming a
+- Use `$HOME/scripts/agentic-commerce/sync-status` before blaming a
   lane. It prints the Mutagen mode and container file presence for every lane.
 
 ### Compose targeting
@@ -157,11 +169,11 @@ administration builds, browser validation, or local lane tooling.
 - The Compose service is intentionally named `web` in every lane. Service names
   are project-local; the project/container names are what make them unique.
 - Prefer the lane helpers when jumping into containers:
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-shell 65`
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-shell 66`
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-shell trunk`
+  - `$HOME/scripts/agentic-commerce/lane-shell 65`
+  - `$HOME/scripts/agentic-commerce/lane-shell 66`
+  - `$HOME/scripts/agentic-commerce/lane-shell trunk`
 - For one-off commands, use:
-  - `/Users/b.meyer/scripts/agentic-commerce/lane-exec 65 php -v`
+  - `$HOME/scripts/agentic-commerce/lane-exec 65 php -v`
 - Plain `docker compose exec web bash` also works from a lane directory because
   the local `.env` pins `COMPOSE_FILE=compose.yaml:compose.override.yaml`.
 - Do not remove the upstream `docker-compose.yaml` in `6.5`; use explicit

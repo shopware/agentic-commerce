@@ -3,11 +3,5 @@
 {% block agentic_llms_extensions %}
     {{ parent() }}
 
-    {% if swag_agentic_commerce_ucp_active(salesChannel) %}
-        ## Agentic commerce
-
-        - [UCP profile](/.well-known/ucp): Machine-readable Universal Commerce Protocol profile for this sales channel.
-
-        Use the UCP profile as the source of truth for enabled agentic commerce capabilities, supported transports, endpoint URLs, signing keys, and protocol versions. Only use capabilities and transports advertised in the profile.
-    {% endif %}
+    {% include 'files/agentic/includes/ucp-llms.txt.twig' %}
 {% endblock %}
