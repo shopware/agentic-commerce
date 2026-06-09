@@ -8,7 +8,6 @@ use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Test\TestCaseBase\KernelLifecycleManager;
-use Shopware\Core\Framework\Util\Database\TableHelper;
 use Swag\AgenticCommerce\Migration\Migration1780328112CreateUcpConfigTable;
 
 /**
@@ -38,7 +37,7 @@ final class Migration1780328112CreateUcpConfigTableTest extends TestCase
     public function testMigrationCanRunTwice(): void
     {
         foreach (array_keys($this->ucpTablesWithSalesChannelForeignKeys()) as $table) {
-            static::assertFalse(TableHelper::tableExists($this->connection, $table));
+            static::assertFalse($this->tableExists($table));
         }
 
         $migration = new Migration1780328112CreateUcpConfigTable();
@@ -47,19 +46,19 @@ final class Migration1780328112CreateUcpConfigTableTest extends TestCase
         $migration->update($this->connection);
 
         foreach ($this->ucpTablesWithSalesChannelForeignKeys() as $table => $foreignKey) {
-            static::assertTrue(TableHelper::tableExists($this->connection, $table));
-            static::assertTrue(TableHelper::foreignKeyExists($this->connection, $table, $foreignKey));
-            static::assertTrue(TableHelper::indexExists($this->connection, $table, 'PRIMARY'));
+            static::assertTrue($this->tableExists($table));
+            static::assertTrue($this->foreignKeyExists($table, $foreignKey));
+            static::assertTrue($this->indexExists($table, 'PRIMARY'));
         }
 
-        static::assertCount(4, TableHelper::getTable($this->connection, self::CONFIG_TABLE)->columns);
-        static::assertCount(11, TableHelper::getTable($this->connection, self::OAUTH_CODE_TABLE)->columns);
-        static::assertCount(8, TableHelper::getTable($this->connection, self::OAUTH_ACCESS_TOKEN_TABLE)->columns);
-        static::assertCount(8, TableHelper::getTable($this->connection, self::OAUTH_REFRESH_TOKEN_TABLE)->columns);
-        static::assertTrue(TableHelper::indexExists($this->connection, self::OAUTH_CODE_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_code.sales_channel'));
-        static::assertTrue(TableHelper::indexExists($this->connection, self::OAUTH_ACCESS_TOKEN_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_access.sales_channel'));
-        static::assertTrue(TableHelper::indexExists($this->connection, self::OAUTH_ACCESS_TOKEN_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_access.refresh'));
-        static::assertTrue(TableHelper::indexExists($this->connection, self::OAUTH_REFRESH_TOKEN_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_refresh.sales_channel'));
+        static::assertSame(4, $this->columnCount(self::CONFIG_TABLE));
+        static::assertSame(11, $this->columnCount(self::OAUTH_CODE_TABLE));
+        static::assertSame(8, $this->columnCount(self::OAUTH_ACCESS_TOKEN_TABLE));
+        static::assertSame(8, $this->columnCount(self::OAUTH_REFRESH_TOKEN_TABLE));
+        static::assertTrue($this->indexExists(self::OAUTH_CODE_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_code.sales_channel'));
+        static::assertTrue($this->indexExists(self::OAUTH_ACCESS_TOKEN_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_access.sales_channel'));
+        static::assertTrue($this->indexExists(self::OAUTH_ACCESS_TOKEN_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_access.refresh'));
+        static::assertTrue($this->indexExists(self::OAUTH_REFRESH_TOKEN_TABLE, 'idx.swag_agentic_commerce_ucp_oauth_refresh.sales_channel'));
     }
 
     /**
@@ -84,5 +83,52 @@ final class Migration1780328112CreateUcpConfigTableTest extends TestCase
             self::OAUTH_CODE_TABLE,
             self::CONFIG_TABLE,
         ));
+    }
+
+    private function tableExists(string $table): bool
+    {
+        return 1 === $this->countSchemaRows(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table',
+            ['table' => $table],
+        );
+    }
+
+    private function columnCount(string $table): int
+    {
+        return $this->countSchemaRows(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table',
+            ['table' => $table],
+        );
+    }
+
+    private function foreignKeyExists(string $table, string $foreignKey): bool
+    {
+        return 1 === $this->countSchemaRows(
+            <<<'SQL'
+                SELECT COUNT(*)
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE CONSTRAINT_SCHEMA = DATABASE()
+                    AND TABLE_NAME = :table
+                    AND CONSTRAINT_NAME = :foreignKey
+                    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+                SQL,
+            ['table' => $table, 'foreignKey' => $foreignKey],
+        );
+    }
+
+    private function indexExists(string $table, string $index): bool
+    {
+        return $this->countSchemaRows(
+            'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND INDEX_NAME = :index',
+            ['table' => $table, 'index' => $index],
+        ) > 0;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    private function countSchemaRows(string $sql, array $params): int
+    {
+        return (int) $this->connection->fetchOne($sql, $params);
     }
 }
