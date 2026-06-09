@@ -58,7 +58,7 @@
       "transportA2aDescription": "Agent-to-Agent-Protokoll-Endpunkt für Agent-Plattformen mit A2A.",
       "transportEmbeddedDescription": "Eingebetteter Warenkorb und Checkout für iframe/postMessage-Flows.",
       "transportMcpDescription": "Storefront-MCP-Endpunkt unter '/ucp/mcp' mit Verkaufskanal-Kontext, ohne den Zugriffsschlüssel offenzulegen.",
-      "transportMcpDisabledReason": "MCP benötigt Shopware 6.7 mit Store-API-MCP-Endpunkt.",
+      "transportMcpDisabledReason": "MCP benötigt Shopware 6.7.12.0 oder neuer mit Store-API-MCP-Endpunkt.",
       "pendingTransportsTitle": "Verfügbare Übertragungswege",
       "pendingTransportsMessage": "Die Profilvorschau zeigt nur Übertragungswege, die auf dieser Shopware-Version nutzbar sind.",
       "securityCardTitle": "Sicherheit und Auslieferung",
