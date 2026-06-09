@@ -60,7 +60,7 @@
       "transportA2aDescription": "Agent-to-agent protocol endpoint for agent platforms that prefer A2A.",
       "transportEmbeddedDescription": "Embedded cart and checkout entry points for iframe/postMessage flows.",
       "transportMcpDescription": "Storefront MCP endpoint at /ucp/mcp using the sales-channel context without exposing the access key.",
-      "transportMcpDisabledReason": "MCP requires Shopware 6.7 with the Store API MCP endpoint.",
+      "transportMcpDisabledReason": "MCP requires Shopware 6.7.12.0 or newer with the Store API MCP endpoint.",
       "pendingTransportsTitle": "Effective transport contract",
       "pendingTransportsMessage": "The profile preview shows only transports that are usable on this Shopware version.",
       "securityCardTitle": "Security and delivery",
