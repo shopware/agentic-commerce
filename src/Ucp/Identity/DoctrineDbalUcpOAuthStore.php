@@ -17,7 +17,6 @@ final readonly class DoctrineDbalUcpOAuthStore
     public function __construct(
         private Connection $connection,
     ) {
-        UcpOAuthSchema::ensure($this->connection);
     }
 
     public function saveAuthorizationCode(

@@ -17,11 +17,6 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
     public function __construct(
         private Connection $connection,
     ) {
-        // Warm local Shopware lanes can carry an already-installed plugin volume
-        // before the new plugin migration has been applied. Keep the repository
-        // tolerant so config reads/writes do not fail closed during local
-        // iteration; the migration remains the canonical install/update path.
-        UcpConfigSchema::ensure($this->connection);
     }
 
     public function find(string $salesChannelId): ?UcpConfig
