@@ -37,8 +37,22 @@ fi
 
 short_sha="${GITHUB_SHA:-$(git -C "${PLUGIN_ROOT}" rev-parse HEAD)}"
 short_sha="${short_sha:0:12}"
+
+# Derive version from a version tag (e.g. v1.2.3 → 1.2.3) when not explicitly set.
+if [[ -z "${PACKAGE_VERSION:-}" ]]; then
+  ref_name="${GITHUB_REF_NAME:-}"
+  if [[ "${ref_name}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+.*)$ ]]; then
+    PACKAGE_VERSION="${BASH_REMATCH[1]}"
+  fi
+fi
 package_version="${PACKAGE_VERSION:-0.0.1+${short_sha}}"
-zip_name="SwagAgenticCommerce-main-${short_sha}.zip"
+
+# Release builds get a version-based filename; dev builds keep the sha-based name.
+if [[ "${package_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+  zip_name="SwagAgenticCommerce-${package_version}.zip"
+else
+  zip_name="SwagAgenticCommerce-main-${short_sha}.zip"
+fi
 metadata_name="artifact-metadata.json"
 
 stage_parent="$(mktemp -d "${TMPDIR:-/tmp}/swag-agentic-commerce-package.XXXXXX")"
@@ -127,7 +141,10 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
   composer install --no-dev --no-scripts --no-interaction --no-progress --prefer-dist --optimize-autoloader
   jq \
     --arg packageVersion "${package_version}" \
-    '.version = $packageVersion | .config["vendor-dir"] = "vendor" | del(.repositories)' \
+    '.version = $packageVersion
+     | .require["shopware/core"] = ">=6.6.0.0 <7.0.0.0"
+     | .config["vendor-dir"] = "vendor"
+     | del(.repositories)' \
     composer.json.release-source >composer.json
   rm -f composer.json.release-source
 )

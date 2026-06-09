@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   pull_request:
   workflow_dispatch:
     inputs:
@@ -395,7 +397,7 @@ jobs:
       - run: |
           set -euo pipefail
 
-          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name 'SwagAgenticCommerce-main-*.zip' -print -quit)"
+          zip_path="$(find "$GITHUB_WORKSPACE/test-zip" -name 'SwagAgenticCommerce-*.zip' -print -quit)"
           metadata_path="$GITHUB_WORKSPACE/test-zip/artifact-metadata.json"
 
           if [[ -z "${zip_path}" || ! -f "${metadata_path}" ]]; then
