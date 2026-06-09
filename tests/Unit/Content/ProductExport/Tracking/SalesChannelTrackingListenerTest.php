@@ -83,6 +83,28 @@ class SalesChannelTrackingListenerTest extends TestCase
         static::assertFalse($request->hasSession());
     }
 
+    public function testStoreReferralCodeSkipsLazySessionWithoutInitializingIt(): void
+    {
+        $referralCode = Uuid::randomHex();
+
+        $cache = $this->createMock(TagAwareCacheInterface::class);
+        $cache->method('get')->willReturn(true);
+
+        $listener = $this->createListener(cache: $cache);
+
+        $request = new Request();
+        $request->attributes->set(PlatformRequest::ATTRIBUTE_ROUTE_SCOPE, ['storefront']);
+        $request->query->set(SalesChannelTrackingListener::QUERY_PARAM, $referralCode);
+        $request->setSessionFactory(static function (): Session {
+            throw new \RuntimeException('Session should not be initialized.');
+        });
+
+        $listener->storeReferralCode($this->createControllerEvent($request));
+
+        static::assertTrue($request->hasSession());
+        static::assertFalse($request->hasSession(true));
+    }
+
     public function testStoreReferralCodeIgnoresInvalidUuid(): void
     {
         $listener = $this->createListener();
