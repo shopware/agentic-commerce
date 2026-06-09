@@ -63,7 +63,7 @@ final class Migration1780328112CreateUcpConfigTableTest extends TestCase
     }
 
     /**
-     * @return array<string, string>
+     * @return array<non-empty-string, non-empty-string>
      */
     private function ucpTablesWithSalesChannelForeignKeys(): array
     {
