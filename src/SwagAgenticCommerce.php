@@ -16,6 +16,7 @@ use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
+use Ucp\Sdk\Symfony\Bridge\DoctrineDbal\SchemaBootstrapper;
 
 #[Package('framework')]
 final class SwagAgenticCommerce extends Plugin
@@ -61,6 +62,7 @@ final class SwagAgenticCommerce extends Plugin
     {
         parent::install($installContext);
 
+        $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
     }
 
@@ -68,6 +70,7 @@ final class SwagAgenticCommerce extends Plugin
     {
         parent::update($updateContext);
 
+        $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
     }
 
@@ -106,5 +109,18 @@ final class SwagAgenticCommerce extends Plugin
     private function syncCoreAgenticFiles(): void
     {
         CoreSalesChannelFileBridge::syncActiveUcpSalesChannelsWithConnection(Kernel::getConnection());
+    }
+
+    private function bootstrapSdkSchema(): void
+    {
+        $this->loadBundledSdkAutoload();
+
+        if (!class_exists(SchemaBootstrapper::class)) {
+            throw SdkNotAvailableException::bundleCouldNotBeLoaded();
+        }
+
+        // The plugin is not active during install yet, so SDK services are not wired into the container.
+        // Build the bootstrapper directly and keep request handling free from schema checks.
+        (new SchemaBootstrapper(Kernel::getConnection()))->ensureSchema();
     }
 }
