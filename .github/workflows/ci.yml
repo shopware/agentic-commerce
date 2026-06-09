@@ -447,12 +447,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: github.event_name != 'pull_request'
+    continue-on-error: ${{ matrix.allow_failure == true }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - lane: '6.5.x'
             admin_mode: webpack
+            allow_failure: true  # packaged ZIP requires >=6.6; remove once 6.5 is supported
           - lane: '6.6.x'
             admin_mode: webpack
           - lane: 'trunk'
