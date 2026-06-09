@@ -71,7 +71,10 @@ class SalesChannelTrackingListenerTest extends TestCase
 
     public function testStoreReferralCodeIgnoresMissingSession(): void
     {
-        $listener = $this->createListener();
+        $cache = $this->createMock(TagAwareCacheInterface::class);
+        $cache->method('get')->willReturn(true);
+
+        $listener = $this->createListener(cache: $cache);
 
         $request = new Request();
         $request->attributes->set(PlatformRequest::ATTRIBUTE_ROUTE_SCOPE, ['storefront']);
