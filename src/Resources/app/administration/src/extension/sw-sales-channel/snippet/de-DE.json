@@ -6,7 +6,7 @@
   },
   "sw-sales-channel": {
     "modal": {
-      "messageNoProductStreams": "Um Produktvergleiche oder Agentic-Commerce-Vertriebskanäle zu erstellen, musst Du zunächst eine dynamische Produktgruppe erstellen."
+      "messageNoProductStreams": "Um Produktvergleiche oder Agentic-Commerce-Verkaufskanäle zu erstellen, musst Du zunächst eine dynamische Produktgruppe erstellen."
     },
     "detail": {
       "agenticCommerce": {
@@ -30,7 +30,7 @@
               "cardTitle": "OpenAI-Verbindung",
               "introduction": {
                 "title": "Anleitung: Einrichten und verbinden",
-                "description": "Dieser Verkaufskanal generiert einen JSONL-Produkt-Feed, damit Produkte in den ChatGPT-Suchergebnissen erscheinen können. Dazu müssen Sie sich als Merchant bewerben und die Feed URL mit OpenAI teilen. Alles Weitere wird in der folgenden Schritt-für-Schritt-Anleitung erklärt."
+                "description": "Dieser Verkaufskanal generiert einen JSONL-Produkt-Feed, damit Produkte in den ChatGPT-Suchergebnissen erscheinen können. Dazu musst Du Dich als Merchant bewerben und die Feed-URL mit OpenAI teilen. Alles Weitere wird in der folgenden Schritt-für-Schritt-Anleitung erklärt."
               },
               "stepByStep": "<li>Bewirb dich als Merchant unter <a href=\"https://chatgpt.com/merchants/\" target=\"_blank\" rel=\"noopener noreferrer\">chatgpt.com/merchants</a></li><li>Kopiere die Export-URL (unten) und teile diese mit OpenAI gemäß der <a href=\"https://developers.openai.com/commerce/product-feeds\" target=\"_blank\" rel=\"noopener noreferrer\">Produkt-Feed-Dokumentation</a></li><li>Stelle sicher, dass die Export-URL öffentlich erreichbar ist</li>"
             },

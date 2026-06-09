@@ -18,8 +18,8 @@ Component.override('sw-order-list', {
             return this.insertExportChannelFilter(
                 filters,
                 'order',
-                'sw-export-channel-tracking.extension.sw-order-list.filters.exportFeedFilter.label',
-                'sw-export-channel-tracking.extension.sw-order-list.filters.exportFeedFilter.placeholder',
+                'sw-export-channel-tracking.general.exportChannelLabel',
+                'sw-export-channel-tracking.general.exportChannelFilterPlaceholder',
             );
         },
     },
@@ -38,7 +38,7 @@ Component.override('sw-order-list', {
             columns.push({
                 property: 'extensions.salesChannelTracking.salesChannel.name',
                 dataIndex: 'extensions.salesChannelTracking.salesChannelId',
-                label: 'sw-export-channel-tracking.extension.sw-order-list.list.columnExportFeed',
+                label: 'sw-export-channel-tracking.general.exportChannelLabel',
                 allowResize: true,
                 visible: false,
             });

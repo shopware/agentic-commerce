@@ -1,7 +1,7 @@
 {% block sw_settings_ucp_index %}
 <sw-page class="sw-settings-ucp-index">
     <template #smart-bar-header>
-        <h2>{{ $tc('sw-settings-ucp.general.mainMenuItemGeneral') }}</h2>
+        <h2>{{ $t('sw-settings-ucp.general.mainMenuItemGeneral') }}</h2>
     </template>
 
     <template #content>
@@ -9,26 +9,26 @@
             <sw-card class="sw-settings-ucp-index__intro" :isLoading="isLoading">
                 <div class="sw-settings-ucp-index__intro-shell">
                     <div>
-                        <p class="sw-settings-ucp-index__eyebrow">{{ $tc('sw-settings-ucp.general.overviewTitle') }}</p>
-                        <h3 class="sw-settings-ucp-index__intro-title">{{ $tc('sw-settings-ucp.general.mainMenuItemGeneral') }}</h3>
-                        <p class="sw-settings-ucp-index__intro-description">{{ $tc('sw-settings-ucp.general.overviewDescription') }}</p>
+                        <p class="sw-settings-ucp-index__eyebrow">{{ $t('sw-settings-ucp.general.overviewTitle') }}</p>
+                        <h3 class="sw-settings-ucp-index__intro-title">{{ $t('sw-settings-ucp.general.mainMenuItemGeneral') }}</h3>
+                        <p class="sw-settings-ucp-index__intro-description">{{ $t('sw-settings-ucp.general.overviewDescription') }}</p>
                     </div>
 
                     <div class="sw-settings-ucp-index__intro-metrics">
                         <div class="sw-settings-ucp-index__intro-metric">
-                            <span class="sw-settings-ucp-index__metric-label">{{ $tc('sw-settings-ucp.general.shopwareVersion') }}</span>
+                            <span class="sw-settings-ucp-index__metric-label">{{ $t('sw-settings-ucp.general.shopwareVersion') }}</span>
                             <span class="sw-settings-ucp-index__metric-value">{{ formattedShopwareVersion }}</span>
                         </div>
                         <div class="sw-settings-ucp-index__intro-metric">
-                            <span class="sw-settings-ucp-index__metric-label">{{ $tc('sw-settings-ucp.general.salesChannelsTitle') }}</span>
+                            <span class="sw-settings-ucp-index__metric-label">{{ $t('sw-settings-ucp.general.salesChannelsTitle') }}</span>
                             <span class="sw-settings-ucp-index__metric-value">{{ salesChannels.length }}</span>
                         </div>
                         <div class="sw-settings-ucp-index__intro-metric">
-                            <span class="sw-settings-ucp-index__metric-label">{{ $tc('sw-settings-ucp.general.activeSalesChannelsTitle') }}</span>
+                            <span class="sw-settings-ucp-index__metric-label">{{ $t('sw-settings-ucp.general.activeSalesChannelsTitle') }}</span>
                             <span class="sw-settings-ucp-index__metric-value">{{ activeSalesChannels.length }}</span>
                         </div>
                         <div class="sw-settings-ucp-index__intro-metric">
-                            <span class="sw-settings-ucp-index__metric-label">{{ $tc('sw-settings-ucp.general.inactiveSalesChannelsTitle') }}</span>
+                            <span class="sw-settings-ucp-index__metric-label">{{ $t('sw-settings-ucp.general.inactiveSalesChannelsTitle') }}</span>
                             <span class="sw-settings-ucp-index__metric-value">{{ inactiveSalesChannels.length }}</span>
                         </div>
                     </div>
@@ -38,29 +38,29 @@
                     v-if="meta.supportsAgenticDiscovery === false"
                     class="sw-settings-ucp-index__alert"
                     variant="info"
-                    :title="$tc('sw-settings-ucp.general.discoveryDisabledTitle')">
-                    {{ $tc('sw-settings-ucp.general.discoveryDisabledMessage') }}
+                    :title="$t('sw-settings-ucp.general.discoveryDisabledTitle')">
+                    {{ $t('sw-settings-ucp.general.discoveryDisabledMessage') }}
                 </sw-alert>
             </sw-card>
 
             <div v-if="salesChannels.length === 0" class="sw-settings-ucp-index__empty">
                 <sw-empty-state
-                    :title="$tc('sw-settings-ucp.general.salesChannelsTitle')"
-                    :subline="$tc('sw-settings-ucp.general.noSalesChannelsMessage')"
+                    :title="$t('sw-settings-ucp.general.salesChannelsTitle')"
+                    :subline="$t('sw-settings-ucp.general.noSalesChannelsMessage')"
                     icon="regular-globe-stand" />
             </div>
 
             <template v-else>
                 <sw-card
                     class="sw-settings-ucp-index__active-section"
-                    :title="$tc('sw-settings-ucp.general.activeSalesChannelsTitle')"
+                    :title="$t('sw-settings-ucp.general.activeSalesChannelsTitle')"
                     :isLoading="isLoading">
                     <p class="sw-settings-ucp-index__section-copy">
-                        {{ $tc('sw-settings-ucp.general.activeSalesChannelsDescription') }}
+                        {{ $t('sw-settings-ucp.general.activeSalesChannelsDescription') }}
                     </p>
 
                     <div v-if="!hasActiveSalesChannels" class="sw-settings-ucp-index__quiet-empty">
-                        {{ $tc('sw-settings-ucp.general.noActiveSalesChannelsMessage') }}
+                        {{ $t('sw-settings-ucp.general.noActiveSalesChannelsMessage') }}
                     </div>
 
                     <div v-else class="sw-settings-ucp-index__channel-grid">
@@ -70,7 +70,7 @@
                             class="sw-settings-ucp-index__sales-channel">
                             <div class="sw-settings-ucp-index__channel-header">
                                 <div>
-                                    <p class="sw-settings-ucp-index__eyebrow">{{ $tc('sw-settings-ucp.general.salesChannelLabel') }}</p>
+                                    <p class="sw-settings-ucp-index__eyebrow">{{ $t('sw-settings-ucp.general.salesChannelLabel') }}</p>
                                     <h3 class="sw-settings-ucp-index__channel-title">{{ salesChannel.name }}</h3>
                                 </div>
 
@@ -82,11 +82,11 @@
 
                             <div class="sw-settings-ucp-index__metric-grid">
                                 <div class="sw-settings-ucp-index__metric-card">
-                                    <span class="sw-settings-ucp-index__metric-label">{{ $tc('sw-settings-ucp.general.capabilityCountLabel') }}</span>
+                                    <span class="sw-settings-ucp-index__metric-label">{{ $t('sw-settings-ucp.general.capabilityCountLabel') }}</span>
                                     <span class="sw-settings-ucp-index__metric-value">{{ capabilityCount(salesChannel) }}</span>
                                 </div>
                                 <div class="sw-settings-ucp-index__metric-card">
-                                    <span class="sw-settings-ucp-index__metric-label">{{ $tc('sw-settings-ucp.general.transportSummaryLabel') }}</span>
+                                    <span class="sw-settings-ucp-index__metric-label">{{ $t('sw-settings-ucp.general.transportSummaryLabel') }}</span>
                                     <span class="sw-settings-ucp-index__metric-value">{{ transportSummary(salesChannel) }}</span>
                                 </div>
                             </div>
@@ -96,12 +96,12 @@
                                     size="small"
                                     variant="primary"
                                     :router-link="ucpDetailRoute(salesChannel)">
-                                    {{ $tc('sw-settings-ucp.general.openUcpConfigurationButton') }}
+                                    {{ $t('sw-settings-ucp.general.openUcpConfigurationButton') }}
                                 </sw-button>
                                 <sw-button
                                     size="small"
                                     :router-link="salesChannelRoute(salesChannel)">
-                                    {{ $tc('sw-settings-ucp.general.openSalesChannelButton') }}
+                                    {{ $t('sw-settings-ucp.general.openSalesChannelButton') }}
                                 </sw-button>
                             </div>
                         </div>
@@ -111,10 +111,10 @@
                 <sw-card
                     v-if="hasInactiveSalesChannels"
                     class="sw-settings-ucp-index__inactive-section"
-                    :title="$tc('sw-settings-ucp.general.inactiveSalesChannelsTitle')"
+                    :title="$t('sw-settings-ucp.general.inactiveSalesChannelsTitle')"
                     :isLoading="isLoading">
                     <p class="sw-settings-ucp-index__section-copy">
-                        {{ $tc('sw-settings-ucp.general.inactiveSalesChannelsDescription') }}
+                        {{ $t('sw-settings-ucp.general.inactiveSalesChannelsDescription') }}
                     </p>
 
                     <div class="sw-settings-ucp-index__inactive-list">
@@ -124,7 +124,7 @@
                             class="sw-settings-ucp-index__inactive-row">
                             <div class="sw-settings-ucp-index__inactive-copy">
                                 <span class="sw-settings-ucp-index__inactive-name">{{ salesChannel.name }}</span>
-                                <span class="sw-settings-ucp-index__inactive-domain">{{ salesChannel.domains && salesChannel.domains[0] ? salesChannel.domains[0].url : $tc('sw-settings-ucp.general.noDomainLabel') }}</span>
+                                <span class="sw-settings-ucp-index__inactive-domain">{{ salesChannel.domains && salesChannel.domains[0] ? salesChannel.domains[0].url : $t('sw-settings-ucp.general.noDomainLabel') }}</span>
                             </div>
 
                             <div class="sw-settings-ucp-index__inactive-actions">
@@ -134,7 +134,7 @@
                                     :isLoading="isActivatingSalesChannel(salesChannel)"
                                     :disabled="!canEditConfig"
                                     @click="activateSalesChannel(salesChannel)">
-                                    {{ $tc('sw-settings-ucp.general.activateSalesChannelButton') }}
+                                    {{ $t('sw-settings-ucp.general.activateSalesChannelButton') }}
                                 </sw-button-process>
                             </div>
                         </div>

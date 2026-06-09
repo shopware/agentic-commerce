@@ -1,32 +1,10 @@
 {
   "sw-export-channel-tracking": {
     "general": {
-      "mainMenuItemGeneral": "Exportkanal Tracking",
-      "descriptionTextModule": "Fügt Exportkanal-Spalten und -Filter zu den Bestellungs- und Kundenlisten hinzu."
-    },
-    "extension": {
-      "sw-order-list": {
-        "list": {
-          "columnExportFeed": "Exportkanal"
-        },
-        "filters": {
-          "exportFeedFilter": {
-            "label": "Exportkanal",
-            "placeholder": "Exportkanäle auswählen …"
-          }
-        }
-      },
-      "sw-customer-list": {
-        "list": {
-          "columnExportFeed": "Exportkanal"
-        },
-        "filters": {
-          "exportFeedFilter": {
-            "label": "Exportkanal",
-            "placeholder": "Exportkanäle auswählen …"
-          }
-        }
-      }
+      "mainMenuItemGeneral": "Exportkanal-Tracking",
+      "descriptionTextModule": "Fügt den Bestell- und Kundenlisten Spalten und Filter für den Exportkanal hinzu.",
+      "exportChannelLabel": "Exportkanal",
+      "exportChannelFilterPlaceholder": "Exportkanäle auswählen …"
     }
   }
 }

@@ -69,7 +69,6 @@ export default {
                 this.meta = response.data.meta || {};
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {
@@ -93,7 +92,7 @@ export default {
             const transports = salesChannel.ucp && Array.isArray(salesChannel.ucp.enabledTransports) ? salesChannel.ucp.enabledTransports : [];
 
             if (transports.length === 0) {
-                return this.$tc('sw-settings-ucp.general.noTransportLabel');
+                return this.$t('sw-settings-ucp.general.noTransportLabel');
             }
 
             return transports.map((entry) => entry.toUpperCase()).join(', ');
@@ -101,8 +100,8 @@ export default {
 
         statusLabel(salesChannel) {
             return salesChannel.ucp && salesChannel.ucp.active
-                ? this.$tc('sw-settings-ucp.general.statusActive')
-                : this.$tc('sw-settings-ucp.general.statusInactive');
+                ? this.$t('sw-settings-ucp.general.statusActive')
+                : this.$t('sw-settings-ucp.general.statusInactive');
         },
 
         statusClass(salesChannel) {
@@ -128,12 +127,10 @@ export default {
                 await this.loadSalesChannels();
 
                 this.createNotificationSuccess({
-                    title: this.$tc('global.default.success'),
-                    message: this.$tc('sw-settings-ucp.general.salesChannelActivated'),
+                    message: this.$t('sw-settings-ucp.general.salesChannelActivated'),
                 });
             } catch (error) {
                 this.createNotificationError({
-                    title: this.$tc('global.default.error'),
                     message: extractApiErrorMessage(error),
                 });
             } finally {

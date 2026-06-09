@@ -4,15 +4,15 @@
     <sw-card
         v-if="salesChannel"
         class="sw-settings-ucp-sales-channel-shortcut"
-        :title="$tc('sw-settings-ucp.general.salesChannelShortcutTitle')"
+        :title="$t('sw-settings-ucp.general.salesChannelShortcutTitle')"
     >
         <div class="sw-settings-ucp-sales-channel-shortcut__content">
             <div class="sw-settings-ucp-sales-channel-shortcut__copy">
                 <p class="sw-settings-ucp-sales-channel-shortcut__eyebrow">
-                    {{ $tc('sw-settings-ucp.general.salesChannelShortcutEyebrow') }}
+                    {{ $t('sw-settings-ucp.general.salesChannelShortcutEyebrow') }}
                 </p>
                 <p class="sw-settings-ucp-sales-channel-shortcut__description">
-                    {{ $tc('sw-settings-ucp.general.salesChannelShortcutDescription') }}
+                    {{ $t('sw-settings-ucp.general.salesChannelShortcutDescription') }}
                 </p>
             </div>
 
@@ -21,7 +21,7 @@
                 size="small"
                 :router-link="{ name: 'sw.settings.ucp.detail', params: { salesChannelId: salesChannel.id } }"
             >
-                {{ $tc('sw-settings-ucp.general.openUcpConfigurationButton') }}
+                {{ $t('sw-settings-ucp.general.openUcpConfigurationButton') }}
             </sw-button>
         </div>
     </sw-card>
