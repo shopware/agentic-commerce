@@ -142,7 +142,7 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
   jq \
     --arg packageVersion "${package_version}" \
     '.version = $packageVersion
-     | .require["shopware/core"] = ">=6.6.0.0 <7.0.0.0"
+     | .require["shopware/core"] = ">=6.5.8.0 <7.0.0.0"
      | .config["vendor-dir"] = "vendor"
      | del(.repositories)' \
     composer.json.release-source >composer.json
