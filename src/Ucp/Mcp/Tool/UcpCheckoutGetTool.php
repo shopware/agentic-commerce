@@ -11,11 +11,11 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-checkout-get', title: 'UCP Checkout Get', description: 'Load a checkout session by id through the shared UCP checkout capability.')]
 #[Package('checkout')]
-final readonly class UcpCheckoutGetTool
+final class UcpCheckoutGetTool
 {
     public function __construct(
-        private ShoppingOperationExecutor $operationExecutor,
-        private UcpMcpToolContext $toolContext,
+        private readonly ShoppingOperationExecutor $operationExecutor,
+        private readonly UcpMcpToolContext $toolContext,
     ) {
     }
 

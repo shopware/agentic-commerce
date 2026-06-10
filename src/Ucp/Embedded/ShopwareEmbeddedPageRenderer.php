@@ -14,12 +14,12 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
 #[Package('checkout')]
-final readonly class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterface
+final class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterface
 {
     public function __construct(
-        private CartCapabilityInterface $cartCapability,
-        private CheckoutCapabilityInterface $checkoutCapability,
-        private Environment $twig,
+        private readonly CartCapabilityInterface $cartCapability,
+        private readonly CheckoutCapabilityInterface $checkoutCapability,
+        private readonly Environment $twig,
     ) {
     }
 

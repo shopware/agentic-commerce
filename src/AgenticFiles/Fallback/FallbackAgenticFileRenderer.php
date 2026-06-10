@@ -16,7 +16,7 @@ use Symfony\Component\Routing\RouterInterface;
 use Twig\Environment;
 
 #[Package('discovery')]
-final readonly class FallbackAgenticFileRenderer
+final class FallbackAgenticFileRenderer
 {
     private const FILE_FAMILY = 'agentic';
 
@@ -24,11 +24,11 @@ final readonly class FallbackAgenticFileRenderer
      * @param EntityRepository<SalesChannelCollection> $salesChannelRepository
      */
     public function __construct(
-        private Environment $twig,
-        private TemplateFinder $templateFinder,
-        private SeoUrlPlaceholderHandlerInterface $seoUrlPlaceholderHandler,
-        private EntityRepository $salesChannelRepository,
-        private RouterInterface $router,
+        private readonly Environment $twig,
+        private readonly TemplateFinder $templateFinder,
+        private readonly SeoUrlPlaceholderHandlerInterface $seoUrlPlaceholderHandler,
+        private readonly EntityRepository $salesChannelRepository,
+        private readonly RouterInterface $router,
     ) {
     }
 

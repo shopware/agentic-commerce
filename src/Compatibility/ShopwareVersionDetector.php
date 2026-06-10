@@ -9,11 +9,11 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
 
 #[Package('framework')]
-final readonly class ShopwareVersionDetector
+final class ShopwareVersionDetector
 {
     public function __construct(
-        private ?string $versionOverride = null,
-        private ?string $kernelVersion = null,
+        private readonly ?string $versionOverride = null,
+        private readonly ?string $kernelVersion = null,
     ) {
     }
 

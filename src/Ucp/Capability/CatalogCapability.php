@@ -13,10 +13,10 @@ use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class CatalogCapability implements CatalogCapabilityInterface
+final class CatalogCapability implements CatalogCapabilityInterface
 {
     public function __construct(
-        private CatalogAdapterInterface $adapter,
+        private readonly CatalogAdapterInterface $adapter,
     ) {
     }
 

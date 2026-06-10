@@ -10,13 +10,13 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 
-final readonly class SalesChannelDomainResolver
+final class SalesChannelDomainResolver
 {
     /**
      * @param EntityRepository<SalesChannelDomainCollection> $domainRepository
      */
     public function __construct(
-        private EntityRepository $domainRepository,
+        private readonly EntityRepository $domainRepository,
     ) {
     }
 

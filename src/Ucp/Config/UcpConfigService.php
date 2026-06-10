@@ -8,7 +8,7 @@ use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 
 #[Package('framework')]
-final readonly class UcpConfigService
+final class UcpConfigService
 {
     private const DOMAIN = 'SwagAgenticCommerce.config.';
 
@@ -35,9 +35,9 @@ final readonly class UcpConfigService
     ];
 
     public function __construct(
-        private UcpConfigRepositoryInterface $repository,
-        private LegacyConfigStoreInterface $legacyConfigStore,
-        private ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
+        private readonly UcpConfigRepositoryInterface $repository,
+        private readonly LegacyConfigStoreInterface $legacyConfigStore,
+        private readonly ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
     ) {
     }
 

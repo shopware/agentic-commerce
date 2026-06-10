@@ -7,10 +7,10 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Common\Buyer;
 
-final readonly class CheckoutSessionManager
+final class CheckoutSessionManager
 {
     public function __construct(
-        private CheckoutSessionStore $sessionStore,
+        private readonly CheckoutSessionStore $sessionStore,
     ) {
     }
 

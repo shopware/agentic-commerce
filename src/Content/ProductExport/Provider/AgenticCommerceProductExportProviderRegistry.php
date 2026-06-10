@@ -9,14 +9,14 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Provider;
 
-readonly class AgenticCommerceProductExportProviderRegistry
+class AgenticCommerceProductExportProviderRegistry
 {
     /**
      * @internal
      *
      * @param iterable<AbstractAgenticCommerceProductExportProvider> $providers
      */
-    public function __construct(private iterable $providers)
+    public function __construct(private readonly iterable $providers)
     {
     }
 

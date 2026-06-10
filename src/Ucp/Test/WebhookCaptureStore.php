@@ -10,10 +10,10 @@ use Shopware\Core\Framework\Log\Package;
  * @internal
  */
 #[Package('framework')]
-final readonly class WebhookCaptureStore
+final class WebhookCaptureStore
 {
     public function __construct(
-        private string $projectDir,
+        private readonly string $projectDir,
     ) {
     }
 

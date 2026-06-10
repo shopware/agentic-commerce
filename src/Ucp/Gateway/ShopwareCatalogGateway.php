@@ -13,14 +13,14 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareCatalogGateway
+final class ShopwareCatalogGateway
 {
     public function __construct(
-        private SalesChannelContextResolver $contextResolver,
-        private ContextTokenGenerator $contextTokenGenerator,
-        private AbstractProductSearchRoute $productSearchRoute,
-        private AbstractProductDetailRoute $productDetailRoute,
-        private ShopwareDataMapper $mapper,
+        private readonly SalesChannelContextResolver $contextResolver,
+        private readonly ContextTokenGenerator $contextTokenGenerator,
+        private readonly AbstractProductSearchRoute $productSearchRoute,
+        private readonly AbstractProductDetailRoute $productDetailRoute,
+        private readonly ShopwareDataMapper $mapper,
     ) {
     }
 

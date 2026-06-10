@@ -12,7 +12,7 @@ use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 
 #[Package('framework')]
-final readonly class UcpConfig
+final class UcpConfig
 {
     /**
      * @param list<string> $enabledCapabilities
@@ -24,22 +24,22 @@ final readonly class UcpConfig
      * @param list<string> $embeddedFrameAncestors
      */
     public function __construct(
-        public bool $active = false,
-        public string $ucpVersion = UcpProtocol::VERSION,
-        public string $profileUriStrategy = 'domain',
-        public ?string $customProfileUri = null,
-        public array $enabledCapabilities = [],
-        public array $enabledTransports = ['rest'],
-        public ?string $continueUrlTemplate = null,
-        public array $platformAllowlist = [],
-        public array $remoteProfileAllowlist = [],
-        public array $agentAllowlist = [],
-        public array $embeddedAllowedOrigins = [],
-        public array $embeddedFrameAncestors = [],
-        public int $discoveryBudget = 10,
-        public ?string $webhookUrlOverride = null,
-        public string $signaturePolicy = 'strict',
-        public bool $idempotencyRequired = true,
+        public readonly bool $active = false,
+        public readonly string $ucpVersion = UcpProtocol::VERSION,
+        public readonly string $profileUriStrategy = 'domain',
+        public readonly ?string $customProfileUri = null,
+        public readonly array $enabledCapabilities = [],
+        public readonly array $enabledTransports = ['rest'],
+        public readonly ?string $continueUrlTemplate = null,
+        public readonly array $platformAllowlist = [],
+        public readonly array $remoteProfileAllowlist = [],
+        public readonly array $agentAllowlist = [],
+        public readonly array $embeddedAllowedOrigins = [],
+        public readonly array $embeddedFrameAncestors = [],
+        public readonly int $discoveryBudget = 10,
+        public readonly ?string $webhookUrlOverride = null,
+        public readonly string $signaturePolicy = 'strict',
+        public readonly bool $idempotencyRequired = true,
     ) {
     }
 

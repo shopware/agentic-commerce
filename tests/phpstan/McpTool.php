@@ -6,12 +6,12 @@ namespace Mcp\Capability\Attribute;
 
 if (!class_exists(McpTool::class)) {
     #[\Attribute(\Attribute::TARGET_CLASS | \Attribute::TARGET_METHOD)]
-    final readonly class McpTool
+final class McpTool
     {
         public function __construct(
-            public string $name,
-            public ?string $title = null,
-            public ?string $description = null,
+            public readonly string $name,
+            public readonly ?string $title = null,
+            public readonly ?string $description = null,
         ) {
         }
     }

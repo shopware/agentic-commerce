@@ -13,13 +13,13 @@ use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 
 #[Package('framework')]
-final readonly class SalesChannelViewProvider
+final class SalesChannelViewProvider
 {
     /**
      * @param EntityRepository<SalesChannelCollection> $salesChannelRepository
      */
     public function __construct(
-        private EntityRepository $salesChannelRepository,
+        private readonly EntityRepository $salesChannelRepository,
     ) {
     }
 

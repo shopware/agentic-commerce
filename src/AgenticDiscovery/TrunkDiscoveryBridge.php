@@ -8,10 +8,10 @@ use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 
 #[Package('discovery')]
-final readonly class TrunkDiscoveryBridge implements DiscoveryBridgeInterface
+final class TrunkDiscoveryBridge implements DiscoveryBridgeInterface
 {
     public function __construct(
-        private ShopwareVersionDetector $versionDetector,
+        private readonly ShopwareVersionDetector $versionDetector,
     ) {
     }
 

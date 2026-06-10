@@ -8,13 +8,13 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Framework\Log\Package;
 
 #[Package('discovery')]
-final readonly class CoreSalesChannelFileFeature
+final class CoreSalesChannelFileFeature
 {
     /**
      * @param list<string> $requiredClasses
      */
     public function __construct(
-        private array $requiredClasses = [
+        private readonly array $requiredClasses = [
             'Shopware\\Core\\System\\SalesChannel\\File\\Discovery\\SalesChannelFileDiscovery',
             'Shopware\\Core\\System\\SalesChannel\\File\\Rendering\\SalesChannelFileRenderer',
             'Shopware\\Core\\System\\SalesChannel\\Aggregate\\SalesChannelFile\\SalesChannelFileDefinition',

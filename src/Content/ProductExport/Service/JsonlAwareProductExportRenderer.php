@@ -25,10 +25,10 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  * trims the rendered body, skips empty renders entirely, and re-encodes each
  * line so that every non-empty product becomes exactly one JSONL row.
  */
-readonly class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
+class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
 {
     public function __construct(
-        private ProductExportRendererInterface $inner,
+        private readonly ProductExportRendererInterface $inner,
     ) {
     }
 

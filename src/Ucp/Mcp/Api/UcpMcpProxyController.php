@@ -19,15 +19,15 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Package('checkout')]
-final readonly class UcpMcpProxyController
+final class UcpMcpProxyController
 {
     /**
      * @param EntityRepository<\Shopware\Core\System\SalesChannel\SalesChannelCollection> $salesChannelRepository
      */
     public function __construct(
-        private HttpKernelInterface $httpKernel,
-        private SalesChannelDomainResolver $domainResolver,
-        private EntityRepository $salesChannelRepository,
+        private readonly HttpKernelInterface $httpKernel,
+        private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly EntityRepository $salesChannelRepository,
     ) {
     }
 
