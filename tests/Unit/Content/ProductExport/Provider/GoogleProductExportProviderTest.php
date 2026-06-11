@@ -93,12 +93,12 @@ class GoogleProductExportProviderTest extends TestCase
         $productExport = $this->createProductExport($salesChannelId);
 
         $repository = $this->createSalesChannelRepository([
-            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): array {
+            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): SalesChannelCollection {
                 static::assertSame([$salesChannelId], $criteria->getIds());
                 static::assertTrue($criteria->hasAssociation('countries'));
                 static::assertSame($context, $repositoryContext);
 
-                return [$fallbackSalesChannel];
+                return new SalesChannelCollection([$fallbackSalesChannel]);
             },
         ]);
 
@@ -126,12 +126,12 @@ class GoogleProductExportProviderTest extends TestCase
         $productExport = $this->createProductExport($salesChannelId);
 
         $repository = $this->createSalesChannelRepository([
-            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): array {
+            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): SalesChannelCollection {
                 static::assertSame([$salesChannelId], $criteria->getIds());
                 static::assertTrue($criteria->hasAssociation('countries'));
                 static::assertSame($context, $repositoryContext);
 
-                return [$fallbackSalesChannel];
+                return new SalesChannelCollection([$fallbackSalesChannel]);
             },
         ]);
 
@@ -245,7 +245,7 @@ class GoogleProductExportProviderTest extends TestCase
     }
 
     /**
-     * @param array<callable(Criteria, Context): list<SalesChannelEntity>|SalesChannelCollection> $searches
+     * @param list<callable(Criteria, Context): SalesChannelCollection> $searches
      *
      * @return StaticEntityRepository<SalesChannelCollection>
      */

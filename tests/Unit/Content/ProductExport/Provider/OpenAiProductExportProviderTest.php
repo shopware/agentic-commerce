@@ -93,12 +93,12 @@ class OpenAiProductExportProviderTest extends TestCase
         $productExport = $this->createProductExport($salesChannelId);
 
         $repository = $this->createSalesChannelRepository([
-            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): array {
+            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): SalesChannelCollection {
                 static::assertSame([$salesChannelId], $criteria->getIds());
                 static::assertTrue($criteria->hasAssociation('countries'));
                 static::assertSame($context, $repositoryContext);
 
-                return [$fallbackSalesChannel];
+                return new SalesChannelCollection([$fallbackSalesChannel]);
             },
         ]);
 
@@ -126,12 +126,12 @@ class OpenAiProductExportProviderTest extends TestCase
         $productExport = $this->createProductExport($salesChannelId);
 
         $repository = $this->createSalesChannelRepository([
-            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): array {
+            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId, $fallbackSalesChannel): SalesChannelCollection {
                 static::assertSame([$salesChannelId], $criteria->getIds());
                 static::assertTrue($criteria->hasAssociation('countries'));
                 static::assertSame($context, $repositoryContext);
 
-                return [$fallbackSalesChannel];
+                return new SalesChannelCollection([$fallbackSalesChannel]);
             },
         ]);
 
@@ -160,12 +160,12 @@ class OpenAiProductExportProviderTest extends TestCase
         $productExport = $this->createProductExport($salesChannelId);
 
         $repository = $this->createSalesChannelRepository([
-            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId): array {
+            static function (Criteria $criteria, Context $repositoryContext) use ($context, $salesChannelId): SalesChannelCollection {
                 static::assertSame([$salesChannelId], $criteria->getIds());
                 static::assertTrue($criteria->hasAssociation('countries'));
                 static::assertSame($context, $repositoryContext);
 
-                return [];
+                return new SalesChannelCollection();
             },
         ]);
 
@@ -274,7 +274,7 @@ class OpenAiProductExportProviderTest extends TestCase
     }
 
     /**
-     * @param array<callable(Criteria, Context): list<SalesChannelEntity>|SalesChannelCollection> $searches
+     * @param list<callable(Criteria, Context): SalesChannelCollection> $searches
      *
      * @return StaticEntityRepository<SalesChannelCollection>
      */
