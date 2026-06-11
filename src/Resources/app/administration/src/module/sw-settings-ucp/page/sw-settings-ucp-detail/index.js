@@ -258,10 +258,18 @@ export default {
         },
 
         updateCapability(capability, enabled) {
+            if (enabled instanceof Event) {
+                return;
+            }
+
             this.form.enabledCapabilities = toggleArrayValue(this.form.enabledCapabilities, capability, enabled);
         },
 
         updateTransport(transport, enabled) {
+            if (enabled instanceof Event) {
+                return;
+            }
+
             const option = this.transportOptions.find((entry) => entry.value === transport);
             if (option && option.disabled) {
                 return;
@@ -283,11 +291,39 @@ export default {
         },
 
         setPlatformAllowlist(values) {
+            if (values instanceof Event) {
+                return;
+            }
+
             this.form.platformAllowlist = Array.isArray(values) ? values.filter((value) => !!value) : [];
         },
 
         setHostList(field, values) {
+            if (values instanceof Event) {
+                return;
+            }
+
             this.form[field] = Array.isArray(values) ? values.filter((value) => !!value) : [];
+        },
+
+        // 6.5 (VUE3 flag off) emits `change` with the value; 6.6+ emits `update:value`.
+        // Binding both keeps the form in sync across lanes; the Event guard ignores the
+        // native `change` event that falls through as a listener on 6.6+, so it cannot
+        // overwrite the value with a DOM Event.
+        setValue(key, value) {
+            if (value instanceof Event) {
+                return;
+            }
+
+            this.form[key] = value;
+        },
+
+        setKeyValue(key, value) {
+            if (value instanceof Event) {
+                return;
+            }
+
+            this[key] = value;
         },
 
         async createKey() {
