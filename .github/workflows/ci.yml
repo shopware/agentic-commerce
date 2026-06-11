@@ -123,8 +123,8 @@ jobs:
 
           expected_checks=(
             "admin-static"
-            "php-quality (6.5.x)"
-            "php-quality (6.6.x)"
+            "php-quality (php-8.1)"
+            "php-quality (php-8.2)"
             "shopware-matrix (6.5.x)"
             "shopware-matrix (6.6.x)"
             "shopware-matrix (trunk)"
@@ -162,9 +162,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: '6.5.x'
+          - lane: 'php-8.1'
             php-version: '8.1'
-          - lane: '6.6.x'
+          - lane: 'php-8.2'
             php-version: '8.2'
     steps:
       - uses: actions/checkout@v6
@@ -183,26 +183,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
-          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
+          ref: ${{ matrix.php-version == '8.1' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
           path: shopware
       - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
         working-directory: shopware
-      - run: composer install --no-interaction --prefer-dist --ignore-platform-reqs
-        working-directory: agentic-commerce
-        if: matrix.lane == '6.5.x'
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
-        if: matrix.lane != '6.5.x'
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
-      - name: Static analysis (PHPUnit requires PHP >=8.2, skip tests on 8.1)
-        if: matrix.lane == '6.5.x'
-        run: composer phpstan && composer cs && composer rector
-        working-directory: agentic-commerce
-        env:
-          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
-      - name: Full CI suite
-        if: matrix.lane != '6.5.x'
-        run: composer ci
+      - run: composer ci
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
