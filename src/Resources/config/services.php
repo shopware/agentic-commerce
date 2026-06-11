@@ -22,8 +22,6 @@ use Shopware\Core\Content\ProductExport\ProductExportDefinition;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
-use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
-use Swag\AgenticCommerce\AgenticDiscovery\TrunkDiscoveryBridge;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
@@ -266,7 +264,6 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
-    $services->alias(DiscoveryBridgeInterface::class, TrunkDiscoveryBridge::class);
     $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class);
 
     // Event listeners.

@@ -34,13 +34,6 @@
                     </div>
                 </div>
 
-                <sw-alert
-                    v-if="meta.supportsAgenticDiscovery === false"
-                    class="sw-settings-ucp-index__alert"
-                    variant="info"
-                    :title="$t('sw-settings-ucp.general.discoveryDisabledTitle')">
-                    {{ $t('sw-settings-ucp.general.discoveryDisabledMessage') }}
-                </sw-alert>
             </sw-card>
 
             <div v-if="salesChannels.length === 0" class="sw-settings-ucp-index__empty">

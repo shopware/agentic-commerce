@@ -29,8 +29,6 @@
       "openUcpConfigurationButton": "UCP konfigurieren",
       "openSalesChannelButton": "Verkaufskanal konfigurieren",
       "configSaved": "Konfiguration gespeichert.",
-      "discoveryDisabledTitle": "Agentic Discovery ist in dieser Shopware-Version nicht verfügbar",
-      "discoveryDisabledMessage": "UCP funktioniert weiterhin, aber Agentic Discovery bleibt deaktiviert, bis die Anbindung für diese Shopware-Version verfügbar ist.",
       "readOnlyTitle": "Dieser Benutzer darf UCP nur prüfen, nicht ändern",
       "readOnlyMessage": "Viewer-Rollen dürfen den Verkaufskanal und die Profilvorschau einsehen, aber keine Konfiguration oder Signaturschlüssel ändern.",
       "exposureCardTitle": "Freigabe und Profil",

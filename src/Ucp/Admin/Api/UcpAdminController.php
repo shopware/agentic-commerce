@@ -8,7 +8,6 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\ApiRouteScope;
 use Shopware\Core\PlatformRequest;
-use Swag\AgenticCommerce\AgenticDiscovery\DiscoveryBridgeInterface;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
@@ -32,7 +31,6 @@ final class UcpAdminController
         private readonly UcpSigningKeyService $signingKeyService,
         private readonly ProfilePreviewBuilder $profilePreviewBuilder,
         private readonly ShopwareVersionDetector $versionDetector,
-        private readonly DiscoveryBridgeInterface $discoveryBridge,
         private readonly PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
     ) {
     }
@@ -55,7 +53,6 @@ final class UcpAdminController
             'data' => $salesChannels,
             'meta' => [
                 'shopwareVersion' => $this->shopwareVersionLabel(),
-                'supportsAgenticDiscovery' => $this->discoveryBridge->isAvailable(),
                 'supportsStoreApiMcp' => $this->versionDetector->supportsStoreApiMcp(),
             ],
         ]);
@@ -76,7 +73,6 @@ final class UcpAdminController
             ],
             'meta' => [
                 'shopwareVersion' => $this->shopwareVersionLabel(),
-                'supportsAgenticDiscovery' => $this->discoveryBridge->isAvailable(),
                 'supportsStoreApiMcp' => $this->versionDetector->supportsStoreApiMcp(),
             ],
         ]);

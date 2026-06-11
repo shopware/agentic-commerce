@@ -27,13 +27,6 @@
 
                         <div class="sw-settings-ucp-detail__hero-alerts">
                             <sw-alert
-                                v-if="showDiscoveryWarning"
-                                variant="info"
-                                :title="$t('sw-settings-ucp.general.discoveryDisabledTitle')">
-                                {{ $t('sw-settings-ucp.general.discoveryDisabledMessage') }}
-                            </sw-alert>
-
-                            <sw-alert
                                 v-if="showReadOnlyNotice"
                                 variant="info"
                                 :title="$t('sw-settings-ucp.general.readOnlyTitle')">
