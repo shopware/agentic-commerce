@@ -37,6 +37,11 @@ exit($exitCode);
 
 function resolveBinary(string $pluginDir, string $binary): ?string
 {
+    $pluginTooling = $pluginDir.'/.tools/vendor/bin/'.$binary;
+    if (is_file($pluginTooling)) {
+        return $pluginTooling;
+    }
+
     $shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
     if (
         'phpstan' === $binary

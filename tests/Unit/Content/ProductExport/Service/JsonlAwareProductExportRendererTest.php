@@ -15,9 +15,9 @@ use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Content\ProductExport\Service\ProductExportRendererInterface;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
-use Shopware\Core\Test\Generator;
 use Swag\AgenticCommerce\Content\ProductExport\Service\JsonlAwareProductExportRenderer;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
+use Swag\AgenticCommerce\Tests\TestGenerator as Generator;
 
 /**
  * @internal

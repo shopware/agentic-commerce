@@ -127,7 +127,7 @@ final class GuestCustomerContextProvisioner
             throw new \RuntimeException('No salutation is available for guest customer creation.');
         }
 
-        return $salutation->getId();
+        return $salutation->getUniqueIdentifier();
     }
 
     private function customerGroupId(SalesChannelContext $context): string

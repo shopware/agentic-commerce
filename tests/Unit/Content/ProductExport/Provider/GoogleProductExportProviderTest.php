@@ -24,10 +24,10 @@ use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
-use Shopware\Core\Test\Generator;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\GoogleProductExportProvider;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
+use Swag\AgenticCommerce\Tests\TestGenerator as Generator;
 
 /**
  * @internal

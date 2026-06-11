@@ -13,34 +13,43 @@ parameters:
     tmpDir: __PHPSTAN_TMP_DIR__
     excludePaths:
         - src/Resources/app
-        - src/Resources/public (?)
     bootstrapFiles:
         - tests/bootstrap.php
+    stubFiles:
+        - tests/phpstan/Package.php
     ignoreErrors:
         -
             identifier: shopware.namespace
+            message: '#.+#'
         -
             identifier: shopware.missingPackageAttribute
+            message: '#.+#'
         -
             identifier: shopware.domainException
+            message: '#.+#'
         # addFlags is deprecated in trunk (v6.8.0 return-type-change only); cross-version code must keep using it.
         -
             identifier: method.deprecated
+            message: '#.+#'
             path: src/Content/ProductExport/Tracking
         # MigrationStep::addColumn() is trunk-only; migrations run on 6.5/6.6 too.
         -
             identifier: shopware.addColumn
+            message: '#.+#'
         # CoversClass on unit tests in subdirs — rule incorrectly rejects sub-paths under tests/Unit/.
         -
             identifier: shopware.unexpectedTestCovers
+            message: '#.+#'
         # DBAL fetchAllKeyValue() declares array<int|string, mixed>; the actual keys/values are strings.
         -
             identifier: return.type
+            message: '#.+#'
             path: src/Migration/Migration1773329152AddAgenticCommerceSalesChannelType.php
         # In SW 6.6, Error::getErrorMessages() declares array<string, mixed>; our list<ErrorMessage> is
         # a valid subtype at runtime but PHPStan's key-type variance rejects it across versions.
         -
             identifier: method.childReturnType
+            message: '#.+#'
             path: src/Content/ProductExport/Error
         # StaticEntityRepository generic type mismatch on $customerRepository parameter; the @var
         # assertion is placed before ??= to prevent CS Fixer converting /** to /*, which means
@@ -50,4 +59,5 @@ parameters:
             path: tests/Unit/Content/ProductExport/Tracking/SalesChannelTrackingListenerTest.php
         -
             identifier: argument.type
+            message: '#.+#'
             path: tests/Unit/Content/ProductExport/Tracking/SalesChannelTrackingListenerTest.php

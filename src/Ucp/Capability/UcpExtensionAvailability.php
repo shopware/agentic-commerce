@@ -43,7 +43,7 @@ final class UcpExtensionAvailability
     private function allIdentityLinkingAdapters(): array
     {
         if (null === $this->identityLinkingAdapters) {
-            $this->identityLinkingAdapters = array_values(iterator_to_array($this->identityLinkingAdapterIterable));
+            $this->identityLinkingAdapters = array_values([...$this->identityLinkingAdapterIterable]);
         }
 
         return $this->identityLinkingAdapters;
