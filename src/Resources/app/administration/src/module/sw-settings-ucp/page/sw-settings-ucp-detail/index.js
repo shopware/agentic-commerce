@@ -103,10 +103,6 @@ export default {
             return !this.canEditConfig;
         },
 
-        showDiscoveryWarning() {
-            return this.meta.supportsAgenticDiscovery === false;
-        },
-
         showDeferredDiscoveryBudgetNotice() {
             return true;
         },
