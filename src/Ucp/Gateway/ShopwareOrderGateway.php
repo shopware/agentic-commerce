@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Gateway;
 
+use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartOrderRoute;
 use Shopware\Core\Checkout\Order\OrderCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
@@ -11,12 +12,13 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
+use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Model\RequestContext;
 
-final class ShopwareOrderGateway
+final class ShopwareOrderGateway implements OrderGatewayInterface
 {
     /**
      * @param EntityRepository<OrderCollection> $orderRepository
@@ -29,7 +31,7 @@ final class ShopwareOrderGateway
     ) {
     }
 
-    public function placeOrder(\Shopware\Core\Checkout\Cart\Cart $cart, \Shopware\Core\System\SalesChannel\SalesChannelContext $context): OrderEntity
+    public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity
     {
         return $this->cartOrderRoute->order($cart, $context, new RequestDataBag())->getOrder();
     }
