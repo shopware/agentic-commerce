@@ -62,6 +62,25 @@ final readonly class ShopwareCartGateway
         return $this->mapper->toCart($cart, $context);
     }
 
+    public function applyDiscountCode(string $token, string $discountCode, RequestContext $requestContext): \Ucp\Sdk\Model\Cart\Cart
+    {
+        $context = $this->contextResolver->resolve($token, $requestContext);
+        $cart = $this->loadCart($context);
+
+        if ($discountCode === "" || $this->hasPromotionCode($cart, $discountCode)) {
+            return $this->mapper->toCart($cart, $context);
+        }
+
+        $cart = $this->cartItemAddRoute->add(new Request([], ['items' => [[
+            'id' => $this->promotionLineItemId($discountCode),
+            'type' => LineItem::PROMOTION_LINE_ITEM_TYPE,
+            'referencedId' => $discountCode,
+            'quantity' => 1,
+        ]]]), $cart, $context, null)->getCart();
+
+        return $this->mapper->toCart($cart, $context);
+    }
+
     public function cancelCart(string $token, RequestContext $requestContext): \Ucp\Sdk\Model\Cart\Cart
     {
         $context = $this->contextResolver->resolve($token, $requestContext);
@@ -203,6 +222,17 @@ final readonly class ShopwareCartGateway
     private function loadCart(\Shopware\Core\System\SalesChannel\SalesChannelContext $context): \Shopware\Core\Checkout\Cart\Cart
     {
         return $this->cartLoadRoute->load(new Request(['token' => $context->getToken()]), $context)->getCart();
+    }
+
+    private function hasPromotionCode(\Shopware\Core\Checkout\Cart\Cart $cart, string $code): bool
+    {
+        foreach ($cart->getLineItems() as $lineItem) {
+            if (LineItem::PROMOTION_LINE_ITEM_TYPE === $lineItem->getType() && $lineItem->getReferencedId() === $code) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function promotionLineItemId(string $code): string

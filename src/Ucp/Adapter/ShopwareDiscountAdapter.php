@@ -19,6 +19,6 @@ final readonly class ShopwareDiscountAdapter implements DiscountAdapterInterface
 
     public function applyCartDiscount(string $cartId, DiscountCode $discount, RequestContext $context): Cart
     {
-        return $this->gateway->updateCart($cartId, [], [$discount->code], $context);
+        return $this->gateway->applyDiscountCode($cartId, $discount->code, $context);
     }
 }
