@@ -68,7 +68,8 @@ final class UcpMcpToolContext
             return $this->success($execute($context));
         }
 
-        // Shopware\Core\Framework\Util\Hasher is unavailable on 6.5.
+        // Keep native hash while 6.5 is supported: Shopware\Core\Framework\Util\Hasher
+        // exists only in 6.6+/trunk. Switch to Hasher::hash() after dropping 6.5.
         // @phpstan-ignore-next-line shopware.hasher
         $fingerprint = hash('sha256', $operation.'|'.json_encode($fingerprintInput, \JSON_THROW_ON_ERROR));
         $record = $this->idempotencyService->claim($context->idempotencyKey, $fingerprint);
