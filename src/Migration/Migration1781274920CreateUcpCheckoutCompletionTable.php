@@ -26,9 +26,9 @@ final class Migration1781274920CreateUcpCheckoutCompletionTable extends Migratio
                 `created_at` DATETIME(3) NOT NULL,
                 `updated_at` DATETIME(3) NULL,
                 PRIMARY KEY (`checkout_id`, `sales_channel_id`),
-                INDEX `idx.swag_agentic_commerce_ucp_checkout_completion.order` (`order_id`),
-                INDEX `idx.swag_agentic_commerce_ucp_checkout_completion.sales_channel` (`sales_channel_id`),
-                CONSTRAINT `fk.swag_agentic_commerce_ucp_checkout_completion.sales_channel_id`
+                INDEX `idx.sac_ucp_checkout_completion.order` (`order_id`),
+                INDEX `idx.sac_ucp_checkout_completion.sales_channel` (`sales_channel_id`),
+                CONSTRAINT `fk.sac_ucp_checkout_completion.sales_channel_id`
                     FOREIGN KEY (`sales_channel_id`) REFERENCES `sales_channel` (`id`)
                     ON DELETE CASCADE
                     ON UPDATE CASCADE
