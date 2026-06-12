@@ -67,7 +67,7 @@ final readonly class ShopwareCartGateway
         $context = $this->contextResolver->resolve($token, $requestContext);
         $cart = $this->loadCart($context);
 
-        if ($discountCode === "" || $this->hasPromotionCode($cart, $discountCode)) {
+        if ('' === $discountCode || $this->hasPromotionCode($cart, $discountCode)) {
             return $this->mapper->toCart($cart, $context);
         }
 

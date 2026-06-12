@@ -9,9 +9,9 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParamete
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 
 /** @internal */
-final readonly class StaticSalesChannelContextService implements SalesChannelContextServiceInterface
+final class StaticSalesChannelContextService implements SalesChannelContextServiceInterface
 {
-    public function __construct(private SalesChannelContext $context)
+    public function __construct(private readonly SalesChannelContext $context)
     {
     }
 
