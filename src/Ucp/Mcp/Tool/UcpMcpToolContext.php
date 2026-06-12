@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Shopware\Core\Framework\Log\Package;
-use Shopware\Core\Framework\Util\Hasher;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -61,7 +60,9 @@ final class UcpMcpToolContext
             return $this->success($execute($context));
         }
 
-        $fingerprint = Hasher::hash($operation.'|'.json_encode($fingerprintInput, \JSON_THROW_ON_ERROR), 'sha256');
+        // Shopware\Core\Framework\Util\Hasher is unavailable on 6.5.
+        // @phpstan-ignore-next-line shopware.hasher
+        $fingerprint = hash('sha256', $operation.'|'.json_encode($fingerprintInput, \JSON_THROW_ON_ERROR));
         $record = $this->idempotencyService->claim($context->idempotencyKey, $fingerprint);
 
         if ('completed' === $record->status && !$record->replayable) {

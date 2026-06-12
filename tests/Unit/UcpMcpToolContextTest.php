@@ -6,7 +6,6 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Shopware\Core\Framework\Util\Hasher;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpMcpToolContext;
 use Symfony\Component\HttpFoundation\Request;
@@ -124,7 +123,7 @@ final class UcpMcpToolContextTest extends TestCase
     public function testExecuteMutatingClaimsAndCompletesIdempotencyRecord(): void
     {
         $fingerprintInput = ['id' => 'cart-id'];
-        $fingerprint = Hasher::hash('cart.cancel|'.json_encode($fingerprintInput, \JSON_THROW_ON_ERROR), 'sha256');
+        $fingerprint = hash('sha256', 'cart.cancel|'.json_encode($fingerprintInput, \JSON_THROW_ON_ERROR));
         $record = new IdempotencyRecord('idem-key', $fingerprint);
 
         $idempotencyService = $this->createMock(IdempotencyServiceInterface::class);
