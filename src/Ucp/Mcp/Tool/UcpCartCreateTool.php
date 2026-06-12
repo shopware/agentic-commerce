@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
@@ -22,11 +23,17 @@ final readonly class UcpCartCreateTool
     public function __invoke(string $payload = '{}'): string
     {
         try {
-            return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
+            $requestPayload = $this->toolContext->decodeObject($payload);
+
+            return $this->toolContext->executeMutating(
                 'cart.create',
-                $this->toolContext->decodeObject($payload),
-                $this->toolContext->requestContext(),
-            )));
+                $requestPayload,
+                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                    'cart.create',
+                    $requestPayload,
+                    $context,
+                )),
+            );
         } catch (\Throwable $exception) {
             throw $this->toolContext->toToolCallException($exception);
         }

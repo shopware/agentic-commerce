@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
@@ -22,11 +23,17 @@ final readonly class UcpDiscountApplyTool
     public function __invoke(string $cartId, string $code): string
     {
         try {
-            return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
+            $requestPayload = ['cart_id' => $cartId, 'code' => $code];
+
+            return $this->toolContext->executeMutating(
                 'discount.apply',
-                ['cart_id' => $cartId, 'code' => $code],
-                $this->toolContext->requestContext(),
-            )));
+                $requestPayload,
+                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                    'discount.apply',
+                    $requestPayload,
+                    $context,
+                )),
+            );
         } catch (\Throwable $exception) {
             throw $this->toolContext->toToolCallException($exception);
         }

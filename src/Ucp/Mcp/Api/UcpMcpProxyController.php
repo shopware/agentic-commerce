@@ -12,11 +12,21 @@ use Shopware\Core\Framework\Routing\StoreApiRouteScope;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Ucp\Sdk\Enum\Transport;
+use Ucp\Sdk\Exception\SignatureException;
+use Ucp\Sdk\Exception\UcpException;
+use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Http\HttpRequest;
+use Ucp\Sdk\Model\RequestContext;
+use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
+use Ucp\Sdk\Symfony\UcpSdkConfiguration;
 
 #[Package('checkout')]
 final readonly class UcpMcpProxyController
@@ -28,6 +38,10 @@ final readonly class UcpMcpProxyController
         private HttpKernelInterface $httpKernel,
         private SalesChannelDomainResolver $domainResolver,
         private EntityRepository $salesChannelRepository,
+        private UcpConfigService $configService,
+        private ShopwareVersionDetector $versionDetector,
+        private HttpRequestContextFactoryInterface $requestContextFactory,
+        private UcpSdkConfiguration $sdkConfiguration,
     ) {
     }
 
@@ -42,11 +56,56 @@ final readonly class UcpMcpProxyController
     )]
     public function proxy(Request $request): Response
     {
-        $accessKey = $this->resolveSalesChannelAccessKey($request);
-        if (null === $accessKey) {
+        $salesChannel = $this->resolveSalesChannel($request);
+        if (null === $salesChannel) {
             return $this->errorResponse('UCP MCP is not available for this host.', Response::HTTP_FORBIDDEN);
         }
 
+        $config = $this->configService->getConfig($salesChannel['salesChannelId']);
+        if (
+            !$config->active
+            || !\in_array(Transport::Mcp, $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()), true)
+        ) {
+            return $this->errorResponse('UCP MCP is not available for this host.', Response::HTTP_FORBIDDEN);
+        }
+
+        if ($request->isMethod(Request::METHOD_OPTIONS)) {
+            return $this->dispatchToStoreApiMcp($request, $salesChannel['accessKey']);
+        }
+
+        $body = $request->getContent();
+        if (\strlen($body) > $this->sdkConfiguration->maxRequestBodyBytes) {
+            return $this->errorResponse(
+                'Request body exceeds the maximum allowed size.',
+                Response::HTTP_REQUEST_ENTITY_TOO_LARGE,
+                [['type' => 'error', 'content' => '$.body exceeds the maximum allowed size']],
+            );
+        }
+
+        try {
+            $context = $this->createRequestContext($request, $body);
+        } catch (SignatureException $exception) {
+            return $this->errorResponse($exception->getMessage(), Response::HTTP_UNAUTHORIZED);
+        } catch (ValidationException $exception) {
+            return $this->errorResponse(
+                $exception->getMessage(),
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                array_map(
+                    static fn (string $violation): array => ['type' => 'error', 'content' => $violation],
+                    $exception->getViolations(),
+                ),
+            );
+        } catch (UcpException $exception) {
+            return $this->errorResponse($exception->getMessage(), Response::HTTP_BAD_REQUEST);
+        }
+
+        $request->attributes->set('ucp_request_context', $context);
+
+        return $this->dispatchToStoreApiMcp($request, $salesChannel['accessKey'], $context);
+    }
+
+    private function dispatchToStoreApiMcp(Request $request, string $accessKey, ?RequestContext $context = null): Response
+    {
         $subRequest = Request::create(
             '/store-api/_mcp'.('' !== $request->getQueryString() ? '?'.$request->getQueryString() : ''),
             $request->getMethod(),
@@ -57,6 +116,10 @@ final readonly class UcpMcpProxyController
             $request->getContent(),
         );
         $subRequest->headers->replace($request->headers->all());
+        if (null !== $context) {
+            $subRequest->attributes->set('ucp_request_context', $context);
+        }
+
         // Store API MCP is trunk-only and requires a sales-channel access key.
         // Keep the key server-side: clients discover /ucp/mcp, while this
         // internal sub-request authenticates against /store-api/_mcp.
@@ -67,7 +130,10 @@ final readonly class UcpMcpProxyController
         return $this->httpKernel->handle($subRequest, HttpKernelInterface::SUB_REQUEST);
     }
 
-    private function resolveSalesChannelAccessKey(Request $request): ?string
+    /**
+     * @return array{salesChannelId: string, accessKey: string}|null
+     */
+    private function resolveSalesChannel(Request $request): ?array
     {
         $resolution = $this->domainResolver->resolveByAbsoluteUri($request->getUri());
         if (null === $resolution) {
@@ -82,17 +148,63 @@ final readonly class UcpMcpProxyController
             return null;
         }
 
-        return $salesChannel->getAccessKey();
+        $accessKey = $salesChannel->getAccessKey();
+        if ('' === $accessKey) {
+            return null;
+        }
+
+        return [
+            'salesChannelId' => $resolution->salesChannelId,
+            'accessKey' => $accessKey,
+        ];
     }
 
-    private function errorResponse(string $message, int $statusCode): Response
+    private function createRequestContext(Request $request, string $body): RequestContext
+    {
+        return $this->requestContextFactory->create(new HttpRequest(
+            $request->getMethod(),
+            $request->getUri(),
+            $this->headers($request),
+            $this->query($request),
+            $body,
+        ));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function headers(Request $request): array
+    {
+        $headers = [];
+        foreach ($request->headers->all() as $name => $value) {
+            $headers[$name] = implode(', ', array_map(static fn (?string $entry): string => (string) $entry, $value));
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function query(Request $request): array
+    {
+        $query = $request->query->all();
+        ksort($query);
+
+        return array_map(static fn (mixed $value): string => is_scalar($value) ? (string) $value : json_encode($value, \JSON_THROW_ON_ERROR), $query);
+    }
+
+    /**
+     * @param list<array<string, string>>|null $messages
+     */
+    private function errorResponse(string $message, int $statusCode, ?array $messages = null): Response
     {
         return new Response(
             json_encode([
                 'ucp' => [
                     'status' => 'error',
                 ],
-                'messages' => [[
+                'messages' => null !== $messages && [] !== $messages ? $messages : [[
                     'type' => 'error',
                     'content' => $message,
                 ]],
