@@ -20,6 +20,7 @@ use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
@@ -302,7 +303,7 @@ final class UcpMcpProxyControllerTest extends TestCase
                     self::assertNull($request->headers->get('cookie'));
                     self::assertSame($accessKey, $request->headers->get(PlatformRequest::HEADER_ACCESS_KEY));
                     self::assertSame('keep-me', $request->headers->get('idempotency-key'));
-                    self::assertSame($context, $request->attributes->get('ucp_request_context'));
+                    self::assertSame($context, $request->attributes->get(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE));
                     self::assertNull($request->headers->get('sw-secret-access-key'));
 
                     return true;
@@ -333,7 +334,7 @@ final class UcpMcpProxyControllerTest extends TestCase
         $response = $controller->proxy($request);
 
         self::assertSame('proxied', $response->getContent());
-        self::assertSame($context, $request->attributes->get('ucp_request_context'));
+        self::assertSame($context, $request->attributes->get(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE));
     }
 
     #[Test]
@@ -398,7 +399,7 @@ final class UcpMcpProxyControllerTest extends TestCase
             $this->salesChannelRepository($salesChannels),
             $this->configService($config),
             $versionDetector ?? new ShopwareVersionDetector(versionOverride: '6.7.0.0'),
-            $requestContextFactory ?? $this->requestContextFactory(),
+            new SymfonyRequestContextFactory($requestContextFactory ?? $this->requestContextFactory()),
             $sdkConfiguration ?? $this->sdkConfiguration(),
         );
     }

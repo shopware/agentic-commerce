@@ -6,21 +6,20 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Util\Hasher;
+use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\IdempotencyRecord;
-use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
-use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
 
 #[Package('checkout')]
 final readonly class UcpMcpToolContext
 {
     public function __construct(
-        private HttpRequestContextFactoryInterface $requestContextFactory,
+        private SymfonyRequestContextFactory $requestContextFactory,
         private IdempotencyServiceInterface $idempotencyService,
         private RequestStack $requestStack,
     ) {
@@ -29,12 +28,21 @@ final readonly class UcpMcpToolContext
     public function requestContext(): RequestContext
     {
         $mainRequest = $this->requestStack->getMainRequest();
-        $context = $mainRequest?->attributes->get('ucp_request_context');
-        if ($context instanceof RequestContext) {
-            return $context;
+        if ($mainRequest instanceof Request) {
+            $context = $this->requestContextFactory->get($mainRequest);
+            if ($context instanceof RequestContext) {
+                return $context;
+            }
+
+            return $this->requestContextFactory->create($mainRequest);
         }
 
-        return $this->requestContextFactory->create($this->toHttpRequest($mainRequest ?? $this->requestStack->getCurrentRequest()));
+        $currentRequest = $this->requestStack->getCurrentRequest();
+        if ($currentRequest instanceof Request) {
+            return $this->requestContextFactory->create($currentRequest);
+        }
+
+        return $this->requestContextFactory->createFallback();
     }
 
     /**
@@ -124,45 +132,6 @@ final readonly class UcpMcpToolContext
             'success' => true,
             'data' => $data,
         ], \JSON_THROW_ON_ERROR);
-    }
-
-    private function toHttpRequest(?Request $request): HttpRequest
-    {
-        if (!$request instanceof Request) {
-            return new HttpRequest('POST', 'https://example.invalid', [], [], '');
-        }
-
-        return new HttpRequest(
-            $request->getMethod(),
-            $request->getUri(),
-            $this->headers($request),
-            $this->query($request),
-            $request->getContent(),
-        );
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function headers(Request $request): array
-    {
-        $headers = [];
-        foreach ($request->headers->all() as $name => $value) {
-            $headers[$name] = implode(', ', array_map(static fn (?string $entry): string => (string) $entry, $value));
-        }
-
-        return $headers;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function query(Request $request): array
-    {
-        $query = $request->query->all();
-        ksort($query);
-
-        return array_map(static fn (mixed $value): string => is_scalar($value) ? (string) $value : json_encode($value, \JSON_THROW_ON_ERROR), $query);
     }
 
     private function abortIdempotency(IdempotencyRecord $record): void

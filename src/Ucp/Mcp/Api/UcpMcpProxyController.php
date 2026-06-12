@@ -14,6 +14,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,9 +24,7 @@ use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Exception\SignatureException;
 use Ucp\Sdk\Exception\UcpException;
 use Ucp\Sdk\Exception\ValidationException;
-use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
-use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 use Ucp\Sdk\Symfony\UcpSdkConfiguration;
 
 #[Package('checkout')]
@@ -40,7 +39,7 @@ final readonly class UcpMcpProxyController
         private EntityRepository $salesChannelRepository,
         private UcpConfigService $configService,
         private ShopwareVersionDetector $versionDetector,
-        private HttpRequestContextFactoryInterface $requestContextFactory,
+        private SymfonyRequestContextFactory $requestContextFactory,
         private UcpSdkConfiguration $sdkConfiguration,
     ) {
     }
@@ -83,7 +82,7 @@ final readonly class UcpMcpProxyController
         }
 
         try {
-            $context = $this->createRequestContext($request, $body);
+            $context = $this->requestContextFactory->create($request, $body);
         } catch (SignatureException $exception) {
             return $this->errorResponse($exception->getMessage(), Response::HTTP_UNAUTHORIZED);
         } catch (ValidationException $exception) {
@@ -99,7 +98,7 @@ final readonly class UcpMcpProxyController
             return $this->errorResponse($exception->getMessage(), Response::HTTP_BAD_REQUEST);
         }
 
-        $request->attributes->set('ucp_request_context', $context);
+        $this->requestContextFactory->set($request, $context);
 
         return $this->dispatchToStoreApiMcp($request, $salesChannel['accessKey'], $context);
     }
@@ -117,7 +116,7 @@ final readonly class UcpMcpProxyController
         );
         $subRequest->headers->replace($request->headers->all());
         if (null !== $context) {
-            $subRequest->attributes->set('ucp_request_context', $context);
+            $this->requestContextFactory->set($subRequest, $context);
         }
 
         // Store API MCP is trunk-only and requires a sales-channel access key.
@@ -157,41 +156,6 @@ final readonly class UcpMcpProxyController
             'salesChannelId' => $resolution->salesChannelId,
             'accessKey' => $accessKey,
         ];
-    }
-
-    private function createRequestContext(Request $request, string $body): RequestContext
-    {
-        return $this->requestContextFactory->create(new HttpRequest(
-            $request->getMethod(),
-            $request->getUri(),
-            $this->headers($request),
-            $this->query($request),
-            $body,
-        ));
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function headers(Request $request): array
-    {
-        $headers = [];
-        foreach ($request->headers->all() as $name => $value) {
-            $headers[$name] = implode(', ', array_map(static fn (?string $entry): string => (string) $entry, $value));
-        }
-
-        return $headers;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function query(Request $request): array
-    {
-        $query = $request->query->all();
-        ksort($query);
-
-        return array_map(static fn (mixed $value): string => is_scalar($value) ? (string) $value : json_encode($value, \JSON_THROW_ON_ERROR), $query);
     }
 
     /**

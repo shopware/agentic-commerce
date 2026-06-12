@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Util\Hasher;
+use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpMcpToolContext;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -27,13 +28,13 @@ final class UcpMcpToolContextTest extends TestCase
     {
         $expectedContext = $this->requestContext();
         $request = Request::create('https://shop.example/ucp/mcp');
-        $request->attributes->set('ucp_request_context', $expectedContext);
+        $request->attributes->set(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE, $expectedContext);
 
         $requestContextFactory = $this->createMock(HttpRequestContextFactoryInterface::class);
         $requestContextFactory->expects(self::never())->method('create');
 
         $context = new UcpMcpToolContext(
-            $requestContextFactory,
+            new SymfonyRequestContextFactory($requestContextFactory),
             $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack($request),
         );
@@ -61,7 +62,7 @@ final class UcpMcpToolContextTest extends TestCase
             ->willReturn($expectedContext);
 
         $context = new UcpMcpToolContext(
-            $requestContextFactory,
+            new SymfonyRequestContextFactory($requestContextFactory),
             $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack(Request::create(
                 'https://shop.example/ucp/mcp?b=2&a=1',
@@ -255,10 +256,10 @@ final class UcpMcpToolContextTest extends TestCase
         ?IdempotencyServiceInterface $idempotencyService = null,
     ): UcpMcpToolContext {
         $request = Request::create('https://shop.example/ucp/mcp');
-        $request->attributes->set('ucp_request_context', $requestContext);
+        $request->attributes->set(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE, $requestContext);
 
         return new UcpMcpToolContext(
-            $requestContextFactory ?? $this->requestContextFactory($requestContext),
+            new SymfonyRequestContextFactory($requestContextFactory ?? $this->requestContextFactory($requestContext)),
             $idempotencyService ?? $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack($request),
         );
