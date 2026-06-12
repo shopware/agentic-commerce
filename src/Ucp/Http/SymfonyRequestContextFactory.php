@@ -74,6 +74,6 @@ final class SymfonyRequestContextFactory
         $query = $request->query->all();
         ksort($query);
 
-        return array_map(static fn (mixed $value): string => is_scalar($value) ? (string) $value : json_encode($value, \JSON_THROW_ON_ERROR), $query);
+        return array_map(static fn (mixed $value): string => \is_scalar($value) ? (string) $value : json_encode($value, \JSON_THROW_ON_ERROR), $query);
     }
 }

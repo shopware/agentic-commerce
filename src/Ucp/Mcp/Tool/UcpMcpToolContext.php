@@ -46,18 +46,15 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param array<string, mixed> $fingerprintInput
+     * @param array<string, mixed>                           $fingerprintInput
      * @param callable(RequestContext): array<string, mixed> $execute
      */
     public function executeMutating(string $operation, array $fingerprintInput, callable $execute): string
     {
         $context = $this->requestContext();
 
-        if ($context->runtimeConfiguration?->idempotencyRequired === true && null === $context->idempotencyKey) {
-            throw new ValidationException(
-                'Idempotency key is required for mutating UCP requests.',
-                ['$.headers.idempotency-key is required'],
-            );
+        if (true === $context->runtimeConfiguration?->idempotencyRequired && null === $context->idempotencyKey) {
+            throw new ValidationException('Idempotency key is required for mutating UCP requests.', ['$.headers.idempotency-key is required']);
         }
 
         if (null === $context->idempotencyKey) {
