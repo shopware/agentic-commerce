@@ -29,8 +29,6 @@
       "openUcpConfigurationButton": "Configure UCP",
       "openSalesChannelButton": "Configure sales channel",
       "configSaved": "Configuration saved.",
-      "discoveryDisabledTitle": "Agentic discovery is not available in this Shopware version",
-      "discoveryDisabledMessage": "UCP still works, but agentic discovery stays disabled until the integration for this Shopware version is available.",
       "readOnlyTitle": "This user can review but not change UCP settings",
       "readOnlyMessage": "Viewer-only roles can inspect the sales channel and profile preview, but mutating configuration and signing-key actions stay disabled.",
       "exposureCardTitle": "Exposure and profile",

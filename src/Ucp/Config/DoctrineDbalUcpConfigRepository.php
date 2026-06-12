@@ -12,22 +12,19 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
 #[Package('framework')]
-final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
+final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
 {
+    private const TABLE = 'swag_agentic_commerce_ucp_config';
+
     public function __construct(
-        private Connection $connection,
+        private readonly Connection $connection,
     ) {
-        // Warm local Shopware lanes can carry an already-installed plugin volume
-        // before the new plugin migration has been applied. Keep the repository
-        // tolerant so config reads/writes do not fail closed during local
-        // iteration; the migration remains the canonical install/update path.
-        UcpConfigSchema::ensure($this->connection);
     }
 
     public function find(string $salesChannelId): ?UcpConfig
     {
         $row = $this->connection->fetchAssociative(
-            \sprintf('SELECT config_json FROM `%s` WHERE sales_channel_id = :salesChannelId', UcpConfigSchema::TABLE),
+            \sprintf('SELECT config_json FROM `%s` WHERE sales_channel_id = :salesChannelId', self::TABLE),
             ['salesChannelId' => Uuid::fromHexToBytes($salesChannelId)],
         );
 
@@ -47,7 +44,7 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
         $rows = $this->connection->fetchAllAssociative(
             \sprintf(
                 'SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, config_json FROM `%s` WHERE LOWER(HEX(sales_channel_id)) IN (:salesChannelIds)',
-                UcpConfigSchema::TABLE,
+                self::TABLE,
             ),
             ['salesChannelIds' => array_map('strtolower', $salesChannelIds)],
             ['salesChannelIds' => $this->getStringArrayParameterType()],
@@ -75,19 +72,19 @@ final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigReposit
             'updated_at' => $timestamp,
         ];
 
-        $updated = $this->connection->update(UcpConfigSchema::TABLE, $payload, $criteria);
+        $updated = $this->connection->update(self::TABLE, $payload, $criteria);
         if ($updated > 0) {
             return;
         }
 
         try {
-            $this->connection->insert(UcpConfigSchema::TABLE, [
+            $this->connection->insert(self::TABLE, [
                 ...$criteria,
                 ...$payload,
                 'created_at' => $timestamp,
             ]);
         } catch (UniqueConstraintViolationException) {
-            $this->connection->update(UcpConfigSchema::TABLE, $payload, $criteria);
+            $this->connection->update(self::TABLE, $payload, $criteria);
         }
     }
 

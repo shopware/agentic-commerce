@@ -10,9 +10,9 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 
 #[Package('discovery')]
-final readonly class CoreSalesChannelFileSyncSubscriber implements EventSubscriberInterface
+final class CoreSalesChannelFileSyncSubscriber implements EventSubscriberInterface
 {
-    public function __construct(private AgenticFilesCoreBridgeInterface $bridge)
+    public function __construct(private readonly AgenticFilesCoreBridgeInterface $bridge)
     {
     }
 

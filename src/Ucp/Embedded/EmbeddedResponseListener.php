@@ -15,11 +15,11 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 
 #[Package('checkout')]
-final readonly class EmbeddedResponseListener
+final class EmbeddedResponseListener
 {
     public function __construct(
-        private UcpConfigService $configService,
-        private SalesChannelDomainResolver $domainResolver,
+        private readonly UcpConfigService $configService,
+        private readonly SalesChannelDomainResolver $domainResolver,
     ) {
     }
 

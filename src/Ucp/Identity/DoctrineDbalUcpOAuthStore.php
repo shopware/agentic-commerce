@@ -8,16 +8,18 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
-final readonly class DoctrineDbalUcpOAuthStore
+final class DoctrineDbalUcpOAuthStore
 {
     private const ACCESS_TOKEN_TTL = 3600;
     private const AUTHORIZATION_CODE_TTL = 600;
+    private const CODE_TABLE = 'swag_agentic_commerce_ucp_oauth_code';
+    private const ACCESS_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_access_token';
     private const REFRESH_TOKEN_TTL = 2592000;
+    private const REFRESH_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_refresh_token';
 
     public function __construct(
-        private Connection $connection,
+        private readonly Connection $connection,
     ) {
-        UcpOAuthSchema::ensure($this->connection);
     }
 
     public function saveAuthorizationCode(
@@ -44,7 +46,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             'created_at' => $this->now(),
         ];
 
-        $this->connection->insert(UcpOAuthSchema::CODE_TABLE, $payload);
+        $this->connection->insert(self::CODE_TABLE, $payload);
     }
 
     public function consumeAuthorizationCode(string $code, string $salesChannelId): ?OAuthAuthorization
@@ -55,7 +57,7 @@ final readonly class DoctrineDbalUcpOAuthStore
 
         return $this->connection->transactional(function () use ($codeHash, $salesChannelIdBytes, $now): ?OAuthAuthorization {
             $row = $this->connection->fetchAssociative(
-                \sprintf('SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, client_id, redirect_uri, subject, scope, code_challenge, code_challenge_method FROM `%s` WHERE code_hash = :codeHash AND sales_channel_id = :salesChannelId AND consumed_at IS NULL AND expires_at >= :now', UcpOAuthSchema::CODE_TABLE),
+                \sprintf('SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, client_id, redirect_uri, subject, scope, code_challenge, code_challenge_method FROM `%s` WHERE code_hash = :codeHash AND sales_channel_id = :salesChannelId AND consumed_at IS NULL AND expires_at >= :now', self::CODE_TABLE),
                 ['codeHash' => $codeHash, 'salesChannelId' => $salesChannelIdBytes, 'now' => $now],
             );
 
@@ -64,7 +66,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             }
 
             $updated = $this->connection->executeStatement(
-                \sprintf('UPDATE `%s` SET consumed_at = :consumedAt WHERE code_hash = :codeHash AND sales_channel_id = :salesChannelId AND consumed_at IS NULL AND expires_at >= :now', UcpOAuthSchema::CODE_TABLE),
+                \sprintf('UPDATE `%s` SET consumed_at = :consumedAt WHERE code_hash = :codeHash AND sales_channel_id = :salesChannelId AND consumed_at IS NULL AND expires_at >= :now', self::CODE_TABLE),
                 ['consumedAt' => $this->now(), 'codeHash' => $codeHash, 'salesChannelId' => $salesChannelIdBytes, 'now' => $now],
             );
 
@@ -91,7 +93,7 @@ final readonly class DoctrineDbalUcpOAuthStore
         $refreshTokenHash = $this->hashBytes($refreshToken);
         $now = $this->now();
 
-        $this->connection->insert(UcpOAuthSchema::REFRESH_TOKEN_TABLE, [
+        $this->connection->insert(self::REFRESH_TOKEN_TABLE, [
             'token_hash' => $refreshTokenHash,
             'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
             'client_id' => $clientId,
@@ -102,7 +104,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             'created_at' => $now,
         ]);
 
-        $this->connection->insert(UcpOAuthSchema::ACCESS_TOKEN_TABLE, [
+        $this->connection->insert(self::ACCESS_TOKEN_TABLE, [
             'token_hash' => $this->hashBytes($accessToken),
             'refresh_token_hash' => $refreshTokenHash,
             'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
@@ -131,7 +133,7 @@ final readonly class DoctrineDbalUcpOAuthStore
 
         return $this->connection->transactional(function () use ($criteria, $salesChannelCondition, $clientId): ?OAuthTokenSet {
             $row = $this->connection->fetchAssociative(
-                \sprintf('SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, client_id, subject, scope, expires_at, revoked_at FROM `%s` WHERE token_hash = :tokenHash%s', UcpOAuthSchema::REFRESH_TOKEN_TABLE, $salesChannelCondition),
+                \sprintf('SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, client_id, subject, scope, expires_at, revoked_at FROM `%s` WHERE token_hash = :tokenHash%s', self::REFRESH_TOKEN_TABLE, $salesChannelCondition),
                 $criteria,
             );
 
@@ -154,7 +156,7 @@ final readonly class DoctrineDbalUcpOAuthStore
             }
 
             $updated = $this->connection->executeStatement(
-                \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE token_hash = :tokenHash%s AND revoked_at IS NULL AND expires_at >= :now', UcpOAuthSchema::REFRESH_TOKEN_TABLE, $salesChannelCondition),
+                \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE token_hash = :tokenHash%s AND revoked_at IS NULL AND expires_at >= :now', self::REFRESH_TOKEN_TABLE, $salesChannelCondition),
                 [...$criteria, 'revokedAt' => $this->now()],
             );
 
@@ -176,7 +178,7 @@ final readonly class DoctrineDbalUcpOAuthStore
     private function revokeRefreshTokenFamily(string $salesChannelId, string $clientId, string $subject): void
     {
         $this->connection->executeStatement(
-            \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE sales_channel_id = :salesChannelId AND client_id = :clientId AND subject = :subject AND revoked_at IS NULL', UcpOAuthSchema::REFRESH_TOKEN_TABLE),
+            \sprintf('UPDATE `%s` SET revoked_at = :revokedAt WHERE sales_channel_id = :salesChannelId AND client_id = :clientId AND subject = :subject AND revoked_at IS NULL', self::REFRESH_TOKEN_TABLE),
             [
                 'revokedAt' => $this->now(),
                 'salesChannelId' => Uuid::fromHexToBytes($salesChannelId),

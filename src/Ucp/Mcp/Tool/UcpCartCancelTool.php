@@ -12,11 +12,11 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-cart-cancel', title: 'UCP Cart Cancel', description: 'Cancel a cart through the shared UCP cart capability.')]
 #[Package('checkout')]
-final readonly class UcpCartCancelTool
+final class UcpCartCancelTool
 {
     public function __construct(
-        private ShoppingOperationExecutor $operationExecutor,
-        private UcpMcpToolContext $toolContext,
+        private readonly ShoppingOperationExecutor $operationExecutor,
+        private readonly UcpMcpToolContext $toolContext,
     ) {
     }
 

@@ -10,11 +10,11 @@ use Ucp\Sdk\Adapter\OrderAdapterInterface;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareOrderAdapter implements OrderAdapterInterface
+final class ShopwareOrderAdapter implements OrderAdapterInterface
 {
     public function __construct(
-        private ShopwareOrderGateway $gateway,
-        private ShopwareDataMapper $mapper,
+        private readonly ShopwareOrderGateway $gateway,
+        private readonly ShopwareDataMapper $mapper,
     ) {
     }
 

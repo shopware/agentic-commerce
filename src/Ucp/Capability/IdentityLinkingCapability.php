@@ -69,7 +69,7 @@ final class IdentityLinkingCapability implements IdentityLinkingCapabilityInterf
     private function allAdapters(): array
     {
         if (null === $this->resolvedAdapters) {
-            $this->resolvedAdapters = array_values(iterator_to_array($this->adapterIterable));
+            $this->resolvedAdapters = array_values([...$this->adapterIterable]);
         }
 
         return $this->resolvedAdapters;

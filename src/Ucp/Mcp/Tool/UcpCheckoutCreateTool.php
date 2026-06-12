@@ -12,11 +12,11 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-checkout-create', title: 'UCP Checkout Create', description: 'Create a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.create request.')]
 #[Package('checkout')]
-final readonly class UcpCheckoutCreateTool
+final class UcpCheckoutCreateTool
 {
     public function __construct(
-        private ShoppingOperationExecutor $operationExecutor,
-        private UcpMcpToolContext $toolContext,
+        private readonly ShoppingOperationExecutor $operationExecutor,
+        private readonly UcpMcpToolContext $toolContext,
     ) {
     }
 

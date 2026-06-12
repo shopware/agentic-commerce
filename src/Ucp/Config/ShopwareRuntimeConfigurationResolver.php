@@ -12,12 +12,12 @@ use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 #[Package('framework')]
-final readonly class ShopwareRuntimeConfigurationResolver implements RuntimeConfigurationResolverInterface
+final class ShopwareRuntimeConfigurationResolver implements RuntimeConfigurationResolverInterface
 {
     public function __construct(
-        private UcpConfigService $configService,
-        private SalesChannelDomainResolver $domainResolver,
-        private ShopwareVersionDetector $versionDetector,
+        private readonly UcpConfigService $configService,
+        private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly ShopwareVersionDetector $versionDetector,
     ) {
     }
 

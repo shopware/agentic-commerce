@@ -9,11 +9,11 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParamete
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class SalesChannelContextResolver
+final class SalesChannelContextResolver
 {
     public function __construct(
-        private SalesChannelDomainResolver $domainResolver,
-        private SalesChannelContextServiceInterface $contextService,
+        private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly SalesChannelContextServiceInterface $contextService,
     ) {
     }
 

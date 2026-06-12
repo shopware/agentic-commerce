@@ -9,11 +9,11 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
 
 #[Package('framework')]
-final readonly class ShopwareVersionDetector
+final class ShopwareVersionDetector
 {
     public function __construct(
-        private ?string $versionOverride = null,
-        private ?string $kernelVersion = null,
+        private readonly ?string $versionOverride = null,
+        private readonly ?string $kernelVersion = null,
     ) {
     }
 
@@ -41,14 +41,6 @@ final readonly class ShopwareVersionDetector
         }
 
         return '0.0.0.0';
-    }
-
-    public function supportsAgenticDiscovery(): bool
-    {
-        // The Agentic Commerce product-export provider exists only on the 6.7+/trunk line.
-        // 6.5 and 6.6 still install the plugin, but discovery must stay disabled there.
-        return version_compare($this->normalizeVersion($this->currentVersion()), '6.7.0.0', '>=')
-            && class_exists('Shopware\\Core\\Content\\ProductExport\\Provider\\AbstractAgenticCommerceProductExportProvider');
     }
 
     public function supportsStoreApiMcp(): bool

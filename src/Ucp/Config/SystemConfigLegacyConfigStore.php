@@ -8,10 +8,10 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 
 #[Package('framework')]
-final readonly class SystemConfigLegacyConfigStore implements LegacyConfigStoreInterface
+final class SystemConfigLegacyConfigStore implements LegacyConfigStoreInterface
 {
     public function __construct(
-        private SystemConfigService $systemConfigService,
+        private readonly SystemConfigService $systemConfigService,
     ) {
     }
 

@@ -16,12 +16,12 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
 
 #[Package('checkout')]
-final readonly class UcpMcpToolContext
+final class UcpMcpToolContext
 {
     public function __construct(
-        private SymfonyRequestContextFactory $requestContextFactory,
-        private IdempotencyServiceInterface $idempotencyService,
-        private RequestStack $requestStack,
+        private readonly SymfonyRequestContextFactory $requestContextFactory,
+        private readonly IdempotencyServiceInterface $idempotencyService,
+        private readonly RequestStack $requestStack,
     ) {
     }
 

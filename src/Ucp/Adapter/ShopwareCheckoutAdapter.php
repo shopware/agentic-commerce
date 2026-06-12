@@ -22,19 +22,19 @@ use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
+final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 {
     public function __construct(
-        private ShopwareCartGateway $cartGateway,
-        private ShopwareOrderGateway $orderGateway,
-        private ShopwareDataMapper $mapper,
-        private CheckoutSessionStore $sessionStore,
-        private CheckoutSessionManager $sessionManager,
-        private CheckoutGuestAddressPayloadResolver $guestAddressPayloadResolver,
-        private CheckoutContinueUrlBuilder $continueUrlBuilder,
-        private CheckoutCompleter $checkoutCompleter,
-        private SalesChannelContextResolver $contextResolver,
-        private ContextTokenGenerator $contextTokenGenerator,
+        private readonly ShopwareCartGateway $cartGateway,
+        private readonly ShopwareOrderGateway $orderGateway,
+        private readonly ShopwareDataMapper $mapper,
+        private readonly CheckoutSessionStore $sessionStore,
+        private readonly CheckoutSessionManager $sessionManager,
+        private readonly CheckoutGuestAddressPayloadResolver $guestAddressPayloadResolver,
+        private readonly CheckoutContinueUrlBuilder $continueUrlBuilder,
+        private readonly CheckoutCompleter $checkoutCompleter,
+        private readonly SalesChannelContextResolver $contextResolver,
+        private readonly ContextTokenGenerator $contextTokenGenerator,
     ) {
     }
 

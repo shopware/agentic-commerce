@@ -9,7 +9,7 @@ use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
+final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
 {
     public function id(): string
     {

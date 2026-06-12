@@ -11,10 +11,10 @@ use Ucp\Sdk\Model\Catalog\CatalogSearchRequest;
 use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareCatalogAdapter implements CatalogAdapterInterface
+final class ShopwareCatalogAdapter implements CatalogAdapterInterface
 {
     public function __construct(
-        private ShopwareCatalogGateway $gateway,
+        private readonly ShopwareCatalogGateway $gateway,
     ) {
     }
 

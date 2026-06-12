@@ -16,17 +16,17 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
-final readonly class CheckoutCompleter
+final class CheckoutCompleter
 {
     public function __construct(
-        private ShopwareOrderGateway $orderGateway,
-        private ShopwareDataMapper $mapper,
-        private GuestCustomerContextProvisioner $guestCustomerContextProvisioner,
-        private UcpConfigService $configService,
-        private CheckoutSessionManager $sessionManager,
-        private CheckoutContinueUrlBuilder $continueUrlBuilder,
-        private CheckoutWebhookUrlGuard $webhookUrlGuard,
-        private OrderWebhookPublisherInterface $orderWebhookPublisher,
+        private readonly ShopwareOrderGateway $orderGateway,
+        private readonly ShopwareDataMapper $mapper,
+        private readonly GuestCustomerContextProvisioner $guestCustomerContextProvisioner,
+        private readonly UcpConfigService $configService,
+        private readonly CheckoutSessionManager $sessionManager,
+        private readonly CheckoutContinueUrlBuilder $continueUrlBuilder,
+        private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
+        private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
     ) {
     }
 

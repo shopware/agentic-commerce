@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
-final readonly class OAuthTokenSet
+final class OAuthTokenSet
 {
     public function __construct(
-        public string $accessToken,
-        public string $refreshToken,
-        public int $expiresIn,
-        public string $scope,
+        public readonly string $accessToken,
+        public readonly string $refreshToken,
+        public readonly int $expiresIn,
+        public readonly string $scope,
     ) {
     }
 }

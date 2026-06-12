@@ -12,13 +12,13 @@ use Shopware\Core\System\Country\CountryCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Exception\ValidationException;
 
-final readonly class GuestCustomerAddressResolver
+final class GuestCustomerAddressResolver
 {
     /**
      * @param EntityRepository<CountryCollection> $countryRepository
      */
     public function __construct(
-        private EntityRepository $countryRepository,
+        private readonly EntityRepository $countryRepository,
     ) {
     }
 

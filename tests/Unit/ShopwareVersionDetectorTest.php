@@ -17,7 +17,6 @@ final class ShopwareVersionDetectorTest extends TestCase
         $detector = new ShopwareVersionDetector(versionOverride: '6.6.9.0');
 
         self::assertSame('6.6.9.0', $detector->currentVersion());
-        self::assertFalse($detector->supportsAgenticDiscovery());
         self::assertFalse($detector->supportsStoreApiMcp());
     }
 

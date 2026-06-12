@@ -17,19 +17,19 @@ use Shopware\Core\System\Salutation\SalutationCollection;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Common\Buyer;
 
-final readonly class GuestCustomerContextProvisioner
+final class GuestCustomerContextProvisioner
 {
     /**
      * @param EntityRepository<CustomerCollection>   $customerRepository
      * @param EntityRepository<SalutationCollection> $salutationRepository
      */
     public function __construct(
-        private EntityRepository $customerRepository,
-        private EntityRepository $salutationRepository,
-        private NumberRangeValueGeneratorInterface $numberRangeValueGenerator,
-        private SalesChannelContextPersister $persister,
-        private SalesChannelContextServiceInterface $contextService,
-        private GuestCustomerAddressResolver $addressResolver,
+        private readonly EntityRepository $customerRepository,
+        private readonly EntityRepository $salutationRepository,
+        private readonly NumberRangeValueGeneratorInterface $numberRangeValueGenerator,
+        private readonly SalesChannelContextPersister $persister,
+        private readonly SalesChannelContextServiceInterface $contextService,
+        private readonly GuestCustomerAddressResolver $addressResolver,
     ) {
     }
 
@@ -127,7 +127,7 @@ final readonly class GuestCustomerContextProvisioner
             throw new \RuntimeException('No salutation is available for guest customer creation.');
         }
 
-        return $salutation->getId();
+        return $salutation->getUniqueIdentifier();
     }
 
     private function customerGroupId(SalesChannelContext $context): string

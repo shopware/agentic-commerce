@@ -19,11 +19,11 @@ use Symfony\Component\HttpFoundation\RequestStack;
 /**
  * @internal
  */
-readonly class AgenticCommerceProductExportProviderContextSubscriber implements EventSubscriberInterface
+class AgenticCommerceProductExportProviderContextSubscriber implements EventSubscriberInterface
 {
     public function __construct(
-        private AgenticCommerceProductExportProviderRegistry $providerRegistry,
-        private RequestStack $requestStack,
+        private readonly AgenticCommerceProductExportProviderRegistry $providerRegistry,
+        private readonly RequestStack $requestStack,
     ) {
     }
 

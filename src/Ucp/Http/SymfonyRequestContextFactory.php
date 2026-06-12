@@ -11,12 +11,12 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 
 #[Package('checkout')]
-final readonly class SymfonyRequestContextFactory
+final class SymfonyRequestContextFactory
 {
     public const REQUEST_CONTEXT_ATTRIBUTE = 'ucp_request_context';
 
     public function __construct(
-        private HttpRequestContextFactoryInterface $requestContextFactory,
+        private readonly HttpRequestContextFactoryInterface $requestContextFactory,
     ) {
     }
 

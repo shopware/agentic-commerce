@@ -9,12 +9,12 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
-use Swag\AgenticCommerce\Ucp\Config\UcpConfigSchema;
 
 #[Package('discovery')]
-final readonly class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterface
+final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterface
 {
     private const FILE_FAMILY = 'agentic';
+    private const UCP_CONFIG_TABLE = 'swag_agentic_commerce_ucp_config';
 
     /**
      * @var list<string>
@@ -25,8 +25,8 @@ final readonly class CoreSalesChannelFileBridge implements AgenticFilesCoreBridg
     ];
 
     public function __construct(
-        private Connection $connection,
-        private CoreSalesChannelFileFeature $feature,
+        private readonly Connection $connection,
+        private readonly CoreSalesChannelFileFeature $feature,
     ) {
     }
 
@@ -95,7 +95,7 @@ final readonly class CoreSalesChannelFileBridge implements AgenticFilesCoreBridg
     {
         return (bool) $this->connection->fetchOne(
             'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table',
-            ['table' => UcpConfigSchema::TABLE],
+            ['table' => self::UCP_CONFIG_TABLE],
         );
     }
 
@@ -106,7 +106,7 @@ final readonly class CoreSalesChannelFileBridge implements AgenticFilesCoreBridg
     {
         $rows = $this->connection->fetchAllAssociative(\sprintf(
             'SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, config_json FROM `%s`',
-            UcpConfigSchema::TABLE,
+            self::UCP_CONFIG_TABLE,
         ));
 
         $salesChannelIds = [];

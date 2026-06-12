@@ -18,6 +18,8 @@ if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
         $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
         $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
 
+        Swag\AgenticCommerce\Tests\Compat\FakeConnection::register();
+
         return $classLoader;
     }
 }
@@ -60,5 +62,7 @@ $classLoader = (new TestBootstrapper())
 
 $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
 $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
+
+Swag\AgenticCommerce\Tests\Compat\FakeConnection::register();
 
 return $classLoader;

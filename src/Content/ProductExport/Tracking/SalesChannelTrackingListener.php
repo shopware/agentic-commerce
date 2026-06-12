@@ -100,10 +100,6 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
             return;
         }
 
-        if (!$request->hasSession()) {
-            return;
-        }
-
         $referralCode = $request->query->get(self::QUERY_PARAM);
 
         if (!\is_string($referralCode) || !Uuid::isValid($referralCode)) {
@@ -111,6 +107,10 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
         }
 
         if (!$this->isTrackableChannel($referralCode)) {
+            return;
+        }
+
+        if (!$request->hasSession(true)) {
             return;
         }
 

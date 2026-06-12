@@ -11,10 +11,10 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
-final readonly class PaymentTokenizationCapability implements TokenizationCapabilityInterface
+final class PaymentTokenizationCapability implements TokenizationCapabilityInterface
 {
     public function __construct(
-        private PaymentHandlerRegistryInterface $paymentHandlerRegistry,
+        private readonly PaymentHandlerRegistryInterface $paymentHandlerRegistry,
     ) {
     }
 

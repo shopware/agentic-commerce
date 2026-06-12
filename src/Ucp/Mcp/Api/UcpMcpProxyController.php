@@ -28,19 +28,19 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\UcpSdkConfiguration;
 
 #[Package('checkout')]
-final readonly class UcpMcpProxyController
+final class UcpMcpProxyController
 {
     /**
      * @param EntityRepository<\Shopware\Core\System\SalesChannel\SalesChannelCollection> $salesChannelRepository
      */
     public function __construct(
-        private HttpKernelInterface $httpKernel,
-        private SalesChannelDomainResolver $domainResolver,
-        private EntityRepository $salesChannelRepository,
-        private UcpConfigService $configService,
-        private ShopwareVersionDetector $versionDetector,
-        private SymfonyRequestContextFactory $requestContextFactory,
-        private UcpSdkConfiguration $sdkConfiguration,
+        private readonly HttpKernelInterface $httpKernel,
+        private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly EntityRepository $salesChannelRepository,
+        private readonly UcpConfigService $configService,
+        private readonly ShopwareVersionDetector $versionDetector,
+        private readonly SymfonyRequestContextFactory $requestContextFactory,
+        private readonly UcpSdkConfiguration $sdkConfiguration,
     ) {
     }
 

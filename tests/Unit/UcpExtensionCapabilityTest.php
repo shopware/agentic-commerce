@@ -108,13 +108,13 @@ final class UcpExtensionCapabilityTest extends TestCase
     }
 }
 
-final readonly class PaymentHandlerRegistryStub implements PaymentHandlerRegistryInterface
+final class PaymentHandlerRegistryStub implements PaymentHandlerRegistryInterface
 {
     /**
      * @param list<PaymentHandlerInterface> $handlers
      */
     public function __construct(
-        private array $handlers,
+        private readonly array $handlers,
     ) {
     }
 
@@ -135,10 +135,10 @@ final readonly class PaymentHandlerRegistryStub implements PaymentHandlerRegistr
     }
 }
 
-final readonly class PaymentHandlerStub implements PaymentHandlerInterface
+final class PaymentHandlerStub implements PaymentHandlerInterface
 {
     public function __construct(
-        private bool $supportsTokenization,
+        private readonly bool $supportsTokenization,
     ) {
     }
 
