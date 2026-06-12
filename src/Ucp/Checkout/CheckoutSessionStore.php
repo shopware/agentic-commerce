@@ -8,13 +8,13 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Common\Buyer;
 
-final readonly class CheckoutSessionStore
+final class CheckoutSessionStore
 {
     private const PAYLOAD_KEY = 'swagAgenticCommerce';
     private const CHECKOUT_KEY = 'ucpCheckout';
 
     public function __construct(
-        private SalesChannelContextPersister $persister,
+        private readonly SalesChannelContextPersister $persister,
     ) {
     }
 

@@ -16,16 +16,16 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareOrderGateway
+final class ShopwareOrderGateway
 {
     /**
      * @param EntityRepository<OrderCollection> $orderRepository
      */
     public function __construct(
-        private SalesChannelContextResolver $contextResolver,
-        private ContextTokenGenerator $contextTokenGenerator,
-        private AbstractCartOrderRoute $cartOrderRoute,
-        private EntityRepository $orderRepository,
+        private readonly SalesChannelContextResolver $contextResolver,
+        private readonly ContextTokenGenerator $contextTokenGenerator,
+        private readonly AbstractCartOrderRoute $cartOrderRoute,
+        private readonly EntityRepository $orderRepository,
     ) {
     }
 

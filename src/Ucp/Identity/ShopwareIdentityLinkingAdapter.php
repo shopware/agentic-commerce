@@ -15,7 +15,7 @@ use Ucp\Sdk\Model\Identity\OAuthTokenRequest;
 use Ucp\Sdk\Model\Identity\OAuthTokenResponse;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
+final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
 {
     /**
      * @var list<string>
@@ -27,8 +27,8 @@ final readonly class ShopwareIdentityLinkingAdapter implements IdentityLinkingAd
     ];
 
     public function __construct(
-        private SalesChannelContextResolver $contextResolver,
-        private DoctrineDbalUcpOAuthStore $oauthStore,
+        private readonly SalesChannelContextResolver $contextResolver,
+        private readonly DoctrineDbalUcpOAuthStore $oauthStore,
     ) {
     }
 

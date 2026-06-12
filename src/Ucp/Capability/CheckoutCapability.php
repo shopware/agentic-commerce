@@ -12,10 +12,10 @@ use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class CheckoutCapability implements CheckoutCapabilityInterface
+final class CheckoutCapability implements CheckoutCapabilityInterface
 {
     public function __construct(
-        private CheckoutAdapterInterface $adapter,
+        private readonly CheckoutAdapterInterface $adapter,
     ) {
     }
 

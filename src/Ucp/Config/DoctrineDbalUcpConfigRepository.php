@@ -12,10 +12,10 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
 #[Package('framework')]
-final readonly class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
+final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
 {
     public function __construct(
-        private Connection $connection,
+        private readonly Connection $connection,
     ) {
         // Warm local Shopware lanes can carry an already-installed plugin volume
         // before the new plugin migration has been applied. Keep the repository

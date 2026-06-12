@@ -11,10 +11,10 @@ use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class DiscountCapability implements DiscountCapabilityInterface
+final class DiscountCapability implements DiscountCapabilityInterface
 {
     public function __construct(
-        private DiscountAdapterInterface $adapter,
+        private readonly DiscountAdapterInterface $adapter,
     ) {
     }
 

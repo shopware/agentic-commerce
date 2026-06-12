@@ -11,11 +11,11 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-cart-get', title: 'UCP Cart Get', description: 'Load a cart by id through the shared UCP cart capability.')]
 #[Package('checkout')]
-final readonly class UcpCartGetTool
+final class UcpCartGetTool
 {
     public function __construct(
-        private ShoppingOperationExecutor $operationExecutor,
-        private UcpMcpToolContext $toolContext,
+        private readonly ShoppingOperationExecutor $operationExecutor,
+        private readonly UcpMcpToolContext $toolContext,
     ) {
     }
 

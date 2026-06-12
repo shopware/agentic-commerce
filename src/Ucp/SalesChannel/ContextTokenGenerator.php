@@ -6,7 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\SalesChannel;
 
 use Shopware\Core\Framework\Uuid\Uuid;
 
-final readonly class ContextTokenGenerator
+final class ContextTokenGenerator
 {
     public function generate(): string
     {

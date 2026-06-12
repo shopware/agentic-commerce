@@ -23,15 +23,15 @@ use Ucp\Sdk\Repository\PlatformProfileCacheRepositoryInterface;
 
 #[Route(defaults: [PlatformRequest::ATTRIBUTE_ROUTE_SCOPE => [ApiRouteScope::ID]])]
 #[Package('checkout')]
-final readonly class UcpAdminController
+final class UcpAdminController
 {
     public function __construct(
-        private SalesChannelViewProvider $salesChannelViewProvider,
-        private UcpConfigService $configService,
-        private UcpSigningKeyService $signingKeyService,
-        private ProfilePreviewBuilder $profilePreviewBuilder,
-        private ShopwareVersionDetector $versionDetector,
-        private PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
+        private readonly SalesChannelViewProvider $salesChannelViewProvider,
+        private readonly UcpConfigService $configService,
+        private readonly UcpSigningKeyService $signingKeyService,
+        private readonly ProfilePreviewBuilder $profilePreviewBuilder,
+        private readonly ShopwareVersionDetector $versionDetector,
+        private readonly PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
     ) {
     }
 

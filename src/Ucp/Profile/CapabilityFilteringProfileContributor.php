@@ -16,13 +16,13 @@ use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Model\Profile\ServiceEndpoint;
 
-final readonly class CapabilityFilteringProfileContributor implements ProfileContributorInterface
+final class CapabilityFilteringProfileContributor implements ProfileContributorInterface
 {
     public function __construct(
-        private SalesChannelDomainResolver $domainResolver,
-        private UcpConfigService $configService,
-        private ShopwareVersionDetector $versionDetector,
-        private UcpExtensionAvailability $extensionAvailability,
+        private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly UcpConfigService $configService,
+        private readonly ShopwareVersionDetector $versionDetector,
+        private readonly UcpExtensionAvailability $extensionAvailability,
     ) {
     }
 

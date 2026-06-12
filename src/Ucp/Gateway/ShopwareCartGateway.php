@@ -16,17 +16,17 @@ use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareCartGateway
+final class ShopwareCartGateway
 {
     public function __construct(
-        private SalesChannelContextResolver $contextResolver,
-        private AbstractCartLoadRoute $cartLoadRoute,
-        private AbstractCartItemAddRoute $cartItemAddRoute,
-        private AbstractCartItemUpdateRoute $cartItemUpdateRoute,
-        private AbstractCartItemRemoveRoute $cartItemRemoveRoute,
-        private AbstractCartDeleteRoute $cartDeleteRoute,
-        private ShopwareDataMapper $mapper,
-        private ShopwareVersionDetector $versionDetector,
+        private readonly SalesChannelContextResolver $contextResolver,
+        private readonly AbstractCartLoadRoute $cartLoadRoute,
+        private readonly AbstractCartItemAddRoute $cartItemAddRoute,
+        private readonly AbstractCartItemUpdateRoute $cartItemUpdateRoute,
+        private readonly AbstractCartItemRemoveRoute $cartItemRemoveRoute,
+        private readonly AbstractCartDeleteRoute $cartDeleteRoute,
+        private readonly ShopwareDataMapper $mapper,
+        private readonly ShopwareVersionDetector $versionDetector,
     ) {
     }
 

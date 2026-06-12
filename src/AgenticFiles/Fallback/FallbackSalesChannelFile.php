@@ -7,14 +7,14 @@ namespace Swag\AgenticCommerce\AgenticFiles\Fallback;
 use Shopware\Core\Framework\Log\Package;
 
 #[Package('discovery')]
-final readonly class FallbackSalesChannelFile
+final class FallbackSalesChannelFile
 {
     public function __construct(
-        public string $fileFamily,
-        public string $fileName,
-        public string $templatePath,
-        public string $contentType,
-        public string $baseTemplateName,
+        public readonly string $fileFamily,
+        public readonly string $fileName,
+        public readonly string $templatePath,
+        public readonly string $contentType,
+        public readonly string $baseTemplateName,
     ) {
     }
 }

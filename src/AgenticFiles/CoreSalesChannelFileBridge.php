@@ -12,7 +12,7 @@ use Shopware\Core\Framework\Uuid\Uuid;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigSchema;
 
 #[Package('discovery')]
-final readonly class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterface
+final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterface
 {
     private const FILE_FAMILY = 'agentic';
 
@@ -25,8 +25,8 @@ final readonly class CoreSalesChannelFileBridge implements AgenticFilesCoreBridg
     ];
 
     public function __construct(
-        private Connection $connection,
-        private CoreSalesChannelFileFeature $feature,
+        private readonly Connection $connection,
+        private readonly CoreSalesChannelFileFeature $feature,
     ) {
     }
 

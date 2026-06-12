@@ -19,12 +19,12 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 #[Route(defaults: [PlatformRequest::ATTRIBUTE_ROUTE_SCOPE => [StorefrontRouteScope::ID], 'auth_required' => false])]
 #[Package('framework')]
-final readonly class TestWebhookController
+final class TestWebhookController
 {
     public function __construct(
-        private WebhookCaptureStore $captureStore,
-        private string $appEnv,
-        private bool $testCaptureEnabled,
+        private readonly WebhookCaptureStore $captureStore,
+        private readonly string $appEnv,
+        private readonly bool $testCaptureEnabled,
     ) {
     }
 

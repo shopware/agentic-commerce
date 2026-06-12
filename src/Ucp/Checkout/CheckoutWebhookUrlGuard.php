@@ -8,10 +8,10 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Ucp\Sdk\Exception\ValidationException;
 
-final readonly class CheckoutWebhookUrlGuard
+final class CheckoutWebhookUrlGuard
 {
     public function __construct(
-        private SalesChannelViewProvider $salesChannelViewProvider,
+        private readonly SalesChannelViewProvider $salesChannelViewProvider,
     ) {
     }
 

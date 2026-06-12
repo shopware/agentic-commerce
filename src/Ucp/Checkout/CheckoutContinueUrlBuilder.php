@@ -6,10 +6,10 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 
-final readonly class CheckoutContinueUrlBuilder
+final class CheckoutContinueUrlBuilder
 {
     public function __construct(
-        private UcpConfigService $configService,
+        private readonly UcpConfigService $configService,
     ) {
     }
 

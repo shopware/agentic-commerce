@@ -11,11 +11,11 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-catalog-lookup', title: 'UCP Catalog Lookup', description: 'Load products by id from the current Store API sales-channel catalog through the shared UCP catalog capability.')]
 #[Package('checkout')]
-final readonly class UcpCatalogLookupTool
+final class UcpCatalogLookupTool
 {
     public function __construct(
-        private ShoppingOperationExecutor $operationExecutor,
-        private UcpMcpToolContext $toolContext,
+        private readonly ShoppingOperationExecutor $operationExecutor,
+        private readonly UcpMcpToolContext $toolContext,
     ) {
     }
 

@@ -10,10 +10,10 @@ use Ucp\Sdk\Model\Cart\Cart;
 use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareDiscountAdapter implements DiscountAdapterInterface
+final class ShopwareDiscountAdapter implements DiscountAdapterInterface
 {
     public function __construct(
-        private ShopwareCartGateway $gateway,
+        private readonly ShopwareCartGateway $gateway,
     ) {
     }
 

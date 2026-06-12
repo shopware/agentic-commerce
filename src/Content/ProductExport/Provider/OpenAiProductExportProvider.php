@@ -16,6 +16,7 @@ use Shopware\Core\System\Country\CountryCollection;
 use Shopware\Core\System\Country\CountryEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
@@ -159,6 +160,7 @@ class OpenAiProductExportProvider extends AbstractAgenticCommerceProductExportPr
             return null;
         }
 
+        /** @var SalesChannelEntity $salesChannel */
         $targetCountries = $this->extractCountryIsoCodes($salesChannel->getCountries());
 
         return [] !== $targetCountries ? $targetCountries : null;

@@ -11,11 +11,11 @@ use Ucp\Sdk\Repository\TenantAwareManagedSigningKeyRepositoryInterface;
 use Ucp\Sdk\Service\SigningKeyManagerInterface;
 
 #[Package('framework')]
-final readonly class UcpSigningKeyService
+final class UcpSigningKeyService
 {
     public function __construct(
-        private ManagedSigningKeyRepositoryInterface $repository,
-        private SigningKeyManagerInterface $signingKeyManager,
+        private readonly ManagedSigningKeyRepositoryInterface $repository,
+        private readonly SigningKeyManagerInterface $signingKeyManager,
     ) {
     }
 

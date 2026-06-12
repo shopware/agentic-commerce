@@ -11,11 +11,11 @@ use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Service\ProfileBuilderInterface;
 
 #[Package('checkout')]
-final readonly class ProfilePreviewBuilder
+final class ProfilePreviewBuilder
 {
     public function __construct(
-        private ProfileBuilderInterface $profileBuilder,
-        private ShopwareVersionDetector $versionDetector,
+        private readonly ProfileBuilderInterface $profileBuilder,
+        private readonly ShopwareVersionDetector $versionDetector,
     ) {
     }
 

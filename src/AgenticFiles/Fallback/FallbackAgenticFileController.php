@@ -15,11 +15,11 @@ use Symfony\Component\Routing\Attribute\Route;
 
 #[Route(defaults: [PlatformRequest::ATTRIBUTE_ROUTE_SCOPE => [StorefrontRouteScope::ID], 'auth_required' => false])]
 #[Package('discovery')]
-final readonly class FallbackAgenticFileController
+final class FallbackAgenticFileController
 {
     public function __construct(
-        private UcpConfigService $configService,
-        private FallbackAgenticFileRenderer $renderer,
+        private readonly UcpConfigService $configService,
+        private readonly FallbackAgenticFileRenderer $renderer,
     ) {
     }
 

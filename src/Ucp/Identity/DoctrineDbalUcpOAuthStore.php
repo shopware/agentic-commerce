@@ -8,14 +8,14 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
-final readonly class DoctrineDbalUcpOAuthStore
+final class DoctrineDbalUcpOAuthStore
 {
     private const ACCESS_TOKEN_TTL = 3600;
     private const AUTHORIZATION_CODE_TTL = 600;
     private const REFRESH_TOKEN_TTL = 2592000;
 
     public function __construct(
-        private Connection $connection,
+        private readonly Connection $connection,
     ) {
         UcpOAuthSchema::ensure($this->connection);
     }

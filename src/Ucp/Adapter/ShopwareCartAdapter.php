@@ -12,11 +12,11 @@ use Ucp\Sdk\Model\Cart\CartCreateRequest;
 use Ucp\Sdk\Model\Cart\CartUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class ShopwareCartAdapter implements CartAdapterInterface
+final class ShopwareCartAdapter implements CartAdapterInterface
 {
     public function __construct(
-        private ShopwareCartGateway $gateway,
-        private ContextTokenGenerator $contextTokenGenerator,
+        private readonly ShopwareCartGateway $gateway,
+        private readonly ContextTokenGenerator $contextTokenGenerator,
     ) {
     }
 

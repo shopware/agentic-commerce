@@ -12,10 +12,10 @@ use Ucp\Sdk\Model\Cart\CartUpdateRequest;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class CartCapability implements CartCapabilityInterface
+final class CartCapability implements CartCapabilityInterface
 {
     public function __construct(
-        private CartAdapterInterface $adapter,
+        private readonly CartAdapterInterface $adapter,
     ) {
     }
 

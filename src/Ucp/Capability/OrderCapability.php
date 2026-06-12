@@ -10,10 +10,10 @@ use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
-final readonly class OrderCapability implements OrderCapabilityInterface
+final class OrderCapability implements OrderCapabilityInterface
 {
     public function __construct(
-        private OrderAdapterInterface $adapter,
+        private readonly OrderAdapterInterface $adapter,
     ) {
     }
 

@@ -12,11 +12,11 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 #[Package('checkout')]
-final readonly class UcpMcpToolContext
+final class UcpMcpToolContext
 {
     public function __construct(
-        private RuntimeConfigurationResolverInterface $runtimeConfigurationResolver,
-        private RequestStack $requestStack,
+        private readonly RuntimeConfigurationResolverInterface $runtimeConfigurationResolver,
+        private readonly RequestStack $requestStack,
     ) {
     }
 
