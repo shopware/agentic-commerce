@@ -24,6 +24,9 @@ final class RecordingCartItemAddRoute extends AbstractCartItemAddRoute
         throw new \BadMethodCallException('Decoration is not supported in tests.');
     }
 
+    /**
+     * @param array<LineItem>|null $items
+     */
     public function add(Request $request, Cart $cart, SalesChannelContext $context, ?array $items): CartResponse
     {
         /** @var list<array{id: string, type: string, referencedId: string, quantity: int}> $payload */
