@@ -11,7 +11,6 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
 use Swag\AgenticCommerce\Ucp\Identity\OAuthTokenSet;
-use Swag\AgenticCommerce\Ucp\Identity\UcpOAuthSchema;
 
 /** @internal */
 final class DoctrineDbalUcpOAuthStoreTest extends TestCase
@@ -40,7 +39,7 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
         self::assertStringStartsWith('ucp_refresh_', $tokenSet->refreshToken);
         self::assertCount(1, $this->updatesContaining($statements, 'WHERE token_hash = :tokenHash'));
         self::assertSame(
-            [UcpOAuthSchema::REFRESH_TOKEN_TABLE, UcpOAuthSchema::ACCESS_TOKEN_TABLE],
+            ['swag_agentic_commerce_ucp_oauth_refresh_token', 'swag_agentic_commerce_ucp_oauth_access_token'],
             array_column($inserts, 'table'),
         );
     }
