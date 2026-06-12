@@ -4,30 +4,19 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Customer;
 
-use Shopware\Core\Checkout\Customer\CustomerCollection;
-use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
-use Shopware\Core\Framework\Uuid\Uuid;
-use Shopware\Core\System\NumberRange\ValueGenerator\NumberRangeValueGeneratorInterface;
-use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
+use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
+use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
+use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParameters;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Shopware\Core\System\Salutation\SalutationCollection;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Common\Buyer;
 
 final class GuestCustomerContextProvisioner
 {
-    /**
-     * @param EntityRepository<CustomerCollection>   $customerRepository
-     * @param EntityRepository<SalutationCollection> $salutationRepository
-     */
     public function __construct(
-        private readonly EntityRepository $customerRepository,
-        private readonly EntityRepository $salutationRepository,
-        private readonly NumberRangeValueGeneratorInterface $numberRangeValueGenerator,
-        private readonly SalesChannelContextPersister $persister,
+        private readonly AbstractRegisterRoute $registerRoute,
         private readonly SalesChannelContextServiceInterface $contextService,
         private readonly GuestCustomerAddressResolver $addressResolver,
     ) {
@@ -46,38 +35,16 @@ final class GuestCustomerContextProvisioner
             throw new ValidationException('Checkout session is missing buyer.email; set it on checkout create or update before completion.', ['$.checkout_session.buyer.email is required']);
         }
 
-        $customerId = Uuid::randomHex();
-        $addressId = Uuid::randomHex();
-        $salutationId = $this->defaultSalutationId($context);
         $address = $this->addressResolver->resolve($context, $guestAddress);
-
         $firstName = $buyer->firstName ?: 'Guest';
         $lastName = $buyer->lastName ?: 'Customer';
 
-        $customer = [
-            'id' => $customerId,
-            'customerNumber' => $this->numberRangeValueGenerator->getValue(
-                $this->customerRepository->getDefinition()->getEntityName(),
-                $context->getContext(),
-                $context->getSalesChannelId(),
-            ),
-            'salesChannelId' => $context->getSalesChannelId(),
-            'languageId' => $context->getLanguageId(),
-            'groupId' => $this->customerGroupId($context),
-            'salutationId' => $salutationId,
+        $response = $this->registerRoute->register(new RequestDataBag([
+            'guest' => true,
             'firstName' => $firstName,
             'lastName' => $lastName,
             'email' => $buyer->email,
-            'active' => true,
-            'guest' => true,
-            'firstLogin' => new \DateTimeImmutable(),
-            'defaultPaymentMethodId' => $context->getPaymentMethod()->getId(),
-            'defaultBillingAddressId' => $addressId,
-            'defaultShippingAddressId' => $addressId,
-            'addresses' => [[
-                'id' => $addressId,
-                'customerId' => $customerId,
-                'salutationId' => $salutationId,
+            'billingAddress' => [
                 'firstName' => $firstName,
                 'lastName' => $lastName,
                 'street' => $address['street'],
@@ -85,62 +52,23 @@ final class GuestCustomerContextProvisioner
                 'city' => $address['city'],
                 'countryId' => $address['countryId'],
                 'phoneNumber' => $buyer->phoneNumber,
-            ]],
-        ];
-
-        $this->customerRepository->create([$customer], $context->getContext());
-
-        $this->persister->save(
-            $context->getToken(),
-            [
-                'customerId' => $customerId,
-                'billingAddressId' => $addressId,
-                'shippingAddressId' => $addressId,
-                'paymentMethodId' => $context->getPaymentMethod()->getId(),
-                'shippingMethodId' => $context->getShippingMethod()->getId(),
-                'languageId' => $context->getLanguageId(),
-                'currencyId' => $context->getCurrencyId(),
-                'domainId' => $context->getDomainId(),
             ],
-            $context->getSalesChannelId(),
-            $customerId,
-        );
+        ]), $context, false);
+
+        $customer = $response->getCustomer();
+        $newToken = $response->headers->get(PlatformRequest::HEADER_CONTEXT_TOKEN);
+        if (!\is_string($newToken) || '' === $newToken) {
+            throw new ValidationException('Guest customer registration did not return a Shopware context token.', ['$.checkout_session.context_token is required']);
+        }
 
         return $this->contextService->get(new SalesChannelContextServiceParameters(
             $context->getSalesChannelId(),
-            $context->getToken(),
+            $newToken,
             $context->getLanguageId(),
             $context->getCurrencyId(),
             $context->getDomainId(),
             null,
-            $customerId,
+            $customer->getId(),
         ));
-    }
-
-    private function defaultSalutationId(SalesChannelContext $context): string
-    {
-        $criteria = new Criteria();
-        $criteria->setLimit(1);
-
-        $salutation = $this->salutationRepository->search($criteria, $context->getContext())->first();
-        if (null === $salutation) {
-            throw new \RuntimeException('No salutation is available for guest customer creation.');
-        }
-
-        return $salutation->getUniqueIdentifier();
-    }
-
-    private function customerGroupId(SalesChannelContext $context): string
-    {
-        // Shopware 6.6+ exposes the current group directly on the sales-channel context.
-        // 6.5 still requires reading the hydrated customer-group entity instead.
-        if (method_exists($context, 'getCustomerGroupId')) {
-            /** @var string $customerGroupId */
-            $customerGroupId = $context->getCustomerGroupId();
-
-            return $customerGroupId;
-        }
-
-        return $context->getCurrentCustomerGroup()->getId();
     }
 }
