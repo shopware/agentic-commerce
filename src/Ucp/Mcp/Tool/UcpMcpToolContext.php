@@ -14,6 +14,14 @@ use Ucp\Sdk\Model\IdempotencyRecord;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
 
+/**
+ * @phpstan-type UcpMcpJsonScalar bool|float|int|string|null
+ * @phpstan-type UcpMcpJsonLevel3 UcpMcpJsonScalar|array<array-key, UcpMcpJsonScalar>
+ * @phpstan-type UcpMcpJsonLevel2 UcpMcpJsonScalar|array<array-key, UcpMcpJsonLevel3>
+ * @phpstan-type UcpMcpJsonValue UcpMcpJsonScalar|array<array-key, UcpMcpJsonLevel2>
+ * @phpstan-type UcpMcpNestedJsonObject array<string, UcpMcpJsonLevel2>
+ * @phpstan-type UcpMcpJsonObject array<string, UcpMcpJsonValue>
+ */
 #[Package('checkout')]
 final class UcpMcpToolContext
 {
@@ -45,8 +53,8 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param array<string, mixed>                           $fingerprintInput
-     * @param callable(RequestContext): array<string, mixed> $execute
+     * @param UcpMcpJsonObject                           $fingerprintInput
+     * @param callable(RequestContext): UcpMcpJsonObject $execute
      */
     public function executeMutating(string $operation, array $fingerprintInput, callable $execute): string
     {
@@ -70,7 +78,10 @@ final class UcpMcpToolContext
         }
 
         if ('completed' === $record->status && null !== $record->responseBody) {
-            return $this->success($record->responseBody);
+            /** @var UcpMcpJsonObject $responseBody */
+            $responseBody = $record->responseBody;
+
+            return $this->success($responseBody);
         }
 
         try {
@@ -87,13 +98,18 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @return array<string, mixed>
+     * @return UcpMcpNestedJsonObject
      */
     public function decodeObject(string $payload): array
     {
         $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
 
-        return \is_array($decoded) && !array_is_list($decoded) ? $decoded : [];
+        if (!\is_array($decoded) || array_is_list($decoded)) {
+            return [];
+        }
+
+        /* @var UcpMcpNestedJsonObject $decoded */
+        return $decoded;
     }
 
     /**
@@ -122,7 +138,7 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param UcpMcpJsonObject $data
      */
     public function success(array $data): string
     {
