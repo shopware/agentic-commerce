@@ -11,6 +11,7 @@ use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Profile\ProfilePreviewBuilder;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -89,7 +90,11 @@ final class UcpAdminController
     #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/config', name: 'api.action.swag_agentic_commerce.ucp.config.update', methods: ['PUT'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.editor']])]
     public function updateConfig(string $salesChannelId, Request $request): JsonResponse
     {
-        $payload = $request->toArray();
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException) {
+            throw UcpConfigException::invalidJsonPayload();
+        }
 
         return new JsonResponse([
             'data' => $this->configService->saveConfig($payload, $salesChannelId)->toArray(),

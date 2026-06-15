@@ -15,6 +15,24 @@ use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 final class UcpConfig
 {
     /**
+     * String allowlists mirror the scalar admin JSON/stored config contract
+     * across supported Shopware lanes.
+     *
+     * @var list<string>
+     */
+    private const PROFILE_URI_STRATEGIES = ['domain', 'config'];
+
+    /**
+     * @var list<string>
+     */
+    private const URL_SCHEMES = ['http', 'https'];
+
+    /**
+     * @var list<string>
+     */
+    private const CONTINUE_URL_PLACEHOLDERS = ['{checkoutId}', '{cartId}', '{salesChannelId}'];
+
+    /**
      * @param list<string> $enabledCapabilities
      * @param list<string> $enabledTransports
      * @param list<string> $platformAllowlist
@@ -48,23 +66,37 @@ final class UcpConfig
      */
     public static function fromArray(array $payload): self
     {
+        $profileUriStrategy = self::profileUriStrategyValue($payload['profileUriStrategy'] ?? 'domain');
+        $customProfileUri = self::nullableHttpUrlValue($payload['customProfileUri'] ?? null, '$.customProfileUri');
+        if ('config' === $profileUriStrategy && null === $customProfileUri) {
+            throw self::invalid('$.customProfileUri', 'must be set when profileUriStrategy is "config"');
+        }
+
+        $platformAllowlist = self::hostList($payload['platformAllowlist'] ?? null, '$.platformAllowlist');
+        $remoteProfileAllowlist = self::hostList($payload['remoteProfileAllowlist'] ?? null, '$.remoteProfileAllowlist');
+        $agentAllowlist = self::hostList($payload['agentAllowlist'] ?? null, '$.agentAllowlist');
+        $webhookUrlOverride = self::nullableHttpUrlValue($payload['webhookUrlOverride'] ?? null, '$.webhookUrlOverride');
+        if (null !== $webhookUrlOverride) {
+            self::assertWebhookHostAllowed($webhookUrlOverride, $agentAllowlist, $platformAllowlist);
+        }
+
         return new self(
-            self::boolValue($payload['active'] ?? false),
-            self::stringValue($payload['ucpVersion'] ?? UcpProtocol::VERSION, UcpProtocol::VERSION),
-            self::stringValue($payload['profileUriStrategy'] ?? 'domain', 'domain'),
-            self::nullableStringValue($payload['customProfileUri'] ?? null),
+            self::boolValue($payload['active'] ?? null, false, '$.active'),
+            self::ucpVersionValue($payload['ucpVersion'] ?? null),
+            $profileUriStrategy,
+            $customProfileUri,
             self::enabledCapabilityList($payload),
             self::enabledTransportList($payload),
-            self::nullableStringValue($payload['continueUrlTemplate'] ?? null),
-            self::stringList($payload['platformAllowlist'] ?? []),
-            self::stringList($payload['remoteProfileAllowlist'] ?? []),
-            self::stringList($payload['agentAllowlist'] ?? []),
-            self::stringList($payload['embeddedAllowedOrigins'] ?? []),
-            self::stringList($payload['embeddedFrameAncestors'] ?? []),
-            self::intValue($payload['discoveryBudget'] ?? 10, 10),
-            self::nullableStringValue($payload['webhookUrlOverride'] ?? null),
+            self::continueUrlTemplateValue($payload['continueUrlTemplate'] ?? null),
+            $platformAllowlist,
+            $remoteProfileAllowlist,
+            $agentAllowlist,
+            self::originList($payload['embeddedAllowedOrigins'] ?? null, '$.embeddedAllowedOrigins'),
+            self::frameAncestorList($payload['embeddedFrameAncestors'] ?? null),
+            self::intValue($payload['discoveryBudget'] ?? null, 10, '$.discoveryBudget'),
+            $webhookUrlOverride,
             self::signaturePolicyValue($payload['signaturePolicy'] ?? 'strict'),
-            self::boolValue($payload['idempotencyRequired'] ?? true),
+            self::boolValue($payload['idempotencyRequired'] ?? null, true, '$.idempotencyRequired'),
         );
     }
 
@@ -175,33 +207,97 @@ final class UcpConfig
         );
     }
 
-    private static function boolValue(mixed $value): bool
+    private static function boolValue(mixed $value, bool $default, string $path): bool
     {
-        return \is_bool($value) ? $value : filter_var($value, \FILTER_VALIDATE_BOOL);
+        if (null === $value || '' === $value) {
+            return $default;
+        }
+
+        if (\is_bool($value)) {
+            return $value;
+        }
+
+        if (\is_int($value) && \in_array($value, [0, 1], true)) {
+            return 1 === $value;
+        }
+
+        if (\is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (\in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (\in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        throw self::invalid($path, 'must be a boolean');
     }
 
-    private static function intValue(mixed $value, int $default): int
+    private static function intValue(mixed $value, int $default, string $path): int
     {
-        return is_numeric($value) ? (int) $value : $default;
+        if (null === $value || '' === $value) {
+            return $default;
+        }
+
+        $normalized = filter_var($value, \FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+        if (false === $normalized) {
+            throw self::invalid($path, 'must be a non-negative integer');
+        }
+
+        return $normalized;
     }
 
-    private static function stringValue(mixed $value, string $default): string
+    private static function ucpVersionValue(mixed $value): string
     {
-        return \is_string($value) && '' !== $value ? $value : $default;
+        if (null === $value || '' === $value) {
+            return UcpProtocol::VERSION;
+        }
+
+        if (!\is_string($value)) {
+            throw self::invalid('$.ucpVersion', 'must be a string');
+        }
+
+        if (UcpProtocol::VERSION !== $value) {
+            throw self::invalid('$.ucpVersion', \sprintf('must be "%s"', UcpProtocol::VERSION));
+        }
+
+        return $value;
     }
 
-    private static function nullableStringValue(mixed $value): ?string
+    private static function profileUriStrategyValue(mixed $value): string
     {
-        return \is_string($value) && '' !== $value ? $value : null;
+        if (null === $value || '' === $value) {
+            return 'domain';
+        }
+
+        if (!\is_string($value)) {
+            throw self::invalid('$.profileUriStrategy', 'must be a string');
+        }
+
+        if (!\in_array($value, self::PROFILE_URI_STRATEGIES, true)) {
+            throw self::invalid('$.profileUriStrategy', 'must be one of "domain", "config"');
+        }
+
+        return $value;
     }
 
     private static function signaturePolicyValue(mixed $value): string
     {
-        if (!\is_string($value) || '' === $value) {
+        if (null === $value || '' === $value) {
             return 'strict';
         }
 
-        return null !== SignaturePolicy::tryFrom($value) ? $value : 'strict';
+        if (!\is_string($value)) {
+            throw self::invalid('$.signaturePolicy', 'must be a string');
+        }
+
+        if (null === SignaturePolicy::tryFrom($value)) {
+            throw self::invalid('$.signaturePolicy', 'must be a supported signature policy');
+        }
+
+        return $value;
     }
 
     /**
@@ -212,6 +308,10 @@ final class UcpConfig
     private static function enabledCapabilityList(array $payload): array
     {
         if (!\array_key_exists('enabledCapabilities', $payload) || !\is_array($payload['enabledCapabilities'])) {
+            if (\array_key_exists('enabledCapabilities', $payload) && null !== $payload['enabledCapabilities']) {
+                throw self::invalid('$.enabledCapabilities', 'must be a list');
+            }
+
             return UcpCapabilityCatalog::defaultConfigKeys();
         }
 
@@ -226,6 +326,10 @@ final class UcpConfig
     private static function enabledTransportList(array $payload): array
     {
         if (!\array_key_exists('enabledTransports', $payload) || !\is_array($payload['enabledTransports'])) {
+            if (\array_key_exists('enabledTransports', $payload) && null !== $payload['enabledTransports']) {
+                throw self::invalid('$.enabledTransports', 'must be a list');
+            }
+
             return ['rest'];
         }
 
@@ -235,19 +339,79 @@ final class UcpConfig
     /**
      * @return list<string>
      */
-    private static function stringList(mixed $value): array
+    private static function hostList(mixed $value, string $path): array
     {
-        if (!\is_array($value)) {
+        return self::normalizedList(
+            $value,
+            $path,
+            static fn (string $entry, string $entryPath): string => self::normalizeHost($entry, $entryPath),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function originList(mixed $value, string $path): array
+    {
+        return self::normalizedList(
+            $value,
+            $path,
+            static fn (string $entry, string $entryPath): string => self::normalizeOrigin($entry, $entryPath),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function frameAncestorList(mixed $value): array
+    {
+        $ancestors = self::normalizedList(
+            $value,
+            '$.embeddedFrameAncestors',
+            static function (string $entry, string $entryPath): string {
+                if (\in_array($entry, ["'self'", "'none'"], true)) {
+                    return $entry;
+                }
+
+                return self::normalizeOrigin($entry, $entryPath);
+            },
+        );
+
+        if (\in_array("'none'", $ancestors, true) && \count($ancestors) > 1) {
+            throw self::invalid('$.embeddedFrameAncestors', '"none" cannot be combined with other frame ancestors');
+        }
+
+        return $ancestors;
+    }
+
+    /**
+     * @param \Closure(string, string): string $normalize
+     *
+     * @return list<string>
+     */
+    private static function normalizedList(mixed $value, string $path, \Closure $normalize): array
+    {
+        if (null === $value) {
             return [];
         }
 
+        if (!\is_array($value) || array_is_list($value) === false) {
+            throw self::invalid($path, 'must be a list');
+        }
+
         $normalized = [];
-        foreach ($value as $entry) {
-            if (!\is_string($entry) || '' === $entry) {
+        foreach ($value as $index => $entry) {
+            $entryPath = \sprintf('%s[%d]', $path, $index);
+            if (!\is_string($entry)) {
+                throw self::invalid($entryPath, 'must be a string');
+            }
+
+            $entry = trim($entry);
+            if ('' === $entry) {
                 continue;
             }
 
-            $normalized[] = $entry;
+            $normalized[] = $normalize($entry, $entryPath);
         }
 
         return array_values(array_unique($normalized));
@@ -258,7 +422,16 @@ final class UcpConfig
      */
     private static function capabilityList(mixed $value): array
     {
-        return array_values(array_intersect(self::stringList($value), UcpCapabilityCatalog::allConfigKeys()));
+        $capabilities = [];
+        foreach (self::enumList($value, '$.enabledCapabilities') as $capability) {
+            if (!\in_array($capability, UcpCapabilityCatalog::allConfigKeys(), true)) {
+                throw self::invalid('$.enabledCapabilities', \sprintf('unsupported capability "%s"', $capability));
+            }
+
+            $capabilities[] = $capability;
+        }
+
+        return array_values(array_unique($capabilities));
     }
 
     /**
@@ -267,14 +440,216 @@ final class UcpConfig
     private static function transportList(mixed $value): array
     {
         $transports = [];
-        foreach (self::stringList($value) as $transport) {
+        foreach (self::enumList($value, '$.enabledTransports') as $transport) {
             if (null === Transport::tryFrom($transport)) {
-                continue;
+                throw self::invalid('$.enabledTransports', \sprintf('unsupported transport "%s"', $transport));
             }
 
             $transports[] = $transport;
         }
 
         return array_values(array_unique($transports));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function enumList(mixed $value, string $path): array
+    {
+        if (!\is_array($value) || array_is_list($value) === false) {
+            throw self::invalid($path, 'must be a list');
+        }
+
+        $entries = [];
+        foreach ($value as $index => $entry) {
+            if (!\is_string($entry) || '' === trim($entry)) {
+                throw self::invalid(\sprintf('%s[%d]', $path, $index), 'must be a non-empty string');
+            }
+
+            $entries[] = trim($entry);
+        }
+
+        return $entries;
+    }
+
+    private static function continueUrlTemplateValue(mixed $value): ?string
+    {
+        $url = self::nullableHttpUrlValue($value, '$.continueUrlTemplate', true);
+        if (null === $url) {
+            return null;
+        }
+
+        preg_match_all('/\{[^}]+}/', $url, $matches);
+        foreach ($matches[0] as $placeholder) {
+            if (!\in_array($placeholder, self::CONTINUE_URL_PLACEHOLDERS, true)) {
+                throw self::invalid('$.continueUrlTemplate', \sprintf('unsupported placeholder "%s"', $placeholder));
+            }
+        }
+
+        $withoutKnownPlaceholders = str_replace(self::CONTINUE_URL_PLACEHOLDERS, '', $url);
+        if (str_contains($withoutKnownPlaceholders, '{') || str_contains($withoutKnownPlaceholders, '}')) {
+            throw self::invalid('$.continueUrlTemplate', 'contains a malformed placeholder');
+        }
+
+        return $url;
+    }
+
+    private static function nullableHttpUrlValue(mixed $value, string $path, bool $allowTemplate = false): ?string
+    {
+        if (null === $value || '' === $value) {
+            return null;
+        }
+
+        if (!\is_string($value)) {
+            throw self::invalid($path, 'must be a string');
+        }
+
+        $value = trim($value);
+        if ('' === $value) {
+            return null;
+        }
+
+        if (!$allowTemplate && (str_contains($value, '{') || str_contains($value, '}'))) {
+            throw self::invalid($path, 'must not contain template placeholders');
+        }
+
+        return self::normalizeHttpUrl($value, $path);
+    }
+
+    private static function normalizeHttpUrl(string $value, string $path): string
+    {
+        self::assertNoUnsafeUrlCharacters($value, $path);
+
+        $parts = parse_url($value);
+        if (false === $parts || !isset($parts['scheme'], $parts['host']) || !\is_string($parts['scheme']) || !\is_string($parts['host'])) {
+            throw self::invalid($path, 'must be an absolute http(s) URL');
+        }
+
+        if (isset($parts['user']) || isset($parts['pass'])) {
+            throw self::invalid($path, 'must not contain user info');
+        }
+
+        $scheme = strtolower($parts['scheme']);
+        if (!\in_array($scheme, self::URL_SCHEMES, true)) {
+            throw self::invalid($path, 'must use http or https');
+        }
+
+        $host = self::normalizeHost($parts['host'], $path);
+        $url = $scheme.'://'.self::formatHostForUrl($host);
+
+        if (isset($parts['port'])) {
+            if (!\is_int($parts['port']) || $parts['port'] < 1 || $parts['port'] > 65535) {
+                throw self::invalid($path, 'contains an invalid port');
+            }
+
+            $url .= ':'.$parts['port'];
+        }
+
+        if (isset($parts['path'])) {
+            $url .= $parts['path'];
+        }
+
+        if (isset($parts['query'])) {
+            $url .= '?'.$parts['query'];
+        }
+
+        if (isset($parts['fragment'])) {
+            $url .= '#'.$parts['fragment'];
+        }
+
+        return $url;
+    }
+
+    private static function normalizeOrigin(string $value, string $path): string
+    {
+        self::assertNoUnsafeUrlCharacters($value, $path);
+
+        $parts = parse_url($value);
+        if (false === $parts || !isset($parts['scheme'], $parts['host']) || !\is_string($parts['scheme']) || !\is_string($parts['host'])) {
+            throw self::invalid($path, 'must be an absolute origin');
+        }
+
+        if (isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
+            throw self::invalid($path, 'must be an origin without user info, query, or fragment');
+        }
+
+        if (isset($parts['path']) && '' !== $parts['path'] && '/' !== $parts['path']) {
+            throw self::invalid($path, 'must not contain a path');
+        }
+
+        $scheme = strtolower($parts['scheme']);
+        if (!\in_array($scheme, self::URL_SCHEMES, true)) {
+            throw self::invalid($path, 'must use http or https');
+        }
+
+        $host = self::normalizeHost($parts['host'], $path);
+        $origin = $scheme.'://'.self::formatHostForUrl($host);
+
+        if (isset($parts['port'])) {
+            if (!\is_int($parts['port']) || $parts['port'] < 1 || $parts['port'] > 65535) {
+                throw self::invalid($path, 'contains an invalid port');
+            }
+
+            $origin .= ':'.$parts['port'];
+        }
+
+        return $origin;
+    }
+
+    private static function normalizeHost(string $value, string $path): string
+    {
+        $host = strtolower(trim($value));
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+        }
+
+        $host = rtrim($host, '.');
+        if ('' === $host || 1 === preg_match('/[\s\x00-\x1F\x7F\/?#@]/', $host)) {
+            throw self::invalid($path, 'must be a valid host');
+        }
+
+        if (false !== filter_var($host, \FILTER_VALIDATE_IP)) {
+            return $host;
+        }
+
+        if (str_contains($host, ':') || 1 !== preg_match('/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/', $host)) {
+            throw self::invalid($path, 'must be a valid host');
+        }
+
+        return $host;
+    }
+
+    private static function formatHostForUrl(string $host): string
+    {
+        return str_contains($host, ':') ? '['.$host.']' : $host;
+    }
+
+    private static function assertNoUnsafeUrlCharacters(string $value, string $path): void
+    {
+        if (1 === preg_match('/[\s\x00-\x1F\x7F]/', $value)) {
+            throw self::invalid($path, 'contains unsafe characters');
+        }
+    }
+
+    /**
+     * @param list<string> $agentAllowlist
+     * @param list<string> $platformAllowlist
+     */
+    private static function assertWebhookHostAllowed(string $webhookUrl, array $agentAllowlist, array $platformAllowlist): void
+    {
+        $host = parse_url($webhookUrl, \PHP_URL_HOST);
+        if (!\is_string($host) || '' === $host) {
+            throw self::invalid('$.webhookUrlOverride', 'must include a host');
+        }
+
+        $allowedHosts = [] !== $agentAllowlist ? $agentAllowlist : $platformAllowlist;
+        if ([] !== $allowedHosts && !\in_array(self::normalizeHost($host, '$.webhookUrlOverride'), $allowedHosts, true)) {
+            throw self::invalid('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist');
+        }
+    }
+
+    private static function invalid(string $path, string $message): UcpConfigException
+    {
+        return UcpConfigException::invalidValue($path, $message);
     }
 }

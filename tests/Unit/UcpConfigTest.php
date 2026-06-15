@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Enum\Transport;
 
@@ -53,30 +54,35 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
-    public function testItNormalizesArraysAndCustomProfileUri(): void
+    public function testItNormalizesSecuritySensitiveValues(): void
     {
         $config = UcpConfig::fromArray([
             'active' => true,
-            'customProfileUri' => 'https://merchant.example/ucp',
+            'customProfileUri' => ' HTTPS://Merchant.Example./ucp/ ',
             'profileUriStrategy' => 'config',
-            'enabledTransports' => ['rest', '', 'rest'],
-            'platformAllowlist' => ['merchant.example', 'merchant.example'],
-            'remoteProfileAllowlist' => ['platform.example', 'platform.example'],
-            'agentAllowlist' => ['agent.example'],
-            'embeddedAllowedOrigins' => ['https://assistant.example'],
-            'embeddedFrameAncestors' => ['https://assistant.example'],
+            'enabledTransports' => ['rest', 'rest'],
+            'platformAllowlist' => ['Merchant.Example.', 'merchant.example'],
+            'remoteProfileAllowlist' => ['Platform.Example', 'platform.example.'],
+            'agentAllowlist' => ['Agent.Example'],
+            'embeddedAllowedOrigins' => ['HTTPS://Assistant.Example:8443/'],
+            'embeddedFrameAncestors' => ["'self'", 'HTTPS://Frame.Example/'],
+            'continueUrlTemplate' => 'HTTPS://Merchant.Example/checkout/confirm?checkoutId={checkoutId}',
+            'webhookUrlOverride' => 'HTTPS://Agent.Example/ucp',
             'signaturePolicy' => 'strict',
         ]);
 
         self::assertTrue($config->active);
         self::assertSame('https://merchant.example/ucp', $config->resolveBaseUri('https://fallback.example'));
+        self::assertSame('https://merchant.example/ucp/', $config->customProfileUri);
         self::assertSame(['rest'], $config->enabledTransports);
         self::assertSame(['rest'], array_map(static fn ($transport): string => $transport->value, $config->runtimeTransports()));
         self::assertSame(['merchant.example'], $config->platformAllowlist);
         self::assertSame(['platform.example'], $config->remoteProfileAllowlist);
         self::assertSame(['agent.example'], $config->agentAllowlist);
-        self::assertSame(['https://assistant.example'], $config->embeddedAllowedOrigins);
-        self::assertSame(['https://assistant.example'], $config->embeddedFrameAncestors);
+        self::assertSame(['https://assistant.example:8443'], $config->embeddedAllowedOrigins);
+        self::assertSame(["'self'", 'https://frame.example'], $config->embeddedFrameAncestors);
+        self::assertSame('https://merchant.example/checkout/confirm?checkoutId={checkoutId}', $config->continueUrlTemplate);
+        self::assertSame('https://agent.example/ucp', $config->webhookUrlOverride);
         self::assertSame('strict', $config->signaturePolicy);
         self::assertSame(UcpProtocol::VERSION, $config->ucpVersion);
     }
@@ -135,25 +141,15 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
-    public function testItFallsBackToStrictForInvalidSignaturePolicy(): void
-    {
-        $config = UcpConfig::fromArray([
-            'signaturePolicy' => 'invalid',
-        ]);
-
-        self::assertSame('strict', $config->signaturePolicy);
-    }
-
-    #[Test]
-    public function testItNormalizesUnknownCapabilitiesAndTransportsBeforeStorage(): void
+    public function testItNormalizesDuplicateCapabilitiesAndTransportsBeforeStorage(): void
     {
         $config = UcpConfig::fromArray([
             'enabledCapabilities' => [
                 UcpCapabilityCatalog::CONFIG_CATALOG,
-                'unknown',
                 UcpCapabilityCatalog::CONFIG_PAYMENT_TOKENIZATION,
+                UcpCapabilityCatalog::CONFIG_CATALOG,
             ],
-            'enabledTransports' => ['rest', 'invalid', 'a2a', 'rest'],
+            'enabledTransports' => ['rest', 'a2a', 'rest'],
         ]);
 
         self::assertSame([
@@ -161,6 +157,18 @@ final class UcpConfigTest extends TestCase
             UcpCapabilityCatalog::CONFIG_PAYMENT_TOKENIZATION,
         ], $config->enabledCapabilities);
         self::assertSame(['rest', 'a2a'], $config->enabledTransports);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    #[DataProvider('invalidConfigProvider')]
+    #[Test]
+    public function testItRejectsInvalidConfigValues(array $payload, UcpConfigException $exception): void
+    {
+        $this->expectExceptionObject($exception);
+
+        UcpConfig::fromArray($payload);
     }
 
     #[Test]
@@ -251,12 +259,12 @@ final class UcpConfigTest extends TestCase
             ],
         ];
 
-        yield 'invalid and duplicate config values are sanitized' => [
+        yield 'duplicate config values are normalized' => [
             'payload' => [
                 'active' => true,
-                'enabledCapabilities' => ['catalog', 'unknown', 'payment_tokenization', 'catalog'],
-                'enabledTransports' => ['rest', 'invalid', 'a2a', 'rest'],
-                'signaturePolicy' => 'invalid',
+                'enabledCapabilities' => ['catalog', 'payment_tokenization', 'catalog'],
+                'enabledTransports' => ['rest', 'a2a', 'rest'],
+                'signaturePolicy' => 'log',
                 'idempotencyRequired' => false,
             ],
             'storeApiMcpAvailable' => false,
@@ -264,12 +272,12 @@ final class UcpConfigTest extends TestCase
             'expectedConfig' => [
                 'enabledCapabilities' => ['catalog', 'payment_tokenization'],
                 'enabledTransports' => ['rest', 'a2a'],
-                'signaturePolicy' => 'strict',
+                'signaturePolicy' => 'log',
                 'idempotencyRequired' => false,
             ],
             'expectedRuntime' => [
                 'baseUri' => 'https://merchant.example',
-                'signaturePolicy' => 'strict',
+                'signaturePolicy' => 'log',
                 'idempotencyRequired' => false,
                 'allowedProfileHosts' => ['merchant.example'],
                 'allowedAgentDomains' => ['merchant.example'],
@@ -278,30 +286,6 @@ final class UcpConfigTest extends TestCase
                     UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
                 ],
                 'transports' => ['rest', 'a2a'],
-                'transportEndpoints' => [],
-            ],
-        ];
-
-        yield 'all-invalid explicit config values stay empty after sanitization' => [
-            'payload' => [
-                'active' => true,
-                'enabledCapabilities' => ['unknown', 'unsupported'],
-                'enabledTransports' => ['invalid', 'other'],
-            ],
-            'storeApiMcpAvailable' => false,
-            'fallbackBaseUri' => 'https://merchant.example',
-            'expectedConfig' => [
-                'enabledCapabilities' => [],
-                'enabledTransports' => [],
-            ],
-            'expectedRuntime' => [
-                'baseUri' => 'https://merchant.example',
-                'signaturePolicy' => 'strict',
-                'idempotencyRequired' => true,
-                'allowedProfileHosts' => ['merchant.example'],
-                'allowedAgentDomains' => ['merchant.example'],
-                'enabledCapabilities' => [],
-                'transports' => [],
                 'transportEndpoints' => [],
             ],
         ];
@@ -393,7 +377,7 @@ final class UcpConfigTest extends TestCase
                 'embeddedAllowedOrigins' => ['https://assistant.example'],
                 'embeddedFrameAncestors' => ['https://frame.example'],
                 'continueUrlTemplate' => 'https://merchant.example/checkout/confirm?checkoutId={checkoutId}',
-                'webhookUrlOverride' => 'https://webhook.example/ucp',
+                'webhookUrlOverride' => 'https://agent.example/ucp',
                 'discoveryBudget' => 5,
                 'signaturePolicy' => 'off',
             ],
@@ -406,7 +390,7 @@ final class UcpConfigTest extends TestCase
                 'embeddedAllowedOrigins' => ['https://assistant.example'],
                 'embeddedFrameAncestors' => ['https://frame.example'],
                 'continueUrlTemplate' => 'https://merchant.example/checkout/confirm?checkoutId={checkoutId}',
-                'webhookUrlOverride' => 'https://webhook.example/ucp',
+                'webhookUrlOverride' => 'https://agent.example/ucp',
                 'discoveryBudget' => 5,
                 'signaturePolicy' => 'off',
             ],
@@ -420,6 +404,95 @@ final class UcpConfigTest extends TestCase
                 'transports' => ['rest'],
                 'transportEndpoints' => [],
             ],
+        ];
+    }
+
+    /**
+     * @return iterable<string, array{payload: array<string, mixed>, exception: UcpConfigException}>
+     */
+    public static function invalidConfigProvider(): iterable
+    {
+        yield 'unknown profile URI strategy' => [
+            'payload' => ['profileUriStrategy' => 'custom'],
+            'exception' => UcpConfigException::invalidValue('$.profileUriStrategy', 'must be one of "domain", "config"'),
+        ];
+
+        yield 'config profile URI strategy requires URI' => [
+            'payload' => ['profileUriStrategy' => 'config'],
+            'exception' => UcpConfigException::invalidValue('$.customProfileUri', 'must be set when profileUriStrategy is "config"'),
+        ];
+
+        yield 'custom profile URI must be absolute URL' => [
+            'payload' => ['customProfileUri' => '/profile'],
+            'exception' => UcpConfigException::invalidValue('$.customProfileUri', 'must be an absolute http(s) URL'),
+        ];
+
+        yield 'unsupported UCP version' => [
+            'payload' => ['ucpVersion' => '0.0.0'],
+            'exception' => UcpConfigException::invalidValue('$.ucpVersion', \sprintf('must be "%s"', UcpProtocol::VERSION)),
+        ];
+
+        yield 'continue URL must be absolute' => [
+            'payload' => ['continueUrlTemplate' => '/checkout/{checkoutId}'],
+            'exception' => UcpConfigException::invalidValue('$.continueUrlTemplate', 'must be an absolute http(s) URL'),
+        ];
+
+        yield 'continue URL rejects unknown placeholders' => [
+            'payload' => ['continueUrlTemplate' => 'https://merchant.example/checkout/{unknown}'],
+            'exception' => UcpConfigException::invalidValue('$.continueUrlTemplate', 'unsupported placeholder "{unknown}"'),
+        ];
+
+        yield 'host allowlists reject URLs' => [
+            'payload' => ['platformAllowlist' => ['https://merchant.example']],
+            'exception' => UcpConfigException::invalidValue('$.platformAllowlist[0]', 'must be a valid host'),
+        ];
+
+        yield 'embedded origins reject paths' => [
+            'payload' => ['embeddedAllowedOrigins' => ['https://assistant.example/app']],
+            'exception' => UcpConfigException::invalidValue('$.embeddedAllowedOrigins[0]', 'must not contain a path'),
+        ];
+
+        yield 'frame ancestors reject broad wildcard' => [
+            'payload' => ['embeddedFrameAncestors' => ['*']],
+            'exception' => UcpConfigException::invalidValue('$.embeddedFrameAncestors[0]', 'must be an absolute origin'),
+        ];
+
+        yield 'frame ancestors reject none with other sources' => [
+            'payload' => ['embeddedFrameAncestors' => ["'none'", 'https://assistant.example']],
+            'exception' => UcpConfigException::invalidValue('$.embeddedFrameAncestors', '"none" cannot be combined with other frame ancestors'),
+        ];
+
+        yield 'webhook override host must be configured allowlist host' => [
+            'payload' => [
+                'agentAllowlist' => ['agent.example'],
+                'webhookUrlOverride' => 'https://evil.example/webhook',
+            ],
+            'exception' => UcpConfigException::invalidValue('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist'),
+        ];
+
+        yield 'unknown signature policy' => [
+            'payload' => ['signaturePolicy' => 'invalid'],
+            'exception' => UcpConfigException::invalidValue('$.signaturePolicy', 'must be a supported signature policy'),
+        ];
+
+        yield 'unknown capability' => [
+            'payload' => ['enabledCapabilities' => ['catalog', 'unknown']],
+            'exception' => UcpConfigException::invalidValue('$.enabledCapabilities', 'unsupported capability "unknown"'),
+        ];
+
+        yield 'unknown transport' => [
+            'payload' => ['enabledTransports' => ['rest', 'invalid']],
+            'exception' => UcpConfigException::invalidValue('$.enabledTransports', 'unsupported transport "invalid"'),
+        ];
+
+        yield 'boolean values must be parseable' => [
+            'payload' => ['active' => 'sometimes'],
+            'exception' => UcpConfigException::invalidValue('$.active', 'must be a boolean'),
+        ];
+
+        yield 'discovery budget must be non-negative' => [
+            'payload' => ['discoveryBudget' => -1],
+            'exception' => UcpConfigException::invalidValue('$.discoveryBudget', 'must be a non-negative integer'),
         ];
     }
 
