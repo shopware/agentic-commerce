@@ -68,7 +68,7 @@ final class OAuthClientBindingValidator
         return [
             'scheme' => $scheme,
             'host' => strtolower($parts['host']),
-            'port' => isset($parts['port']) && \is_int($parts['port']) ? $parts['port'] : ('http' === $scheme ? 80 : 443),
+            'port' => $parts['port'] ?? ('http' === $scheme ? 80 : 443),
         ];
     }
 }

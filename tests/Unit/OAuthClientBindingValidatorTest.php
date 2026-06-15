@@ -17,8 +17,7 @@ final class OAuthClientBindingValidatorTest extends TestCase
     #[Test]
     public function testItRejectsUnsignedPlatformProfileContext(): void
     {
-        $this->expectException(OAuthException::class);
-        $this->expectExceptionMessage('UCP identity linking requires a signed platform profile request.');
+        $this->expectExceptionObject(new OAuthException('UCP identity linking requires a signed platform profile request.'));
 
         (new OAuthClientBindingValidator())->assertClientId(
             'https://agent.example/profile.json',
@@ -29,8 +28,7 @@ final class OAuthClientBindingValidatorTest extends TestCase
     #[Test]
     public function testItRejectsClientIdDifferentFromSignedPlatformProfile(): void
     {
-        $this->expectException(OAuthException::class);
-        $this->expectExceptionMessage('OAuth client ID must match the signed platform profile URI.');
+        $this->expectExceptionObject(new OAuthException('OAuth client ID must match the signed platform profile URI.'));
 
         (new OAuthClientBindingValidator())->assertClientId(
             'https://other.example/profile.json',
@@ -41,8 +39,7 @@ final class OAuthClientBindingValidatorTest extends TestCase
     #[Test]
     public function testItRejectsRedirectUriOutsideTheSignedProfileOrigin(): void
     {
-        $this->expectException(OAuthException::class);
-        $this->expectExceptionMessage('OAuth redirect URI must use the signed platform profile origin.');
+        $this->expectExceptionObject(new OAuthException('OAuth redirect URI must use the signed platform profile origin.'));
 
         (new OAuthClientBindingValidator())->assertRedirectUri(
             'https://evil.example/callback',
