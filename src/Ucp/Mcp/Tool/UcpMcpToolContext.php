@@ -33,16 +33,6 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    public function decodeObject(string $payload): array
-    {
-        $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
-
-        return \is_array($decoded) && !array_is_list($decoded) ? $decoded : [];
-    }
-
-    /**
      * @return list<string>
      */
     public function decodeStringList(string $payload): array

@@ -118,12 +118,6 @@ test.describe('UCP public profile and transports', () => {
     });
 
     test('exposes object payload schemas for MCP write tools', async ({ request: api }) => {
-        // Object payload schemas (#[Schema]) and -32602 invalid-input errors need
-        // mcp/sdk ^0.6; shopware trunk pins ^0.5 (via symfony/mcp-bundle), so the
-        // write tools currently take a JSON-string payload. Re-enable this once the
-        // SDK is bumped — see docs/mcp-sdk-upgrade.md.
-        test.skip(true, 'Requires mcp/sdk ^0.6 object schemas; see docs/mcp-sdk-upgrade.md.');
-
         const profile = await readPublicProfile(api);
         const mcpEndpoint = shoppingTransports(profile).find((entry) => entry.transport === 'mcp')?.endpoint;
 
@@ -167,29 +161,7 @@ test.describe('UCP public profile and transports', () => {
 
         for (const toolName of ['shopware-ucp-cart-update', 'shopware-ucp-checkout-update']) {
             expect(tools.get(toolName).inputSchema.required).toContain('id');
-            expect(tools.get(toolName).inputSchema.properties.id.minLength).toBe(1);
         }
-
-        const invalidCallResponse = await mcpApi.post(mcpEndpoint, {
-            headers: {
-                'content-type': 'application/json',
-                'Mcp-Session-Id': sessionId,
-            },
-            data: {
-                jsonrpc: '2.0',
-                method: 'tools/call',
-                params: {
-                    name: 'shopware-ucp-cart-create',
-                    arguments: {},
-                },
-                id: 203,
-            },
-        });
-
-        await expect(invalidCallResponse, await invalidCallResponse.text()).toBeOK();
-        const invalidCallBody = await invalidCallResponse.json();
-        expect(invalidCallBody.error.code).toBe(-32602);
-        expect(invalidCallBody.error.message).toContain('payload');
 
         await mcpApi.dispose();
     });

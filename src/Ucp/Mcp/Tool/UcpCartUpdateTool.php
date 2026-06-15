@@ -9,7 +9,7 @@ use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-cart-update', title: 'UCP Cart Update', description: 'Replace cart line items through the shared UCP cart capability. The payload parameter is a JSON object string matching the UCP cart.update request.')]
+#[McpTool(name: 'shopware-ucp-cart-update', title: 'UCP Cart Update', description: 'Replace cart line items through the shared UCP cart capability.')]
 #[Package('checkout')]
 final class UcpCartUpdateTool
 {
@@ -19,12 +19,15 @@ final class UcpCartUpdateTool
     ) {
     }
 
-    public function __invoke(string $id, string $payload = '{}'): string
+    /**
+     * @param array<string, mixed> $payload
+     */
+    public function __invoke(string $id, array $payload): string
     {
         try {
             return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
                 'cart.update',
-                $this->toolContext->decodeObject($payload),
+                $payload,
                 $this->toolContext->requestContext(),
                 $id,
             )));

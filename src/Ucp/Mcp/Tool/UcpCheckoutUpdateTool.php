@@ -9,7 +9,7 @@ use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request.')]
+#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability.')]
 #[Package('checkout')]
 final class UcpCheckoutUpdateTool
 {
@@ -19,12 +19,15 @@ final class UcpCheckoutUpdateTool
     ) {
     }
 
-    public function __invoke(string $id, string $payload = '{}'): string
+    /**
+     * @param array<string, mixed> $payload
+     */
+    public function __invoke(string $id, array $payload): string
     {
         try {
             return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
                 'checkout.update',
-                $this->toolContext->decodeObject($payload),
+                $payload,
                 $this->toolContext->requestContext(),
                 $id,
             )));
