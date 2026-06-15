@@ -122,6 +122,30 @@ The script handles the important differences:
 - Keep the scope aligned with the request: avoid unrelated refactors, but do not
   miss obvious consistency fixes that make the codebase simpler.
 
+## Test Structure
+
+- Write test methods as clear executable examples. Keep scenario-specific data,
+  action, and assertions visible in the test body.
+- Move stable boilerplate such as mock services, the class under test, command
+  testers, and repeated collaborators into `setUp()`/`tearDown()` when that
+  lets tests focus on the scenario.
+- Prefer PHPUnit mocks/stubs for interfaces. Avoid throwaway anonymous classes
+  inside test methods unless the concrete behavior is the subject of the test.
+- Avoid reflection-uninitialized final services in tests. Construct real
+  collaborators with mocks or extract a narrower interface where that is already
+  part of the production design.
+- Keep helpers smaller than the code they replace. Helpers may create entities,
+  files, or value objects, but should not hide meaningful scenario wiring or
+  assertions.
+- Prefer one focused test method per distinct exception or behavior over broad
+  data providers when each case has its own meaning.
+- Use named `yield` cases in data providers. Case names should describe the
+  behavior being proven, not restate raw input values.
+- Do not add `#[CoversClass]`, `#[CoversFunction]`, or `#[CoversNothing]` to
+  integration tests.
+- Do not mock DBAL persistence behavior for adapter confidence. SQL/database
+  adapters should have integration coverage when persistence behavior matters.
+
 ## Bug Fix Root Cause And Scope
 
 - Treat fix suggestions from issues as hypotheses, not instructions to follow
@@ -136,6 +160,15 @@ The script handles the important differences:
 - Conversely, keep feature-specific bugs out of broad shared infrastructure when
   a general change could negatively affect other plugin behavior.
 - Always do a root cause analysis to identify where the real issue lives.
+
+## Pull Requests
+
+- Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior,
+  and administration UI work should be separate unless the user asks otherwise.
+- Preserve review history when updating an existing PR after feedback: add a
+  follow-up commit unless the user explicitly asks for an amend or force-push.
+- PR descriptions should summarize what changed, why, and what validation was
+  possible. Mention missing lane/tooling validation plainly.
 
 ## Further References
 
