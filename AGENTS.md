@@ -110,50 +110,32 @@ The script handles the important differences:
 - Keep migrations safe across all supported lanes. Do not assume newer core
   tables, constants, entity definitions, services, or administration APIs exist.
 
-## Test Structure
+## Boyscouting Scope
 
-- Write test methods as clear executable examples. Keep scenario-specific data,
-  action, and assertions visible in the test body.
-- Move stable boilerplate such as mock services, the class under test, command
-  testers, and repeated collaborators into `setUp()`/`tearDown()` when that
-  lets tests focus on the scenario.
-- Prefer PHPUnit mocks/stubs for interfaces. Avoid throwaway anonymous classes
-  inside test methods unless the concrete behavior is the subject of the test.
-- Avoid reflection-uninitialized final services in tests. Construct real
-  collaborators with mocks or extract a narrower interface where that is already
-  part of the production design.
-- Keep helpers smaller than the code they replace. Helpers may create entities,
-  files, or value objects, but should not hide meaningful scenario wiring or
-  assertions.
-- Prefer one focused test method per distinct exception or behavior over broad
-  data providers when each case has its own meaning.
-- Use named `yield` cases in data providers. Case names should describe the
-  behavior being proven, not restate raw input values.
-- Do not add `#[CoversClass]`, `#[CoversFunction]`, or `#[CoversNothing]` to
-  integration tests.
-- Do not mock DBAL persistence behavior for adapter confidence. SQL/database
-  adapters should have integration coverage when persistence behavior matters.
+- When asked to make a specific cleanup or behavioral change, look for safe
+  opportunities to apply the same improvement across the touched file.
+- If the same pattern appears in nearby files or a broader low-risk scope,
+  mention that proactively and suggest extending the cleanup.
+- When adding or touching unit tests, look for low-hanging missing coverage
+  paths in the same domain or command surface that can be covered cheaply and
+  locally.
+- Keep the scope aligned with the request: avoid unrelated refactors, but do not
+  miss obvious consistency fixes that make the codebase simpler.
 
-## File Editing And Scope
+## Bug Fix Root Cause And Scope
 
-- Use regular patch edits for normal file changes. Do not use ad hoc Perl,
-  Python, shell substitutions, or similar rewrite commands for ordinary edits.
-- Keep diffs small and aligned with the request. Prefer deletion over new
-  abstractions.
-- When touching a file, apply the same safe cleanup to nearby code in that file.
-  Mention broader low-risk follow-up opportunities instead of silently expanding
-  into unrelated domains.
-- Do not edit generated administration output unless the task is explicitly
-  about generated assets.
-
-## Pull Requests
-
-- Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior,
-  and administration UI work should be separate unless the user asks otherwise.
-- Preserve review history when updating an existing PR after feedback: add a
-  follow-up commit unless the user explicitly asks for an amend or force-push.
-- PR descriptions should summarize what changed, why, and what validation was
-  possible. Mention missing lane/tooling validation plainly.
+- Treat fix suggestions from issues as hypotheses, not instructions to follow
+  blindly. Reason from first principles about the actual failure mode before
+  choosing an implementation.
+- Prefer the least invasive fix that correctly addresses the root cause.
+- Fix issues at the boundary where the root cause actually lives instead of
+  spreading compensating changes across unrelated components.
+- Match the fix location to the bug scope. A plugin-specific bug belongs in the
+  plugin, while a Shopware core bug should be fixed upstream instead of worked
+  around repeatedly here.
+- Conversely, keep feature-specific bugs out of broad shared infrastructure when
+  a general change could negatively affect other plugin behavior.
+- Always do a root cause analysis to identify where the real issue lives.
 
 ## Further References
 
