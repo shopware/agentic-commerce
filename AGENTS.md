@@ -165,10 +165,10 @@ The script handles the important differences:
 
 - Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior,
   and administration UI work should be separate unless the user asks otherwise.
+- Use conventional commit style for commit messages and keep PR titles/messages
+  short.
 - Preserve review history when updating an existing PR after feedback: add a
   follow-up commit unless the user explicitly asks for an amend or force-push.
-- PR descriptions should summarize what changed, why, and what validation was
-  possible. Mention missing lane/tooling validation plainly.
 
 ## Further References
 
