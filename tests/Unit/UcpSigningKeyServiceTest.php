@@ -143,11 +143,17 @@ class UcpSigningKeyServiceTestRepository implements ManagedSigningKeyRepositoryI
         return true;
     }
 
+    /**
+     * @return list<ManagedSigningKey>
+     */
     protected function allForTenant(?string $tenantIdentifier): array
     {
         return array_values($this->tenantKeys[$tenantIdentifier ?? ''] ?? []);
     }
 
+    /**
+     * @return list<ManagedSigningKey>
+     */
     protected function activeForTenantKey(?string $tenantIdentifier): array
     {
         return array_values(array_filter(
