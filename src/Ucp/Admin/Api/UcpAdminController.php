@@ -15,7 +15,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Profile\ProfilePreviewBuilder;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
-use Symfony\Component\HttpFoundation\Exception\JsonException as HttpFoundationJsonException;
+use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -93,7 +93,7 @@ final class UcpAdminController
     {
         try {
             $payload = $request->toArray();
-        } catch (HttpFoundationJsonException) {
+        } catch (JsonException) {
             throw UcpConfigException::invalidJsonPayload();
         }
 
