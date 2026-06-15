@@ -395,7 +395,7 @@ final class UcpConfig
             return [];
         }
 
-        if (!\is_array($value) || array_is_list($value) === false) {
+        if (!\is_array($value) || false === array_is_list($value)) {
             throw self::invalid($path, 'must be a list');
         }
 
@@ -456,7 +456,7 @@ final class UcpConfig
      */
     private static function enumList(mixed $value, string $path): array
     {
-        if (!\is_array($value) || array_is_list($value) === false) {
+        if (!\is_array($value) || false === array_is_list($value)) {
             throw self::invalid($path, 'must be a list');
         }
 
