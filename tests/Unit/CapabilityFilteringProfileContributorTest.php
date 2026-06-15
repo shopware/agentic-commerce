@@ -6,10 +6,24 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityCollection;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
+use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
+use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Profile\CapabilityFilteringProfileContributor;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
+use Ucp\Sdk\Model\Profile\PlatformProfile;
+use Ucp\Sdk\Model\Profile\ProfileBuildInput;
+use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
 /** @internal */
 final class CapabilityFilteringProfileContributorTest extends TestCase
@@ -17,7 +31,10 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     #[Test]
     public function testItPrunesDiscountExtendsToAdvertisedParents(): void
     {
-        $result = $this->withPrunedDiscountExtension([
+        $result = $this->contribute([
+            UcpCapabilityCatalog::CONFIG_CART,
+            UcpCapabilityCatalog::CONFIG_DISCOUNT,
+        ], [
             UcpCapabilityCatalog::DESCRIPTOR_CART => [
                 $this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_CART),
             ],
@@ -35,7 +52,9 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     #[Test]
     public function testItDropsDiscountWhenNoParentCapabilityIsAdvertised(): void
     {
-        $result = $this->withPrunedDiscountExtension([
+        $result = $this->contribute([
+            UcpCapabilityCatalog::CONFIG_DISCOUNT,
+        ], [
             UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT => [
                 $this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT),
             ],
@@ -45,19 +64,19 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     }
 
     /**
-     * @param array<string, list<CapabilityDescriptor>> $capabilities
+     * @param list<string> $enabledCapabilities
+     * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
      *
      * @return array<string, list<CapabilityDescriptor>>
      */
-    private function withPrunedDiscountExtension(array $capabilities): array
+    private function contribute(array $enabledCapabilities, array $profileCapabilities): array
     {
-        $reflection = new \ReflectionClass(CapabilityFilteringProfileContributor::class);
-        $method = $reflection->getMethod('withPrunedDiscountExtension');
+        $profile = new PlatformProfile(UcpProtocol::VERSION, [], $profileCapabilities, []);
 
-        /** @var array<string, list<CapabilityDescriptor>> $result */
-        $result = $method->invoke($reflection->newInstanceWithoutConstructor(), $capabilities);
-
-        return $result;
+        return $this->contributor($enabledCapabilities)->contribute(
+            $profile,
+            new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
+        )->capabilities;
     }
 
     private function descriptor(string $name): CapabilityDescriptor
@@ -71,6 +90,41 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
                 UcpCapabilityCatalog::DESCRIPTOR_CART,
                 UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
             ] : null,
+        );
+    }
+
+    /**
+     * @param list<string> $enabledCapabilities
+     */
+    private function contributor(array $enabledCapabilities): CapabilityFilteringProfileContributor
+    {
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
+            'SwagAgenticCommerce.config.active' => true,
+            'SwagAgenticCommerce.config.enabledCapabilities' => $enabledCapabilities,
+            default => null,
+        });
+
+        $domainRepository = $this->createMock(EntityRepository::class);
+        $domainRepository->method('search')->willReturnCallback(
+            static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
+                'sales_channel_domain',
+                0,
+                new EntityCollection(),
+                null,
+                $criteria,
+                $context,
+            ),
+        );
+
+        $paymentHandlerRegistry = $this->createMock(PaymentHandlerRegistryInterface::class);
+        $paymentHandlerRegistry->method('all')->willReturn([]);
+
+        return new CapabilityFilteringProfileContributor(
+            new SalesChannelDomainResolver($domainRepository),
+            new UcpConfigService($this->createMock(UcpConfigRepositoryInterface::class), $legacyStore),
+            new ShopwareVersionDetector('6.7.0.0'),
+            new UcpExtensionAvailability([], $paymentHandlerRegistry),
         );
     }
 }
