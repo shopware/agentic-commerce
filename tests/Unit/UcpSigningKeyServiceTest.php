@@ -16,78 +16,22 @@ use Ucp\Sdk\Service\SigningKeyManagerInterface;
 /** @internal */
 final class UcpSigningKeyServiceTest extends TestCase
 {
+    private SigningKeyManagerInterface $signingKeyManager;
+
+    protected function setUp(): void
+    {
+        $this->signingKeyManager = new UcpSigningKeyServiceTestSigningKeyManager();
+    }
+
     #[Test]
     public function testItDeletesOnlyTheRequestedManagedKey(): void
     {
         $activeKey = new ManagedSigningKey('active-key', 'public', 'private');
         $retiredKey = new ManagedSigningKey('retired-key', 'public', 'private', status: 'retired', retireAt: '2026-01-01T00:00:00+00:00');
 
-        $repository = new class(['active-key' => $activeKey, 'retired-key' => $retiredKey]) implements ManagedSigningKeyRepositoryInterface {
-            /**
-             * @param array<string, ManagedSigningKey> $keys
-             */
-            public function __construct(
-                public array $keys,
-            ) {
-            }
+        $repository = new UcpSigningKeyServiceTestRepository(['active-key' => $activeKey, 'retired-key' => $retiredKey]);
 
-            public function saveManaged(ManagedSigningKey $key): void
-            {
-                $this->keys[$key->kid] = $key;
-            }
-
-            public function findManaged(string $kid): ?ManagedSigningKey
-            {
-                return $this->keys[$kid] ?? null;
-            }
-
-            public function allManaged(): array
-            {
-                return array_values($this->keys);
-            }
-
-            public function active(): array
-            {
-                return array_values(array_filter(
-                    $this->keys,
-                    static fn (ManagedSigningKey $key): bool => \in_array($key->status, ['active', 'retiring'], true),
-                ));
-            }
-
-            public function purgeRetired(string $olderThanIso8601): void
-            {
-            }
-
-            public function deleteManaged(string $kid): bool
-            {
-                if (!isset($this->keys[$kid])) {
-                    return false;
-                }
-
-                unset($this->keys[$kid]);
-
-                return true;
-            }
-        };
-
-        $signingKeyManager = new class implements SigningKeyManagerInterface {
-            public function generate(string $kid, string $algorithm = 'ES256'): ManagedSigningKey
-            {
-                return new ManagedSigningKey($kid, 'public', 'private', $algorithm);
-            }
-
-            public function toPublicKey(ManagedSigningKey $key): PublicSigningKey
-            {
-                return new PublicSigningKey($key->kid, $key->algorithm);
-            }
-
-            public function publicKeyFromJwk(array $jwk): PublicSigningKey
-            {
-                return PublicSigningKey::fromJwk($jwk);
-            }
-        };
-
-        $service = new UcpSigningKeyService($repository, $signingKeyManager);
+        $service = new UcpSigningKeyService($repository, $this->signingKeyManager);
 
         self::assertTrue($service->delete(null, 'active-key'));
         self::assertNull($repository->findManaged('active-key'));
@@ -97,75 +41,9 @@ final class UcpSigningKeyServiceTest extends TestCase
     #[Test]
     public function testItScopesKeysBySalesChannelWhenTheRepositorySupportsTenants(): void
     {
-        $repository = new class implements ManagedSigningKeyRepositoryInterface, TenantAwareManagedSigningKeyRepositoryInterface {
-            /** @var array<string, array<string, ManagedSigningKey>> */
-            public array $tenantKeys = [];
+        $repository = new UcpSigningKeyServiceTestTenantRepository();
 
-            public function saveManaged(ManagedSigningKey $key): void
-            {
-                $this->saveManagedForTenant(null, $key);
-            }
-
-            public function findManaged(string $kid): ?ManagedSigningKey
-            {
-                return $this->findManagedForTenant(null, $kid);
-            }
-
-            public function deleteManaged(string $kid): bool
-            {
-                return $this->deleteManagedForTenant(null, $kid);
-            }
-
-            public function allManaged(): array
-            {
-                return $this->allManagedForTenant(null);
-            }
-
-            public function active(): array
-            {
-                return $this->activeForTenant(null);
-            }
-
-            public function purgeRetired(string $olderThanIso8601): void
-            {
-            }
-
-            public function saveManagedForTenant(?string $tenantIdentifier, ManagedSigningKey $key): void
-            {
-                $this->tenantKeys[$tenantIdentifier ?? ''][$key->kid] = $key;
-            }
-
-            public function findManagedForTenant(?string $tenantIdentifier, string $kid): ?ManagedSigningKey
-            {
-                return $this->tenantKeys[$tenantIdentifier ?? ''][$kid] ?? null;
-            }
-
-            public function deleteManagedForTenant(?string $tenantIdentifier, string $kid): bool
-            {
-                if (!isset($this->tenantKeys[$tenantIdentifier ?? ''][$kid])) {
-                    return false;
-                }
-
-                unset($this->tenantKeys[$tenantIdentifier ?? ''][$kid]);
-
-                return true;
-            }
-
-            public function allManagedForTenant(?string $tenantIdentifier): array
-            {
-                return array_values($this->tenantKeys[$tenantIdentifier ?? ''] ?? []);
-            }
-
-            public function activeForTenant(?string $tenantIdentifier): array
-            {
-                return array_values(array_filter(
-                    $this->tenantKeys[$tenantIdentifier ?? ''] ?? [],
-                    static fn (ManagedSigningKey $key): bool => \in_array($key->status, ['active', 'retiring'], true),
-                ));
-            }
-        };
-
-        $service = new UcpSigningKeyService($repository, $this->signingKeyManager());
+        $service = new UcpSigningKeyService($repository, $this->signingKeyManager);
 
         $service->create('sales-channel-a', 'shared-kid');
         $service->create('sales-channel-b', 'shared-kid');
@@ -176,24 +54,136 @@ final class UcpSigningKeyServiceTest extends TestCase
         self::assertSame([], $service->all('sales-channel-a'));
         self::assertCount(1, $service->all('sales-channel-b'));
     }
+}
 
-    private function signingKeyManager(): SigningKeyManagerInterface
+/**
+ * @internal
+ */
+final class UcpSigningKeyServiceTestSigningKeyManager implements SigningKeyManagerInterface
+{
+    public function generate(string $kid, string $algorithm = 'ES256'): ManagedSigningKey
     {
-        return new class implements SigningKeyManagerInterface {
-            public function generate(string $kid, string $algorithm = 'ES256'): ManagedSigningKey
-            {
-                return new ManagedSigningKey($kid, 'public', 'private', $algorithm);
-            }
+        return new ManagedSigningKey($kid, 'public', 'private', $algorithm);
+    }
 
-            public function toPublicKey(ManagedSigningKey $key): PublicSigningKey
-            {
-                return new PublicSigningKey($key->kid, $key->algorithm);
-            }
+    public function toPublicKey(ManagedSigningKey $key): PublicSigningKey
+    {
+        return new PublicSigningKey($key->kid, $key->algorithm);
+    }
 
-            public function publicKeyFromJwk(array $jwk): PublicSigningKey
-            {
-                return PublicSigningKey::fromJwk($jwk);
-            }
-        };
+    public function publicKeyFromJwk(array $jwk): PublicSigningKey
+    {
+        return PublicSigningKey::fromJwk($jwk);
+    }
+}
+
+/**
+ * @internal
+ */
+class UcpSigningKeyServiceTestRepository implements ManagedSigningKeyRepositoryInterface
+{
+    /** @var array<string, array<string, ManagedSigningKey>> */
+    protected array $tenantKeys = [];
+
+    /**
+     * @param array<string, ManagedSigningKey> $keys
+     */
+    public function __construct(array $keys = [])
+    {
+        $this->tenantKeys[''] = $keys;
+    }
+
+    public function saveManaged(ManagedSigningKey $key): void
+    {
+        $this->saveForTenant(null, $key);
+    }
+
+    public function findManaged(string $kid): ?ManagedSigningKey
+    {
+        return $this->findForTenant(null, $kid);
+    }
+
+    public function deleteManaged(string $kid): bool
+    {
+        return $this->deleteForTenant(null, $kid);
+    }
+
+    public function allManaged(): array
+    {
+        return $this->allForTenant(null);
+    }
+
+    public function active(): array
+    {
+        return $this->activeForTenantKey(null);
+    }
+
+    public function purgeRetired(string $olderThanIso8601): void
+    {
+    }
+
+    protected function saveForTenant(?string $tenantIdentifier, ManagedSigningKey $key): void
+    {
+        $this->tenantKeys[$tenantIdentifier ?? ''][$key->kid] = $key;
+    }
+
+    protected function findForTenant(?string $tenantIdentifier, string $kid): ?ManagedSigningKey
+    {
+        return $this->tenantKeys[$tenantIdentifier ?? ''][$kid] ?? null;
+    }
+
+    protected function deleteForTenant(?string $tenantIdentifier, string $kid): bool
+    {
+        if (!isset($this->tenantKeys[$tenantIdentifier ?? ''][$kid])) {
+            return false;
+        }
+
+        unset($this->tenantKeys[$tenantIdentifier ?? ''][$kid]);
+
+        return true;
+    }
+
+    protected function allForTenant(?string $tenantIdentifier): array
+    {
+        return array_values($this->tenantKeys[$tenantIdentifier ?? ''] ?? []);
+    }
+
+    protected function activeForTenantKey(?string $tenantIdentifier): array
+    {
+        return array_values(array_filter(
+            $this->tenantKeys[$tenantIdentifier ?? ''] ?? [],
+            static fn (ManagedSigningKey $key): bool => \in_array($key->status, ['active', 'retiring'], true),
+        ));
+    }
+}
+
+/**
+ * @internal
+ */
+final class UcpSigningKeyServiceTestTenantRepository extends UcpSigningKeyServiceTestRepository implements TenantAwareManagedSigningKeyRepositoryInterface
+{
+    public function saveManagedForTenant(?string $tenantIdentifier, ManagedSigningKey $key): void
+    {
+        $this->saveForTenant($tenantIdentifier, $key);
+    }
+
+    public function findManagedForTenant(?string $tenantIdentifier, string $kid): ?ManagedSigningKey
+    {
+        return $this->findForTenant($tenantIdentifier, $kid);
+    }
+
+    public function deleteManagedForTenant(?string $tenantIdentifier, string $kid): bool
+    {
+        return $this->deleteForTenant($tenantIdentifier, $kid);
+    }
+
+    public function allManagedForTenant(?string $tenantIdentifier): array
+    {
+        return $this->allForTenant($tenantIdentifier);
+    }
+
+    public function activeForTenant(?string $tenantIdentifier): array
+    {
+        return $this->activeForTenantKey($tenantIdentifier);
     }
 }
