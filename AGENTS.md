@@ -169,6 +169,8 @@ The script handles the important differences:
   short.
 - Preserve review history when updating an existing PR after feedback: add a
   follow-up commit unless the user explicitly asks for an amend or force-push.
+- PR descriptions should summarize what changed and why. Do not add validation
+  sections; CI owns validation reporting.
 
 ## Further References
 
