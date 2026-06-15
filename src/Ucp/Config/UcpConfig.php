@@ -521,7 +521,7 @@ final class UcpConfig
         self::assertNoUnsafeUrlCharacters($value, $path);
 
         $parts = parse_url($value);
-        if (false === $parts || !isset($parts['scheme'], $parts['host']) || !\is_string($parts['scheme']) || !\is_string($parts['host'])) {
+        if (!isset($parts['scheme'], $parts['host'])) {
             throw self::invalid($path, 'must be an absolute http(s) URL');
         }
 
@@ -538,10 +538,6 @@ final class UcpConfig
         $url = $scheme.'://'.self::formatHostForUrl($host);
 
         if (isset($parts['port'])) {
-            if (!\is_int($parts['port']) || $parts['port'] < 1 || $parts['port'] > 65535) {
-                throw self::invalid($path, 'contains an invalid port');
-            }
-
             $url .= ':'.$parts['port'];
         }
 
@@ -565,7 +561,7 @@ final class UcpConfig
         self::assertNoUnsafeUrlCharacters($value, $path);
 
         $parts = parse_url($value);
-        if (false === $parts || !isset($parts['scheme'], $parts['host']) || !\is_string($parts['scheme']) || !\is_string($parts['host'])) {
+        if (!isset($parts['scheme'], $parts['host'])) {
             throw self::invalid($path, 'must be an absolute origin');
         }
 
@@ -586,10 +582,6 @@ final class UcpConfig
         $origin = $scheme.'://'.self::formatHostForUrl($host);
 
         if (isset($parts['port'])) {
-            if (!\is_int($parts['port']) || $parts['port'] < 1 || $parts['port'] > 65535) {
-                throw self::invalid($path, 'contains an invalid port');
-            }
-
             $origin .= ':'.$parts['port'];
         }
 
