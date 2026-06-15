@@ -30,6 +30,12 @@ OAuth identity linking is implemented as an optional plugin-backed capability:
 - The plugin registers a Shopware-backed identity-linking adapter and advertises it only when `identity_linking` is enabled for the sales channel.
 - Authorization Code + PKCE S256 is supported. Authorization requires a logged-in Shopware customer context token so anonymous requests cannot mint identity-linked tokens.
 - Access and refresh tokens are stored sales-channel scoped in plugin tables.
+- Checkout completion currently uses an existing Shopware customer only when
+  the resolved sales-channel context already contains one; otherwise it creates
+  a guest customer from `buyer.email`. It must not attach orders to an existing
+  account by email match alone. Follow-up work should hydrate cart/checkout
+  contexts from the OAuth-linked customer subject before falling back to guest
+  checkout.
 
 Sales-channel configuration is also plugin-table backed:
 
