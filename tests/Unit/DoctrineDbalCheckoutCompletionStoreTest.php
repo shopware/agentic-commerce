@@ -85,10 +85,7 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
     {
         $connection = $this->createMock(Connection::class);
         $connection->method('insert')->willThrowException($this->uniqueConstraintViolation());
-        $connection->method('fetchAssociative')->willReturn([
-            'status' => 'processing',
-            'order_id' => null,
-        ]);
+        $connection->method('fetchAssociative')->willReturn(['status' => 'processing', 'order_id' => null]);
 
         $reservation = (new DoctrineDbalCheckoutCompletionStore($connection))->reserve(self::CHECKOUT_ID, self::SALES_CHANNEL_ID);
 
