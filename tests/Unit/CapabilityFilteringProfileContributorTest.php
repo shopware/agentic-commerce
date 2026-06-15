@@ -64,7 +64,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     }
 
     /**
-     * @param list<string> $enabledCapabilities
+     * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
      *
      * @return array<string, list<CapabilityDescriptor>>
