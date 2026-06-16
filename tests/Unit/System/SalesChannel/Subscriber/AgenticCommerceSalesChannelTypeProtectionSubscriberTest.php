@@ -40,6 +40,8 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
 
     public function testBlocksDeletionOfAgenticCommerceSalesChannelType(): void
     {
+        $this->skipIfCoreShipsAgenticCommerce();
+
         $writeContext = WriteContext::createFromContext(Context::createDefaultContext());
         $event = new PreWriteValidationEvent($writeContext, [
             $this->createDeleteCommand(SalesChannelTypeDefinition::ENTITY_NAME, SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE),
@@ -93,6 +95,20 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
         static::assertSame([], $event->getExceptions()->getExceptions());
     }
 
+    public function testSubscriberIsNoOpWhenCoreShipsAgenticCommerce(): void
+    {
+        $this->skipUnlessCoreShipsAgenticCommerce();
+
+        $writeContext = WriteContext::createFromContext(Context::createDefaultContext());
+        $event = new PreWriteValidationEvent($writeContext, [
+            $this->createDeleteCommand(SalesChannelTypeDefinition::ENTITY_NAME, SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE),
+        ]);
+
+        $this->createSubscriber()->preWriteValidateEvent($event);
+
+        static::assertSame([], $event->getExceptions()->getExceptions());
+    }
+
     private function createSubscriber(): AgenticCommerceSalesChannelTypeProtectionSubscriber
     {
         return new AgenticCommerceSalesChannelTypeProtectionSubscriber(new ShopwareVersionDetector());
@@ -105,5 +121,19 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
         $command->method('getPrimaryKey')->willReturn(['id' => Uuid::fromHexToBytes($hexId)]);
 
         return $command;
+    }
+
+    private function skipIfCoreShipsAgenticCommerce(): void
+    {
+        if ((new ShopwareVersionDetector())->coreShipsAgenticCommerce()) {
+            $this->markTestSkipped('Core ships Agentic Commerce; subscriber delegates to core.');
+        }
+    }
+
+    private function skipUnlessCoreShipsAgenticCommerce(): void
+    {
+        if (!(new ShopwareVersionDetector())->coreShipsAgenticCommerce()) {
+            $this->markTestSkipped('Only applies when core ships Agentic Commerce.');
+        }
     }
 }

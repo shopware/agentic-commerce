@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Tests\Unit\Migration;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Migration\Migration1773824493AddProviderColumnToProductExport;
 
 /**
@@ -27,6 +28,8 @@ class Migration1773824493AddProviderColumnToProductExportTest extends TestCase
 
     public function testUpdateAddsProviderColumnWhenMissing(): void
     {
+        $this->skipIfCoreShipsAgenticCommerce();
+
         $connection = $this->createMock(Connection::class);
         $connection->expects(static::once())
             ->method('fetchOne')
@@ -41,6 +44,8 @@ class Migration1773824493AddProviderColumnToProductExportTest extends TestCase
 
     public function testUpdateIsIdempotentWhenColumnAlreadyExists(): void
     {
+        $this->skipIfCoreShipsAgenticCommerce();
+
         $connection = $this->createMock(Connection::class);
         $connection->expects(static::once())
             ->method('fetchOne')
@@ -58,5 +63,30 @@ class Migration1773824493AddProviderColumnToProductExportTest extends TestCase
         $connection->expects(static::never())->method('fetchOne');
 
         (new Migration1773824493AddProviderColumnToProductExport())->updateDestructive($connection);
+    }
+
+    public function testUpdateIsNoOpWhenCoreShipsAgenticCommerce(): void
+    {
+        $this->skipUnlessCoreShipsAgenticCommerce();
+
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(static::never())->method('fetchOne');
+        $connection->expects(static::never())->method('executeStatement');
+
+        (new Migration1773824493AddProviderColumnToProductExport())->update($connection);
+    }
+
+    private function skipIfCoreShipsAgenticCommerce(): void
+    {
+        if ((new ShopwareVersionDetector())->coreShipsAgenticCommerce()) {
+            $this->markTestSkipped('Core ships Agentic Commerce; migration delegates to core.');
+        }
+    }
+
+    private function skipUnlessCoreShipsAgenticCommerce(): void
+    {
+        if (!(new ShopwareVersionDetector())->coreShipsAgenticCommerce()) {
+            $this->markTestSkipped('Only applies when core ships Agentic Commerce.');
+        }
     }
 }
