@@ -638,17 +638,17 @@ fi
 
 search_term="${product_name%% *}"
 
-fetch_fallback_agentic_file() {
+fetch_smoke_url() {
   local url="$1"
   local label="$2"
   local headers_file="$3"
   local body_file="$4"
   local status
 
-  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}" || true)"
+  status="$(curl --disable -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}" || true)"
 
   if [[ "${status}" != "200" ]]; then
-    echo "Expected fallback ${label} to return HTTP 200, got ${status}." >&2
+    echo "Expected ${label} to return HTTP 200, got ${status}." >&2
     echo "Response headers:" >&2
     cat "${headers_file}" >&2
     echo "Response body:" >&2
@@ -659,7 +659,11 @@ fetch_fallback_agentic_file() {
   fi
 }
 
-profile_json="$(curl -fsS "${BASE_URL}/.well-known/ucp")"
+profile_headers_file="$(mktemp)"
+profile_body_file="$(mktemp)"
+fetch_smoke_url "${BASE_URL}/.well-known/ucp" "/.well-known/ucp" "${profile_headers_file}" "${profile_body_file}"
+profile_json="$(cat "${profile_body_file}")"
+rm -f "${profile_headers_file}" "${profile_body_file}"
 assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
 assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
 assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.ucp.payment_handlers | type == "object" and length == 0'
@@ -676,8 +680,8 @@ if [[ "${core_agentic_files_available}" == "0" ]]; then
   agents_headers_file="$(mktemp)"
   llms_body_file="$(mktemp)"
   agents_body_file="$(mktemp)"
-  fetch_fallback_agentic_file "${BASE_URL}/llms.txt" "/llms.txt" "${llms_headers_file}" "${llms_body_file}"
-  fetch_fallback_agentic_file "${BASE_URL}/agents.md" "/agents.md" "${agents_headers_file}" "${agents_body_file}"
+  fetch_smoke_url "${BASE_URL}/llms.txt" "/llms.txt" "${llms_headers_file}" "${llms_body_file}"
+  fetch_smoke_url "${BASE_URL}/agents.md" "/agents.md" "${agents_headers_file}" "${agents_body_file}"
   llms_txt="$(cat "${llms_body_file}")"
   agents_md="$(cat "${agents_body_file}")"
   rm -f "${llms_body_file}" "${agents_body_file}"
