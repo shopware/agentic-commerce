@@ -480,8 +480,22 @@ if (is_file($pluginAutoload)) {
 }
 
 $configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
-if (is_file($configPath) && str_contains((string) file_get_contents($configPath), 'sqlite:')) {
-    fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+if (is_file($configPath)) {
+    $configContents = (string) file_get_contents($configPath);
+    if (str_contains($configContents, 'sqlite:')) {
+        fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+        exit(1);
+    }
+
+    if (str_contains($configContents, 'resolve:DATABASE_URL')) {
+        fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
+        exit(1);
+    }
+}
+
+$servicesConfigPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/services.php';
+if (is_file($servicesConfigPath) && str_contains((string) file_get_contents($servicesConfigPath), "env('DATABASE_URL')->resolve()")) {
+    fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
     exit(1);
 }
 
