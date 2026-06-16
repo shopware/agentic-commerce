@@ -39,11 +39,14 @@ final class SalesChannelDomainResolverTest extends TestCase
 
             $containsFilters = $filter->getQueries();
             static::assertNotEmpty($containsFilters);
-            static::assertContainsOnlyInstancesOf(ContainsFilter::class, $containsFilters);
-            static::assertContains('://shop.example', array_map(
-                static fn (ContainsFilter $containsFilter): string => (string) $containsFilter->getValue(),
-                $containsFilters,
-            ));
+
+            $containsFilterValues = [];
+            foreach ($containsFilters as $containsFilter) {
+                static::assertInstanceOf(ContainsFilter::class, $containsFilter);
+                $containsFilterValues[] = (string) $containsFilter->getValue();
+            }
+
+            static::assertContains('://shop.example', $containsFilterValues);
         });
 
         $resolver = new SalesChannelDomainResolver($repository);
