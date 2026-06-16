@@ -138,7 +138,7 @@ return static function (ContainerConfigurator $container): void {
         ],
     ];
 
-    if (\property_exists(UcpSdkConfiguration::class, 'profileFetchingDevelopmentMode')) {
+    if (property_exists(UcpSdkConfiguration::class, 'profileFetchingDevelopmentMode')) {
         $ucpSdkConfig['profile_fetching_development_mode'] = env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE');
     }
 
