@@ -7,9 +7,10 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
-use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
+use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
-use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
+use Symfony\Component\Lock\LockFactory;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
@@ -21,12 +22,13 @@ final class CheckoutCompleter
 {
     public function __construct(
         private readonly OrderGatewayInterface $orderGateway,
-        private readonly ShopwareDataMapper $mapper,
-        private readonly GuestCustomerContextProvisioner $guestCustomerContextProvisioner,
+        private readonly ShopwareDataMapperInterface $mapper,
+        private readonly GuestCustomerContextProvisionerInterface $guestCustomerContextProvisioner,
         private readonly UcpConfigService $configService,
-        private readonly CheckoutSessionManager $sessionManager,
+        private readonly CheckoutSessionManagerInterface $sessionManager,
         private readonly CheckoutCompletionStoreInterface $completionStore,
-        private readonly CheckoutContinueUrlBuilder $continueUrlBuilder,
+        private readonly LockFactory $lockFactory,
+        private readonly CheckoutContinueUrlBuilderInterface $continueUrlBuilder,
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
     ) {
@@ -43,26 +45,29 @@ final class CheckoutCompleter
         RequestContext $requestContext,
     ): Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
-        $reservation = $this->completionStore->reserve($checkoutId, $salesChannelId);
 
-        if (CheckoutCompletionReservationStatus::Completed === $reservation->status && null !== $reservation->orderId) {
-            $order = $this->orderGateway->getOrder($reservation->orderId, $requestContext);
-
-            return $this->mapper->toCompletedCheckout(
-                $order,
-                $checkoutId,
-                $order->getCurrency()?->getIsoCode() ?? 'EUR',
-                $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
-            );
+        $orderId = $this->completionStore->completedOrderId($checkoutId, $salesChannelId);
+        if (null !== $orderId) {
+            return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelId, $requestContext);
         }
 
-        if (CheckoutCompletionReservationStatus::Processing === $reservation->status) {
+        $lock = $this->lockFactory->createLock(
+            'ucp.checkout.completion.' . $checkoutId . '.' . $salesChannelId,
+            300.0,
+        );
+
+        if (!$lock->acquire(false)) {
             throw new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.');
         }
 
-        $buyer = $this->sessionManager->buyer($metadata);
-
         try {
+            $orderId = $this->completionStore->completedOrderId($checkoutId, $salesChannelId);
+            if (null !== $orderId) {
+                return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelId, $requestContext);
+            }
+
+            $buyer = $this->sessionManager->buyer($metadata);
+
             $customerContext = $this->guestCustomerContextProvisioner->ensureGuestCustomer(
                 $salesChannelContext,
                 $buyer,
@@ -75,36 +80,50 @@ final class CheckoutCompleter
             }
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
-        } catch (\Throwable $exception) {
-            $this->completionStore->release($checkoutId, $salesChannelId);
 
-            throw $exception;
-        }
+            $this->completionStore->complete($checkoutId, $customerContext->getSalesChannelId(), $order->getId());
 
-        $this->completionStore->complete($checkoutId, $customerContext->getSalesChannelId(), $order->getId());
-
-        $this->sessionManager->save(
-            $customerContext,
-            CheckoutStatus::Completed->value,
-            $buyer,
-            orderId: $order->getId(),
-        );
-
-        if (null !== $config->webhookUrlOverride) {
-            $this->orderWebhookPublisher->publish(
-                $config->webhookUrlOverride,
-                new OrderWebhookPayload('order.created', $order->getId(), [
-                    'order' => $this->mapper->toOrderView($order)->toArray(),
-                ]),
-                $requestContext,
+            $this->sessionManager->save(
+                $customerContext,
+                CheckoutStatus::Completed->value,
+                $buyer,
+                orderId: $order->getId(),
             );
+
+            if (null !== $config->webhookUrlOverride) {
+                $this->orderWebhookPublisher->publish(
+                    $config->webhookUrlOverride,
+                    new OrderWebhookPayload('order.created', $order->getId(), [
+                        'order' => $this->mapper->toOrderView($order)->toArray(),
+                    ]),
+                    $requestContext,
+                );
+            }
+
+            return $this->mapper->toCompletedCheckout(
+                $order,
+                $checkoutId,
+                $customerContext->getCurrency()->getIsoCode(),
+                $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
+            );
+        } finally {
+            $lock->release();
         }
+    }
+
+    private function replayCompletedOrder(
+        string $orderId,
+        string $checkoutId,
+        string $salesChannelId,
+        RequestContext $requestContext,
+    ): Checkout {
+        $order = $this->orderGateway->getOrder($orderId, $requestContext);
 
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
-            $customerContext->getCurrency()->getIsoCode(),
-            $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
+            $order->getCurrency()?->getIsoCode() ?? 'EUR',
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
         );
     }
 }

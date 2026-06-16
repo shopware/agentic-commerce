@@ -17,7 +17,7 @@ use Shopware\Core\System\Salutation\SalutationCollection;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Common\Buyer;
 
-final class GuestCustomerContextProvisioner
+final class GuestCustomerContextProvisioner implements GuestCustomerContextProvisionerInterface
 {
     /**
      * @param EntityRepository<CustomerCollection>   $customerRepository

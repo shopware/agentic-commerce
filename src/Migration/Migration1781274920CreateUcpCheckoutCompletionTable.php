@@ -21,13 +21,10 @@ final class Migration1781274920CreateUcpCheckoutCompletionTable extends Migratio
             CREATE TABLE IF NOT EXISTS `swag_agentic_commerce_ucp_checkout_completion` (
                 `checkout_id` VARCHAR(255) NOT NULL,
                 `sales_channel_id` BINARY(16) NOT NULL,
-                `status` VARCHAR(32) NOT NULL,
-                `order_id` BINARY(16) NULL,
+                `order_id` BINARY(16) NOT NULL,
                 `created_at` DATETIME(3) NOT NULL,
-                `updated_at` DATETIME(3) NULL,
                 PRIMARY KEY (`checkout_id`, `sales_channel_id`),
                 INDEX `idx.sac_ucp_checkout_completion.order` (`order_id`),
-                INDEX `idx.sac_ucp_checkout_completion.sales_channel` (`sales_channel_id`),
                 CONSTRAINT `fk.sac_ucp_checkout_completion.sales_channel_id`
                     FOREIGN KEY (`sales_channel_id`) REFERENCES `sales_channel` (`id`)
                     ON DELETE CASCADE

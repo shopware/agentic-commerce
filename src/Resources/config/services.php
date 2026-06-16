@@ -64,6 +64,10 @@ use Swag\AgenticCommerce\Ucp\Capability\OrderCapability;
 use Swag\AgenticCommerce\Ucp\Capability\PaymentTokenizationCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
@@ -73,8 +77,11 @@ use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerAddressResolver;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
+use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
@@ -194,6 +201,10 @@ return static function (ContainerConfigurator $container): void {
     // SDK adapter and capability bindings.
 
     $services->alias(CheckoutCompletionStoreInterface::class, DoctrineDbalCheckoutCompletionStore::class);
+    $services->alias(CheckoutContinueUrlBuilderInterface::class, CheckoutContinueUrlBuilder::class);
+    $services->alias(CheckoutSessionManagerInterface::class, CheckoutSessionManager::class);
+    $services->alias(GuestCustomerContextProvisionerInterface::class, GuestCustomerContextProvisioner::class);
+    $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
     $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
