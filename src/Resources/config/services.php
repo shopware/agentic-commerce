@@ -18,8 +18,10 @@ use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
 use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
+use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
+use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
@@ -181,6 +183,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractRegisterRoute::class, RegisterRoute::class);
     $services->alias(AbstractOrderRoute::class, OrderRoute::class);
     $services->alias(AbstractCountryRoute::class, CountryRoute::class);
+    $services->alias(AbstractProductListRoute::class, ProductListRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
 

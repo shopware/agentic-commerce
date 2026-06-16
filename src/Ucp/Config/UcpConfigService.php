@@ -29,6 +29,7 @@ final class UcpConfigService
         'embeddedAllowedOrigins',
         'embeddedFrameAncestors',
         'discoveryBudget',
+        'catalogResultLimit',
         'webhookUrlOverride',
         'signaturePolicy',
         'idempotencyRequired',
