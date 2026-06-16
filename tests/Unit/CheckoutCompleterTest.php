@@ -43,7 +43,7 @@ final class CheckoutCompleterTest extends TestCase
     private const CHECKOUT_ID = 'checkout-token';
     private const SALES_CHANNEL_ID = '00000000000000000000000000000001';
     private const ORDER_ID = '00000000000000000000000000000002';
-    private const LOCK_KEY = 'ucp.checkout.completion.' . self::CHECKOUT_ID . '.' . self::SALES_CHANNEL_ID;
+    private const LOCK_KEY = 'ucp.checkout.completion.'.self::CHECKOUT_ID.'.'.self::SALES_CHANNEL_ID;
 
     #[Test]
     public function testAlreadyCompletedBeforeLockAcquireReplays(): void
@@ -65,7 +65,9 @@ final class CheckoutCompleterTest extends TestCase
         $expectedCheckout = $this->uninitialized(Checkout::class);
 
         $mapper = new class($expectedCheckout) implements ShopwareDataMapperInterface {
-            public function __construct(private readonly Checkout $checkout) {}
+            public function __construct(private readonly Checkout $checkout)
+            {
+            }
 
             public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
             {
@@ -79,7 +81,10 @@ final class CheckoutCompleterTest extends TestCase
         };
 
         $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): ?string { return 'https://example.com/continue'; }
+            public function build(string $checkoutId, string $salesChannelId): ?string
+            {
+                return 'https://example.com/continue';
+            }
         };
 
         $salesChannelContext = $this->createMock(SalesChannelContext::class);
@@ -170,11 +175,19 @@ final class CheckoutCompleterTest extends TestCase
 
         $saveCalled = 0;
         $sessionManager = new class($saveCalled) implements CheckoutSessionManagerInterface {
-            public function __construct(private int &$saveCalled) {}
+            public function __construct(private int &$saveCalled)
+            {
+            }
 
-            public function buyer(array $metadata): ?Buyer { return null; }
+            public function buyer(array $metadata): ?Buyer
+            {
+                return null;
+            }
 
-            public function guestAddress(array $metadata): ?array { return null; }
+            public function guestAddress(array $metadata): ?array
+            {
+                return null;
+            }
 
             public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?array $guestAddress = null): void
             {
@@ -185,7 +198,9 @@ final class CheckoutCompleterTest extends TestCase
         $expectedCheckout = $this->uninitialized(Checkout::class);
 
         $mapper = new class($expectedCheckout) implements ShopwareDataMapperInterface {
-            public function __construct(private readonly Checkout $checkout) {}
+            public function __construct(private readonly Checkout $checkout)
+            {
+            }
 
             public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
             {
@@ -199,7 +214,9 @@ final class CheckoutCompleterTest extends TestCase
         };
 
         $provisioner = new class($customerContext) implements GuestCustomerContextProvisionerInterface {
-            public function __construct(private readonly SalesChannelContext $customerContext) {}
+            public function __construct(private readonly SalesChannelContext $customerContext)
+            {
+            }
 
             public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
             {
@@ -210,7 +227,10 @@ final class CheckoutCompleterTest extends TestCase
         $configService = $this->nullConfigService();
 
         $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): ?string { return 'https://example.com/continue'; }
+            public function build(string $checkoutId, string $salesChannelId): ?string
+            {
+                return 'https://example.com/continue';
+            }
         };
 
         $orderWebhookPublisher = $this->createMock(OrderWebhookPublisherInterface::class);
@@ -259,7 +279,9 @@ final class CheckoutCompleterTest extends TestCase
         $orderGateway->expects(static::never())->method('getOrder');
 
         $provisioner = new class($customerContext) implements GuestCustomerContextProvisionerInterface {
-            public function __construct(private readonly SalesChannelContext $customerContext) {}
+            public function __construct(private readonly SalesChannelContext $customerContext)
+            {
+            }
 
             public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
             {
@@ -310,11 +332,19 @@ final class CheckoutCompleterTest extends TestCase
     private function nullSessionManager(): CheckoutSessionManagerInterface
     {
         return new class implements CheckoutSessionManagerInterface {
-            public function buyer(array $metadata): ?Buyer { return null; }
+            public function buyer(array $metadata): ?Buyer
+            {
+                return null;
+            }
 
-            public function guestAddress(array $metadata): ?array { return null; }
+            public function guestAddress(array $metadata): ?array
+            {
+                return null;
+            }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?array $guestAddress = null): void {}
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?array $guestAddress = null): void
+            {
+            }
         };
     }
 
@@ -322,16 +352,29 @@ final class CheckoutCompleterTest extends TestCase
     {
         return new UcpConfigService(
             new class implements UcpConfigRepositoryInterface {
-                public function find(string $salesChannelId): ?UcpConfig { return null; }
+                public function find(string $salesChannelId): ?UcpConfig
+                {
+                    return null;
+                }
 
-                public function findMany(array $salesChannelIds): array { return []; }
+                public function findMany(array $salesChannelIds): array
+                {
+                    return [];
+                }
 
-                public function save(string $salesChannelId, UcpConfig $config): void {}
+                public function save(string $salesChannelId, UcpConfig $config): void
+                {
+                }
             },
             new class implements LegacyConfigStoreInterface {
-                public function get(string $key, ?string $salesChannelId): mixed { return null; }
+                public function get(string $key, ?string $salesChannelId): mixed
+                {
+                    return null;
+                }
 
-                public function set(string $key, mixed $value, ?string $salesChannelId): void {}
+                public function set(string $key, mixed $value, ?string $salesChannelId): void
+                {
+                }
             },
         );
     }

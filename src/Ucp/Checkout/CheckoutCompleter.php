@@ -52,7 +52,7 @@ final class CheckoutCompleter
         }
 
         $lock = $this->lockFactory->createLock(
-            'ucp.checkout.completion.' . $checkoutId . '.' . $salesChannelId,
+            'ucp.checkout.completion.'.$checkoutId.'.'.$salesChannelId,
             300.0,
         );
 
