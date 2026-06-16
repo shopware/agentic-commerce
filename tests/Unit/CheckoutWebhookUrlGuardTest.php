@@ -25,6 +25,20 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
     }
 
     #[Test]
+    public function testItNormalizesWebhookAndAllowlistHosts(): void
+    {
+        $guard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class));
+
+        $guard->assertAllowed(
+            'https://Agent.Example./webhook',
+            new UcpConfig(agentAllowlist: ['agent.example']),
+            'sales-channel-id',
+        );
+
+        self::addToAssertionCount(1);
+    }
+
+    #[Test]
     public function testItRejectsWebhookUrlsWithoutHttpHost(): void
     {
         $this->expectException(ValidationException::class);
