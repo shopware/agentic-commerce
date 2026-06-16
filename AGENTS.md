@@ -100,6 +100,14 @@ The script handles the important differences:
 - Keep REST, A2A, embedded, and MCP on the shared SDK operation/capability
   layer. Shopware-specific MCP code is limited to the `/ucp/mcp` proxy and Store
   API MCP tool registrations.
+- Customer-facing runtime flows must use Store API route boundaries wherever
+  they exist. This is a hard rule for UCP adapters/gateways and especially
+  catalog, cart, checkout, customer, identity, and order flows. Inject the
+  relevant Store API route abstraction instead of using DAL repositories,
+  manually creating customers, or mutating sales-channel context state by hand.
+  Direct repositories are only acceptable for plugin-owned configuration,
+  admin/internal metadata, compatibility discovery, or a documented exception
+  where no Store API route exists.
 - MCP write tools must expose object payload schemas (`payload` plus `id` where
   needed), not JSON-string payload arguments.
 - Embedded pages require configured `embeddedAllowedOrigins`; the plugin returns

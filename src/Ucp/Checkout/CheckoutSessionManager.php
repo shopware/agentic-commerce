@@ -24,11 +24,56 @@ final class CheckoutSessionManager
         ?Buyer $buyer,
         array $discountCodes = [],
         ?string $orderId = null,
+        ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
     ): void {
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+
+        $this->sessionStore->save($salesChannelContext, $metadata);
+    }
+
+    /**
+     * @param list<string>                                                                                        $discountCodes
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     */
+    public function saveForCheckoutId(
+        string $checkoutId,
+        SalesChannelContext $salesChannelContext,
+        string $status,
+        ?Buyer $buyer,
+        array $discountCodes = [],
+        ?string $orderId = null,
+        ?string $orderDeepLinkCode = null,
+        ?array $guestAddress = null,
+    ): void {
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+
+        $this->sessionStore->save($salesChannelContext, $metadata);
+
+        if ($checkoutId !== $salesChannelContext->getToken()) {
+            $this->sessionStore->saveForToken($checkoutId, $salesChannelContext->getSalesChannelId(), $metadata);
+        }
+    }
+
+    /**
+     * @param list<string>                                                                                        $discountCodes
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     *
+     * @return array<string, mixed>
+     */
+    private function metadata(
+        SalesChannelContext $salesChannelContext,
+        string $status,
+        ?Buyer $buyer,
+        array $discountCodes,
+        ?string $orderId,
+        ?string $orderDeepLinkCode,
+        ?array $guestAddress,
+    ): array {
         $metadata = [
             'status' => $status,
             'buyer' => $this->buyerPayload($buyer),
+            'shopwareContextToken' => $salesChannelContext->getToken(),
         ];
 
         if ([] !== $discountCodes) {
@@ -42,11 +87,15 @@ final class CheckoutSessionManager
             $metadata['orderId'] = $orderId;
         }
 
+        if (null !== $orderDeepLinkCode) {
+            $metadata['orderDeepLinkCode'] = $orderDeepLinkCode;
+        }
+
         if (null !== $guestAddress) {
             $metadata['guestAddress'] = $guestAddress;
         }
 
-        $this->sessionStore->save($salesChannelContext, $metadata);
+        return $metadata;
     }
 
     /**

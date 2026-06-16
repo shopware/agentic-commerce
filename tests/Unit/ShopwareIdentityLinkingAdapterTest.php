@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
@@ -27,6 +28,7 @@ final class ShopwareIdentityLinkingAdapterTest extends TestCase
         $contextResolver = new SalesChannelContextResolver(
             new SalesChannelDomainResolver($this->createMock(EntityRepository::class)),
             $this->createMock(SalesChannelContextServiceInterface::class),
+            $this->createMock(SalesChannelContextPersister::class),
         );
 
         $this->adapter = new ShopwareIdentityLinkingAdapter(

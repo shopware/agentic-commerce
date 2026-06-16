@@ -28,6 +28,7 @@ final class UcpMcpToolContext
 
         return new RequestContext(
             \is_string($host) ? $host : '',
+            $request instanceof Request ? $this->headers($request) : [],
             runtimeConfiguration: $this->runtimeConfigurationResolver->resolve($this->toHttpRequest($request, $absoluteUri)),
         );
     }
@@ -84,11 +85,19 @@ final class UcpMcpToolContext
             return new HttpRequest('POST', $absoluteUri, [], [], '');
         }
 
+        return new HttpRequest($request->getMethod(), $absoluteUri, $this->headers($request), [], '');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function headers(Request $request): array
+    {
         $headers = [];
         foreach ($request->headers->all() as $name => $value) {
-            $headers[$name] = implode(', ', array_map(static fn (?string $entry): string => (string) $entry, $value));
+            $headers[strtolower($name)] = implode(', ', array_map(static fn (?string $entry): string => (string) $entry, $value));
         }
 
-        return new HttpRequest($request->getMethod(), $absoluteUri, $headers, [], '');
+        return $headers;
     }
 }

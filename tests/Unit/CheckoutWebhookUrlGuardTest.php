@@ -63,4 +63,16 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
             'sales-channel-id',
         );
     }
+
+    /**
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     *
+     * @return T
+     */
+    private function uninitialized(string $class): object
+    {
+        return (new \ReflectionClass($class))->newInstanceWithoutConstructor();
+    }
 }
