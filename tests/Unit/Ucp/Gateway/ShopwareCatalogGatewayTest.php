@@ -13,7 +13,6 @@ use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
 use Shopware\Core\Content\Product\ProductCollection;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
-use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRouteResponse;
 use Shopware\Core\Content\Product\SalesChannel\Listing\ProductListingResult;
 use Shopware\Core\Content\Product\SalesChannel\ProductListResponse;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
@@ -47,53 +46,86 @@ final class ShopwareCatalogGatewayTest extends TestCase
     #[Test]
     public function testSearchClampsRequestedLimitToConfiguredCatalogLimit(): void
     {
-        $searchRoute = new RecordingProductSearchRoute([
+        $criteriaLimits = [];
+        $requestLimits = [];
+        $products = [
             $this->product('product-a', 'A', 10.0),
             $this->product('product-b', 'B', 20.0),
             $this->product('product-c', 'C', 30.0),
-        ]);
+        ];
+        $searchRoute = $this->createMock(AbstractProductSearchRoute::class);
+        $searchRoute->method('load')->willReturnCallback(
+            function (Request $request, SalesChannelContext $context, Criteria $criteria) use (&$criteriaLimits, &$requestLimits, $products): ProductSearchRouteResponse {
+                $criteriaLimits[] = $criteria->getLimit();
+                $requestLimits[] = $request->query->getInt('limit');
+
+                return $this->searchResponse($products, $criteria);
+            },
+        );
         $gateway = $this->gateway(2, searchRoute: $searchRoute);
 
         $products = $gateway->search('speaker', 1000, new RequestContext('shop.test'));
 
-        self::assertSame([2], $searchRoute->criteriaLimits);
-        self::assertSame([2], $searchRoute->requestLimits);
+        self::assertSame([2], $criteriaLimits);
+        self::assertSame([2], $requestLimits);
         self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $products));
     }
 
     #[Test]
     public function testLookupClampsIdsAndLoadsProductsInOneBatch(): void
     {
-        $listRoute = new RecordingProductListRoute([
+        $criteriaIds = [];
+        $products = [
             $this->product('product-b', 'B', 20.0),
             $this->product('product-a', 'A', 10.0),
             $this->product('product-c', 'C', 30.0),
-        ]);
+        ];
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use (&$criteriaIds, $products): ProductListResponse {
+                $ids = [];
+                foreach ($criteria->getIds() as $id) {
+                    if (\is_string($id)) {
+                        $ids[] = $id;
+                    }
+                }
+
+                $criteriaIds[] = $ids;
+
+                return $this->listResponse(array_values(array_filter(
+                    $products,
+                    static fn (SalesChannelProductEntity $product): bool => \in_array($product->getId(), $ids, true),
+                )), $criteria);
+            },
+        );
         $gateway = $this->gateway(2, listRoute: $listRoute);
 
         $products = $gateway->lookup(['product-a', 'product-b', 'product-c'], new RequestContext('shop.test'));
 
-        self::assertSame([['product-a', 'product-b']], $listRoute->criteriaIds);
+        self::assertSame([['product-a', 'product-b']], $criteriaIds);
         self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $products));
     }
 
     private function gateway(
         int $catalogResultLimit,
-        ?RecordingProductSearchRoute $searchRoute = null,
-        ?RecordingProductListRoute $listRoute = null,
+        ?AbstractProductSearchRoute $searchRoute = null,
+        ?AbstractProductListRoute $listRoute = null,
     ): ShopwareCatalogGateway {
         $salesChannelContext = $this->createSalesChannelContext();
+        $config = UcpConfig::fromArray(['catalogResultLimit' => $catalogResultLimit]);
+
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->method('find')->willReturn($config);
+
+        $legacyConfigStore = $this->createMock(LegacyConfigStoreInterface::class);
 
         return new ShopwareCatalogGateway(
             $this->contextResolver($salesChannelContext),
             new ContextTokenGenerator(),
-            new UcpConfigService(
-                new StaticCatalogConfigRepository(UcpConfig::fromArray(['catalogResultLimit' => $catalogResultLimit])),
-                new NullCatalogLegacyConfigStore(),
-            ),
-            $searchRoute ?? new RecordingProductSearchRoute([]),
-            $listRoute ?? new RecordingProductListRoute([]),
-            new FailingProductDetailRoute(),
+            new UcpConfigService($configRepository, $legacyConfigStore),
+            $searchRoute ?? $this->createMock(AbstractProductSearchRoute::class),
+            $listRoute ?? $this->createMock(AbstractProductListRoute::class),
+            $this->createMock(AbstractProductDetailRoute::class),
             new ShopwareDataMapper(),
         );
     }
@@ -146,79 +178,13 @@ final class ShopwareCatalogGatewayTest extends TestCase
 
         return $product;
     }
-}
-
-/** @internal */
-final class RecordingProductSearchRoute extends AbstractProductSearchRoute
-{
-    /**
-     * @var list<int|null>
-     */
-    public array $criteriaLimits = [];
-
-    /**
-     * @var list<int>
-     */
-    public array $requestLimits = [];
 
     /**
      * @param list<SalesChannelProductEntity> $products
      */
-    public function __construct(private readonly array $products)
+    private function searchResponse(array $products, Criteria $criteria): ProductSearchRouteResponse
     {
-    }
-
-    public function getDecorated(): AbstractProductSearchRoute
-    {
-        throw new \RuntimeException('No decorated route in test.');
-    }
-
-    public function load(Request $request, SalesChannelContext $context, Criteria $criteria): ProductSearchRouteResponse
-    {
-        $this->criteriaLimits[] = $criteria->getLimit();
-        $this->requestLimits[] = $request->query->getInt('limit');
-
         return new ProductSearchRouteResponse(new ProductListingResult(
-            'product',
-            \count($this->products),
-            new ProductCollection($this->products),
-            null,
-            $criteria,
-            Context::createDefaultContext(),
-        ));
-    }
-}
-
-/** @internal */
-final class RecordingProductListRoute extends AbstractProductListRoute
-{
-    /**
-     * @var list<list<string>>
-     */
-    public array $criteriaIds = [];
-
-    /**
-     * @param list<SalesChannelProductEntity> $products
-     */
-    public function __construct(private readonly array $products)
-    {
-    }
-
-    public function getDecorated(): AbstractProductListRoute
-    {
-        throw new \RuntimeException('No decorated route in test.');
-    }
-
-    public function load(Criteria $criteria, SalesChannelContext $context): ProductListResponse
-    {
-        $ids = $criteria->getIds();
-        $this->criteriaIds[] = $ids;
-        $products = array_values(array_filter(
-            $this->products,
-            static fn (SalesChannelProductEntity $product): bool => \in_array($product->getId(), $ids, true),
-        ));
-
-        return new ProductListResponse(new EntitySearchResult(
             'product',
             \count($products),
             new ProductCollection($products),
@@ -227,58 +193,19 @@ final class RecordingProductListRoute extends AbstractProductListRoute
             Context::createDefaultContext(),
         ));
     }
-}
 
-/** @internal */
-final class FailingProductDetailRoute extends AbstractProductDetailRoute
-{
-    public function getDecorated(): AbstractProductDetailRoute
+    /**
+     * @param list<SalesChannelProductEntity> $products
+     */
+    private function listResponse(array $products, Criteria $criteria): ProductListResponse
     {
-        throw new \RuntimeException('No decorated route in test.');
-    }
-
-    public function load(string $productId, Request $request, SalesChannelContext $context, Criteria $criteria): ProductDetailRouteResponse
-    {
-        throw new \RuntimeException('Product detail route should not be used by this test.');
-    }
-}
-
-/** @internal */
-final class StaticCatalogConfigRepository implements UcpConfigRepositoryInterface
-{
-    public function __construct(private readonly UcpConfig $config)
-    {
-    }
-
-    public function find(string $salesChannelId): ?UcpConfig
-    {
-        return $this->config;
-    }
-
-    public function findMany(array $salesChannelIds): array
-    {
-        $configs = [];
-        foreach ($salesChannelIds as $salesChannelId) {
-            $configs[$salesChannelId] = $this->config;
-        }
-
-        return $configs;
-    }
-
-    public function save(string $salesChannelId, UcpConfig $config): void
-    {
-    }
-}
-
-/** @internal */
-final class NullCatalogLegacyConfigStore implements LegacyConfigStoreInterface
-{
-    public function get(string $key, ?string $salesChannelId): mixed
-    {
-        return null;
-    }
-
-    public function set(string $key, mixed $value, ?string $salesChannelId): void
-    {
+        return new ProductListResponse(new EntitySearchResult(
+            'product',
+            \count($products),
+            new ProductCollection($products),
+            null,
+            $criteria,
+            Context::createDefaultContext(),
+        ));
     }
 }
