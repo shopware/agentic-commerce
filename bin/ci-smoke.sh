@@ -659,6 +659,40 @@ fetch_smoke_url() {
   fi
 }
 
+fetch_smoke_json() {
+  local method="$1"
+  local url="$2"
+  local label="$3"
+  local data="${4:-}"
+  local headers_file
+  local body_file
+  local status
+
+  headers_file="$(mktemp)"
+  body_file="$(mktemp)"
+
+  if [[ -n "${data}" ]]; then
+    status="$(curl --disable -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' -X "${method}" "${url}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${data}" || true)"
+  else
+    status="$(curl --disable -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' -X "${method}" "${url}" || true)"
+  fi
+
+  if [[ "${status}" -lt 200 || "${status}" -ge 300 ]]; then
+    echo "Expected ${label} to return HTTP 2xx, got ${status}." >&2
+    echo "Response headers:" >&2
+    cat "${headers_file}" >&2
+    echo "Response body:" >&2
+    cat "${body_file}" >&2
+    echo "Recent Shopware logs:" >&2
+    web sh -lc 'for file in /var/www/html/var/log/*.log; do test -f "$file" || continue; echo "==> $file <=="; tail -n 120 "$file"; done' >&2 || true
+    rm -f "${headers_file}" "${body_file}"
+    exit 1
+  fi
+
+  cat "${body_file}"
+  rm -f "${headers_file}" "${body_file}"
+}
+
 profile_headers_file="$(mktemp)"
 profile_body_file="$(mktemp)"
 fetch_smoke_url "${BASE_URL}/.well-known/ucp" "/.well-known/ucp" "${profile_headers_file}" "${profile_body_file}"
@@ -728,17 +762,17 @@ if [[ "${tokenize_status}" != "501" ]]; then
   exit 1
 fi
 
-search_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 3}')")"
+search_json="$(fetch_smoke_json POST "${BASE_URL}/ucp/v1/catalog/search" "catalog.search" "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 3}')")"
 assert_jq "${search_json}" 'Expected catalog.search to return between 1 and 3 products.' '.items | length > 0 and length <= 3'
 
-lookup_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/catalog/lookup" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${product_id}" '{ids: [$id]}')")"
+lookup_json="$(fetch_smoke_json POST "${BASE_URL}/ucp/v1/catalog/lookup" "catalog.lookup" "$(jq -cn --arg id "${product_id}" '{ids: [$id]}')")"
 assert_jq "${lookup_json}" 'Expected catalog.lookup to resolve exactly one product.' '.items | length == 1'
 
 resolved_product_id="$(printf '%s' "${lookup_json}" | jq -r '.items[0].id')"
 resolved_title="$(printf '%s' "${lookup_json}" | jq -r '.items[0].title')"
 resolved_price="$(printf '%s' "${lookup_json}" | jq -r '.items[0].price')"
 
-product_json="$(curl -fsS "${BASE_URL}/ucp/v1/catalog/product/${product_id}")"
+product_json="$(fetch_smoke_json GET "${BASE_URL}/ucp/v1/catalog/product/${product_id}" "catalog.product")"
 assert_jq "${product_json}" 'Expected catalog.product to resolve the looked-up product title.' '.title == $title' --arg title "${resolved_title}"
 
 cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}]}')"
