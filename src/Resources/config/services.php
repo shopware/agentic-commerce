@@ -131,7 +131,7 @@ return static function (ContainerConfigurator $container): void {
             'retired_key_retention' => 'P30D',
         ],
         'storage' => [
-            'dsn' => env('DATABASE_URL')->resolve(),
+            'dsn' => env('DATABASE_URL'),
         ],
     ]);
 
