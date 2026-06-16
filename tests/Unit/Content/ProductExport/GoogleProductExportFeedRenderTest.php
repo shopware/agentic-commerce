@@ -28,8 +28,8 @@ use Twig\Loader\ArrayLoader;
 class GoogleProductExportFeedRenderTest extends TestCase
 {
     private const TEMPLATE_DIR = __DIR__
-        . '/../../../../src/Resources/app/administration/src/extension/sw-sales-channel'
-        . '/agentic-product-export-templates/google';
+        .'/../../../../src/Resources/app/administration/src/extension/sw-sales-channel'
+        .'/agentic-product-export-templates/google';
 
     private const SALES_CHANNEL_NAME = 'Übér & Søns <"Agentic">';
     private const DOMAIN_URL = 'https://shop.test/feed?lang=de&x="1"';
@@ -64,7 +64,7 @@ class GoogleProductExportFeedRenderTest extends TestCase
 
         static::assertTrue(
             $loaded && [] === $errors,
-            "Rendered feed is not well-formed XML.\nXML:\n{$xml}\nErrors: " . var_export($errors, true)
+            "Rendered feed is not well-formed XML.\nXML:\n{$xml}\nErrors: ".var_export($errors, true)
         );
 
         // Escaped values must decode back to the exact originals (incl. non-ASCII).
@@ -76,7 +76,7 @@ class GoogleProductExportFeedRenderTest extends TestCase
         $atomLink = $dom->getElementsByTagNameNS('http://www.w3.org/2005/Atom', 'link')->item(0);
         static::assertNotNull($atomLink);
         static::assertSame(
-            self::DOMAIN_URL . '/store-api/product-export/' . self::ACCESS_KEY . '/' . self::FILE_NAME,
+            self::DOMAIN_URL.'/store-api/product-export/'.self::ACCESS_KEY.'/'.self::FILE_NAME,
             $atomLink->getAttribute('href')
         );
     }
@@ -88,7 +88,7 @@ class GoogleProductExportFeedRenderTest extends TestCase
 
         // Name embeds the strategy (as core embeds $htmlEscape) so each row compiles
         // its own template class instead of reusing the other row's cached one.
-        $name = 'header_' . ($strategy === false ? 'raw' : $strategy);
+        $name = 'header_'.(false === $strategy ? 'raw' : $strategy);
         $twig = new Environment(new ArrayLoader([$name => $header]));
         $twig->getExtension(EscaperExtension::class)->setDefaultStrategy($strategy);
 
@@ -106,12 +106,12 @@ class GoogleProductExportFeedRenderTest extends TestCase
             ],
         ];
 
-        return $twig->render($name, $data) . "\n" . $footer;
+        return $twig->render($name, $data)."\n".$footer;
     }
 
     private function readTemplate(string $name): string
     {
-        $contents = file_get_contents(self::TEMPLATE_DIR . '/' . $name);
+        $contents = file_get_contents(self::TEMPLATE_DIR.'/'.$name);
 
         static::assertIsString($contents);
 
