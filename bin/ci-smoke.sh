@@ -638,6 +638,32 @@ fi
 
 search_term="${product_name%% *}"
 
+fetch_fallback_agentic_file() {
+  local url="$1"
+  local label="$2"
+  local headers_file="$3"
+  local body_file
+  local status
+
+  body_file="$(mktemp)"
+  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}" || true)"
+
+  if [[ "${status}" != "200" ]]; then
+    echo "Expected fallback ${label} to return HTTP 200, got ${status}." >&2
+    echo "Response headers:" >&2
+    cat "${headers_file}" >&2
+    echo "Response body:" >&2
+    cat "${body_file}" >&2
+    echo "Recent Shopware logs:" >&2
+    web sh -lc 'for file in /var/www/html/var/log/*.log; do test -f "$file" || continue; echo "==> $file <=="; tail -n 120 "$file"; done' >&2 || true
+    rm -f "${body_file}"
+    exit 1
+  fi
+
+  cat "${body_file}"
+  rm -f "${body_file}"
+}
+
 profile_json="$(curl -fsS "${BASE_URL}/.well-known/ucp")"
 assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
 assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
@@ -653,8 +679,8 @@ if [[ "${core_agentic_files_available}" == "0" ]]; then
   echo "Verifying fallback agentic discovery files."
   llms_headers_file="$(mktemp)"
   agents_headers_file="$(mktemp)"
-  llms_txt="$(curl -fsS -D "${llms_headers_file}" "${BASE_URL}/llms.txt")"
-  agents_md="$(curl -fsS -D "${agents_headers_file}" "${BASE_URL}/agents.md")"
+  llms_txt="$(fetch_fallback_agentic_file "${BASE_URL}/llms.txt" "/llms.txt" "${llms_headers_file}")"
+  agents_md="$(fetch_fallback_agentic_file "${BASE_URL}/agents.md" "/agents.md" "${agents_headers_file}")"
 
   if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
     echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
