@@ -642,10 +642,9 @@ fetch_fallback_agentic_file() {
   local url="$1"
   local label="$2"
   local headers_file="$3"
-  local body_file
+  local body_file="$4"
   local status
 
-  body_file="$(mktemp)"
   status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}" || true)"
 
   if [[ "${status}" != "200" ]]; then
@@ -656,12 +655,8 @@ fetch_fallback_agentic_file() {
     cat "${body_file}" >&2
     echo "Recent Shopware logs:" >&2
     web sh -lc 'for file in /var/www/html/var/log/*.log; do test -f "$file" || continue; echo "==> $file <=="; tail -n 120 "$file"; done' >&2 || true
-    rm -f "${body_file}"
     exit 1
   fi
-
-  cat "${body_file}"
-  rm -f "${body_file}"
 }
 
 profile_json="$(curl -fsS "${BASE_URL}/.well-known/ucp")"
@@ -679,8 +674,13 @@ if [[ "${core_agentic_files_available}" == "0" ]]; then
   echo "Verifying fallback agentic discovery files."
   llms_headers_file="$(mktemp)"
   agents_headers_file="$(mktemp)"
-  llms_txt="$(fetch_fallback_agentic_file "${BASE_URL}/llms.txt" "/llms.txt" "${llms_headers_file}")"
-  agents_md="$(fetch_fallback_agentic_file "${BASE_URL}/agents.md" "/agents.md" "${agents_headers_file}")"
+  llms_body_file="$(mktemp)"
+  agents_body_file="$(mktemp)"
+  fetch_fallback_agentic_file "${BASE_URL}/llms.txt" "/llms.txt" "${llms_headers_file}" "${llms_body_file}"
+  fetch_fallback_agentic_file "${BASE_URL}/agents.md" "/agents.md" "${agents_headers_file}" "${agents_body_file}"
+  llms_txt="$(cat "${llms_body_file}")"
+  agents_md="$(cat "${agents_body_file}")"
+  rm -f "${llms_body_file}" "${agents_body_file}"
 
   if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
     echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
