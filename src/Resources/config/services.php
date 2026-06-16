@@ -94,6 +94,7 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
@@ -151,7 +152,12 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(SalesChannelDomainResolver::class)
-        ->arg('$domainRepository', service('sales_channel_domain.repository'));
+        ->arg('$domainRepository', service('sales_channel_domain.repository'))
+        ->arg('$cache', service('cache.object'));
+
+    $services->set(SalesChannelDomainResolverCacheInvalidator::class)
+        ->arg('$cache', service('cache.object'))
+        ->tag('kernel.event_subscriber');
 
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
