@@ -59,6 +59,7 @@ services:
       MAILER_DSN: smtp://mailer:1025
       OPENSEARCH_URL: http://opensearch:9200
       ADMIN_OPENSEARCH_URL: http://opensearch:9200
+      SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: \${SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE-1}
     volumes:
       - .:/var/www/html
     depends_on:
