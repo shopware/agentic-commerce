@@ -161,7 +161,7 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         static::assertIsString($statement);
         static::assertStringContainsString('INSERT IGNORE INTO `migration`', $statement);
         static::assertSame(
-            'Shopware\\Core\\Migration\\V6_7\\Migration1773329152AddAgenticAiSalesChannelType',
+            Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
             $params['class'] ?? null,
         );
         static::assertSame(1773329152, $params['ts'] ?? null);
@@ -184,9 +184,42 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
 
         static::assertSame(
-            'Shopware\\Core\\Migration\\V6_7\\Migration1773329152AddAgenticAiSalesChannelType',
+            Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
             $params['class'] ?? null,
         );
+    }
+
+    public function testUpdateOnCoreVersionSkipsInsertsAndOnlyShadows(): void
+    {
+        $migration = new class extends Migration1773329152AddAgenticCommerceSalesChannelType {
+            protected function coreShipsAgenticCommerce(): bool
+            {
+                return true;
+            }
+        };
+
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(static::never())->method('fetchOne');
+        $connection->expects(static::never())->method('fetchAllKeyValue');
+        $connection->expects(static::never())->method('transactional');
+        $connection->expects(static::never())->method('insert');
+
+        $params = null;
+        $connection->expects(static::once())
+            ->method('executeStatement')
+            ->willReturnCallback(static function (string $sql, array $arguments) use (&$params): int {
+                $params = $arguments;
+
+                return 1;
+            });
+
+        $migration->update($connection);
+
+        static::assertSame(
+            Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
+            $params['class'] ?? null,
+        );
+        static::assertSame(1773329152, $params['ts'] ?? null);
     }
 
     public function testUpdateDestructiveIsNoOp(): void
