@@ -76,4 +76,18 @@ class JsonlRowParserTest extends TestCase
             static::assertSame(['line' => 2], $exception->getParameters());
         }
     }
+
+    public function testParseThrowsExceptionWhenJsonlLineIsAJsonArray(): void
+    {
+        $parser = new JsonlRowParser();
+
+        try {
+            $parser->parse("{\"id\":\"first\"}\n[1, 2]\n");
+            static::fail('Expected exception was not thrown.');
+        } catch (AgenticProductExportException $exception) {
+            static::assertSame(AgenticProductExportException::JSONL_LINE_NOT_OBJECT_EXCEPTION, $exception->getErrorCode());
+            static::assertSame('Each JSONL line must decode to an object.', $exception->getMessage());
+            static::assertSame(['line' => 2], $exception->getParameters());
+        }
+    }
 }
