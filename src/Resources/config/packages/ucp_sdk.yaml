@@ -9,4 +9,4 @@ ucp_sdk:
         retire_after: 'P30D'
         retired_key_retention: 'P30D'
     storage:
-        dsn: '%env(resolve:DATABASE_URL)%'
+        dsn: '%env(DATABASE_URL)%'
