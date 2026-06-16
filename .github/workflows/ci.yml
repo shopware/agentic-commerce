@@ -125,6 +125,7 @@ jobs:
             "admin-static"
             "php-quality (php-8.1)"
             "php-quality (php-8.2)"
+            "php-quality (native)"
             "shopware-matrix (6.5.x)"
             "shopware-matrix (6.6.x)"
             "shopware-matrix (trunk)"
@@ -166,6 +167,11 @@ jobs:
             php-version: '8.1'
           - lane: 'php-8.2'
             php-version: '8.2'
+          # 6.7.11.0: last minor before core deprecates these classes; not trunk so
+          # the "core present" path keeps being tested even if trunk drops them.
+          - lane: 'native'
+            php-version: '8.2'
+            shopware-ref: 'v6.7.11.0'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -183,7 +189,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
-          ref: ${{ matrix.php-version == '8.1' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
+          ref: ${{ matrix.shopware-ref || matrix.php-version == '8.1' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
           path: shopware
       - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
         working-directory: shopware

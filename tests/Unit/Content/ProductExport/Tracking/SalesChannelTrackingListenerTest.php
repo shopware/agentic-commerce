@@ -27,7 +27,6 @@ use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEvents;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
-use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerCollection;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingListener;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderCollection;
@@ -402,7 +401,6 @@ class SalesChannelTrackingListenerTest extends TestCase
         ?LoggerInterface $logger = null,
         ?RequestStack $requestStack = null,
         ?TagAwareCacheInterface $cache = null,
-        ?ShopwareVersionDetector $versionDetector = null,
     ): SalesChannelTrackingListener {
         $salesChannelRepository ??= new StaticEntityRepository([new SalesChannelCollection()]);
         /** @var StaticEntityRepository<SalesChannelCollection> $salesChannelRepository */
@@ -418,7 +416,6 @@ class SalesChannelTrackingListenerTest extends TestCase
             $logger ?? new NullLogger(),
             $requestStack ?? new RequestStack(),
             $cache ?? $this->createMock(TagAwareCacheInterface::class),
-            $versionDetector ?? new ShopwareVersionDetector(),
         );
     }
 
