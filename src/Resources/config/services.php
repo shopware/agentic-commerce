@@ -118,13 +118,13 @@ use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
-use Ucp\Sdk\Symfony\UcpSdkConfiguration;
 
 return static function (ContainerConfigurator $container): void {
-    $ucpSdkConfig = [
+    $container->extension('ucp_sdk', [
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
+        'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
         'signing_keys' => [
             'auto_generate' => true,
             'default_kid' => 'default',
@@ -135,13 +135,7 @@ return static function (ContainerConfigurator $container): void {
         'storage' => [
             'dsn' => env('DATABASE_URL'),
         ],
-    ];
-
-    if (property_exists(UcpSdkConfiguration::class, 'profileFetchingDevelopmentMode')) {
-        $ucpSdkConfig['profile_fetching_development_mode'] = env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE');
-    }
-
-    $container->extension('ucp_sdk', $ucpSdkConfig);
+    ]);
 
     $services = $container->services();
 
