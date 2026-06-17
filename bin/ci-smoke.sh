@@ -237,10 +237,12 @@ enable_smoke_profile_fetching_development_mode() {
     return 0
   fi
 
-  web sh -lc 'cd /var/www/html \
-    && mkdir -p config/packages \
-    && cat > config/packages/zz_swag_agentic_commerce_ucp_sdk_smoke.yaml <<'"'"'YAML'"'"'
-ucp_sdk:
+  web sh -lc 'config=/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml
+    if [ ! -f "${config}" ] || grep -q "profile_fetching_development_mode" "${config}"; then
+      exit 0
+    fi
+
+    cat >> "${config}" <<'"'"'YAML'"'"'
     profile_fetching_development_mode: '"'"'%env(bool:SWAG_AGENTIC_COMMERCE_PROFILE_FETCHING_DEVELOPMENT_MODE)%'"'"'
 YAML'
 }
