@@ -97,6 +97,7 @@ final class UcpConfigTest extends TestCase
         self::assertSame(UcpCapabilityCatalog::defaultConfigKeys(), $config->enabledCapabilities);
         self::assertTrue($config->idempotencyRequired);
         self::assertSame('strict', $config->signaturePolicy);
+        self::assertSame(50, $config->catalogResultLimit);
         self::assertSame([
             UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
             UcpCapabilityCatalog::DESCRIPTOR_CART,
@@ -379,6 +380,7 @@ final class UcpConfigTest extends TestCase
                 'continueUrlTemplate' => 'https://merchant.example/checkout/confirm?checkoutId={checkoutId}',
                 'webhookUrlOverride' => 'https://agent.example/ucp',
                 'discoveryBudget' => 5,
+                'catalogResultLimit' => 25,
                 'signaturePolicy' => 'off',
             ],
             'storeApiMcpAvailable' => false,
@@ -392,6 +394,7 @@ final class UcpConfigTest extends TestCase
                 'continueUrlTemplate' => 'https://merchant.example/checkout/confirm?checkoutId={checkoutId}',
                 'webhookUrlOverride' => 'https://agent.example/ucp',
                 'discoveryBudget' => 5,
+                'catalogResultLimit' => 25,
                 'signaturePolicy' => 'off',
             ],
             'expectedRuntime' => [
@@ -494,6 +497,11 @@ final class UcpConfigTest extends TestCase
             'payload' => ['discoveryBudget' => -1],
             'exception' => UcpConfigException::invalidValue('$.discoveryBudget', 'must be a non-negative integer'),
         ];
+
+        yield 'catalog result limit must be positive' => [
+            'payload' => ['catalogResultLimit' => 0],
+            'exception' => UcpConfigException::invalidValue('$.catalogResultLimit', 'must be a positive integer'),
+        ];
     }
 
     private static function configProperty(UcpConfig $config, string $property): mixed
@@ -514,6 +522,7 @@ final class UcpConfigTest extends TestCase
             'continueUrlTemplate' => $config->continueUrlTemplate,
             'webhookUrlOverride' => $config->webhookUrlOverride,
             'discoveryBudget' => $config->discoveryBudget,
+            'catalogResultLimit' => $config->catalogResultLimit,
             default => throw new \InvalidArgumentException(\sprintf('Unsupported expected UCP config property "%s".', $property)),
         };
     }

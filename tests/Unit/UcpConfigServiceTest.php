@@ -42,6 +42,7 @@ final class UcpConfigServiceTest extends TestCase
                 return match ($key) {
                     'SwagAgenticCommerce.config.active' => true,
                     'SwagAgenticCommerce.config.signaturePolicy' => 'log',
+                    'SwagAgenticCommerce.config.catalogResultLimit' => 7,
                     'SwagAgenticCommerce.config.enabledCapabilities' => ['catalog', 'cart'],
                     default => null,
                 };
@@ -53,6 +54,7 @@ final class UcpConfigServiceTest extends TestCase
 
         static::assertTrue($config->active);
         static::assertSame('log', $config->signaturePolicy);
+        static::assertSame(7, $config->catalogResultLimit);
         static::assertTrue($repository->find('sales-channel-b')?->active ?? false);
     }
 

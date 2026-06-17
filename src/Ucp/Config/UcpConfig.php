@@ -55,6 +55,7 @@ final class UcpConfig
         public readonly array $embeddedAllowedOrigins = [],
         public readonly array $embeddedFrameAncestors = [],
         public readonly int $discoveryBudget = 10,
+        public readonly int $catalogResultLimit = 50,
         public readonly ?string $webhookUrlOverride = null,
         public readonly string $signaturePolicy = 'strict',
         public readonly bool $idempotencyRequired = true,
@@ -94,6 +95,7 @@ final class UcpConfig
             self::originList($payload['embeddedAllowedOrigins'] ?? null, '$.embeddedAllowedOrigins'),
             self::frameAncestorList($payload['embeddedFrameAncestors'] ?? null),
             self::intValue($payload['discoveryBudget'] ?? null, 10, '$.discoveryBudget'),
+            self::positiveIntValue($payload['catalogResultLimit'] ?? null, 50, '$.catalogResultLimit'),
             $webhookUrlOverride,
             self::signaturePolicyValue($payload['signaturePolicy'] ?? 'strict'),
             self::boolValue($payload['idempotencyRequired'] ?? null, true, '$.idempotencyRequired'),
@@ -119,6 +121,7 @@ final class UcpConfig
             'embeddedAllowedOrigins' => $this->embeddedAllowedOrigins,
             'embeddedFrameAncestors' => $this->embeddedFrameAncestors,
             'discoveryBudget' => $this->discoveryBudget,
+            'catalogResultLimit' => $this->catalogResultLimit,
             'webhookUrlOverride' => $this->webhookUrlOverride,
             'signaturePolicy' => $this->signaturePolicy,
             'idempotencyRequired' => $this->idempotencyRequired,
@@ -244,6 +247,20 @@ final class UcpConfig
         $normalized = filter_var($value, \FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
         if (false === $normalized) {
             throw self::invalid($path, 'must be a non-negative integer');
+        }
+
+        return $normalized;
+    }
+
+    private static function positiveIntValue(mixed $value, int $default, string $path): int
+    {
+        if (null === $value || '' === $value) {
+            return $default;
+        }
+
+        $normalized = filter_var($value, \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (false === $normalized) {
+            throw self::invalid($path, 'must be a positive integer');
         }
 
         return $normalized;
