@@ -183,7 +183,7 @@ services:
     environment:
       SWAG_AGENTIC_COMMERCE_TEST_CAPTURE: "1"
       SWAG_AGENTIC_COMMERCE_SMOKE_SEED: "1"
-      SWAG_AGENTIC_COMMERCE_PROFILE_FETCHING_DEVELOPMENT_MODE: "1"
+      SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: "1"
 EOF
 
 compose_files+=("${smoke_override_file}")
@@ -218,33 +218,6 @@ web_container_id() {
 
 web_is_running() {
   [[ -n "$("${compose[@]}" ps -q web)" ]]
-}
-
-sdk_supports_profile_fetching_development_mode() {
-  web sh -lc 'for path in \
-    /var/www/html/vendor/ucp-php-sdk/symfony-bundle/src/DependencyInjection/Configuration.php \
-    /var/www/html/custom/ucp-php-sdk/packages/symfony-bundle/src/DependencyInjection/Configuration.php; do
-      if [ -f "${path}" ] && grep -q "profile_fetching_development_mode" "${path}"; then
-        exit 0
-      fi
-    done
-
-    exit 1'
-}
-
-enable_smoke_profile_fetching_development_mode() {
-  if ! sdk_supports_profile_fetching_development_mode; then
-    return 0
-  fi
-
-  web sh -lc 'config=/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml
-    if [ ! -f "${config}" ] || grep -q "profile_fetching_development_mode" "${config}"; then
-      exit 0
-    fi
-
-    cat >> "${config}" <<'"'"'YAML'"'"'
-    profile_fetching_development_mode: '"'"'%env(bool:SWAG_AGENTIC_COMMERCE_PROFILE_FETCHING_DEVELOPMENT_MODE)%'"'"'
-YAML'
 }
 
 web_root_mount_type() {
@@ -531,7 +504,6 @@ fi
 # for the previous checkout is still present. Remove it before booting console
 # commands such as plugin:refresh.
 web sh -lc 'cd /var/www/html && rm -rf var/cache/*'
-enable_smoke_profile_fetching_development_mode
 
 if [[ "${SKIP_PLUGIN}" == "1" ]]; then
   echo "Core bootstrap completed for ${SHOPWARE_DIR}."
