@@ -123,7 +123,7 @@ install_admin_dependencies() {
     return
   fi
 
-  admin_sh 'cd /var/www/html && composer init:js'
+  admin_sh 'cd /var/www/html && composer npm:admin clean-install --no-audit --prefer-offline'
 }
 
 branch_name="$(detect_shopware_lane)"

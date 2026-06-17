@@ -79,7 +79,7 @@
                             :value="form.active"
                             :label="$t('sw-settings-ucp.general.activeLabel')"
                             :disabled="!canEditConfig"
-                            @update:value="form.active = $event" />
+                            @update:value="setValue('active', $event)" @change="setValue('active', $event)" />
 
                         <sw-single-select
                             :value="form.profileUriStrategy"
@@ -88,7 +88,7 @@
                             labelProperty="label"
                             valueProperty="value"
                             :disabled="!canEditConfig"
-                            @update:value="form.profileUriStrategy = $event" />
+                            @update:value="setValue('profileUriStrategy', $event)" @change="setValue('profileUriStrategy', $event)" />
 
                         <sw-text-field
                             v-if="showCustomProfileUri"
@@ -96,7 +96,7 @@
                             :label="$t('sw-settings-ucp.general.customProfileUriLabel')"
                             :placeholder="$t('sw-settings-ucp.general.customProfileUriPlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="form.customProfileUri = $event" />
+                            @update:value="setValue('customProfileUri', $event)" @change="setValue('customProfileUri', $event)" />
 
                         <sw-text-field
                             class="sw-settings-ucp-detail__form-full"
@@ -104,7 +104,7 @@
                             :label="$t('sw-settings-ucp.general.continueUrlTemplateLabel')"
                             :placeholder="$t('sw-settings-ucp.general.continueUrlTemplatePlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="form.continueUrlTemplate = $event" />
+                            @update:value="setValue('continueUrlTemplate', $event)" @change="setValue('continueUrlTemplate', $event)" />
                     </div>
                 </sw-card>
 
@@ -136,7 +136,7 @@
                             labelProperty="label"
                             valueProperty="value"
                             :disabled="!canEditConfig"
-                            @update:value="form.signaturePolicy = $event" />
+                            @update:value="setValue('signaturePolicy', $event)" @change="setValue('signaturePolicy', $event)" />
 
                         <div class="sw-settings-ucp-detail__switch-inline">
                             <sw-switch-field
@@ -145,7 +145,7 @@
                                 label=""
                                 :aria-label="$t('sw-settings-ucp.general.idempotencyRequiredLabel')"
                                 :disabled="!canEditConfig"
-                                @update:value="form.idempotencyRequired = $event" />
+                                @update:value="setValue('idempotencyRequired', $event)" @change="setValue('idempotencyRequired', $event)" />
 
                             <span class="sw-settings-ucp-detail__switch-label">
                                 {{ $t('sw-settings-ucp.general.idempotencyRequiredLabel') }}
@@ -168,42 +168,42 @@
                             :label="$t('sw-settings-ucp.general.discoveryBudgetLabel')"
                             :min="1"
                             disabled
-                            @update:value="form.discoveryBudget = $event" />
+                            @update:value="setValue('discoveryBudget', $event)" @change="setValue('discoveryBudget', $event)" />
 
                         <sw-tagged-field
                             :value="form.remoteProfileAllowlist"
                             :label="$t('sw-settings-ucp.general.remoteProfileAllowlistLabel')"
                             :placeholder="$t('sw-settings-ucp.general.remoteProfileAllowlistPlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="setHostList('remoteProfileAllowlist', $event)" />
+                            @update:value="setHostList('remoteProfileAllowlist', $event)" @change="setHostList('remoteProfileAllowlist', $event)" />
 
                         <sw-tagged-field
                             :value="form.agentAllowlist"
                             :label="$t('sw-settings-ucp.general.agentAllowlistLabel')"
                             :placeholder="$t('sw-settings-ucp.general.agentAllowlistPlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="setHostList('agentAllowlist', $event)" />
+                            @update:value="setHostList('agentAllowlist', $event)" @change="setHostList('agentAllowlist', $event)" />
 
                         <sw-tagged-field
                             :value="form.embeddedAllowedOrigins"
                             :label="$t('sw-settings-ucp.general.embeddedAllowedOriginsLabel')"
                             :placeholder="$t('sw-settings-ucp.general.embeddedOriginPlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="setHostList('embeddedAllowedOrigins', $event)" />
+                            @update:value="setHostList('embeddedAllowedOrigins', $event)" @change="setHostList('embeddedAllowedOrigins', $event)" />
 
                         <sw-tagged-field
                             :value="form.embeddedFrameAncestors"
                             :label="$t('sw-settings-ucp.general.embeddedFrameAncestorsLabel')"
                             :placeholder="$t('sw-settings-ucp.general.embeddedOriginPlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="setHostList('embeddedFrameAncestors', $event)" />
+                            @update:value="setHostList('embeddedFrameAncestors', $event)" @change="setHostList('embeddedFrameAncestors', $event)" />
 
                         <sw-text-field
                             :value="form.webhookUrlOverride"
                             :label="$t('sw-settings-ucp.general.webhookUrlOverrideLabel')"
                             :placeholder="$t('sw-settings-ucp.general.webhookUrlOverridePlaceholder')"
                             :disabled="!canEditConfig"
-                            @update:value="form.webhookUrlOverride = $event" />
+                            @update:value="setValue('webhookUrlOverride', $event)" @change="setValue('webhookUrlOverride', $event)" />
                     </div>
                 </sw-card>
 
@@ -220,7 +220,7 @@
                             :value="isCapabilityEnabled(capability.value)"
                             :label="$t(capability.label)"
                             :disabled="!canEditConfig"
-                            @update:value="updateCapability(capability.value, $event)" />
+                            @update:value="updateCapability(capability.value, $event)" @change="updateCapability(capability.value, $event)" />
                     </div>
                 </sw-card>
 
@@ -238,7 +238,7 @@
                             :label="transport.label"
                             :helpText="transport.disabled ? transport.disabledReason : transport.description"
                             :disabled="!canEditConfig || transport.disabled"
-                            @update:value="updateTransport(transport.value, $event)" />
+                            @update:value="updateTransport(transport.value, $event)" @change="updateTransport(transport.value, $event)" />
                     </div>
 
                     <sw-alert
@@ -260,7 +260,7 @@
                             :label="$t('sw-settings-ucp.general.newKeyKidLabel')"
                             :placeholder="$t('sw-settings-ucp.general.newKeyKidPlaceholder')"
                             :disabled="!canRotateKeys"
-                            @update:value="newKeyKid = $event" />
+                            @update:value="setKeyValue('newKeyKid', $event)" @change="setKeyValue('newKeyKid', $event)" />
 
                         <sw-single-select
                             :value="newKeyAlgorithm"
@@ -269,7 +269,7 @@
                             labelProperty="label"
                             valueProperty="value"
                             :disabled="!canRotateKeys"
-                            @update:value="newKeyAlgorithm = $event" />
+                            @update:value="setKeyValue('newKeyAlgorithm', $event)" @change="setKeyValue('newKeyAlgorithm', $event)" />
 
                         <sw-button-process
                             class="sw-settings-ucp-detail__key-create-button"

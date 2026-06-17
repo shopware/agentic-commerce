@@ -4,21 +4,18 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Customer;
 
-use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Uuid\Uuid;
-use Shopware\Core\System\Country\CountryCollection;
+use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ValidationException;
 
 final class GuestCustomerAddressResolver
 {
-    /**
-     * @param EntityRepository<CountryCollection> $countryRepository
-     */
     public function __construct(
-        private readonly EntityRepository $countryRepository,
+        private readonly AbstractCountryRoute $countryRoute,
     ) {
     }
 
@@ -70,7 +67,7 @@ final class GuestCustomerAddressResolver
         $criteria->addFilter(new EqualsFilter('iso', $countryCode));
         $criteria->setLimit(1);
 
-        $country = $this->countryRepository->search($criteria, $context->getContext())->first();
+        $country = $this->countryRoute->load(new Request(), $criteria, $context)->getCountries()->first();
         if (null === $country) {
             throw new ValidationException(\sprintf('Unknown country code "%s" stored on the checkout session.', $countryCode), ['$.checkout_session.fulfillment.shipping_address.country_code is invalid']);
         }

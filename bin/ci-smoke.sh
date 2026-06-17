@@ -315,7 +315,7 @@ elif [[ -n "${PLUGIN_ZIP}" ]]; then
   chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce"
 else
   mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
-  rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
+  rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' --exclude='AGENTS.md' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
   rsync -a --delete \
     --exclude='.git' \
     --exclude='vendor' \
@@ -480,8 +480,22 @@ if (is_file($pluginAutoload)) {
 }
 
 $configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
-if (is_file($configPath) && str_contains((string) file_get_contents($configPath), 'sqlite:')) {
-    fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+if (is_file($configPath)) {
+    $configContents = (string) file_get_contents($configPath);
+    if (str_contains($configContents, 'sqlite:')) {
+        fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+        exit(1);
+    }
+
+    if (str_contains($configContents, 'resolve:DATABASE_URL')) {
+        fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
+        exit(1);
+    }
+}
+
+$servicesConfigPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/services.php';
+if (is_file($servicesConfigPath) && str_contains((string) file_get_contents($servicesConfigPath), "env('DATABASE_URL')->resolve()")) {
+    fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
     exit(1);
 }
 
@@ -729,7 +743,14 @@ checkout_complete_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/checkout-session
 assert_jq "${checkout_complete_json}" 'Expected checkout.complete to create a Shopware order.' '.status == "completed" and .order.id != null and .order.id != ""'
 order_id="$(printf '%s' "${checkout_complete_json}" | jq -r '.order.id')"
 
-order_json="$(curl -fsS "${BASE_URL}/ucp/v1/orders/${order_id}")"
+echo "Verifying secured order read."
+order_context_token="$(db_query "SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.swagAgenticCommerce.ucpCheckout.shopwareContextToken')) FROM sales_channel_api_context WHERE sales_channel_id = UNHEX('${sales_channel_id}') AND token = '${checkout_id}' LIMIT 1;")"
+if [[ -z "${order_context_token}" || "${order_context_token}" == "NULL" ]]; then
+  echo "Expected checkout metadata to contain a Shopware context token for secured order reads." >&2
+  exit 1
+fi
+
+order_json="$(curl -fsS "${BASE_URL}/ucp/v1/orders/${order_id}" -H "sw-context-token: ${order_context_token}")"
 assert_jq "${order_json}" 'Expected order.read to return the created order.' '.id == $orderId' --arg orderId "${order_id}"
 
 webhook_capture_json="$(wait_for_capture)"
