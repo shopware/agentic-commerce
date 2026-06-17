@@ -270,6 +270,26 @@ assert_contains() {
   fi
 }
 
+fetch_required_url() {
+  local url="$1"
+  local label="$2"
+  local headers_file="$3"
+  local body_file="$4"
+  local status
+
+  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}")"
+  if [[ ! "${status}" =~ ^[0-9]{3}$ || "${status}" -lt 200 || "${status}" -ge 300 ]]; then
+    echo "Expected ${label} to return a 2xx response, got ${status}." >&2
+    echo "Response headers:" >&2
+    cat "${headers_file}" >&2
+    echo "Response body:" >&2
+    cat "${body_file}" >&2
+    exit 1
+  fi
+
+  cat "${body_file}"
+}
+
 idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
 smoke_email="${idempotency_run_prefix}@example.com"
 
@@ -653,8 +673,10 @@ if [[ "${core_agentic_files_available}" == "0" ]]; then
   echo "Verifying fallback agentic discovery files."
   llms_headers_file="$(mktemp)"
   agents_headers_file="$(mktemp)"
-  llms_txt="$(curl -fsS -D "${llms_headers_file}" "${BASE_URL}/llms.txt")"
-  agents_md="$(curl -fsS -D "${agents_headers_file}" "${BASE_URL}/agents.md")"
+  llms_body_file="$(mktemp)"
+  agents_body_file="$(mktemp)"
+  llms_txt="$(fetch_required_url "${BASE_URL}/llms.txt" 'fallback /llms.txt' "${llms_headers_file}" "${llms_body_file}")"
+  agents_md="$(fetch_required_url "${BASE_URL}/agents.md" 'fallback /agents.md' "${agents_headers_file}" "${agents_body_file}")"
 
   if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
     echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
@@ -679,7 +701,7 @@ if [[ "${core_agentic_files_available}" == "0" ]]; then
     exit 1
   fi
 
-  rm -f "${llms_headers_file}" "${agents_headers_file}"
+  rm -f "${llms_headers_file}" "${agents_headers_file}" "${llms_body_file}" "${agents_body_file}"
 fi
 
 oauth_body_file="$(mktemp)"
