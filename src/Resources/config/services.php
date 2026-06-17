@@ -120,7 +120,7 @@ use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 return static function (ContainerConfigurator $container): void {
-    $container->extension('ucp_sdk', [
+    $ucpSdkConfig = [
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
@@ -134,7 +134,14 @@ return static function (ContainerConfigurator $container): void {
         'storage' => [
             'dsn' => env('DATABASE_URL'),
         ],
-    ]);
+    ];
+
+    $urlSafetyValidatorConstructor = (new ReflectionClass(Ucp\Sdk\Internal\Service\UrlSafetyValidator::class))->getConstructor();
+    if (null !== $urlSafetyValidatorConstructor && $urlSafetyValidatorConstructor->getNumberOfParameters() >= 3) {
+        $ucpSdkConfig['profile_fetching_development_mode'] = env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_PROFILE_FETCHING_DEVELOPMENT_MODE');
+    }
+
+    $container->extension('ucp_sdk', $ucpSdkConfig);
 
     $services = $container->services();
 

@@ -183,6 +183,7 @@ services:
     environment:
       SWAG_AGENTIC_COMMERCE_TEST_CAPTURE: "1"
       SWAG_AGENTIC_COMMERCE_SMOKE_SEED: "1"
+      SWAG_AGENTIC_COMMERCE_PROFILE_FETCHING_DEVELOPMENT_MODE: "1"
 EOF
 
 compose_files+=("${smoke_override_file}")
