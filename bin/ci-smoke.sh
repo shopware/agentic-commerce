@@ -290,6 +290,31 @@ fetch_required_url() {
   cat "${body_file}"
 }
 
+curl_required() {
+  local label="$1"
+  shift
+
+  local headers_file
+  local body_file
+  local status
+  headers_file="$(mktemp)"
+  body_file="$(mktemp)"
+
+  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "$@")"
+  if [[ ! "${status}" =~ ^[0-9]{3}$ || "${status}" -lt 200 || "${status}" -ge 300 ]]; then
+    echo "Expected ${label} to return a 2xx response, got ${status}." >&2
+    echo "Response headers:" >&2
+    cat "${headers_file}" >&2
+    echo "Response body:" >&2
+    cat "${body_file}" >&2
+    rm -f "${headers_file}" "${body_file}"
+    exit 1
+  fi
+
+  cat "${body_file}"
+  rm -f "${headers_file}" "${body_file}"
+}
+
 idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
 smoke_email="${idempotency_run_prefix}@example.com"
 
@@ -658,7 +683,7 @@ fi
 
 search_term="${product_name%% *}"
 
-profile_json="$(curl -fsS "${BASE_URL}/.well-known/ucp")"
+profile_json="$(curl_required 'UCP profile' "${BASE_URL}/.well-known/ucp")"
 assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
 assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
 assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.ucp.payment_handlers | type == "object" and length == 0'
@@ -720,48 +745,48 @@ if [[ "${tokenize_status}" != "501" ]]; then
   exit 1
 fi
 
-search_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 3}')")"
+search_json="$(curl_required 'catalog.search' -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 3}')")"
 assert_jq "${search_json}" 'Expected catalog.search to return between 1 and 3 products.' '.items | length > 0 and length <= 3'
 
-lookup_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/catalog/lookup" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${product_id}" '{ids: [$id]}')")"
+lookup_json="$(curl_required 'catalog.lookup' -X POST "${BASE_URL}/ucp/v1/catalog/lookup" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${product_id}" '{ids: [$id]}')")"
 assert_jq "${lookup_json}" 'Expected catalog.lookup to resolve exactly one product.' '.items | length == 1'
 
 resolved_product_id="$(printf '%s' "${lookup_json}" | jq -r '.items[0].id')"
 resolved_title="$(printf '%s' "${lookup_json}" | jq -r '.items[0].title')"
 resolved_price="$(printf '%s' "${lookup_json}" | jq -r '.items[0].price')"
 
-product_json="$(curl -fsS "${BASE_URL}/ucp/v1/catalog/product/${product_id}")"
+product_json="$(curl_required 'catalog.product' "${BASE_URL}/ucp/v1/catalog/product/${product_id}")"
 assert_jq "${product_json}" 'Expected catalog.product to resolve the looked-up product title.' '.title == $title' --arg title "${resolved_title}"
 
 cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}]}')"
-cart_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/carts" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_create_payload}")"
+cart_json="$(curl_required 'cart.create' -X POST "${BASE_URL}/ucp/v1/carts" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_create_payload}")"
 assert_jq "${cart_json}" 'Expected cart.create to create one line item.' '.line_items | length == 1'
 cart_id="$(printf '%s' "${cart_json}" | jq -r '.id')"
 
-cart_get_json="$(curl -fsS "${BASE_URL}/ucp/v1/carts/${cart_id}")"
+cart_get_json="$(curl_required 'cart.get' "${BASE_URL}/ucp/v1/carts/${cart_id}")"
 assert_jq "${cart_get_json}" 'Expected cart.get to return the cart id.' '.id != null and .id != ""'
 
 cart_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}]}')"
-cart_updated_json="$(curl -fsS -X PATCH "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_update_payload}")"
+cart_updated_json="$(curl_required 'cart.update' -X PATCH "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_update_payload}")"
 assert_jq "${cart_updated_json}" 'Expected cart.update to change the line-item quantity.' '.line_items[0].quantity == 2'
 
-cart_canceled_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/carts/${cart_id}/cancel" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
+cart_canceled_json="$(curl_required 'cart.cancel' -X POST "${BASE_URL}/ucp/v1/carts/${cart_id}/cancel" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
 assert_jq "${cart_canceled_json}" 'Expected cart.cancel to empty the cart.' '.line_items | length == 0'
 
 checkout_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
-checkout_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/checkout-sessions" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_create_payload}")"
+checkout_json="$(curl_required 'checkout.create' -X POST "${BASE_URL}/ucp/v1/checkout-sessions" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_create_payload}")"
 assert_jq "${checkout_json}" 'Expected checkout.create to produce a ready-for-complete session.' '.status == "ready_for_complete"'
 checkout_id="$(printf '%s' "${checkout_json}" | jq -r '.id')"
 
-checkout_get_json="$(curl -fsS "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}")"
+checkout_get_json="$(curl_required 'checkout.get' "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}")"
 assert_jq "${checkout_get_json}" 'Expected checkout.get to return the checkout session.' '.id != null and .id != ""'
 
 checkout_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
-checkout_updated_json="$(curl -fsS -X PATCH "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_update_payload}")"
+checkout_updated_json="$(curl_required 'checkout.update' -X PATCH "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_update_payload}")"
 assert_jq "${checkout_updated_json}" 'Expected checkout.update to change the checkout quantity.' '.line_items[0].quantity == 2'
 
-curl -fsS -X DELETE "${WEBHOOK_CAPTURE_URL}" >/dev/null
-checkout_complete_json="$(curl -fsS -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
+curl_required 'webhook capture clear' -X DELETE "${WEBHOOK_CAPTURE_URL}" >/dev/null
+checkout_complete_json="$(curl_required 'checkout.complete' -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
 assert_jq "${checkout_complete_json}" 'Expected checkout.complete to create a Shopware order.' '.status == "completed" and .order.id != null and .order.id != ""'
 order_id="$(printf '%s' "${checkout_complete_json}" | jq -r '.order.id')"
 
@@ -772,7 +797,7 @@ if [[ -z "${order_context_token}" || "${order_context_token}" == "NULL" ]]; then
   exit 1
 fi
 
-order_json="$(curl -fsS "${BASE_URL}/ucp/v1/orders/${order_id}" -H "sw-context-token: ${order_context_token}")"
+order_json="$(curl_required 'order.read' "${BASE_URL}/ucp/v1/orders/${order_id}" -H "sw-context-token: ${order_context_token}")"
 assert_jq "${order_json}" 'Expected order.read to return the created order.' '.id == $orderId' --arg orderId "${order_id}"
 
 webhook_capture_json="$(wait_for_capture)"
