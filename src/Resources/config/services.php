@@ -340,7 +340,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelProductExportTrackingExtension::class)
         ->tag('shopware.entity.extension');
 
-    // ── Tracking: listener (guards internally via coreShipsTrackingTables()) ──
+    // ── Tracking: listener ───────────────────────────────────────────────────
 
     $services->set(SalesChannelTrackingListener::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
