@@ -28,6 +28,7 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParamete
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
@@ -125,12 +126,16 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $contextResolver = new SalesChannelContextResolver($this->domainResolver($salesChannelId), $contextService, $persister);
         $mapper = new ShopwareDataMapper();
 
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
         $adapter = new ShopwareCheckoutAdapter(
             $this->uninitialized(ShopwareCartGateway::class),
             new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $sessionStore, new RequestStack()),
             $mapper,
             $sessionStore,
             new CheckoutSessionManager($sessionStore),
+            $completionStore,
             new CheckoutGuestAddressPayloadResolver($sessionStore),
             $this->continueUrlBuilder(),
             $this->uninitialized(CheckoutCompleter::class),
@@ -170,12 +175,16 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $sessionStore = new CheckoutSessionStore($persister);
         $contextResolver = new SalesChannelContextResolver($this->domainResolver($salesChannelId), $contextService, $persister);
 
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
         $adapter = new ShopwareCheckoutAdapter(
             $this->uninitialized(ShopwareCartGateway::class),
             new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $this->createMock(AbstractOrderRoute::class), $sessionStore, new RequestStack()),
             new ShopwareDataMapper(),
             $sessionStore,
             new CheckoutSessionManager($sessionStore),
+            $completionStore,
             new CheckoutGuestAddressPayloadResolver($sessionStore),
             $this->continueUrlBuilder(),
             $this->uninitialized(CheckoutCompleter::class),
