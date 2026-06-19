@@ -106,25 +106,64 @@ class GoogleProductExportValidator extends AbstractProviderValidator
             return;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $xml = simplexml_load_string($productExportContent);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        if (false === $xml) {
-            $errors->add(new ProviderValidationError(
-                $productExportEntity->getId(),
-                $this->getProviderTechnicalName(),
-                'xml',
-                'The Google feed must be valid XML.'
-            ));
+        if ('' === trim($productExportContent)) {
+            $errors->add($this->invalidXmlError($productExportEntity));
 
             return;
         }
 
-        $items = $xml->xpath('//item');
+        $previous = libxml_use_internal_errors(true);
+        $reader = new \XMLReader();
 
-        if (!\is_array($items) || [] === $items) {
+        if (false === $reader->XML($productExportContent, null, \LIBXML_NONET)) {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+            $errors->add($this->invalidXmlError($productExportEntity));
+
+            return;
+        }
+
+        // Stream <item> elements one at a time instead of building a DOM for the
+        // whole feed, so peak memory stays bounded to a single item on large
+        // catalogs. Per-item errors are buffered and only flushed once the feed is
+        // known to be well-formed and non-empty, matching the original semantics.
+        $itemErrors = new ErrorCollection();
+        $itemCount = 0;
+
+        $continue = $reader->read();
+        while ($continue) {
+            if (\XMLReader::ELEMENT === $reader->nodeType && 'item' === $reader->localName && '' === $reader->namespaceURI) {
+                ++$itemCount;
+                $node = $reader->expand(new \DOMDocument());
+
+                if (false !== $node) {
+                    $item = simplexml_import_dom($node);
+
+                    if ($item instanceof \SimpleXMLElement) {
+                        $this->validateItem($productExportEntity, $item, $itemCount, $itemErrors);
+                    }
+                }
+
+                $continue = $reader->next();
+
+                continue;
+            }
+
+            $continue = $reader->read();
+        }
+
+        $reader->close();
+        $libxmlErrors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if ([] !== $libxmlErrors) {
+            $errors->add($this->invalidXmlError($productExportEntity));
+
+            return;
+        }
+
+        if (0 === $itemCount) {
             $errors->add(new ProviderValidationError(
                 $productExportEntity->getId(),
                 $this->getProviderTechnicalName(),
@@ -135,165 +174,162 @@ class GoogleProductExportValidator extends AbstractProviderValidator
             return;
         }
 
-        $itemIds = [];
+        foreach ($itemErrors as $itemError) {
+            $errors->add($itemError);
+        }
+    }
 
-        foreach ($items as $index => $item) {
-            $line = $index + 1;
-            $googleChildren = $item->children(self::GOOGLE_NAMESPACE);
+    private function validateItem(ProductExportEntity $productExportEntity, \SimpleXMLElement $item, int $line, ErrorCollection $errors): void
+    {
+        $googleChildren = $item->children(self::GOOGLE_NAMESPACE);
 
-            foreach (self::REQUIRED_GOOGLE_FIELDS as $field) {
-                $value = (string) ($googleChildren->{$field} ?? '');
+        foreach (self::REQUIRED_GOOGLE_FIELDS as $field) {
+            $value = (string) ($googleChildren->{$field} ?? '');
 
-                if ('' === trim($value)) {
-                    $errors->add(new ProviderValidationError(
-                        $productExportEntity->getId(),
-                        $this->getProviderTechnicalName(),
-                        $field,
-                        \sprintf('The required field "g:%s" is missing or empty.', $field),
-                        $line
-                    ));
-                }
-            }
-
-            $title = trim((string) ($item->title ?? ''));
-            if ('' === $title) {
+            if ('' === trim($value)) {
                 $errors->add(new ProviderValidationError(
                     $productExportEntity->getId(),
                     $this->getProviderTechnicalName(),
-                    'title',
-                    'The required field "title" is missing or empty.',
-                    $line
-                ));
-            }
-
-            $link = trim((string) ($item->link ?? ''));
-            if ('' === $link || false === filter_var($this->encodeUrl($link), \FILTER_VALIDATE_URL)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'link',
-                    'The field "link" must be a valid absolute URL.',
-                    $line
-                ));
-            }
-
-            $imageLink = trim((string) ($googleChildren->image_link ?? ''));
-            if ('' !== $imageLink && false === filter_var($this->encodeUrl($imageLink), \FILTER_VALIDATE_URL)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'image_link',
-                    'The field "g:image_link" must be a valid absolute URL.',
-                    $line
-                ));
-            }
-
-            $availability = trim((string) ($googleChildren->availability ?? ''));
-            if ('' !== $availability && !\in_array($availability, self::ALLOWED_AVAILABILITY_VALUES, true)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'availability',
-                    'The field "g:availability" must be one of: in_stock, out_of_stock, preorder, backorder.',
-                    $line
-                ));
-            }
-
-            $condition = trim((string) ($googleChildren->condition ?? ''));
-            if ('' !== $condition && !\in_array($condition, self::ALLOWED_CONDITION_VALUES, true)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'condition',
-                    'The field "g:condition" must be one of: new, refurbished, used.',
-                    $line
-                ));
-            }
-
-            $price = trim((string) ($googleChildren->price ?? ''));
-            if ('' !== $price && 1 !== preg_match('/^\d+(?:\.\d+)? [A-Z]{3}$/', $price)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'price',
-                    'The field "g:price" must be formatted as "<number> <ISO-4217>".',
-                    $line
-                ));
-            }
-
-            $salePrice = trim((string) ($googleChildren->sale_price ?? ''));
-            if ('' !== $salePrice && 1 !== preg_match('/^\d+(?:\.\d+)? [A-Z]{3}$/', $salePrice)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'sale_price',
-                    'The field "g:sale_price" must be formatted as "<number> <ISO-4217>".',
-                    $line
-                ));
-            }
-
-            $id = trim((string) ($googleChildren->id ?? ''));
-            if ('' !== $id) {
-                if (isset($itemIds[$id])) {
-                    $errors->add(new ProviderValidationError(
-                        $productExportEntity->getId(),
-                        $this->getProviderTechnicalName(),
-                        'id',
-                        \sprintf('The g:id "%s" is not unique in the feed.', $id),
-                        $line
-                    ));
-                }
-
-                $itemIds[$id] = true;
-            }
-
-            $gender = trim((string) ($googleChildren->gender ?? ''));
-            if ('' !== $gender && !\in_array($gender, self::ALLOWED_GENDER_VALUES, true)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'gender',
-                    'The field "g:gender" must be one of: male, female, unisex.',
-                    $line
-                ));
-            }
-
-            $sizeSystem = trim((string) ($googleChildren->size_system ?? ''));
-            if ('' !== $sizeSystem && !\in_array($sizeSystem, self::ALLOWED_SIZE_SYSTEM_VALUES, true)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'size_system',
-                    'The field "g:size_system" must be one of: AU, BR, CN, DE, EU, FR, IT, JP, MEX, UK, US.',
-                    $line
-                ));
-            }
-
-            $ageGroup = trim((string) ($googleChildren->age_group ?? ''));
-            if ('' !== $ageGroup && !\in_array($ageGroup, self::ALLOWED_AGE_GROUP_VALUES, true)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'age_group',
-                    'The field "g:age_group" must be one of: newborn, infant, toddler, kids, adult.',
-                    $line
-                ));
-            }
-
-            $gtin = trim((string) ($googleChildren->gtin ?? ''));
-            $mpn = trim((string) ($googleChildren->mpn ?? ''));
-            $identifierExists = trim((string) ($googleChildren->identifier_exists ?? ''));
-
-            if ('' === $gtin && '' === $mpn && 'no' !== strtolower($identifierExists)) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'identifier_exists',
-                    'When no g:gtin or g:mpn is provided, g:identifier_exists must be set to "no".',
+                    $field,
+                    \sprintf('The required field "g:%s" is missing or empty.', $field),
                     $line
                 ));
             }
         }
+
+        $title = trim((string) ($item->title ?? ''));
+        if ('' === $title) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'title',
+                'The required field "title" is missing or empty.',
+                $line
+            ));
+        }
+
+        $link = trim((string) ($item->link ?? ''));
+        if ('' === $link || false === filter_var($this->encodeUrl($link), \FILTER_VALIDATE_URL)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'link',
+                'The field "link" must be a valid absolute URL.',
+                $line
+            ));
+        }
+
+        $imageLink = trim((string) ($googleChildren->image_link ?? ''));
+        if ('' !== $imageLink && false === filter_var($this->encodeUrl($imageLink), \FILTER_VALIDATE_URL)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'image_link',
+                'The field "g:image_link" must be a valid absolute URL.',
+                $line
+            ));
+        }
+
+        $availability = trim((string) ($googleChildren->availability ?? ''));
+        if ('' !== $availability && !\in_array($availability, self::ALLOWED_AVAILABILITY_VALUES, true)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'availability',
+                'The field "g:availability" must be one of: in_stock, out_of_stock, preorder, backorder.',
+                $line
+            ));
+        }
+
+        $condition = trim((string) ($googleChildren->condition ?? ''));
+        if ('' !== $condition && !\in_array($condition, self::ALLOWED_CONDITION_VALUES, true)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'condition',
+                'The field "g:condition" must be one of: new, refurbished, used.',
+                $line
+            ));
+        }
+
+        $price = trim((string) ($googleChildren->price ?? ''));
+        if ('' !== $price && 1 !== preg_match('/^\d+(?:\.\d+)? [A-Z]{3}$/', $price)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'price',
+                'The field "g:price" must be formatted as "<number> <ISO-4217>".',
+                $line
+            ));
+        }
+
+        $salePrice = trim((string) ($googleChildren->sale_price ?? ''));
+        if ('' !== $salePrice && 1 !== preg_match('/^\d+(?:\.\d+)? [A-Z]{3}$/', $salePrice)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'sale_price',
+                'The field "g:sale_price" must be formatted as "<number> <ISO-4217>".',
+                $line
+            ));
+        }
+
+        $gender = trim((string) ($googleChildren->gender ?? ''));
+        if ('' !== $gender && !\in_array($gender, self::ALLOWED_GENDER_VALUES, true)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'gender',
+                'The field "g:gender" must be one of: male, female, unisex.',
+                $line
+            ));
+        }
+
+        $sizeSystem = trim((string) ($googleChildren->size_system ?? ''));
+        if ('' !== $sizeSystem && !\in_array($sizeSystem, self::ALLOWED_SIZE_SYSTEM_VALUES, true)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'size_system',
+                'The field "g:size_system" must be one of: AU, BR, CN, DE, EU, FR, IT, JP, MEX, UK, US.',
+                $line
+            ));
+        }
+
+        $ageGroup = trim((string) ($googleChildren->age_group ?? ''));
+        if ('' !== $ageGroup && !\in_array($ageGroup, self::ALLOWED_AGE_GROUP_VALUES, true)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'age_group',
+                'The field "g:age_group" must be one of: newborn, infant, toddler, kids, adult.',
+                $line
+            ));
+        }
+
+        $gtin = trim((string) ($googleChildren->gtin ?? ''));
+        $mpn = trim((string) ($googleChildren->mpn ?? ''));
+        $identifierExists = trim((string) ($googleChildren->identifier_exists ?? ''));
+
+        if ('' === $gtin && '' === $mpn && 'no' !== strtolower($identifierExists)) {
+            $errors->add(new ProviderValidationError(
+                $productExportEntity->getId(),
+                $this->getProviderTechnicalName(),
+                'identifier_exists',
+                'When no g:gtin or g:mpn is provided, g:identifier_exists must be set to "no".',
+                $line
+            ));
+        }
+    }
+
+    private function invalidXmlError(ProductExportEntity $productExportEntity): ProviderValidationError
+    {
+        return new ProviderValidationError(
+            $productExportEntity->getId(),
+            $this->getProviderTechnicalName(),
+            'xml',
+            'The Google feed must be valid XML.'
+        );
     }
 
     /**

@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
+use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
-use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
@@ -27,10 +30,11 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 {
     public function __construct(
         private readonly ShopwareCartGateway $cartGateway,
-        private readonly ShopwareOrderGateway $orderGateway,
+        private readonly OrderGatewayInterface $orderGateway,
         private readonly ShopwareDataMapper $mapper,
         private readonly CheckoutSessionStore $sessionStore,
         private readonly CheckoutSessionManager $sessionManager,
+        private readonly CheckoutCompletionStoreInterface $completionStore,
         private readonly CheckoutGuestAddressPayloadResolver $guestAddressPayloadResolver,
         private readonly CheckoutContinueUrlBuilder $continueUrlBuilder,
         private readonly CheckoutCompleter $checkoutCompleter,
@@ -67,7 +71,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
     /**
      * @param list<string> $discountCodes
      *
-     * @return array{0: SalesChannelContext, 1: \Shopware\Core\Checkout\Cart\Cart}
+     * @return array{0: SalesChannelContext, 1: Cart}
      */
     private function createOrReuseCheckoutCart(
         string $token,
@@ -102,9 +106,10 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
 
-        if (($metadata['status'] ?? null) === 'completed' && isset($metadata['orderId']) && \is_string($metadata['orderId'])) {
+        $completedOrderId = $this->completedOrderId($id, $metadata);
+        if (null !== $completedOrderId) {
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
-            $order = $this->orderGateway->getOrderForSalesChannelContext($metadata['orderId'], $resolvedContext, $metadata);
+            $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
             return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
         }
@@ -127,7 +132,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($request->id, $resolution->salesChannelId);
 
-        if (($metadata['status'] ?? null) === 'completed') {
+        if (($metadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id)) {
             throw new ValidationException('Completed checkout sessions cannot be updated.');
         }
 
@@ -164,9 +169,10 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
 
-        if (($metadata['status'] ?? null) === 'completed' && isset($metadata['orderId']) && \is_string($metadata['orderId'])) {
+        $completedOrderId = $this->completedOrderId($id, $metadata);
+        if (null !== $completedOrderId) {
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
-            $order = $this->orderGateway->getOrderForSalesChannelContext($metadata['orderId'], $resolvedContext, $metadata);
+            $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
             return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
         }
@@ -175,6 +181,25 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
         return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function completedOrderId(string $checkoutId, array $metadata): ?string
+    {
+        $orderId = $this->completionStore->completedOrderId($checkoutId);
+        if (null !== $orderId) {
+            return $orderId;
+        }
+
+        if (($metadata['status'] ?? null) !== 'completed') {
+            return null;
+        }
+
+        $legacyOrderId = $metadata['orderId'] ?? null;
+
+        return \is_string($legacyOrderId) && '' !== $legacyOrderId ? $legacyOrderId : null;
     }
 
     public function cancelCheckout(string $id, RequestContext $context): Checkout
@@ -189,7 +214,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
 
         return $this->mapper->toCheckout(
-            new \Shopware\Core\Checkout\Cart\Cart($cart->id),
+            new Cart($cart->id),
             $salesChannelContext,
             CheckoutStatus::Canceled,
             $buyer,
@@ -237,7 +262,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
     }
 
     private function completedCheckout(
-        \Shopware\Core\Checkout\Order\OrderEntity $order,
+        OrderEntity $order,
         string $checkoutId,
         string $salesChannelId,
     ): Checkout {

@@ -22,6 +22,12 @@ final class ProfilePreviewBuilderTest extends TestCase
         if (!class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController', false)) {
             eval('namespace Shopware\\Core\\Framework\\Mcp\\Controller { final class StoreApiMcpServerController {} }');
         }
+        $_SERVER['MCP_SERVER'] = '1';
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        unset($_SERVER['MCP_SERVER']);
     }
 
     #[Test]

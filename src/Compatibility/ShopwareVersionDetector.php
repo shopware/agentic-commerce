@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Compatibility;
 
 use Composer\InstalledVersions;
+use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
 
@@ -45,8 +46,19 @@ final class ShopwareVersionDetector
 
     public function supportsStoreApiMcp(): bool
     {
-        return version_compare($this->normalizeVersion($this->currentVersion()), '6.7.0.0', '>=')
-            && class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController');
+        if (!version_compare($this->normalizeVersion($this->currentVersion()), '6.7.0.0', '>=')) {
+            return false;
+        }
+
+        if (!class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController')) {
+            return false;
+        }
+
+        // The controller ships behind the MCP_SERVER feature flag (experimental until v6.8.0).
+        // The class exists but every request to /store-api/_mcp returns 404 when the flag is
+        // inactive, so treat flag activation as part of availability.
+        // If the flag has been removed (graduated to always-on), assume available.
+        return !Feature::has('MCP_SERVER') || Feature::isActive('MCP_SERVER');
     }
 
     public function coreShipsAgenticCommerce(): bool

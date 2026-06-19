@@ -184,6 +184,7 @@ services:
       SWAG_AGENTIC_COMMERCE_TEST_CAPTURE: "1"
       SWAG_AGENTIC_COMMERCE_SMOKE_SEED: "1"
       SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: "1"
+      MCP_SERVER: "1"
 EOF
 
 compose_files+=("${smoke_override_file}")
@@ -626,6 +627,7 @@ web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.c
 
 store_api_mcp_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo class_exists("Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController") ? "1" : "0";')"
 core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; $pluginAutoload = "/var/www/html/custom/plugins/SwagAgenticCommerce/vendor/autoload.php"; if (is_file($pluginAutoload)) { require_once $pluginAutoload; } echo (class_exists("Swag\\AgenticCommerce\\AgenticFiles\\CoreSalesChannelFileFeature") && Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass()) ? "1" : "0";')"
+
 enabled_transports='["rest","a2a","embedded"]'
 expected_transports_json='["a2a","embedded","rest"]'
 if [[ "${store_api_mcp_available}" == "1" ]]; then

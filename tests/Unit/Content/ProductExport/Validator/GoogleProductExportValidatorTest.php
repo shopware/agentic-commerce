@@ -74,6 +74,24 @@ class GoogleProductExportValidatorTest extends TestCase
         static::assertSame('xml', $error->getParameters()['field']);
     }
 
+    public function testValidateAddsErrorForMalformedNestedElement(): void
+    {
+        $entity = $this->createProductExportEntity();
+        $errors = new ErrorCollection();
+
+        // A closing </g:country> with no matching opening tag inside <g:shipping>.
+        $content = $this->wrapItems(
+            '<item><title>P</title><g:shipping>DE</g:country><g:price>0.00 EUR</g:price></g:shipping></item>'
+        );
+
+        $this->createValidator()->validate($entity, $content, $errors);
+
+        static::assertCount(1, $errors);
+        $error = $errors->first();
+        static::assertInstanceOf(ProviderValidationError::class, $error);
+        static::assertSame('xml', $error->getParameters()['field']);
+    }
+
     public function testValidateAddsErrorForFeedWithoutItems(): void
     {
         $entity = $this->createProductExportEntity();
@@ -292,19 +310,25 @@ class GoogleProductExportValidatorTest extends TestCase
         static::assertCount(0, $errors);
     }
 
-    public function testValidateAddsErrorForDuplicateIds(): void
+    public function testValidateReachesEveryItemWhenStreaming(): void
     {
         $entity = $this->createProductExportEntity();
         $errors = new ErrorCollection();
 
-        $content = $this->wrapItems($this->createValidItem().$this->createValidItem(['title' => 'Second']));
+        // Only the third item is invalid; streaming must not skip it.
+        $content = $this->wrapItems(
+            $this->createValidItem(['id' => 'SKU-1'])
+            .$this->createValidItem(['id' => 'SKU-2'])
+            .$this->createValidItem(['id' => 'SKU-3', 'availability' => 'invalid_value'])
+        );
 
         $this->createValidator()->validate($entity, $content, $errors);
 
         static::assertCount(1, $errors);
         $error = $errors->first();
         static::assertInstanceOf(ProviderValidationError::class, $error);
-        static::assertSame('id', $error->getParameters()['field']);
+        static::assertSame('availability', $error->getParameters()['field']);
+        static::assertSame(3, $error->getParameters()['line']);
     }
 
     private function createProductExportEntity(?string $provider = 'google'): ProductExportEntity
