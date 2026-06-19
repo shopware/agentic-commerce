@@ -88,6 +88,7 @@ final class CheckoutCompleter
                 CheckoutStatus::Completed->value,
                 $buyer,
                 orderId: $order->getId(),
+                orderDeepLinkCode: $order->getDeepLinkCode(),
             );
 
             if (null !== $config->webhookUrlOverride) {

@@ -25,7 +25,6 @@ use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEvents;
-use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -69,7 +68,6 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
         private readonly LoggerInterface $logger,
         private readonly RequestStack $requestStack,
         private readonly TagAwareCacheInterface $cache,
-        private readonly ShopwareVersionDetector $versionDetector,
     ) {
     }
 
@@ -87,10 +85,6 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
 
     public function storeReferralCode(ControllerEvent $event): void
     {
-        if ($this->versionDetector->coreShipsTrackingTables()) {
-            return;
-        }
-
         $request = $event->getRequest();
 
         /** @var list<string> $scopes */
@@ -119,10 +113,6 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
 
     public function createTrackingRecords(EntityWrittenContainerEvent $event): void
     {
-        if ($this->versionDetector->coreShipsTrackingTables()) {
-            return;
-        }
-
         $orderEvent = $event->getEventByEntityName(OrderDefinition::ENTITY_NAME);
         $customerEvent = $event->getEventByEntityName(CustomerDefinition::ENTITY_NAME);
 
@@ -147,10 +137,6 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
 
     public function invalidateTrackableChannelCache(EntityWrittenEvent $event): void
     {
-        if ($this->versionDetector->coreShipsTrackingTables()) {
-            return;
-        }
-
         $tags = array_map(
             static fn (string $id): string => self::CACHE_KEY_PREFIX.$id,
             $event->getIds(),

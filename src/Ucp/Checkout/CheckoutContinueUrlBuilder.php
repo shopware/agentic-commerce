@@ -21,9 +21,9 @@ final class CheckoutContinueUrlBuilder implements CheckoutContinueUrlBuilderInte
         }
 
         return strtr($config->continueUrlTemplate, [
-            '{checkoutId}' => $checkoutId,
-            '{cartId}' => $checkoutId,
-            '{salesChannelId}' => $salesChannelId,
+            '{checkoutId}' => rawurlencode($checkoutId),
+            '{cartId}' => rawurlencode($checkoutId),
+            '{salesChannelId}' => rawurlencode($salesChannelId),
         ]);
     }
 }

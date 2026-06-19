@@ -101,6 +101,67 @@ describe('sw-settings-ucp-detail component config behavior', () => {
             meta: { supportsStoreApiMcp: true },
         }), { requiresStoreApiMcp: true })).toBe(false);
     });
+
+    // Cross-version value-binding guard. 6.5 (VUE3 flag off) emits `change` with the
+    // value; 6.6+ emits `update:value`, and a native `change` can fall through as a DOM
+    // Event. The guarded setters must apply real values (so 6.5 deactivation persists)
+    // and ignore Event instances (so 6.6/6.7 are never clobbered).
+    it('setValue applies a real value (6.5 emits `change` with the value)', () => {
+        const context = createContext({ form: { active: true } });
+
+        component.methods.setValue.call(context, 'active', false);
+
+        expect(context.form.active).toBe(false);
+    });
+
+    it('setValue ignores a DOM Event (6.6/6.7 native `change` fallthrough)', () => {
+        const context = createContext({ form: { active: true } });
+
+        component.methods.setValue.call(context, 'active', new Event('change'));
+
+        expect(context.form.active).toBe(true);
+    });
+
+    it('setKeyValue applies a real value and ignores a DOM Event', () => {
+        const context = { newKeyKid: '' };
+
+        component.methods.setKeyValue.call(context, 'newKeyKid', 'key-1');
+        expect(context.newKeyKid).toBe('key-1');
+
+        component.methods.setKeyValue.call(context, 'newKeyKid', new Event('change'));
+        expect(context.newKeyKid).toBe('key-1');
+    });
+
+    it('setHostList applies a filtered array and never clears it on a DOM Event', () => {
+        const context = createContext({ form: { agentAllowlist: [] } });
+
+        component.methods.setHostList.call(context, 'agentAllowlist', ['a.example', '']);
+        expect(context.form.agentAllowlist).toEqual(['a.example']);
+
+        component.methods.setHostList.call(context, 'agentAllowlist', new Event('change'));
+        expect(context.form.agentAllowlist).toEqual(['a.example']);
+    });
+
+    it('updateCapability toggles on a real value and ignores a DOM Event', () => {
+        const context = createContext({ form: { enabledCapabilities: ['catalog'] } });
+
+        component.methods.updateCapability.call(context, 'cart', true);
+        expect(context.form.enabledCapabilities).toContain('cart');
+
+        component.methods.updateCapability.call(context, 'order', new Event('change'));
+        expect(context.form.enabledCapabilities).not.toContain('order');
+    });
+
+    it('updateTransport ignores a DOM Event (no transport added)', () => {
+        const context = createContext({
+            form: { enabledTransports: ['rest'] },
+            transportOptions: [],
+        });
+
+        component.methods.updateTransport.call(context, 'sse', new Event('change'));
+
+        expect(context.form.enabledTransports).toEqual(['rest']);
+    });
 });
 
 function createContext(overrides = {}) {

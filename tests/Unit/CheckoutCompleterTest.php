@@ -189,7 +189,7 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
             {
                 ++$this->saveCalled;
             }
@@ -342,7 +342,7 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
             {
             }
         };

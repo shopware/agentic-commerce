@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Adapter;
 
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
@@ -44,9 +45,10 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 
     public function createCheckout(CheckoutCreateRequest $request, RequestContext $context): Checkout
     {
-        $token = $request->cartId ?? $this->contextTokenGenerator->generate();
+        $cartId = $this->checkoutCartId($request);
+        $token = $cartId ?? $this->contextTokenGenerator->generate();
         $discountCodes = $this->discountCodes($request->discounts);
-        [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $request, $discountCodes, $context);
+        [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $cartId, $request, $discountCodes, $context);
 
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $request->buyer);
         $this->sessionManager->save(
@@ -69,15 +71,16 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
     /**
      * @param list<string> $discountCodes
      *
-     * @return array{0: \Shopware\Core\System\SalesChannel\SalesChannelContext, 1: Cart}
+     * @return array{0: SalesChannelContext, 1: Cart}
      */
     private function createOrReuseCheckoutCart(
         string $token,
+        ?string $cartId,
         CheckoutCreateRequest $request,
         array $discountCodes,
         RequestContext $context,
     ): array {
-        if ([] === $request->lineItems && null !== $request->cartId) {
+        if ([] === $request->lineItems && null !== $cartId) {
             return $this->cartGateway->loadCheckoutCart($token, $context);
         }
 
@@ -89,6 +92,15 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         );
     }
 
+    private function checkoutCartId(CheckoutCreateRequest $request): ?string
+    {
+        /** @var array<string, mixed> $payload */
+        $payload = get_object_vars($request);
+        $cartId = $payload['cartId'] ?? null;
+
+        return \is_string($cartId) && '' !== $cartId ? $cartId : null;
+    }
+
     public function getCheckout(string $id, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
@@ -96,12 +108,14 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 
         $completedOrderId = $this->completedOrderId($id, $resolution->salesChannelId, $metadata);
         if (null !== $completedOrderId) {
-            $order = $this->orderGateway->getOrder($completedOrderId, $context);
+            $resolvedContext = $this->completedCheckoutContext($metadata, $context);
+            $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolution->salesChannelId);
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
         }
 
-        [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($id, $context);
+        $contextToken = $this->sessionStore->contextToken($metadata, $id);
+        [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
         $buyer = $this->sessionStore->buyer($metadata);
 
         return $this->mapper->toCheckout(
@@ -157,12 +171,14 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 
         $completedOrderId = $this->completedOrderId($id, $resolution->salesChannelId, $metadata);
         if (null !== $completedOrderId) {
-            $order = $this->orderGateway->getOrder($completedOrderId, $context);
+            $resolvedContext = $this->completedCheckoutContext($metadata, $context);
+            $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolution->salesChannelId);
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
         }
 
-        [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($id, $context);
+        $contextToken = $this->sessionStore->contextToken($metadata, $id);
+        [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
         return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
     }
@@ -217,6 +233,19 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         }
 
         return CheckoutStatus::ReadyForComplete;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function completedCheckoutContext(array $metadata, RequestContext $context): SalesChannelContext
+    {
+        $contextToken = $this->sessionStore->storedContextToken($metadata);
+        if (null === $contextToken) {
+            throw new ValidationException('Completed checkout session is missing its Shopware context token.');
+        }
+
+        return $this->contextResolver->resolve($contextToken, $context);
     }
 
     /**

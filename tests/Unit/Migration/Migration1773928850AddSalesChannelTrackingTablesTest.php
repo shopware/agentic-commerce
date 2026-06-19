@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Tests\Unit\Migration;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Migration\Migration1773928850AddSalesChannelTrackingTables;
 
 /**
@@ -30,6 +31,8 @@ class Migration1773928850AddSalesChannelTrackingTablesTest extends TestCase
 
     public function testUpdateCreatesBothTablesWhenMissing(): void
     {
+        $this->skipIfCoreShipsTrackingTables();
+
         $connection = $this->createMock(Connection::class);
 
         $connection->expects(static::exactly(2))
@@ -64,6 +67,8 @@ class Migration1773928850AddSalesChannelTrackingTablesTest extends TestCase
 
     public function testUpdateIsIdempotentWhenTablesExist(): void
     {
+        $this->skipIfCoreShipsTrackingTables();
+
         $connection = $this->createMock(Connection::class);
 
         $connection->expects(static::exactly(2))
@@ -77,6 +82,8 @@ class Migration1773928850AddSalesChannelTrackingTablesTest extends TestCase
 
     public function testUpdateCreatesOnlyMissingTable(): void
     {
+        $this->skipIfCoreShipsTrackingTables();
+
         $connection = $this->createMock(Connection::class);
 
         $connection->expects(static::exactly(2))
@@ -99,5 +106,30 @@ class Migration1773928850AddSalesChannelTrackingTablesTest extends TestCase
         $connection->expects(static::never())->method('fetchOne');
 
         (new Migration1773928850AddSalesChannelTrackingTables())->updateDestructive($connection);
+    }
+
+    public function testUpdateIsNoOpWhenCoreShipsTrackingTables(): void
+    {
+        $this->skipUnlessCoreShipsTrackingTables();
+
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(static::never())->method('fetchOne');
+        $connection->expects(static::never())->method('executeStatement');
+
+        (new Migration1773928850AddSalesChannelTrackingTables())->update($connection);
+    }
+
+    private function skipIfCoreShipsTrackingTables(): void
+    {
+        if ((new ShopwareVersionDetector())->coreShipsTrackingTables()) {
+            $this->markTestSkipped('Core ships tracking tables; migration delegates to core.');
+        }
+    }
+
+    private function skipUnlessCoreShipsTrackingTables(): void
+    {
+        if (!(new ShopwareVersionDetector())->coreShipsTrackingTables()) {
+            $this->markTestSkipped('Only applies when core ships tracking tables.');
+        }
     }
 }

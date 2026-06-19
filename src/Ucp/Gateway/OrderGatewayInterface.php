@@ -14,4 +14,9 @@ interface OrderGatewayInterface
     public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity;
 
     public function getOrder(string $orderId, RequestContext $requestContext): OrderEntity;
+
+    /**
+     * @param array<string, mixed>|null $checkoutMetadata
+     */
+    public function getOrderForSalesChannelContext(string $orderId, SalesChannelContext $context, ?array $checkoutMetadata = null): OrderEntity;
 }

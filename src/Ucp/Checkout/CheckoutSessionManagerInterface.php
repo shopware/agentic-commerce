@@ -31,6 +31,7 @@ interface CheckoutSessionManagerInterface
         ?Buyer $buyer,
         array $discountCodes = [],
         ?string $orderId = null,
+        ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
     ): void;
 }

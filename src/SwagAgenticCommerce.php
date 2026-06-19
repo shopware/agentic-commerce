@@ -14,7 +14,10 @@ use Shopware\Core\Kernel;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
+use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
+use Symfony\Component\DependencyInjection\Compiler\PassConfig;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Ucp\Sdk\Symfony\Bridge\DoctrineDbal\SchemaBootstrapper;
 
@@ -35,6 +38,17 @@ final class SwagAgenticCommerce extends Plugin
 
     /** Mirror of ProductExportEntity::FILE_FORMAT_JSONL in 6.7.10+. */
     public const FILE_FORMAT_JSONL = 'jsonl';
+
+    public function build(ContainerBuilder $container): void
+    {
+        parent::build($container);
+
+        $container->addCompilerPass(
+            new AgenticCommerceCoexistenceCompilerPass(),
+            PassConfig::TYPE_BEFORE_OPTIMIZATION,
+            1000,
+        );
+    }
 
     /**
      * @return list<Bundle>
