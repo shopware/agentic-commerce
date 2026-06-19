@@ -64,7 +64,7 @@ final class ShopwareVersionDetector
         // not registered in this build (e.g. 6.5.x / 6.6.x in php-quality runs).
         $envVal = $_SERVER['MCP_SERVER'] ?? $_SERVER['mcp_server'] ?? null;
         if (null !== $envVal) {
-            return $envVal !== '' && $envVal !== '0' && $envVal !== 'false';
+            return '' !== $envVal && '0' !== $envVal && 'false' !== $envVal;
         }
 
         try {
