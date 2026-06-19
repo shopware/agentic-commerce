@@ -153,10 +153,10 @@ class GoogleProductExportValidator extends AbstractProviderValidator
             $continue = $reader->read();
         }
 
+        $reader->close();
         $libxmlErrors = libxml_get_errors();
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
-        $reader->close();
 
         if ([] !== $libxmlErrors) {
             $errors->add($this->invalidXmlError($productExportEntity));
