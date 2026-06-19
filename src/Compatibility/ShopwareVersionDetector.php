@@ -45,8 +45,26 @@ final class ShopwareVersionDetector
 
     public function supportsStoreApiMcp(): bool
     {
-        return version_compare($this->normalizeVersion($this->currentVersion()), '6.7.0.0', '>=')
-            && class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController');
+        if (!version_compare($this->normalizeVersion($this->currentVersion()), '6.7.0.0', '>=')) {
+            return false;
+        }
+
+        if (!class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController')) {
+            return false;
+        }
+
+        // The controller ships behind the MCP_SERVER feature flag (experimental until v6.8.0).
+        // The class exists but every request to /store-api/_mcp returns 404 when the flag is
+        // inactive, so treat flag activation as part of availability.
+        if (!class_exists('Shopware\\Core\\Framework\\Feature')) {
+            return true;
+        }
+
+        try {
+            return \Shopware\Core\Framework\Feature::isActive('MCP_SERVER');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     public function coreShipsAgenticCommerce(): bool
