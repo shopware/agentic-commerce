@@ -60,6 +60,13 @@ final class ShopwareVersionDetector
             return true;
         }
 
+        // Check the env var directly first to avoid E_USER_WARNING when MCP_SERVER is
+        // not registered in this build (e.g. 6.5.x / 6.6.x in php-quality runs).
+        $envVal = $_SERVER['MCP_SERVER'] ?? $_SERVER['mcp_server'] ?? null;
+        if (null !== $envVal) {
+            return $envVal !== '' && $envVal !== '0' && $envVal !== 'false';
+        }
+
         try {
             return \Shopware\Core\Framework\Feature::isActive('MCP_SERVER');
         } catch (\Throwable) {
