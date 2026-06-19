@@ -30,7 +30,7 @@ final class CoreSalesChannelFileSyncSubscriber implements EventSubscriberInterfa
         }
 
         $path = ltrim($event->getRequest()->getPathInfo(), '/');
-        if (!\in_array($path, ['llms.txt', 'agents.md'], true)) {
+        if (!\in_array($path, ['llms.txt', 'agents.md', '.well-known/ai-catalog.json'], true)) {
             return;
         }
 

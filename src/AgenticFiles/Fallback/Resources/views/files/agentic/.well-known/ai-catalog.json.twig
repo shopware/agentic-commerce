@@ -1,0 +1,30 @@
+{% block agentic_ai_catalog_json %}
+    {% set host = {
+        displayName: salesChannel.translated.name|default(salesChannel.name),
+    } %}
+
+    {% set entries = [] %}
+
+    {% block agentic_ai_catalog_entries %}
+        {% if swag_agentic_commerce_ucp_active(salesChannel) and salesChannelFileContext.publisher|default(null) %}
+            {% set entries = entries|merge([{
+                identifier: 'urn:ai:' ~ salesChannelFileContext.publisher ~ ':resource:ucp-profile',
+                displayName: 'Shopware UCP Profile',
+                type: 'application/json',
+                url: '/.well-known/ucp',
+                description: 'Machine-readable Universal Commerce Protocol profile for enabled commerce capabilities on this sales channel.',
+                tags: ['shopware', 'ucp', 'commerce'],
+                representativeQueries: [
+                    'inspect enabled UCP capabilities for this shop',
+                    'use the UCP profile before performing commerce actions',
+                ],
+            }]) %}
+        {% endif %}
+
+        {{ {
+            specVersion: '1.0',
+            host: host,
+            entries: entries,
+        }|json_encode(constant('JSON_PRETTY_PRINT') + constant('JSON_UNESCAPED_SLASHES') + constant('JSON_UNESCAPED_UNICODE'))|raw }}
+    {% endblock %}
+{% endblock %}

@@ -20,8 +20,9 @@ final class CoreSalesChannelFileSyncSubscriberTest extends TestCase
 
         $subscriber->syncOnAgenticFileRequest($this->createRequestEvent('/llms.txt'));
         $subscriber->syncOnAgenticFileRequest($this->createRequestEvent('/agents.md'));
+        $subscriber->syncOnAgenticFileRequest($this->createRequestEvent('/.well-known/ai-catalog.json'));
 
-        static::assertSame(2, $bridge->syncs);
+        static::assertSame(3, $bridge->syncs);
     }
 
     public function testItIgnoresOtherRequests(): void

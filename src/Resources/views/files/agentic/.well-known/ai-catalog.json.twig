@@ -1,0 +1,20 @@
+{% sw_extends 'files/agentic/.well-known/ai-catalog.json.twig' %}
+
+{% block agentic_ai_catalog_entries %}
+    {% if swag_agentic_commerce_ucp_active(salesChannel) and salesChannelFileContext.publisher|default(null) %}
+        {% set entries = entries|merge([{
+            identifier: 'urn:ai:' ~ salesChannelFileContext.publisher ~ ':resource:ucp-profile',
+            displayName: 'Shopware UCP Profile',
+            type: 'application/json',
+            url: '/.well-known/ucp',
+            description: 'Machine-readable Universal Commerce Protocol profile for enabled commerce capabilities on this sales channel.',
+            tags: ['shopware', 'ucp', 'commerce'],
+            representativeQueries: [
+                'inspect enabled UCP capabilities for this shop',
+                'use the UCP profile before performing commerce actions',
+            ],
+        }]) %}
+    {% endif %}
+
+    {{ parent() }}
+{% endblock %}
