@@ -23,17 +23,10 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  * Shopware 6.7.10+, so merchants can uninstall this plugin later without losing
  * their Agentic Commerce sales channels.
  *
- * **Shadow lifecycle** — this migration always calls {@see self::shadowCoreMigration()}
- * regardless of which path runs, to pre-mark the equivalent core migration as executed:
- *
- * - 6.5.x / 6.6.x: plugin owns the row. Shadow prevents `system:update:finish` from
- *   running the core migration after an upgrade to 6.7.10+.
- * - 6.7.10–6.7.11: `Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE` is defined in core.
- *   Plugin skips all inserts and only calls the shadow, because the core migration
- *   may not yet be in the `migration` table on existing installs.
- * - 6.8.0+: constant removed from core. Plugin falls through to the `fetchOne` guard,
- *   finds the existing row, skips inserts, and calls the shadow (INSERT IGNORE is a no-op
- *   when the core migration was already shadowed on 6.5/6.6).
+ * If the row already exists — because the core migration ran before this plugin
+ * migration did — the method returns immediately. Otherwise, the row is inserted
+ * and {@see self::CORE_MIGRATION_CLASS} is shadowed in the `migration` table so
+ * `system:update:finish` after an upgrade to 6.7.10+ does not attempt to re-run it.
  *
  * The shadow can be removed once 6.5.x and 6.6.x are no longer supported lanes,
  * because all installations will have passed through a Shopware version that natively
@@ -57,22 +50,12 @@ class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationSte
 
     public function update(Connection $connection): void
     {
-        if ($this->coreShipsAgenticCommerce()) {
-            $this->shadowCoreMigration($connection);
-
-            return;
-        }
-
         $salesChannelTypeId = Uuid::fromHexToBytes(SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE);
 
-        $existing = $connection->fetchOne(
+        if ($connection->fetchOne(
             'SELECT 1 FROM `sales_channel_type` WHERE `id` = :id',
             ['id' => $salesChannelTypeId]
-        );
-
-        if (false !== $existing) {
-            $this->shadowCoreMigration($connection);
-
+        ) !== false) {
             return;
         }
 
@@ -144,11 +127,6 @@ class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationSte
              VALUES (:class, :ts, NOW(), NULL)',
             ['class' => self::CORE_MIGRATION_CLASS, 'ts' => 1773329152]
         );
-    }
-
-    protected function coreShipsAgenticCommerce(): bool
-    {
-        return \defined('Shopware\\Core\\Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE');
     }
 
     /**

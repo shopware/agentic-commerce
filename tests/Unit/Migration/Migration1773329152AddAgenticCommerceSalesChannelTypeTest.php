@@ -129,10 +129,7 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         $connection->expects(static::never())->method('fetchAllKeyValue');
         $connection->expects(static::never())->method('transactional');
         $connection->expects(static::never())->method('insert');
-
-        $connection->expects(static::once())
-            ->method('executeStatement')
-            ->willReturn(0);
+        $connection->expects(static::never())->method('executeStatement');
 
         (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
     }
@@ -160,61 +157,6 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
 
         static::assertIsString($statement);
         static::assertStringContainsString('INSERT IGNORE INTO `migration`', $statement);
-        static::assertSame(
-            Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
-            $params['class'] ?? null,
-        );
-        static::assertSame(1773329152, $params['ts'] ?? null);
-    }
-
-    public function testUpdateShadowsCoreMigrationEvenWhenSalesChannelTypeAlreadyExists(): void
-    {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('fetchOne')->willReturn('1');
-
-        $params = null;
-        $connection->expects(static::once())
-            ->method('executeStatement')
-            ->willReturnCallback(static function (string $sql, array $arguments) use (&$params): int {
-                $params = $arguments;
-
-                return 1;
-            });
-
-        (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
-
-        static::assertSame(
-            Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
-            $params['class'] ?? null,
-        );
-    }
-
-    public function testUpdateOnCoreVersionSkipsInsertsAndOnlyShadows(): void
-    {
-        $migration = new class extends Migration1773329152AddAgenticCommerceSalesChannelType {
-            protected function coreShipsAgenticCommerce(): bool
-            {
-                return true;
-            }
-        };
-
-        $connection = $this->createMock(Connection::class);
-        $connection->expects(static::never())->method('fetchOne');
-        $connection->expects(static::never())->method('fetchAllKeyValue');
-        $connection->expects(static::never())->method('transactional');
-        $connection->expects(static::never())->method('insert');
-
-        $params = null;
-        $connection->expects(static::once())
-            ->method('executeStatement')
-            ->willReturnCallback(static function (string $sql, array $arguments) use (&$params): int {
-                $params = $arguments;
-
-                return 1;
-            });
-
-        $migration->update($connection);
-
         static::assertSame(
             Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
             $params['class'] ?? null,
