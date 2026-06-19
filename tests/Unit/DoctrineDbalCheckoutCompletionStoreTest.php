@@ -19,7 +19,6 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
 {
     private const TABLE = 'swag_agentic_commerce_ucp_checkout_completion';
     private const CHECKOUT_ID = 'checkout-token';
-    private const SALES_CHANNEL_ID = '00000000000000000000000000000001';
     private const ORDER_ID = '00000000000000000000000000000002';
 
     #[Test]
@@ -32,15 +31,15 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
                 self::TABLE,
                 static::callback(static function (array $payload): bool {
                     static::assertSame(self::CHECKOUT_ID, $payload['checkout_id']);
-                    static::assertSame(Uuid::fromHexToBytes(self::SALES_CHANNEL_ID), $payload['sales_channel_id']);
                     static::assertSame(Uuid::fromHexToBytes(self::ORDER_ID), $payload['order_id']);
+                    static::assertArrayNotHasKey('sales_channel_id', $payload);
                     static::assertIsString($payload['created_at']);
 
                     return true;
                 }),
             );
 
-        (new DoctrineDbalCheckoutCompletionStore($connection))->complete(self::CHECKOUT_ID, self::SALES_CHANNEL_ID, self::ORDER_ID);
+        (new DoctrineDbalCheckoutCompletionStore($connection))->complete(self::CHECKOUT_ID, self::ORDER_ID);
     }
 
     #[Test]
@@ -49,7 +48,7 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->method('fetchAssociative')->willReturn(false);
 
-        static::assertNull((new DoctrineDbalCheckoutCompletionStore($connection))->completedOrderId(self::CHECKOUT_ID, self::SALES_CHANNEL_ID));
+        static::assertNull((new DoctrineDbalCheckoutCompletionStore($connection))->completedOrderId(self::CHECKOUT_ID));
     }
 
     #[Test]
@@ -60,13 +59,10 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
             ->method('fetchAssociative')
             ->with(
                 static::stringContains(self::TABLE),
-                [
-                    'checkoutId' => self::CHECKOUT_ID,
-                    'salesChannelId' => Uuid::fromHexToBytes(self::SALES_CHANNEL_ID),
-                ],
+                ['checkoutId' => self::CHECKOUT_ID],
             )
             ->willReturn(['order_id' => self::ORDER_ID]);
 
-        static::assertSame(self::ORDER_ID, (new DoctrineDbalCheckoutCompletionStore($connection))->completedOrderId(self::CHECKOUT_ID, self::SALES_CHANNEL_ID));
+        static::assertSame(self::ORDER_ID, (new DoctrineDbalCheckoutCompletionStore($connection))->completedOrderId(self::CHECKOUT_ID));
     }
 }

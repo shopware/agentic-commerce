@@ -17,27 +17,23 @@ final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionSto
     ) {
     }
 
-    public function complete(string $checkoutId, string $salesChannelId, string $orderId): void
+    public function complete(string $checkoutId, string $orderId): void
     {
         $this->connection->insert(self::TABLE, [
             'checkout_id' => $checkoutId,
-            'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
             'order_id' => Uuid::fromHexToBytes($orderId),
             'created_at' => (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT),
         ]);
     }
 
-    public function completedOrderId(string $checkoutId, string $salesChannelId): ?string
+    public function completedOrderId(string $checkoutId): ?string
     {
         $row = $this->connection->fetchAssociative(
             \sprintf(
-                'SELECT LOWER(HEX(order_id)) AS order_id FROM `%s` WHERE checkout_id = :checkoutId AND sales_channel_id = :salesChannelId',
+                'SELECT LOWER(HEX(order_id)) AS order_id FROM `%s` WHERE checkout_id = :checkoutId',
                 self::TABLE,
             ),
-            [
-                'checkoutId' => $checkoutId,
-                'salesChannelId' => Uuid::fromHexToBytes($salesChannelId),
-            ],
+            ['checkoutId' => $checkoutId],
         );
 
         if (false === $row) {

@@ -46,7 +46,7 @@ final class CheckoutCompleter
     ): Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
 
-        $orderId = $this->completionStore->completedOrderId($checkoutId, $salesChannelId);
+        $orderId = $this->completionStore->completedOrderId($checkoutId);
         if (null !== $orderId) {
             return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelId, $requestContext);
         }
@@ -61,7 +61,7 @@ final class CheckoutCompleter
         }
 
         try {
-            $orderId = $this->completionStore->completedOrderId($checkoutId, $salesChannelId);
+            $orderId = $this->completionStore->completedOrderId($checkoutId);
             if (null !== $orderId) {
                 return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelId, $requestContext);
             }
@@ -81,7 +81,7 @@ final class CheckoutCompleter
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
-            $this->completionStore->complete($checkoutId, $customerContext->getSalesChannelId(), $order->getId());
+            $this->completionStore->complete($checkoutId, $order->getId());
 
             $this->sessionManager->saveForCheckoutId(
                 $checkoutId,

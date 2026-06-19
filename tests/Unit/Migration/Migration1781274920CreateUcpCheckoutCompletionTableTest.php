@@ -30,12 +30,12 @@ final class Migration1781274920CreateUcpCheckoutCompletionTableTest extends Test
             ->method('executeStatement')
             ->with(static::callback(static function (string $sql): bool {
                 static::assertStringContainsString('CREATE TABLE IF NOT EXISTS `swag_agentic_commerce_ucp_checkout_completion`', $sql);
-                static::assertStringContainsString('PRIMARY KEY (`checkout_id`, `sales_channel_id`)', $sql);
-                static::assertStringContainsString('INDEX `idx.sac_ucp_checkout_completion.order` (`order_id`)', $sql);
+                static::assertStringContainsString('PRIMARY KEY (`checkout_id`)', $sql);
+                static::assertStringNotContainsString('`sales_channel_id`', $sql);
                 static::assertStringNotContainsString('`status`', $sql);
                 static::assertStringContainsString('`order_id` BINARY(16) NOT NULL', $sql);
-                static::assertStringContainsString('CONSTRAINT `fk.sac_ucp_checkout_completion.sales_channel_id`', $sql);
-                static::assertStringContainsString('REFERENCES `sales_channel` (`id`)', $sql);
+                static::assertStringContainsString('CONSTRAINT `fk.sac_ucp_checkout_completion.order_id`', $sql);
+                static::assertStringContainsString('REFERENCES `order` (`id`)', $sql);
 
                 return true;
             }));

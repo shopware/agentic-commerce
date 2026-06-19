@@ -6,7 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 interface CheckoutCompletionStoreInterface
 {
-    public function complete(string $checkoutId, string $salesChannelId, string $orderId): void;
+    public function complete(string $checkoutId, string $orderId): void;
 
-    public function completedOrderId(string $checkoutId, string $salesChannelId): ?string;
+    public function completedOrderId(string $checkoutId): ?string;
 }

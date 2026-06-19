@@ -157,7 +157,7 @@ final class CheckoutCompleterTest extends TestCase
     {
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
         $completionStore->method('completedOrderId')->willReturn(null);
-        $completionStore->expects(static::once())->method('complete')->with(self::CHECKOUT_ID, self::SALES_CHANNEL_ID, self::ORDER_ID);
+        $completionStore->expects(static::once())->method('complete')->with(self::CHECKOUT_ID, self::ORDER_ID);
 
         $currency = new CurrencyEntity();
         $currency->setIsoCode('EUR');
