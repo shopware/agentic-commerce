@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Gateway;
 
+use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartOrderRoute;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
@@ -20,7 +21,7 @@ use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 
-final class ShopwareOrderGateway
+final class ShopwareOrderGateway implements OrderGatewayInterface
 {
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
@@ -31,7 +32,7 @@ final class ShopwareOrderGateway
     ) {
     }
 
-    public function placeOrder(\Shopware\Core\Checkout\Cart\Cart $cart, SalesChannelContext $context): OrderEntity
+    public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity
     {
         return $this->cartOrderRoute->order($cart, $context, new RequestDataBag())->getOrder();
     }
