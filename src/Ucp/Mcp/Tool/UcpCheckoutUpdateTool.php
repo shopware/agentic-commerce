@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
@@ -22,12 +23,18 @@ final class UcpCheckoutUpdateTool
     public function __invoke(string $id, string $payload = '{}'): string
     {
         try {
-            return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
+            $requestPayload = $this->toolContext->decodeObject($payload);
+
+            return $this->toolContext->executeMutating(
                 'checkout.update',
-                $this->toolContext->decodeObject($payload),
-                $this->toolContext->requestContext(),
-                $id,
-            )));
+                ['id' => $id, 'payload' => $requestPayload],
+                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                    'checkout.update',
+                    $requestPayload,
+                    $context,
+                    $id,
+                )),
+            );
         } catch (\Throwable $exception) {
             throw $this->toolContext->toToolCallException($exception);
         }

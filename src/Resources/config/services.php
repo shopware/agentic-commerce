@@ -14,11 +14,18 @@ use Shopware\Core\Checkout\Cart\SalesChannel\CartItemRemoveRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartItemUpdateRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartLoadRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartOrderRoute;
+use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
+use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
+use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
+use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
+use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
+use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
+use Shopware\Core\System\Country\SalesChannel\CountryRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
@@ -69,10 +76,8 @@ use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
-use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerAddressResolver;
-use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
-use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
@@ -120,6 +125,7 @@ return static function (ContainerConfigurator $container): void {
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
+        'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
         'signing_keys' => [
             'auto_generate' => true,
             'default_kid' => 'default',
@@ -128,7 +134,7 @@ return static function (ContainerConfigurator $container): void {
             'retired_key_retention' => 'P30D',
         ],
         'storage' => [
-            'dsn' => env('DATABASE_URL')->resolve(),
+            'dsn' => env('DATABASE_URL'),
         ],
     ]);
 
@@ -157,16 +163,6 @@ return static function (ContainerConfigurator $container): void {
         $services->set(RemoveLeadingSpacesTwigExtension::class);
     }
 
-    $services->set(GuestCustomerContextProvisioner::class)
-        ->arg('$customerRepository', service('customer.repository'))
-        ->arg('$salutationRepository', service('salutation.repository'));
-
-    $services->set(GuestCustomerAddressResolver::class)
-        ->arg('$countryRepository', service('country.repository'));
-
-    $services->set(ShopwareOrderGateway::class)
-        ->arg('$orderRepository', service('order.repository'));
-
     $services->set(SeedSmokeCatalogCommand::class)
         ->arg('$productRepository', service('product.repository'))
         ->arg('$taxRepository', service('tax.repository'))
@@ -175,6 +171,9 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
+
+    $services->set(ShopwareCatalogGateway::class)
+        ->arg('$productListRoute', service(ProductListRoute::class));
 
     // Shopware decorable-route aliases.
 
@@ -185,6 +184,9 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractCartItemRemoveRoute::class, CartItemRemoveRoute::class);
     $services->alias(AbstractCartDeleteRoute::class, CartDeleteRoute::class);
     $services->alias(AbstractCartOrderRoute::class, CartOrderRoute::class);
+    $services->alias(AbstractRegisterRoute::class, RegisterRoute::class);
+    $services->alias(AbstractOrderRoute::class, OrderRoute::class);
+    $services->alias(AbstractCountryRoute::class, CountryRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
 
@@ -338,7 +340,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelProductExportTrackingExtension::class)
         ->tag('shopware.entity.extension');
 
-    // ── Tracking: listener (guards internally via coreShipsTrackingTables()) ──
+    // ── Tracking: listener ───────────────────────────────────────────────────
 
     $services->set(SalesChannelTrackingListener::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'))

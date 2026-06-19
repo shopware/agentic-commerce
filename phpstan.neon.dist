@@ -17,6 +17,8 @@ parameters:
         - tests/bootstrap.php
     stubFiles:
         - tests/phpstan/Package.php
+        - tests/phpstan/Generator.php
+        - tests/phpstan/EntityWriteResult.php
     ignoreErrors:
         -
             identifier: shopware.namespace

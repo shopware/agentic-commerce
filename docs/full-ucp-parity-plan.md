@@ -55,6 +55,12 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
   `shopware.store_api_mcp.tool` tag. Write tools expose structured object
   payload schemas instead of JSON-string payload arguments.
 - Keep all transports behind the same capability layer so catalog/cart/checkout/order behavior does not fork per protocol.
+- Keep customer-facing runtime behavior behind Store API route boundaries. UCP
+  adapters/gateways must delegate catalog, cart, checkout, customer, identity,
+  and order operations to the relevant Store API routes instead of direct DAL
+  repositories or hand-built customer/context mutations. Exceptions must be
+  limited to plugin-owned config/admin/internal metadata or explicitly
+  documented gaps where no Store API route exists.
 - Show unsupported transports in admin as disabled with concrete reasons.
 - Do not implement placeholder tokenization adapters. The identity adapter is real and customer-context backed; tokenization still requires a PSP-backed handler.
 

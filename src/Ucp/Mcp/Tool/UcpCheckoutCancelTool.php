@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
@@ -22,12 +23,16 @@ final class UcpCheckoutCancelTool
     public function __invoke(string $id): string
     {
         try {
-            return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(
+            return $this->toolContext->executeMutating(
                 'checkout.cancel',
-                [],
-                $this->toolContext->requestContext(),
-                $id,
-            )));
+                ['id' => $id],
+                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                    'checkout.cancel',
+                    [],
+                    $context,
+                    $id,
+                )),
+            );
         } catch (\Throwable $exception) {
             throw $this->toolContext->toToolCallException($exception);
         }

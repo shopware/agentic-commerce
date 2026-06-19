@@ -54,11 +54,13 @@ final class CheckoutCompleter
 
         $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
-        $this->sessionManager->save(
+        $this->sessionManager->saveForCheckoutId(
+            $checkoutId,
             $customerContext,
             CheckoutStatus::Completed->value,
             $buyer,
             orderId: $order->getId(),
+            orderDeepLinkCode: $order->getDeepLinkCode(),
         );
 
         if (null !== $config->webhookUrlOverride) {
