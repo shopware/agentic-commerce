@@ -106,7 +106,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
 
-        $completedOrderId = $this->completedOrderId($id, $resolution->salesChannelId, $metadata);
+        $completedOrderId = $this->completedOrderId($id, $metadata);
         if (null !== $completedOrderId) {
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
@@ -132,7 +132,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($request->id, $resolution->salesChannelId);
 
-        if (($metadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id, $resolution->salesChannelId)) {
+        if (($metadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id)) {
             throw new ValidationException('Completed checkout sessions cannot be updated.');
         }
 
@@ -169,7 +169,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
 
-        $completedOrderId = $this->completedOrderId($id, $resolution->salesChannelId, $metadata);
+        $completedOrderId = $this->completedOrderId($id, $metadata);
         if (null !== $completedOrderId) {
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
@@ -186,9 +186,9 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
     /**
      * @param array<string, mixed> $metadata
      */
-    private function completedOrderId(string $checkoutId, string $salesChannelId, array $metadata): ?string
+    private function completedOrderId(string $checkoutId, array $metadata): ?string
     {
-        $orderId = $this->completionStore->completedOrderId($checkoutId, $salesChannelId);
+        $orderId = $this->completionStore->completedOrderId($checkoutId);
         if (null !== $orderId) {
             return $orderId;
         }
