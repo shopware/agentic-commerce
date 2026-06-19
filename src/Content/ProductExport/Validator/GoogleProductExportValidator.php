@@ -128,7 +128,6 @@ class GoogleProductExportValidator extends AbstractProviderValidator
         // catalogs. Per-item errors are buffered and only flushed once the feed is
         // known to be well-formed and non-empty, matching the original semantics.
         $itemErrors = new ErrorCollection();
-        $itemIds = [];
         $itemCount = 0;
 
         $continue = $reader->read();
@@ -141,7 +140,7 @@ class GoogleProductExportValidator extends AbstractProviderValidator
                     $item = simplexml_import_dom($node);
 
                     if ($item instanceof \SimpleXMLElement) {
-                        $this->validateItem($productExportEntity, $item, $itemCount, $itemIds, $itemErrors);
+                        $this->validateItem($productExportEntity, $item, $itemCount, $itemErrors);
                     }
                 }
 
@@ -180,10 +179,7 @@ class GoogleProductExportValidator extends AbstractProviderValidator
         }
     }
 
-    /**
-     * @param array<string, true> $itemIds
-     */
-    private function validateItem(ProductExportEntity $productExportEntity, \SimpleXMLElement $item, int $line, array &$itemIds, ErrorCollection $errors): void
+    private function validateItem(ProductExportEntity $productExportEntity, \SimpleXMLElement $item, int $line, ErrorCollection $errors): void
     {
         $googleChildren = $item->children(self::GOOGLE_NAMESPACE);
 
@@ -276,21 +272,6 @@ class GoogleProductExportValidator extends AbstractProviderValidator
                 'The field "g:sale_price" must be formatted as "<number> <ISO-4217>".',
                 $line
             ));
-        }
-
-        $id = trim((string) ($googleChildren->id ?? ''));
-        if ('' !== $id) {
-            if (isset($itemIds[$id])) {
-                $errors->add(new ProviderValidationError(
-                    $productExportEntity->getId(),
-                    $this->getProviderTechnicalName(),
-                    'id',
-                    \sprintf('The g:id "%s" is not unique in the feed.', $id),
-                    $line
-                ));
-            }
-
-            $itemIds[$id] = true;
         }
 
         $gender = trim((string) ($googleChildren->gender ?? ''));

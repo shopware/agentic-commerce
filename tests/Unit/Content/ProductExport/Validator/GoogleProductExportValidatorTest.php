@@ -310,21 +310,6 @@ class GoogleProductExportValidatorTest extends TestCase
         static::assertCount(0, $errors);
     }
 
-    public function testValidateAddsErrorForDuplicateIds(): void
-    {
-        $entity = $this->createProductExportEntity();
-        $errors = new ErrorCollection();
-
-        $content = $this->wrapItems($this->createValidItem().$this->createValidItem(['title' => 'Second']));
-
-        $this->createValidator()->validate($entity, $content, $errors);
-
-        static::assertCount(1, $errors);
-        $error = $errors->first();
-        static::assertInstanceOf(ProviderValidationError::class, $error);
-        static::assertSame('id', $error->getParameters()['field']);
-    }
-
     public function testValidateReachesEveryItemWhenStreaming(): void
     {
         $entity = $this->createProductExportEntity();
