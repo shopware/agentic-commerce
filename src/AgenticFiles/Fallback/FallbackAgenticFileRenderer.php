@@ -106,19 +106,19 @@ final class FallbackAgenticFileRenderer
 
         return [
             'baseUrl' => $baseUrl,
-            'publisher' => $baseUrl === null ? null : $this->extractPublisher($baseUrl),
+            'publisher' => null === $baseUrl ? null : $this->extractPublisher($baseUrl),
         ];
     }
 
     private function resolveBaseUrl(SalesChannelEntity $salesChannel, SalesChannelContext $context): ?string
     {
         $domains = $salesChannel->getDomains();
-        if ($domains === null || $domains->count() === 0) {
+        if (null === $domains || 0 === $domains->count()) {
             return null;
         }
 
         $domainId = $context->getDomainId();
-        if ($domainId !== null) {
+        if (null !== $domainId) {
             $domain = $domains->get($domainId);
             if ($domain instanceof SalesChannelDomainEntity) {
                 return rtrim($domain->getUrl(), '/');
@@ -134,6 +134,6 @@ final class FallbackAgenticFileRenderer
     {
         $host = parse_url($baseUrl, \PHP_URL_HOST);
 
-        return \is_string($host) && $host !== '' ? strtolower($host) : null;
+        return \is_string($host) && '' !== $host ? strtolower($host) : null;
     }
 }

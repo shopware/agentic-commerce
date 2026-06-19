@@ -27,7 +27,7 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
         $connection
             ->expects(static::exactly(3))
             ->method('update')
-            ->willReturnCallback(function (string $table, array $data, array $criteria) use (&$updatedFiles): int {
+            ->willReturnCallback(static function (string $table, array $data, array $criteria) use (&$updatedFiles): int {
                 static::assertSame('sales_channel_file', $table);
                 static::assertTrue($data['enabled']);
 
@@ -38,7 +38,7 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
         $connection
             ->expects(static::exactly(3))
             ->method('insert')
-            ->willReturnCallback(function (string $table, array $data) use (&$insertedFiles): int {
+            ->willReturnCallback(static function (string $table, array $data) use (&$insertedFiles): int {
                 static::assertSame('sales_channel_file', $table);
                 static::assertTrue($data['enabled']);
 
