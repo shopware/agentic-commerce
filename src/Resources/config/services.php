@@ -20,6 +20,7 @@ use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
+use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
@@ -76,6 +77,7 @@ use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
@@ -175,6 +177,9 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
+
+    $services->set(ShopwareCatalogGateway::class)
+        ->arg('$productListRoute', service(ProductListRoute::class));
 
     // Shopware decorable-route aliases.
 
@@ -341,7 +346,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelProductExportTrackingExtension::class)
         ->tag('shopware.entity.extension');
 
-    // ── Tracking: listener (guards internally via coreShipsTrackingTables()) ──
+    // ── Tracking: listener ───────────────────────────────────────────────────
 
     $services->set(SalesChannelTrackingListener::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
