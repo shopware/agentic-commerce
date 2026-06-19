@@ -56,20 +56,9 @@ final class ShopwareVersionDetector
         // The controller ships behind the MCP_SERVER feature flag (experimental until v6.8.0).
         // The class exists but every request to /store-api/_mcp returns 404 when the flag is
         // inactive, so treat flag activation as part of availability.
-        //
-        // Check the env var directly first to avoid E_USER_WARNING when MCP_SERVER is not
-        // registered in this build (e.g. 6.6.x test environments running with a 6.7 version
-        // override).
-        $envVal = $_SERVER['MCP_SERVER'] ?? $_SERVER['mcp_server'] ?? null;
-        if (null !== $envVal) {
-            return '' !== $envVal && '0' !== $envVal && 'false' !== $envVal;
-        }
-
-        try {
-            return \Shopware\Core\Framework\Feature::isActive('MCP_SERVER');
-        } catch (\Throwable) {
-            return false;
-        }
+        // If the flag has been removed (graduated to always-on), assume available.
+        return !\Shopware\Core\Framework\Feature::has('MCP_SERVER')
+            || \Shopware\Core\Framework\Feature::isActive('MCP_SERVER');
     }
 
     public function coreShipsAgenticCommerce(): bool
