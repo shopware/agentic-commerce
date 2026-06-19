@@ -83,7 +83,8 @@ final class CheckoutCompleter
 
             $this->completionStore->complete($checkoutId, $customerContext->getSalesChannelId(), $order->getId());
 
-            $this->sessionManager->save(
+            $this->sessionManager->saveForCheckoutId(
+                $checkoutId,
                 $customerContext,
                 CheckoutStatus::Completed->value,
                 $buyer,

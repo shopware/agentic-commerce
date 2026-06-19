@@ -34,4 +34,19 @@ interface CheckoutSessionManagerInterface
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
     ): void;
+
+    /**
+     * @param list<string>                                                                                        $discountCodes
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     */
+    public function saveForCheckoutId(
+        string $checkoutId,
+        SalesChannelContext $salesChannelContext,
+        string $status,
+        ?Buyer $buyer,
+        array $discountCodes = [],
+        ?string $orderId = null,
+        ?string $orderDeepLinkCode = null,
+        ?array $guestAddress = null,
+    ): void;
 }

@@ -191,6 +191,10 @@ final class CheckoutCompleterTest extends TestCase
 
             public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
             {
+            }
+
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            {
                 ++$this->saveCalled;
             }
         };
@@ -258,7 +262,7 @@ final class CheckoutCompleterTest extends TestCase
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
 
         static::assertSame($expectedCheckout, $result);
-        static::assertSame(1, $saveCalled, 'sessionManager->save() must be called exactly once');
+        static::assertSame(1, $saveCalled, 'sessionManager->saveForCheckoutId() must be called exactly once');
 
         // Lock released via finally — a new acquire must succeed
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after successful completion');
@@ -343,6 +347,10 @@ final class CheckoutCompleterTest extends TestCase
             }
 
             public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            {
+            }
+
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
             {
             }
         };
