@@ -90,6 +90,55 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
         );
     }
 
+    #[Test]
+    public function testItDeletesExpiredAndConsumedTokens(): void
+    {
+        $statements = [];
+        $connection = $this->createMock(Connection::class);
+        $connection->method('executeStatement')->willReturnCallback(
+            static function (string $sql, array $params = [], array $types = []) use (&$statements): int {
+                $statements[] = ['sql' => $sql, 'params' => $params];
+
+                return match (true) {
+                    str_contains($sql, 'swag_agentic_commerce_ucp_oauth_code') => 2,
+                    str_contains($sql, 'swag_agentic_commerce_ucp_oauth_access_token') => 3,
+                    str_contains($sql, 'swag_agentic_commerce_ucp_oauth_refresh_token') => 1,
+                    default => 0,
+                };
+            },
+        );
+
+        $store = new DoctrineDbalUcpOAuthStore($connection);
+
+        self::assertSame(6, $store->deleteExpiredTokens());
+
+        $deletes = $this->deletesContaining($statements, '');
+        self::assertSame(
+            [
+                'swag_agentic_commerce_ucp_oauth_code',
+                'swag_agentic_commerce_ucp_oauth_access_token',
+                'swag_agentic_commerce_ucp_oauth_refresh_token',
+            ],
+            array_map(
+                static function (array $statement): string {
+                    self::assertIsInt($statement['params']['now'] ?? null, 'each DELETE filters on the current time');
+
+                    preg_match('/DELETE FROM `([^`]+)`/', $statement['sql'], $matches);
+
+                    return $matches[1] ?? '';
+                },
+                $deletes,
+            ),
+        );
+
+        self::assertCount(1, $this->deletesContaining($statements, 'consumed_at IS NOT NULL'));
+        self::assertStringContainsString('consumed_at IS NOT NULL', $deletes[0]['sql']);
+
+        $refreshDelete = $this->deletesContaining($statements, 'swag_agentic_commerce_ucp_oauth_refresh_token');
+        self::assertCount(1, $refreshDelete);
+        self::assertStringNotContainsString('revoked_at', $refreshDelete[0]['sql'], 'revoked-but-unexpired refresh tokens must be retained for reuse detection');
+    }
+
     /**
      * @param list<array{sql: string, params: array<string, mixed>}> $statements
      * @param list<array{table: string, data: array<string, mixed>}> $inserts
@@ -134,6 +183,20 @@ final class DoctrineDbalUcpOAuthStoreTest extends TestCase
         return array_values(array_filter(
             $statements,
             static fn (array $statement): bool => str_starts_with(ltrim($statement['sql']), 'UPDATE')
+                && str_contains($statement['sql'], $needle),
+        ));
+    }
+
+    /**
+     * @param list<array{sql: string, params: array<string, mixed>}> $statements
+     *
+     * @return list<array{sql: string, params: array<string, mixed>}>
+     */
+    private function deletesContaining(array $statements, string $needle): array
+    {
+        return array_values(array_filter(
+            $statements,
+            static fn (array $statement): bool => str_starts_with(ltrim($statement['sql']), 'DELETE')
                 && str_contains($statement['sql'], $needle),
         ));
     }

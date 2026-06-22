@@ -175,6 +175,36 @@ final class DoctrineDbalUcpOAuthStore
         });
     }
 
+    /**
+     * Purges OAuth rows that can no longer be used and returns the number of deleted rows.
+     *
+     * Authorization codes are removed once expired or consumed. Access tokens are removed once
+     * expired. Refresh tokens are purged strictly by expiry: a revoked-but-unexpired row must be
+     * retained so refresh-token reuse detection (see refreshTokenSet()) keeps working within the
+     * token lifetime; expired rows can no longer trigger that path and are safe to delete.
+     */
+    public function deleteExpiredTokens(): int
+    {
+        $now = time();
+
+        $deleted = (int) $this->connection->executeStatement(
+            \sprintf('DELETE FROM `%s` WHERE expires_at < :now OR consumed_at IS NOT NULL', self::CODE_TABLE),
+            ['now' => $now],
+        );
+
+        $deleted += (int) $this->connection->executeStatement(
+            \sprintf('DELETE FROM `%s` WHERE expires_at < :now', self::ACCESS_TOKEN_TABLE),
+            ['now' => $now],
+        );
+
+        $deleted += (int) $this->connection->executeStatement(
+            \sprintf('DELETE FROM `%s` WHERE expires_at < :now', self::REFRESH_TOKEN_TABLE),
+            ['now' => $now],
+        );
+
+        return $deleted;
+    }
+
     private function revokeRefreshTokenFamily(string $salesChannelId, string $clientId, string $subject): void
     {
         $this->connection->executeStatement(
