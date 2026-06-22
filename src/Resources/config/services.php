@@ -32,7 +32,6 @@ use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
-use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileSyncSubscriber;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
@@ -298,8 +297,6 @@ return static function (ContainerConfigurator $container): void {
     $services->set(EmbeddedResponseListener::class)
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
-
-    $services->set(CoreSalesChannelFileSyncSubscriber::class);
 
     // ── Product export: entity definition override ────────────────────────────
 
