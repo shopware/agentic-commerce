@@ -37,6 +37,21 @@ exit($exitCode);
 
 function resolveBinary(string $pluginDir, string $binary): ?string
 {
+    // Inside a full Shopware install ("lane"), prefer the platform's PHPUnit so the
+    // running binary matches the single autoloader tests/bootstrap.php loads there.
+    // The plugin pins PHPUnit 10.5 (PHP 8.1) in .tools/vendor; on newer platforms
+    // (e.g. 6.7 ships PHPUnit 11.x) running .tools alongside the platform autoloader
+    // crashes, so defer to the platform binary. These roots mirror the lane
+    // autoload candidates in tests/bootstrap.php.
+    if ('phpunit' === $binary) {
+        foreach ([\dirname($pluginDir, 3), \dirname($pluginDir, 2)] as $laneRoot) {
+            $laneBinary = $laneRoot.'/vendor/bin/'.$binary;
+            if (is_dir($laneRoot) && is_file($laneBinary)) {
+                return $laneBinary;
+            }
+        }
+    }
+
     $pluginTooling = $pluginDir.'/.tools/vendor/bin/'.$binary;
     if (is_file($pluginTooling)) {
         return $pluginTooling;
