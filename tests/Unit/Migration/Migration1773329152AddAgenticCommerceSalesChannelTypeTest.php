@@ -172,5 +172,4 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
 
         (new Migration1773329152AddAgenticCommerceSalesChannelType())->updateDestructive($connection);
     }
-
 }
