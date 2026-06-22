@@ -70,14 +70,26 @@ use Swag\AgenticCommerce\Ucp\Capability\IdentityLinkingCapability;
 use Swag\AgenticCommerce\Ucp\Capability\OrderCapability;
 use Swag\AgenticCommerce\Ucp\Capability\PaymentTokenizationCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
+use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
+use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
@@ -96,6 +108,7 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
@@ -154,7 +167,12 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(SalesChannelDomainResolver::class)
-        ->arg('$domainRepository', service('sales_channel_domain.repository'));
+        ->arg('$domainRepository', service('sales_channel_domain.repository'))
+        ->arg('$cache', service('cache.object'));
+
+    $services->set(SalesChannelDomainResolverCacheInvalidator::class)
+        ->arg('$cache', service('cache.object'))
+        ->tag('kernel.event_subscriber');
 
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
@@ -191,6 +209,13 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
 
     // SDK adapter and capability bindings.
+
+    $services->alias(CheckoutCompletionStoreInterface::class, DoctrineDbalCheckoutCompletionStore::class);
+    $services->alias(CheckoutContinueUrlBuilderInterface::class, CheckoutContinueUrlBuilder::class);
+    $services->alias(CheckoutSessionManagerInterface::class, CheckoutSessionManager::class);
+    $services->alias(GuestCustomerContextProvisionerInterface::class, GuestCustomerContextProvisioner::class);
+    $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
+    $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
