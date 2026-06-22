@@ -52,10 +52,10 @@ class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationSte
     {
         $salesChannelTypeId = Uuid::fromHexToBytes(SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE);
 
-        if ($connection->fetchOne(
+        if (false !== $connection->fetchOne(
             'SELECT 1 FROM `sales_channel_type` WHERE `id` = :id',
             ['id' => $salesChannelTypeId]
-        ) !== false) {
+        )) {
             return;
         }
 
