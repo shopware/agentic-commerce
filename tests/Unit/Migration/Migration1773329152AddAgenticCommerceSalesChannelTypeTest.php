@@ -14,7 +14,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
-use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Migration\Migration1773329152AddAgenticCommerceSalesChannelType;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
@@ -34,8 +33,6 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
 
     public function testUpdateInsertsSalesChannelTypeWithSystemAndAvailableTranslations(): void
     {
-        $this->skipIfCoreShipsAgenticCommerce();
-
         $expectedTypeId = Uuid::fromHexToBytes(SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE);
         $systemLanguageId = Uuid::fromHexToBytes(Defaults::LANGUAGE_SYSTEM);
         $deLanguageId = Uuid::randomBytes();
@@ -88,8 +85,6 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
 
     public function testUpdateInsertsSeparateEnglishTranslationWhenSystemLanguageIsNotEnglish(): void
     {
-        $this->skipIfCoreShipsAgenticCommerce();
-
         $expectedTypeId = Uuid::fromHexToBytes(SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE);
         $systemLanguageId = Uuid::fromHexToBytes(Defaults::LANGUAGE_SYSTEM);
         $deLanguageId = Uuid::randomBytes();
@@ -124,8 +119,6 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
 
     public function testUpdateSkipsInsertsWhenSalesChannelTypeAlreadyExists(): void
     {
-        $this->skipIfCoreShipsAgenticCommerce();
-
         $expectedTypeId = Uuid::fromHexToBytes(SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE);
 
         $connection = $this->createMock(Connection::class);
@@ -136,10 +129,7 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         $connection->expects(static::never())->method('fetchAllKeyValue');
         $connection->expects(static::never())->method('transactional');
         $connection->expects(static::never())->method('insert');
-
-        $connection->expects(static::once())
-            ->method('executeStatement')
-            ->willReturn(0);
+        $connection->expects(static::never())->method('executeStatement');
 
         (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
     }
@@ -168,32 +158,10 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         static::assertIsString($statement);
         static::assertStringContainsString('INSERT IGNORE INTO `migration`', $statement);
         static::assertSame(
-            'Shopware\\Core\\Migration\\V6_7\\Migration1773329152AddAgenticAiSalesChannelType',
+            Migration1773329152AddAgenticCommerceSalesChannelType::CORE_MIGRATION_CLASS,
             $params['class'] ?? null,
         );
         static::assertSame(1773329152, $params['ts'] ?? null);
-    }
-
-    public function testUpdateShadowsCoreMigrationEvenWhenSalesChannelTypeAlreadyExists(): void
-    {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('fetchOne')->willReturn('1');
-
-        $params = null;
-        $connection->expects(static::once())
-            ->method('executeStatement')
-            ->willReturnCallback(static function (string $sql, array $arguments) use (&$params): int {
-                $params = $arguments;
-
-                return 1;
-            });
-
-        (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
-
-        static::assertSame(
-            'Shopware\\Core\\Migration\\V6_7\\Migration1773329152AddAgenticAiSalesChannelType',
-            $params['class'] ?? null,
-        );
     }
 
     public function testUpdateDestructiveIsNoOp(): void
@@ -203,32 +171,5 @@ class Migration1773329152AddAgenticCommerceSalesChannelTypeTest extends TestCase
         $connection->expects(static::never())->method('insert');
 
         (new Migration1773329152AddAgenticCommerceSalesChannelType())->updateDestructive($connection);
-    }
-
-    public function testUpdateCallsOnlyShadowMigrationWhenCoreShipsAgenticCommerce(): void
-    {
-        $this->skipUnlessCoreShipsAgenticCommerce();
-
-        $connection = $this->createMock(Connection::class);
-        $connection->expects(static::never())->method('fetchOne');
-        $connection->expects(static::never())->method('transactional');
-        $connection->expects(static::never())->method('insert');
-        $connection->expects(static::once())->method('executeStatement');
-
-        (new Migration1773329152AddAgenticCommerceSalesChannelType())->update($connection);
-    }
-
-    private function skipIfCoreShipsAgenticCommerce(): void
-    {
-        if ((new ShopwareVersionDetector())->coreShipsAgenticCommerce()) {
-            $this->markTestSkipped('Core ships Agentic Commerce; migration delegates to core.');
-        }
-    }
-
-    private function skipUnlessCoreShipsAgenticCommerce(): void
-    {
-        if (!(new ShopwareVersionDetector())->coreShipsAgenticCommerce()) {
-            $this->markTestSkipped('Only applies when core ships Agentic Commerce.');
-        }
     }
 }
