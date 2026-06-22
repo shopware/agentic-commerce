@@ -30,6 +30,8 @@ OAuth identity linking is implemented as an optional plugin-backed capability:
 - The plugin registers a Shopware-backed identity-linking adapter and advertises it only when `identity_linking` is enabled for the sales channel.
 - Authorization Code + PKCE S256 is supported. Authorization requires a logged-in Shopware customer context token so anonymous requests cannot mint identity-linked tokens.
 - Access and refresh tokens are stored sales-channel scoped in plugin tables.
+- Checkout completion currently uses an existing Shopware customer only when the resolved sales-channel context already contains one; otherwise it creates a guest customer from `buyer.email`. It must not attach orders to an existing account by email match alone. Follow-up work should hydrate cart/checkout contexts from the OAuth-linked customer subject before falling back to guest checkout (see [#72](https://github.com/shopware/agentic-commerce/issues/72)).
+- Checkout completion uses a Symfony Lock (keyed `ucp.checkout.completion.{checkoutId}.{salesChannelId}`, TTL 300 s) as the in-flight mutex, and a DB-backed idempotency record in `swag_agentic_commerce_ucp_checkout_completion` keyed by `(checkout_id, sales_channel_id)` for completed-order replay. The lock auto-expires after TTL if the holding process crashes, so there are no permanently stuck locks. Concurrent requests that cannot acquire the lock receive a 422 and are told to retry. Idempotent replay is checked before lock acquisition (fast path) and again after acquisition (double-check against a race). Because `placeOrder()` is not idempotent, a TTL expiry while order placement is in flight can still cause a second request to place a duplicate order; the idempotency INSERT will fail with a unique-constraint error for the second `complete()` call, leaving the duplicate order orphaned in Shopware. Making `placeOrder()` idempotent is the correct long-term fix.
 
 Sales-channel configuration is also plugin-table backed:
 
@@ -55,6 +57,12 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
   `shopware.store_api_mcp.tool` tag. Write tools expose structured object
   payload schemas instead of JSON-string payload arguments.
 - Keep all transports behind the same capability layer so catalog/cart/checkout/order behavior does not fork per protocol.
+- Keep customer-facing runtime behavior behind Store API route boundaries. UCP
+  adapters/gateways must delegate catalog, cart, checkout, customer, identity,
+  and order operations to the relevant Store API routes instead of direct DAL
+  repositories or hand-built customer/context mutations. Exceptions must be
+  limited to plugin-owned config/admin/internal metadata or explicitly
+  documented gaps where no Store API route exists.
 - Show unsupported transports in admin as disabled with concrete reasons.
 - Do not implement placeholder tokenization adapters. The identity adapter is real and customer-context backed; tokenization still requires a PSP-backed handler.
 

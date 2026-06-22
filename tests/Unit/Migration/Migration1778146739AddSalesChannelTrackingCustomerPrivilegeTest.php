@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Tests\Unit\Migration;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Migration\Migration1778146739AddSalesChannelTrackingCustomerPrivilege;
 
 /**
@@ -38,6 +39,8 @@ class Migration1778146739AddSalesChannelTrackingCustomerPrivilegeTest extends Te
 
     public function testUpdateNoOpWhenNoRolesExist(): void
     {
+        $this->skipIfCoreShipsTrackingTables();
+
         $connection = $this->createMock(Connection::class);
         $connection->method('iterateAssociative')->willReturn(new \ArrayIterator([]));
         $connection->expects(static::once())->method('beginTransaction');
@@ -49,6 +52,8 @@ class Migration1778146739AddSalesChannelTrackingCustomerPrivilegeTest extends Te
 
     public function testUpdateAddsPrivilegeToRoleThatHasCustomerViewer(): void
     {
+        $this->skipIfCoreShipsTrackingTables();
+
         $existingPrivileges = ['customer.viewer', 'order.viewer'];
         $role = [
             'id' => 'role-id',
@@ -79,6 +84,8 @@ class Migration1778146739AddSalesChannelTrackingCustomerPrivilegeTest extends Te
 
     public function testUpdateSkipsRoleWithoutCustomerViewer(): void
     {
+        $this->skipIfCoreShipsTrackingTables();
+
         $role = [
             'id' => 'role-id',
             'name' => 'Order Viewer',
@@ -102,5 +109,31 @@ class Migration1778146739AddSalesChannelTrackingCustomerPrivilegeTest extends Te
         $connection->expects(static::never())->method('update');
 
         (new Migration1778146739AddSalesChannelTrackingCustomerPrivilege())->updateDestructive($connection);
+    }
+
+    public function testUpdateIsNoOpWhenCoreShipsTrackingTables(): void
+    {
+        $this->skipUnlessCoreShipsTrackingTables();
+
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(static::never())->method('beginTransaction');
+        $connection->expects(static::never())->method('commit');
+        $connection->expects(static::never())->method('update');
+
+        (new Migration1778146739AddSalesChannelTrackingCustomerPrivilege())->update($connection);
+    }
+
+    private function skipIfCoreShipsTrackingTables(): void
+    {
+        if ((new ShopwareVersionDetector())->coreShipsTrackingTables()) {
+            $this->markTestSkipped('Core ships tracking tables; migration delegates to core.');
+        }
+    }
+
+    private function skipUnlessCoreShipsTrackingTables(): void
+    {
+        if (!(new ShopwareVersionDetector())->coreShipsTrackingTables()) {
+            $this->markTestSkipped('Only applies when core ships tracking tables.');
+        }
     }
 }

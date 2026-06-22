@@ -57,6 +57,7 @@ test.describe('UCP administration detail', () => {
                 enabledTransports: expectedTransports,
                 remoteProfileAllowlist: ['agent-platform.example'],
                 agentAllowlist: ['agent.example'],
+                webhookUrlOverride: 'https://agent.example/ucp/webhook',
                 embeddedAllowedOrigins: ['https://assistant.example'],
                 embeddedFrameAncestors: ['https://assistant.example'],
                 signaturePolicy: 'strict',

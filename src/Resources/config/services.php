@@ -14,11 +14,18 @@ use Shopware\Core\Checkout\Cart\SalesChannel\CartItemRemoveRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartItemUpdateRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartLoadRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartOrderRoute;
+use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
+use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
+use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
+use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
+use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
+use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
+use Shopware\Core\System\Country\SalesChannel\CountryRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
@@ -63,15 +70,25 @@ use Swag\AgenticCommerce\Ucp\Capability\IdentityLinkingCapability;
 use Swag\AgenticCommerce\Ucp\Capability\OrderCapability;
 use Swag\AgenticCommerce\Ucp\Capability\PaymentTokenizationCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
-use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerAddressResolver;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
+use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
@@ -91,6 +108,7 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
@@ -120,6 +138,7 @@ return static function (ContainerConfigurator $container): void {
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
+        'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
         'signing_keys' => [
             'auto_generate' => true,
             'default_kid' => 'default',
@@ -128,7 +147,7 @@ return static function (ContainerConfigurator $container): void {
             'retired_key_retention' => 'P30D',
         ],
         'storage' => [
-            'dsn' => env('DATABASE_URL')->resolve(),
+            'dsn' => env('DATABASE_URL'),
         ],
     ]);
 
@@ -148,7 +167,12 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(SalesChannelDomainResolver::class)
-        ->arg('$domainRepository', service('sales_channel_domain.repository'));
+        ->arg('$domainRepository', service('sales_channel_domain.repository'))
+        ->arg('$cache', service('cache.object'));
+
+    $services->set(SalesChannelDomainResolverCacheInvalidator::class)
+        ->arg('$cache', service('cache.object'))
+        ->tag('kernel.event_subscriber');
 
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
@@ -156,16 +180,6 @@ return static function (ContainerConfigurator $container): void {
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $services->set(RemoveLeadingSpacesTwigExtension::class);
     }
-
-    $services->set(GuestCustomerContextProvisioner::class)
-        ->arg('$customerRepository', service('customer.repository'))
-        ->arg('$salutationRepository', service('salutation.repository'));
-
-    $services->set(GuestCustomerAddressResolver::class)
-        ->arg('$countryRepository', service('country.repository'));
-
-    $services->set(ShopwareOrderGateway::class)
-        ->arg('$orderRepository', service('order.repository'));
 
     $services->set(SeedSmokeCatalogCommand::class)
         ->arg('$productRepository', service('product.repository'))
@@ -176,6 +190,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
 
+    $services->set(ShopwareCatalogGateway::class)
+        ->arg('$productListRoute', service(ProductListRoute::class));
+
     // Shopware decorable-route aliases.
 
     $services->alias(SalesChannelContextServiceInterface::class, SalesChannelContextService::class);
@@ -185,10 +202,20 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractCartItemRemoveRoute::class, CartItemRemoveRoute::class);
     $services->alias(AbstractCartDeleteRoute::class, CartDeleteRoute::class);
     $services->alias(AbstractCartOrderRoute::class, CartOrderRoute::class);
+    $services->alias(AbstractRegisterRoute::class, RegisterRoute::class);
+    $services->alias(AbstractOrderRoute::class, OrderRoute::class);
+    $services->alias(AbstractCountryRoute::class, CountryRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
 
     // SDK adapter and capability bindings.
+
+    $services->alias(CheckoutCompletionStoreInterface::class, DoctrineDbalCheckoutCompletionStore::class);
+    $services->alias(CheckoutContinueUrlBuilderInterface::class, CheckoutContinueUrlBuilder::class);
+    $services->alias(CheckoutSessionManagerInterface::class, CheckoutSessionManager::class);
+    $services->alias(GuestCustomerContextProvisionerInterface::class, GuestCustomerContextProvisioner::class);
+    $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
+    $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
@@ -338,7 +365,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelProductExportTrackingExtension::class)
         ->tag('shopware.entity.extension');
 
-    // ── Tracking: listener (guards internally via coreShipsTrackingTables()) ──
+    // ── Tracking: listener ───────────────────────────────────────────────────
 
     $services->set(SalesChannelTrackingListener::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'))

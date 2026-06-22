@@ -29,6 +29,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly DoctrineDbalUcpOAuthStore $oauthStore,
+        private readonly OAuthClientBindingValidator $clientBindingValidator = new OAuthClientBindingValidator(),
     ) {
     }
 
@@ -48,8 +49,8 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
 
     public function authorize(OAuthAuthorizationRequest $request, RequestContext $context): array
     {
-        $this->assertClientId($request->clientId);
-        $this->assertRedirectUri($request->redirectUri);
+        $this->clientBindingValidator->assertClientId($request->clientId, $context);
+        $this->clientBindingValidator->assertRedirectUri($request->redirectUri, $request->clientId);
 
         if (null === $request->codeChallenge || '' === $request->codeChallenge) {
             throw new OAuthException('PKCE code challenge is required.');
@@ -104,7 +105,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
                 throw new OAuthException('Missing refresh token.');
             }
 
-            $this->assertClientId($request->clientId ?? '');
+            $this->clientBindingValidator->assertClientId($request->clientId ?? '', $context);
 
             $salesChannel = $this->contextResolver->resolveSalesChannel($context);
             $tokenSet = $this->oauthStore->refreshTokenSet($request->refreshToken, $request->clientId, $salesChannel->salesChannelId);
@@ -131,7 +132,8 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
             throw new OAuthException('Redirect URI is required for authorization code exchange.');
         }
 
-        $this->assertClientId($request->clientId ?? '');
+        $this->clientBindingValidator->assertClientId($request->clientId ?? '', $context);
+        $this->clientBindingValidator->assertRedirectUri($request->redirectUri, $request->clientId ?? '');
 
         $salesChannel = $this->contextResolver->resolveSalesChannel($context);
         $authorization = $this->oauthStore->consumeAuthorizationCode($request->code, $salesChannel->salesChannelId);
@@ -201,28 +203,6 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
     private function baseUri(RequestContext $context): string
     {
         return rtrim($context->runtimeConfiguration?->baseUri ?? ('https://'.$context->host), '/');
-    }
-
-    private function assertClientId(string $clientId): void
-    {
-        if ('' === $clientId) {
-            throw new OAuthException('Missing OAuth client ID.');
-        }
-
-        if (!str_starts_with($clientId, 'https://')) {
-            throw new OAuthException('UCP identity linking requires an HTTPS platform profile URI as client ID.');
-        }
-    }
-
-    private function assertRedirectUri(string $redirectUri): void
-    {
-        if ('' === $redirectUri || !filter_var($redirectUri, \FILTER_VALIDATE_URL)) {
-            throw new OAuthException('Invalid OAuth redirect URI.');
-        }
-
-        if (!str_starts_with($redirectUri, 'https://') && !str_starts_with($redirectUri, 'http://localhost')) {
-            throw new OAuthException('OAuth redirect URI must be HTTPS, except localhost during local development.');
-        }
     }
 
     private function normalizeScope(string $scope): string

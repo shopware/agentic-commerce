@@ -25,7 +25,6 @@ final class TestGenerator
         ?CountryEntity $country = null,
     ): SalesChannelContext {
         if (method_exists(Generator::class, 'generateSalesChannelContext')) {
-            // @phpstan-ignore-next-line method.notFound
             return Generator::generateSalesChannelContext(
                 baseContext: $baseContext,
                 salesChannel: $salesChannel,
@@ -33,6 +32,7 @@ final class TestGenerator
             );
         }
 
+        // @phpstan-ignore-next-line staticMethod.notFound -- dead branch on 6.7+ where createSalesChannelContext() was removed
         return Generator::createSalesChannelContext(
             baseContext: $baseContext,
             salesChannel: $salesChannel,

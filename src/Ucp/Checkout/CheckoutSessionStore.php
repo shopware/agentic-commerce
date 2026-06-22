@@ -12,6 +12,7 @@ final class CheckoutSessionStore
 {
     private const PAYLOAD_KEY = 'swagAgenticCommerce';
     private const CHECKOUT_KEY = 'ucpCheckout';
+    private const CONTEXT_TOKEN_KEY = 'shopwareContextToken';
 
     public function __construct(
         private readonly SalesChannelContextPersister $persister,
@@ -35,16 +36,42 @@ final class CheckoutSessionStore
      */
     public function save(SalesChannelContext $context, array $metadata): void
     {
+        $this->saveForToken($context->getToken(), $context->getSalesChannelId(), $metadata, $context->getCustomer()?->getId());
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function saveForToken(string $token, string $salesChannelId, array $metadata, ?string $customerId = null): void
+    {
         $this->persister->save(
-            $context->getToken(),
+            $token,
             [
                 self::PAYLOAD_KEY => [
                     self::CHECKOUT_KEY => $metadata,
                 ],
             ],
-            $context->getSalesChannelId(),
-            $context->getCustomer()?->getId(),
+            $salesChannelId,
+            $customerId,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function contextToken(array $metadata, string $fallbackToken): string
+    {
+        return $this->storedContextToken($metadata) ?? $fallbackToken;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function storedContextToken(array $metadata): ?string
+    {
+        $token = $metadata[self::CONTEXT_TOKEN_KEY] ?? null;
+
+        return \is_string($token) && '' !== $token ? $token : null;
     }
 
     /**

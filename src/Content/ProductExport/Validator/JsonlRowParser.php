@@ -41,7 +41,7 @@ class JsonlRowParser
                 throw AgenticProductExportException::malformedJsonlLine($exception->getMessage(), $lineNumber + 1);
             }
 
-            if (!\is_array($decoded)) {
+            if (!\is_array($decoded) || array_is_list($decoded)) {
                 throw AgenticProductExportException::jsonlLineMustDecodeToObject($lineNumber + 1);
             }
 
