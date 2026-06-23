@@ -24,6 +24,7 @@ use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
+use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
 use Shopware\Core\System\Country\SalesChannel\CountryRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
@@ -159,7 +160,12 @@ return static function (ContainerConfigurator $container): void {
         ->private();
 
     $services->load('Swag\\AgenticCommerce\\', __DIR__.'/../../*')
-        ->exclude([__DIR__.'/../../Resources']);
+        ->exclude([
+            __DIR__.'/../../Resources',
+            // Test-only helpers (issue #53): registered explicitly below, and only outside prod.
+            __DIR__.'/../../Ucp/Test',
+            __DIR__.'/../../Ucp/Command/SeedSmokeCatalogCommand.php',
+        ]);
 
     // DAL repositories are bound by service id, not type — named args required.
 
@@ -180,12 +186,6 @@ return static function (ContainerConfigurator $container): void {
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $services->set(RemoveLeadingSpacesTwigExtension::class);
     }
-
-    $services->set(SeedSmokeCatalogCommand::class)
-        ->arg('$productRepository', service('product.repository'))
-        ->arg('$taxRepository', service('tax.repository'))
-        ->arg('$appEnv', param('kernel.environment'))
-        ->arg('$smokeCatalogSeedEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_SMOKE_SEED'));
 
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
@@ -275,16 +275,29 @@ return static function (ContainerConfigurator $container): void {
     $services->set(UcpAdminController::class)
         ->tag('controller.service_arguments');
 
-    $services->set(WebhookCaptureStore::class)
-        ->arg('$projectDir', param('kernel.project_dir'));
-
-    $services->set(TestWebhookController::class)
-        ->arg('$appEnv', param('kernel.environment'))
-        ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
-        ->tag('controller.service_arguments');
-
     $services->set(FallbackAgenticFileController::class)
         ->tag('controller.service_arguments');
+
+    // ── Test-only helpers (issue #53) ─────────────────────────────────────────
+    // Registered only outside prod so the webhook-capture endpoint, its capture/write store, and
+    // the smoke-catalog seeder never enter the production service graph. The matching test route
+    // is gated the same way in routes.php. Their feature flags + runtime guards remain as
+    // defense-in-depth.
+    if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
+        $services->set(WebhookCaptureStore::class)
+            ->arg('$projectDir', param('kernel.project_dir'));
+
+        $services->set(TestWebhookController::class)
+            ->arg('$appEnv', param('kernel.environment'))
+            ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
+            ->tag('controller.service_arguments');
+
+        $services->set(SeedSmokeCatalogCommand::class)
+            ->arg('$productRepository', service('product.repository'))
+            ->arg('$taxRepository', service('tax.repository'))
+            ->arg('$appEnv', param('kernel.environment'))
+            ->arg('$smokeCatalogSeedEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_SMOKE_SEED'));
+    }
 
     // Config layer.
 
