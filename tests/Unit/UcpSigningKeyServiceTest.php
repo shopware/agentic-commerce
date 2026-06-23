@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Ucp\Admin\SigningKey\SigningKeyAlgorithm;
+use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyException;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Ucp\Sdk\Model\Security\ManagedSigningKey;
 use Ucp\Sdk\Model\Security\PublicSigningKey;
@@ -53,6 +56,95 @@ final class UcpSigningKeyServiceTest extends TestCase
         self::assertTrue($service->delete('sales-channel-a', 'shared-kid'));
         self::assertSame([], $service->all('sales-channel-a'));
         self::assertCount(1, $service->all('sales-channel-b'));
+    }
+
+    #[Test]
+    #[DataProvider('supportedAlgorithmProvider')]
+    public function testItCreatesKeysForSupportedAlgorithms(string $algorithm): void
+    {
+        $service = new UcpSigningKeyService(new UcpSigningKeyServiceTestRepository(), $this->signingKeyManager);
+
+        $result = $service->create(null, 'valid-kid', $algorithm);
+
+        self::assertSame('valid-kid', $result['kid']);
+        self::assertSame($algorithm, $result['algorithm']);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function supportedAlgorithmProvider(): iterable
+    {
+        yield 'ES256' => ['ES256'];
+        yield 'ES384' => ['ES384'];
+    }
+
+    #[Test]
+    #[DataProvider('unsupportedAlgorithmProvider')]
+    public function testItRejectsUnsupportedAlgorithms(string $algorithm): void
+    {
+        $service = new UcpSigningKeyService(new UcpSigningKeyServiceTestRepository(), $this->signingKeyManager);
+
+        $this->expectExceptionObject(UcpSigningKeyException::invalidAlgorithm($algorithm, SigningKeyAlgorithm::values()));
+
+        $service->create(null, 'valid-kid', $algorithm);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unsupportedAlgorithmProvider(): iterable
+    {
+        yield 'RS256' => ['RS256'];
+        yield 'ES512' => ['ES512'];
+        yield 'empty' => [''];
+        yield 'nonsense' => ['nonsense'];
+    }
+
+    #[Test]
+    public function testItAcceptsAValidCustomKid(): void
+    {
+        $service = new UcpSigningKeyService(new UcpSigningKeyServiceTestRepository(), $this->signingKeyManager);
+
+        $result = $service->create(null, 'my.key-01');
+
+        self::assertSame('my.key-01', $result['kid']);
+    }
+
+    #[Test]
+    public function testItGeneratesADefaultKidWhenNoneIsProvided(): void
+    {
+        $service = new UcpSigningKeyService(new UcpSigningKeyServiceTestRepository(), $this->signingKeyManager);
+
+        $result = $service->create(null);
+
+        self::assertIsString($result['kid']);
+        self::assertMatchesRegularExpression('/^key-\d{14}$/', $result['kid']);
+    }
+
+    #[Test]
+    #[DataProvider('invalidKidProvider')]
+    public function testItRejectsInvalidKids(string $kid): void
+    {
+        $service = new UcpSigningKeyService(new UcpSigningKeyServiceTestRepository(), $this->signingKeyManager);
+
+        $this->expectExceptionObject(UcpSigningKeyException::invalidKid(
+            'only letters, digits, dot, underscore and hyphen are allowed, with a maximum length of 64 characters',
+        ));
+
+        $service->create(null, $kid);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidKidProvider(): iterable
+    {
+        yield 'path traversal' => ['../foo'];
+        yield 'slash' => ['foo/bar'];
+        yield 'space' => ['foo bar'];
+        yield 'special char' => ['foo@bar'];
+        yield 'too long' => [str_repeat('a', 65)];
     }
 }
 
