@@ -758,7 +758,7 @@ resolved_product_id="$(printf '%s' "${lookup_json}" | jq -r '.items[0].id')"
 resolved_title="$(printf '%s' "${lookup_json}" | jq -r '.items[0].title')"
 resolved_price="$(printf '%s' "${lookup_json}" | jq -r '.items[0].price')"
 
-product_json="$(curl_required 'catalog.product' "${BASE_URL}/ucp/v1/catalog/product/${product_id}")"
+product_json="$(curl_required 'catalog.product' -X POST "${BASE_URL}/ucp/v1/catalog/product" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${resolved_product_id}" '{id: $id}')")"
 assert_jq "${product_json}" 'Expected catalog.product to resolve the looked-up product title.' '.title == $title' --arg title "${resolved_title}"
 
 cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}]}')"
