@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Composer\InstalledVersions;
 use RuntimeException as RouteRuntimeException;
+use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\PlatformRequest;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
@@ -12,7 +13,12 @@ use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 return static function (RoutingConfigurator $routes): void {
     $routes->import('../../Ucp/Admin/Api/', 'attribute');
     $routes->import('../../Ucp/Mcp/Api/', 'attribute');
-    $routes->import('../../Ucp/Test/Api/', 'attribute');
+
+    // Test-only webhook-capture routes (issue #53): never registered in prod, matching the
+    // service-graph gate in services.php.
+    if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
+        $routes->import('../../Ucp/Test/Api/', 'attribute');
+    }
 
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
