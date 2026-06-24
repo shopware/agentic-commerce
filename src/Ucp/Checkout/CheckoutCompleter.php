@@ -96,7 +96,11 @@ final class CheckoutCompleter
                 $this->orderWebhookPublisher->publish(
                     $config->webhookUrlOverride,
                     new OrderWebhookPayload('order.created', $order->getId(), [
-                        'order' => $this->mapper->toOrderView($order)->toArray(),
+                        'order' => $this->mapper->toOrderView(
+                            $order,
+                            $this->orderPermalink($order->getId(), $requestContext),
+                            $checkoutId,
+                        )->toArray(),
                     ]),
                     $requestContext,
                 );
@@ -111,6 +115,16 @@ final class CheckoutCompleter
         } finally {
             $lock->release();
         }
+    }
+
+    private function orderPermalink(string $id, RequestContext $context): string
+    {
+        $baseUri = $context->runtimeConfiguration?->baseUri;
+        if ($baseUri === null || $baseUri === '') {
+            $baseUri = 'https://'.$context->host;
+        }
+
+        return rtrim($baseUri, '/').'/account/order/'.rawurlencode($id);
     }
 
     private function replayCompletedOrder(

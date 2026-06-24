@@ -74,7 +74,7 @@ final class CheckoutCompleterTest extends TestCase
                 return $this->checkout;
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, string $permalinkUrl, string $checkoutId): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
@@ -211,7 +211,7 @@ final class CheckoutCompleterTest extends TestCase
                 return $this->checkout;
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, string $permalinkUrl, string $checkoutId): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }

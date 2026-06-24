@@ -20,6 +20,16 @@ final class ShopwareOrderAdapter implements OrderAdapterInterface
 
     public function getOrder(string $id, RequestContext $context): OrderView
     {
-        return $this->mapper->toOrderView($this->gateway->getOrder($id, $context));
+        return $this->mapper->toOrderView($this->gateway->getOrder($id, $context), $this->orderPermalink($id, $context), $id);
+    }
+
+    private function orderPermalink(string $id, RequestContext $context): string
+    {
+        $baseUri = $context->runtimeConfiguration?->baseUri;
+        if ($baseUri === null || $baseUri === '') {
+            $baseUri = 'https://'.$context->host;
+        }
+
+        return rtrim($baseUri, '/').'/account/order/'.rawurlencode($id);
     }
 }

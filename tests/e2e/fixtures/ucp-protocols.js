@@ -79,20 +79,28 @@ export async function createA2aCart(api, endpoint) {
         query: 'music',
         limit: 1,
     }, `${seed}-search`);
-    const product = search.items?.[0];
+    const product = search.products?.[0];
+    const productPrice = product?.variants?.[0]?.price?.amount;
 
     expect(product, 'A2A catalog.search must return a product for live protocol validation').toEqual(expect.objectContaining({
         id: expect.any(String),
         title: expect.any(String),
-        price: expect.any(Number),
+        variants: expect.arrayContaining([
+            expect.objectContaining({
+                price: expect.objectContaining({
+                    amount: expect.any(Number),
+                }),
+            }),
+        ]),
     }));
+    expect(productPrice).toEqual(expect.any(Number));
 
     const cart = await expectA2aResult(api, endpoint, 'cart.create', {
         line_items: [{
             item: {
                 id: product.id,
                 title: product.title,
-                price: product.price,
+                price: productPrice,
             },
             quantity: 1,
         }],
@@ -106,12 +114,15 @@ export async function createA2aCart(api, endpoint) {
 
 export async function createA2aCheckout(api, endpoint, product) {
     const seed = Date.now();
+    const productPrice = product?.variants?.[0]?.price?.amount;
+    expect(productPrice).toEqual(expect.any(Number));
+
     const checkout = await expectA2aResult(api, endpoint, 'checkout.create', {
         line_items: [{
             item: {
                 id: product.id,
                 title: product.title,
-                price: product.price,
+                price: productPrice,
             },
             quantity: 1,
         }],

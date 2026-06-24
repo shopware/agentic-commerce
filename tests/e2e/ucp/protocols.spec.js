@@ -39,7 +39,7 @@ test.describe('UCP live protocol transports', () => {
 
             const { product, cart } = await createA2aCart(api, a2aEndpoint);
 
-            const loadedProduct = await expectA2aResult(api, a2aEndpoint, 'catalog.product', { id: product.id }, 1003);
+            const loadedProduct = (await expectA2aResult(api, a2aEndpoint, 'catalog.product', { id: product.id }, 1003)).product;
             expect(loadedProduct.id).toBe(product.id);
             expect(loadedProduct.title).toBe(product.title);
 
@@ -53,7 +53,7 @@ test.describe('UCP live protocol transports', () => {
                     item: {
                         id: product.id,
                         title: product.title,
-                        price: product.price,
+                        price: product.variants[0].price.amount,
                     },
                     quantity: 2,
                 }],

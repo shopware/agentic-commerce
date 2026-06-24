@@ -94,7 +94,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
-    public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+    public function toOrderView(OrderEntity $order, string $permalinkUrl, string $checkoutId): OrderView
     {
         return new OrderView(
             $order->getId(),
@@ -102,9 +102,14 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $this->mapOrderLineItems($order),
             $this->orderMoneySummary($order),
             [],
-            null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
+            [new Link('self', $permalinkUrl, 'Order details')],
             $this->mapOrderBuyer($order),
             $order->getCreatedAt()?->format(\DATE_ATOM),
+            [
+                'checkout_id' => $checkoutId,
+                'permalink_url' => $permalinkUrl,
+                'fulfillment' => [],
+            ],
         );
     }
 
@@ -230,7 +235,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     ): array {
         return [
             new Money('subtotal', $subtotal),
-            new Money('shipping', $shipping),
+            new Money('fulfillment', $shipping),
             new Money('total', $total),
             new Money('tax', $this->totalTax($taxes)),
         ];
