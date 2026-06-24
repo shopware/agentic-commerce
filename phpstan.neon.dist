@@ -6,6 +6,9 @@ __SHOPWARE_PHPSTAN_INCLUDES__
 
 parameters:
     level: 7
+    # composer requires "^8.1" — analyse as PHP 8.1 so any syntax/function newer
+    # than 8.1 fails locally on 8.3 instead of only in the slower php-8.1 CI lane.
+    phpVersion: 80100
     reportUnmatchedIgnoredErrors: false
     paths:
         - src
