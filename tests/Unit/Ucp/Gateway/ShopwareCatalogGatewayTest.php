@@ -104,7 +104,11 @@ final class ShopwareCatalogGatewayTest extends TestCase
 
         self::assertSame([['product-a', 'product-b']], $criteriaIds);
         self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $products));
-        $variants = $products[0]->extra['variants'] ?? null;
+        $encodedExtra = json_encode($products[0]->extra, \JSON_THROW_ON_ERROR);
+        self::assertIsString($encodedExtra);
+        $extra = json_decode($encodedExtra, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($extra);
+        $variants = $extra['variants'] ?? null;
         self::assertIsArray($variants);
         $variant = $variants[0] ?? null;
         self::assertIsArray($variant);

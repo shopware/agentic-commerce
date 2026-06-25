@@ -132,6 +132,7 @@ use Ucp\Sdk\Contract\DiscountCapabilityInterface;
 use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
+use Ucp\Sdk\Internal\Service\DefaultProtocolValidator;
 use Ucp\Sdk\Service\ProtocolValidatorInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
@@ -219,8 +220,9 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
 
     $services->set(EmptyMessagesProtocolValidator::class)
-        ->decorate(ProtocolValidatorInterface::class)
+        ->decorate(DefaultProtocolValidator::class)
         ->arg('$inner', service('.inner'));
+    $services->alias(ProtocolValidatorInterface::class, EmptyMessagesProtocolValidator::class);
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
