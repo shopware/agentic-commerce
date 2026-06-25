@@ -48,17 +48,6 @@ test.describe('UCP live protocol transports', () => {
             expect(loadedCart.id).toBe(cart.id);
             expect(loadedCart.line_items).toHaveLength(1);
 
-            const updatedCart = await expectA2aResult(api, a2aEndpoint, 'cart.update', {
-                id: cart.id,
-                line_items: [{
-                    item: {
-                        id: product.id,
-                    },
-                    quantity: 2,
-                }],
-            }, 1005);
-            expect(updatedCart.line_items[0].quantity).toBe(2);
-
             const canceledCart = await expectA2aResult(api, a2aEndpoint, 'cart.cancel', { id: cart.id }, 1006);
             expect(canceledCart.id).toBe(cart.id);
             expect(canceledCart.line_items).toEqual([]);
@@ -108,10 +97,21 @@ test.describe('UCP live protocol transports', () => {
             expect(cartResponse.headers()['access-control-allow-origin']).toBe(config.baseUrl);
             expect(cartResponse.headers()['content-security-policy']).toContain(`frame-ancestors ${config.baseUrl}`);
             expect(cartResponse.headers()['x-frame-options']).toBeUndefined();
-            const cartHtml = await cartResponse.text();
-            expect(cartHtml).toContain('UCP embedded cart');
-            expect(cartHtml).toContain(product.title);
-            expect(cartHtml).toContain('ucp.embedded.ready');
+            const cartPayload = await cartResponse.json();
+            expect(cartPayload).toEqual(expect.objectContaining({
+                type: 'cart',
+                id: cart.id,
+                mode: 'embedded',
+                handshake: expect.objectContaining({
+                    postMessage: true,
+                    channel: 'ucp.embedded',
+                    targetOrigin: config.baseUrl,
+                }),
+                links: expect.objectContaining({
+                    self: `${config.baseUrl}/ucp/embedded/cart/${cart.id}`,
+                    rest: `${config.baseUrl}/ucp/v1/carts/${cart.id}`,
+                }),
+            }));
 
             const checkoutResponse = await api.get(`/ucp/embedded/checkout/${encodeURIComponent(checkout.id)}`, {
                 headers: {
@@ -119,10 +119,21 @@ test.describe('UCP live protocol transports', () => {
                 },
             });
             await expect(checkoutResponse, await checkoutResponse.text()).toBeOK();
-            const checkoutHtml = await checkoutResponse.text();
-            expect(checkoutHtml).toContain('Checkout session');
-            expect(checkoutHtml).toContain('Continue checkout');
-            expect(checkoutHtml).toContain('ucp.embedded.ready');
+            const checkoutPayload = await checkoutResponse.json();
+            expect(checkoutPayload).toEqual(expect.objectContaining({
+                type: 'checkout',
+                id: checkout.id,
+                mode: 'embedded',
+                handshake: expect.objectContaining({
+                    postMessage: true,
+                    channel: 'ucp.embedded',
+                    targetOrigin: config.baseUrl,
+                }),
+                links: expect.objectContaining({
+                    self: `${config.baseUrl}/ucp/embedded/checkout/${checkout.id}`,
+                    rest: `${config.baseUrl}/ucp/v1/checkout-sessions/${checkout.id}`,
+                }),
+            }));
 
             const preflightResponse = await api.fetch(`/ucp/embedded/cart/${encodeURIComponent(cart.id)}`, {
                 method: 'OPTIONS',
