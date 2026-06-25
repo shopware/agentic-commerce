@@ -60,7 +60,7 @@ if [[ "${oauth_status}" != "501" ]]; then
   exit 1
 fi
 
-tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${UCP_AGENT_HEADER}" -H 'content-type: application/json' -H "Idempotency-Key: validate-tokenize-$(date +%s)" -d '{"type":"tokenized","handler_id":"test","credential":{}}')"
+tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${UCP_AGENT_HEADER}" -H 'content-type: application/json' -H "Idempotency-Key: validate-tokenize-$(date +%s)" -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}')"
 if [[ "${tokenize_status}" != "501" ]]; then
   echo "Payment tokenization must stay unsupported until a Shopware-backed adapter exists. Expected 501, got ${tokenize_status}." >&2
   cat "${tokenize_body_file}" >&2
