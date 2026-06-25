@@ -19,7 +19,6 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
-use Ucp\Sdk\Model\Common\MonetaryAmount;
 use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\OrderView;
 
@@ -73,7 +72,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             'description' => [
                 'plain' => $name,
             ],
-            'price' => MonetaryAmount::fromMajorUnits($price, 'EUR')->toPriceArray(),
+            'price' => [
+                'amount' => $this->minorUnits($price),
+                'currency' => 'EUR',
+            ],
             'inputs' => [[
                 'id' => $product->getId(),
                 'match' => 'exact',
@@ -275,10 +277,15 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     ): array {
         return [
             new Money('subtotal', $subtotal),
-            new Money('shipping', $shipping),
+            new Money('fulfillment', $shipping),
             new Money('total', $total),
             new Money('tax', $this->totalTax($taxes)),
         ];
+    }
+
+    private function minorUnits(float $amount): int
+    {
+        return (int) round($amount * 100);
     }
 
     /**

@@ -107,7 +107,6 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
-use Swag\AgenticCommerce\Ucp\Protocol\EmptyMessagesProtocolValidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -132,8 +131,6 @@ use Ucp\Sdk\Contract\DiscountCapabilityInterface;
 use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
-use Ucp\Sdk\Internal\Service\DefaultProtocolValidator;
-use Ucp\Sdk\Service\ProtocolValidatorInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
 return static function (ContainerConfigurator $container): void {
@@ -218,11 +215,6 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(GuestCustomerContextProvisionerInterface::class, GuestCustomerContextProvisioner::class);
     $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
     $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
-
-    $services->set(EmptyMessagesProtocolValidator::class)
-        ->decorate(DefaultProtocolValidator::class)
-        ->arg('$inner', service('.inner'));
-    $services->alias(ProtocolValidatorInterface::class, EmptyMessagesProtocolValidator::class);
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
