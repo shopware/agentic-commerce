@@ -34,6 +34,7 @@ export function ucpProtocolConfig(originalConfig, meta, baseUrl) {
 }
 
 export async function a2aCall(api, endpoint, method, params = {}, id = Date.now()) {
+    const profileUrl = new URL('/.well-known/ucp', endpoint).toString();
     const idempotencyKey = [
         'playwright-a2a',
         method.replace(/\./g, '-'),
@@ -45,6 +46,7 @@ export async function a2aCall(api, endpoint, method, params = {}, id = Date.now(
         headers: {
             'content-type': 'application/json',
             'idempotency-key': idempotencyKey,
+            'ucp-agent': `platform; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',
@@ -79,7 +81,7 @@ export async function createA2aCart(api, endpoint) {
         query: 'music',
         limit: 1,
     }, `${seed}-search`);
-    const product = search.items?.[0];
+    const product = search.products?.[0];
 
     expect(product, 'A2A catalog.search must return a product for live protocol validation').toEqual(expect.objectContaining({
         id: expect.any(String),

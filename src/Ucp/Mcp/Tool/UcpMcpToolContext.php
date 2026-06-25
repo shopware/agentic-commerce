@@ -11,16 +11,14 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\IdempotencyRecord;
+use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
 
 /**
- * @phpstan-type UcpMcpJsonScalar bool|float|int|string|null
- * @phpstan-type UcpMcpJsonLevel3 UcpMcpJsonScalar|array<array-key, UcpMcpJsonScalar>
- * @phpstan-type UcpMcpJsonLevel2 UcpMcpJsonScalar|array<array-key, UcpMcpJsonLevel3>
- * @phpstan-type UcpMcpJsonValue UcpMcpJsonScalar|array<array-key, UcpMcpJsonLevel2>
- * @phpstan-type UcpMcpNestedJsonObject array<string, UcpMcpJsonLevel2>
- * @phpstan-type UcpMcpJsonObject array<string, UcpMcpJsonValue>
+ * @phpstan-type UcpMcpNestedJsonObject array<string, mixed>
+ * @phpstan-type UcpMcpJsonObject array<string, mixed>
+ * @phpstan-type UcpMcpToolResult UcpMcpJsonObject|UcpOperationResponse
  */
 #[Package('checkout')]
 final class UcpMcpToolContext
@@ -54,7 +52,7 @@ final class UcpMcpToolContext
 
     /**
      * @param UcpMcpJsonObject                           $fingerprintInput
-     * @param callable(RequestContext): UcpMcpJsonObject $execute
+     * @param callable(RequestContext): UcpMcpToolResult $execute
      */
     public function executeMutating(string $operation, array $fingerprintInput, callable $execute): string
     {
@@ -65,7 +63,7 @@ final class UcpMcpToolContext
         }
 
         if (null === $context->idempotencyKey) {
-            return $this->success($execute($context));
+            return $this->success($this->normalizeResult($execute($context)));
         }
 
         // Keep native hash while 6.5 is supported: Shopware\Core\Framework\Util\Hasher
@@ -86,7 +84,7 @@ final class UcpMcpToolContext
         }
 
         try {
-            $data = $execute($context);
+            $data = $this->normalizeResult($execute($context));
         } catch (\Throwable $exception) {
             $this->abortIdempotency($record);
 
@@ -139,14 +137,30 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param UcpMcpJsonObject $data
+     * @param UcpMcpToolResult $data
      */
-    public function success(array $data): string
+    public function success(array|UcpOperationResponse $data): string
     {
+        $data = $this->normalizeResult($data);
+
         return json_encode([
             'success' => true,
             'data' => $data,
         ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param UcpMcpToolResult $data
+     *
+     * @return UcpMcpJsonObject
+     */
+    private function normalizeResult(array|UcpOperationResponse $data): array
+    {
+        if ($data instanceof UcpOperationResponse) {
+            return $data->toArray();
+        }
+
+        return $data;
     }
 
     private function abortIdempotency(IdempotencyRecord $record): void

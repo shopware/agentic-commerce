@@ -85,6 +85,7 @@ test.describe('UCP public profile and transports', () => {
         const tokenizeResponse = await api.post('/ucp/v1/tokenize', {
             headers: {
                 'idempotency-key': `playwright-tokenize-${Date.now()}`,
+                'ucp-agent': `platform; profile="${new URL('/.well-known/ucp', laneConfig().baseUrl).toString()}"`,
             },
             data: {
                 type: 'tokenized',
