@@ -769,7 +769,7 @@ cart_id="$(printf '%s' "${cart_json}" | jq -r '.id')"
 cart_get_json="$(curl_required 'cart.get' "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "${ucp_agent_header}")"
 assert_jq "${cart_get_json}" 'Expected cart.get to return the cart id.' '.id != null and .id != ""'
 
-cart_update_payload="$(jq -cn --arg id "${resolved_product_id}" '{line_items: [{item: {id: $id}, quantity: 2}]}')"
+cart_update_payload="$(jq -cn --arg cartId "${cart_id}" --arg id "${resolved_product_id}" '{id: $cartId, line_items: [{item: {id: $id}, quantity: 2}]}')"
 cart_updated_json="$(curl_required 'cart.update' -X PATCH "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_update_payload}")"
 assert_jq "${cart_updated_json}" 'Expected cart.update to change the line-item quantity.' '.line_items[0].quantity == 2'
 
@@ -784,12 +784,13 @@ checkout_id="$(printf '%s' "${checkout_json}" | jq -r '.id')"
 checkout_get_json="$(curl_required 'checkout.get' "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "${ucp_agent_header}")"
 assert_jq "${checkout_get_json}" 'Expected checkout.get to return the checkout session.' '.id != null and .id != ""'
 
-checkout_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg email "${smoke_email}" '{line_items: [{item: {id: $id}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
+checkout_update_payload="$(jq -cn --arg checkoutId "${checkout_id}" --arg id "${resolved_product_id}" --arg email "${smoke_email}" '{id: $checkoutId, line_items: [{item: {id: $id}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
 checkout_updated_json="$(curl_required 'checkout.update' -X PATCH "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_update_payload}")"
 assert_jq "${checkout_updated_json}" 'Expected checkout.update to change the checkout quantity.' '.line_items[0].quantity == 2'
 
 curl_required 'webhook capture clear' -X DELETE "${WEBHOOK_CAPTURE_URL}" >/dev/null
-checkout_complete_json="$(curl_required 'checkout.complete' -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
+checkout_complete_payload="$(jq -cn '{payment: {}}')"
+checkout_complete_json="$(curl_required 'checkout.complete' -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_complete_payload}")"
 assert_jq "${checkout_complete_json}" 'Expected checkout.complete to create a Shopware order.' '.status == "completed" and .order.id != null and .order.id != ""'
 order_id="$(printf '%s' "${checkout_complete_json}" | jq -r '.order.id')"
 
