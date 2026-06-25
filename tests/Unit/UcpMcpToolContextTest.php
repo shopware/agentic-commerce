@@ -158,6 +158,10 @@ final class UcpMcpToolContextTest extends TestCase
     #[Test]
     public function testExecuteMutatingStoresSdkOperationResponsesAsProtocolPayloads(): void
     {
+        if (\PHP_VERSION_ID < 80200) {
+            self::markTestSkipped('The current SDK UcpOperationResponse class uses PHP 8.2 readonly class syntax.');
+        }
+
         $operationResponse = new UcpOperationResponse(
             new CatalogSearchResponse([]),
             UcpEnvelope::response('2026-04-08', UcpResponseStatus::Success, UcpCapability::CatalogSearch),

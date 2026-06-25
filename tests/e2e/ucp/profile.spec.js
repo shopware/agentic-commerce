@@ -88,9 +88,8 @@ test.describe('UCP public profile and transports', () => {
                 'ucp-agent': `platform; profile="${new URL('/.well-known/ucp', laneConfig().baseUrl).toString()}"`,
             },
             data: {
-                type: 'tokenized',
-                handler_id: 'test',
-                credential: {},
+                credential: { type: 'card' },
+                binding: { checkout_id: 'playwright-tokenization-probe' },
             },
             failOnStatusCode: false,
         });

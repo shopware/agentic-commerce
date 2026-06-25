@@ -75,6 +75,12 @@ export async function expectA2aResult(api, endpoint, method, params = {}, id = D
     return body.result;
 }
 
+function productPriceAmount(product) {
+    return product?.price_range?.min?.amount
+        ?? product?.variants?.[0]?.price?.amount
+        ?? product?.price;
+}
+
 export async function createA2aCart(api, endpoint) {
     const seed = Date.now();
     const search = await expectA2aResult(api, endpoint, 'catalog.search', {
@@ -86,15 +92,20 @@ export async function createA2aCart(api, endpoint) {
     expect(product, 'A2A catalog.search must return a product for live protocol validation').toEqual(expect.objectContaining({
         id: expect.any(String),
         title: expect.any(String),
-        price: expect.any(Number),
     }));
+    const price = productPriceAmount(product);
+    expect(price, 'A2A catalog.search must expose a numeric product price for cart creation').toEqual(expect.any(Number));
+    const cartProduct = {
+        ...product,
+        price,
+    };
 
     const cart = await expectA2aResult(api, endpoint, 'cart.create', {
         line_items: [{
             item: {
-                id: product.id,
-                title: product.title,
-                price: product.price,
+                id: cartProduct.id,
+                title: cartProduct.title,
+                price,
             },
             quantity: 1,
         }],
@@ -103,7 +114,7 @@ export async function createA2aCart(api, endpoint) {
     expect(cart.id).toEqual(expect.any(String));
     expect(cart.line_items).toHaveLength(1);
 
-    return { product, cart };
+    return { product: cartProduct, cart };
 }
 
 export async function createA2aCheckout(api, endpoint, product) {
@@ -113,7 +124,7 @@ export async function createA2aCheckout(api, endpoint, product) {
             item: {
                 id: product.id,
                 title: product.title,
-                price: product.price,
+                price: productPriceAmount(product),
             },
             quantity: 1,
         }],

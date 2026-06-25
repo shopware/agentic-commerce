@@ -742,7 +742,7 @@ if [[ "${oauth_status}" != "501" ]]; then
 fi
 
 tokenize_body_file="$(mktemp)"
-tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d '{"type":"tokenized","handler_id":"test","credential":{}}')"
+tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d '{"credential":{"type":"card"},"binding":{"checkout_id":"smoke-tokenization-probe"}}')"
 if [[ "${tokenize_status}" != "501" ]]; then
   echo "Expected tokenization endpoint to return 501, got ${tokenize_status}." >&2
   cat "${tokenize_body_file}" >&2
