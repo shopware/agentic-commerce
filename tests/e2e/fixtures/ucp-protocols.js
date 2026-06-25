@@ -34,6 +34,7 @@ export function ucpProtocolConfig(originalConfig, meta, baseUrl) {
 }
 
 export async function a2aCall(api, endpoint, method, params = {}, id = Date.now()) {
+    const profileUrl = new URL('/.well-known/ucp', endpoint).toString();
     const idempotencyKey = [
         'playwright-a2a',
         method.replace(/\./g, '-'),
@@ -45,6 +46,7 @@ export async function a2aCall(api, endpoint, method, params = {}, id = Date.now(
         headers: {
             'content-type': 'application/json',
             'idempotency-key': idempotencyKey,
+            'ucp-agent': `playwright; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',

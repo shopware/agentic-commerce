@@ -79,12 +79,14 @@ test.describe('UCP public profile and transports', () => {
     });
 
     test('keeps OAuth and tokenization unsupported by default', async ({ request: api }) => {
+        const config = laneConfig();
         const oauthResponse = await api.get('/.well-known/oauth-authorization-server', { failOnStatusCode: false });
         expect(oauthResponse.status()).toBe(501);
 
         const tokenizeResponse = await api.post('/ucp/v1/tokenize', {
             headers: {
                 'idempotency-key': `playwright-tokenize-${Date.now()}`,
+                'ucp-agent': `playwright; profile="${config.baseUrl}/.well-known/ucp"`,
             },
             data: {
                 type: 'tokenized',
