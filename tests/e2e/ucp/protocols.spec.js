@@ -39,7 +39,8 @@ test.describe('UCP live protocol transports', () => {
 
             const { product, cart } = await createA2aCart(api, a2aEndpoint);
 
-            const loadedProduct = await expectA2aResult(api, a2aEndpoint, 'catalog.product', { id: product.id }, 1003);
+            const productResponse = await expectA2aResult(api, a2aEndpoint, 'catalog.product', { id: product.id }, 1003);
+            const loadedProduct = productResponse.product || productResponse;
             expect(loadedProduct.id).toBe(product.id);
             expect(loadedProduct.title).toBe(product.title);
 

@@ -98,7 +98,7 @@ run_extended_checks() {
     search_response="$(jsonrpc_call "${a2a_endpoint}" catalog.search "$(jq -nc --arg query "${query}" '{query:$query, limit:1}')" 101)"
     jq -e '.jsonrpc == "2.0" and (.result | type == "object")' >/dev/null <<<"${search_response}"
 
-    first_item="$(jq -c '.result.items[0] // empty' <<<"${search_response}")"
+    first_item="$(jq -c '(.result.products // .result.items)[0] // empty' <<<"${search_response}")"
     if [[ -n "${first_item}" ]]; then
       echo "Validating A2A cart.create"
       cart_response="$(jsonrpc_call "${a2a_endpoint}" cart.create "$(jq -nc --argjson item "${first_item}" '{line_items:[{item:$item, quantity:1}]}')" 102)"

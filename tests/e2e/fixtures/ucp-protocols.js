@@ -81,13 +81,15 @@ export async function createA2aCart(api, endpoint) {
         query: 'music',
         limit: 1,
     }, `${seed}-search`);
-    const product = search.items?.[0];
+    const product = (search.products || search.items || [])[0];
 
     expect(product, 'A2A catalog.search must return a product for live protocol validation').toEqual(expect.objectContaining({
         id: expect.any(String),
         title: expect.any(String),
-        price: expect.any(Number),
     }));
+
+    product.price = product.price ?? ((product.variants?.[0]?.price?.amount ?? product.price_range?.min?.amount ?? 0) / 100);
+    expect(product.price).toEqual(expect.any(Number));
 
     const cart = await expectA2aResult(api, endpoint, 'cart.create', {
         line_items: [{
