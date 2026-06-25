@@ -56,7 +56,6 @@ use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
 use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
-use Swag\AgenticCommerce\Ucp\A2a\A2aUpdateCompatibilityListener;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
@@ -314,9 +313,6 @@ return static function (ContainerConfigurator $container): void {
     $services->set(EmbeddedResponseListener::class)
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
-
-    $services->set(A2aUpdateCompatibilityListener::class)
-        ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest']);
 
     // ── Product export: entity definition override ────────────────────────────
 
