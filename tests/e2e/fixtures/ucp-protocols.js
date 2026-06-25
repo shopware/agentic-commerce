@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 
-export const DEFAULT_CAPABILITIES = ['catalog', 'cart', 'discount', 'checkout', 'order'];
+export const DEFAULT_CAPABILITIES = ['catalog', 'cart', 'checkout', 'order'];
 
 export function shoppingTransports(profile) {
     const profileRoot = profile.ucp || profile;
