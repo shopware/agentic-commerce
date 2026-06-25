@@ -23,10 +23,26 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  * Shopware 6.7.10+, so merchants can uninstall this plugin later without losing
  * their Agentic Commerce sales channels.
  *
+ * If the row already exists — because the core migration ran before this plugin
+ * migration did — the method returns immediately. Otherwise, the row is inserted
+ * and {@see self::CORE_MIGRATION_CLASS} is shadowed in the `migration` table so
+ * `system:update:finish` after an upgrade to 6.7.10+ does not attempt to re-run it.
+ *
+ * The shadow can be removed once 6.5.x and 6.6.x are no longer supported lanes,
+ * because all installations will have passed through a Shopware version that natively
+ * records {@see self::CORE_MIGRATION_CLASS} in the migration table.
+ *
  * @internal
  */
 class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationStep
 {
+    /**
+     * Class name of the equivalent Shopware core migration (added in 6.7.10).
+     * Stored as a constant so it appears in exactly one place across production
+     * code and tests, and so any future rename is caught immediately.
+     */
+    public const CORE_MIGRATION_CLASS = 'Shopware\Core\Migration\V6_7\Migration1773329152AddAgenticAiSalesChannelType';
+
     public function getCreationTimestamp(): int
     {
         return 1773329152;
@@ -34,22 +50,12 @@ class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationSte
 
     public function update(Connection $connection): void
     {
-        if ($this->coreShipsAgenticCommerce()) {
-            $this->shadowCoreMigration($connection);
-
-            return;
-        }
-
         $salesChannelTypeId = Uuid::fromHexToBytes(SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE);
 
-        $existing = $connection->fetchOne(
+        if (false !== $connection->fetchOne(
             'SELECT 1 FROM `sales_channel_type` WHERE `id` = :id',
             ['id' => $salesChannelTypeId]
-        );
-
-        if (false !== $existing) {
-            $this->shadowCoreMigration($connection);
-
+        )) {
             return;
         }
 
@@ -109,26 +115,18 @@ class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationSte
     }
 
     /**
-     * Pre-mark the equivalent core migration as executed so a later
-     * `database:migrate core` (e.g. `system:update:finish` after upgrading to
-     * 6.7.10) treats it as done and does not re-INSERT the row this migration
-     * already wrote. COALESCE preserves any prior execution timestamp the core
-     * may have set itself (relevant on 6.7.11+ where the core migration is
-     * idempotent and may have run cleanly).
+     * Pre-mark {@see self::CORE_MIGRATION_CLASS} as executed so `system:update:finish`
+     * after an upgrade to 6.7.10+ treats it as done and does not re-INSERT the row
+     * this migration already wrote. INSERT IGNORE is a no-op if the core migration
+     * has already been recorded (e.g. on a fresh 6.7.10 install).
      */
     private function shadowCoreMigration(Connection $connection): void
     {
         $connection->executeStatement(
             'INSERT IGNORE INTO `migration` (`class`, `creation_timestamp`, `update`, `update_destructive`)
              VALUES (:class, :ts, NOW(), NULL)',
-            ['class' => 'Shopware\\Core\\Migration\\V6_7\\Migration1773329152AddAgenticAiSalesChannelType',
-                'ts' => 1773329152]
+            ['class' => self::CORE_MIGRATION_CLASS, 'ts' => 1773329152]
         );
-    }
-
-    private function coreShipsAgenticCommerce(): bool
-    {
-        return \defined('Shopware\\Core\\Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE');
     }
 
     /**
