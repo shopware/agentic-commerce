@@ -104,8 +104,6 @@ export async function createA2aCart(api, endpoint) {
         line_items: [{
             item: {
                 id: cartProduct.id,
-                title: cartProduct.title,
-                price,
             },
             quantity: 1,
         }],
@@ -123,8 +121,6 @@ export async function createA2aCheckout(api, endpoint, product) {
         line_items: [{
             item: {
                 id: product.id,
-                title: product.title,
-                price: productPriceAmount(product),
             },
             quantity: 1,
         }],

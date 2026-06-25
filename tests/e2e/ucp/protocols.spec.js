@@ -53,8 +53,6 @@ test.describe('UCP live protocol transports', () => {
                 line_items: [{
                     item: {
                         id: product.id,
-                        title: product.title,
-                        price: product.price,
                     },
                     quantity: 2,
                 }],

@@ -757,12 +757,11 @@ assert_jq "${lookup_json}" 'Expected catalog.lookup to resolve exactly one produ
 
 resolved_product_id="$(printf '%s' "${lookup_json}" | jq -r '.products[0].id')"
 resolved_title="$(printf '%s' "${lookup_json}" | jq -r '.products[0].title')"
-resolved_price="$(printf '%s' "${lookup_json}" | jq -r '.products[0].price')"
 
 product_json="$(curl_required 'catalog.product' "${BASE_URL}/ucp/v1/catalog/product/${resolved_product_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)")"
 assert_jq "${product_json}" 'Expected catalog.product to resolve the looked-up product title.' '.product.title == $title' --arg title "${resolved_title}"
 
-cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}]}')"
+cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" '{line_items: [{item: {id: $id}, quantity: 1}]}')"
 cart_json="$(curl_required 'cart.create' -X POST "${BASE_URL}/ucp/v1/carts" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_create_payload}")"
 assert_jq "${cart_json}" 'Expected cart.create to create one line item.' '.line_items | length == 1'
 cart_id="$(printf '%s' "${cart_json}" | jq -r '.id')"
@@ -770,14 +769,14 @@ cart_id="$(printf '%s' "${cart_json}" | jq -r '.id')"
 cart_get_json="$(curl_required 'cart.get' "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "${ucp_agent_header}")"
 assert_jq "${cart_get_json}" 'Expected cart.get to return the cart id.' '.id != null and .id != ""'
 
-cart_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}]}')"
+cart_update_payload="$(jq -cn --arg id "${resolved_product_id}" '{line_items: [{item: {id: $id}, quantity: 2}]}')"
 cart_updated_json="$(curl_required 'cart.update' -X PATCH "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_update_payload}")"
 assert_jq "${cart_updated_json}" 'Expected cart.update to change the line-item quantity.' '.line_items[0].quantity == 2'
 
 cart_canceled_json="$(curl_required 'cart.cancel' -X POST "${BASE_URL}/ucp/v1/carts/${cart_id}/cancel" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
 assert_jq "${cart_canceled_json}" 'Expected cart.cancel to empty the cart.' '.line_items | length == 0'
 
-checkout_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
+checkout_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg email "${smoke_email}" '{line_items: [{item: {id: $id}, quantity: 1}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
 checkout_json="$(curl_required 'checkout.create' -X POST "${BASE_URL}/ucp/v1/checkout-sessions" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_create_payload}")"
 assert_jq "${checkout_json}" 'Expected checkout.create to produce a ready-for-complete session.' '.status == "ready_for_complete"'
 checkout_id="$(printf '%s' "${checkout_json}" | jq -r '.id')"
@@ -785,7 +784,7 @@ checkout_id="$(printf '%s' "${checkout_json}" | jq -r '.id')"
 checkout_get_json="$(curl_required 'checkout.get' "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "${ucp_agent_header}")"
 assert_jq "${checkout_get_json}" 'Expected checkout.get to return the checkout session.' '.id != null and .id != ""'
 
-checkout_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
+checkout_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg email "${smoke_email}" '{line_items: [{item: {id: $id}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
 checkout_updated_json="$(curl_required 'checkout.update' -X PATCH "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_update_payload}")"
 assert_jq "${checkout_updated_json}" 'Expected checkout.update to change the checkout quantity.' '.line_items[0].quantity == 2'
 
