@@ -20,6 +20,7 @@ use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Common\Money;
+use Ucp\Sdk\Model\Common\MonetaryAmount;
 use Ucp\Sdk\Model\Order\OrderView;
 
 final class ShopwareDataMapper implements ShopwareDataMapperInterface
@@ -40,7 +41,51 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $name,
             $price,
             \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
+            $this->catalogProductExtra($product, $name, $price),
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function catalogProductExtra(ProductEntity $product, string $name, float $price): array
+    {
+        return [
+            'variants' => [$this->catalogVariant($product, $name, $price)],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     title: string,
+     *     description: array{plain: string},
+     *     price: array{amount: int, currency: string},
+     *     sku?: string,
+     *     inputs: list<array{id: string, match: string}>
+     * }
+     */
+    private function catalogVariant(ProductEntity $product, string $name, float $price): array
+    {
+        $variant = [
+            'id' => $product->getId(),
+            'title' => $name,
+            'description' => [
+                'plain' => $name,
+            ],
+            'price' => MonetaryAmount::fromMajorUnits($price, 'EUR')->toPriceArray(),
+            'inputs' => [[
+                'id' => $product->getId(),
+                'match' => 'exact',
+            ]],
+        ];
+
+        $productNumber = $product->getProductNumber();
+        if (\is_string($productNumber) && '' !== $productNumber) {
+            $variant['sku'] = $productNumber;
+        }
+
+        return $variant;
     }
 
     public function toCart(Cart $cart, SalesChannelContext $context): \Ucp\Sdk\Model\Cart\Cart
