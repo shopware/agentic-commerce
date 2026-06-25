@@ -55,7 +55,7 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param UcpMcpJsonObject                           $fingerprintInput
+     * @param UcpMcpJsonObject                                $fingerprintInput
      * @param callable(RequestContext): UcpMcpOperationResult $execute
      */
     public function executeMutating(string $operation, array $fingerprintInput, callable $execute): string
