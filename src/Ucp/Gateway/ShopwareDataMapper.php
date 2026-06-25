@@ -19,8 +19,8 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
-use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Common\MonetaryAmount;
+use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\OrderView;
 
 final class ShopwareDataMapper implements ShopwareDataMapperInterface
