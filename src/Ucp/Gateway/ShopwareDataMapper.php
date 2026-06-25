@@ -24,7 +24,7 @@ use Ucp\Sdk\Model\Order\OrderView;
 
 final class ShopwareDataMapper implements ShopwareDataMapperInterface
 {
-    public function toProduct(ProductEntity $product): Product
+    public function toProduct(ProductEntity $product, ?string $lookupInputId = null): Product
     {
         $name = $product->getTranslation('name');
         if (!\is_string($name) || '' === $name) {
@@ -34,12 +34,24 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $cover = $product->getCover();
         $imageUrl = $cover?->getMedia()?->getUrl();
         $price = $product instanceof SalesChannelProductEntity ? $product->getCalculatedPrice()->getUnitPrice() : 0.0;
+        $extra = [];
+
+        if (null !== $lookupInputId) {
+            $extra['variants'] = [[
+                'id' => $product->getId(),
+                'title' => $name,
+                'description' => ['plain' => $name],
+                'price' => ['amount' => (int) round($price * 100), 'currency' => 'EUR'],
+                'inputs' => [['id' => $lookupInputId, 'match' => 'exact']],
+            ]];
+        }
 
         return new Product(
             $product->getId(),
             $name,
             $price,
             \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
+            $extra,
         );
     }
 

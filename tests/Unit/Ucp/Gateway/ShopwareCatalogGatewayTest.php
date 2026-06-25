@@ -104,6 +104,7 @@ final class ShopwareCatalogGatewayTest extends TestCase
 
         self::assertSame([['product-a', 'product-b']], $criteriaIds);
         self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $products));
+        self::assertSame([['id' => 'product-a', 'match' => 'exact']], $products[0]->toArray()['variants'][0]['inputs']);
     }
 
     private function gateway(
