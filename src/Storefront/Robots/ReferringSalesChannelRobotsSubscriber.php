@@ -18,12 +18,6 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingList
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
- * Adds an Allow directive for the sales-channel tracking parameter to the storefront
- * robots.txt. The Google feed appends `referringSalesChannel` to every product link, and
- * Shopware's default `Disallow: /*?` would otherwise stop Googlebot from crawling those
- * URLs, which makes Google Merchant Center disapprove of the products. The clean URL still
- * wins in the search index through the page's rel=canonical and the feed's g:canonical_link.
- *
  * @internal
  */
 final class ReferringSalesChannelRobotsSubscriber implements EventSubscriberInterface

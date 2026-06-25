@@ -29,8 +29,6 @@ class ReferringSalesChannelRobotsSubscriberTest extends TestCase
 {
     protected function setUp(): void
     {
-        // The RobotsPage / RobotsPageLoadedEvent classes only exist from 6.7; on 6.5/6.6
-        // there is nothing to construct and no robots.txt to extend.
         if (!class_exists(RobotsPageLoadedEvent::class)) {
             static::markTestSkipped('robots.txt subsystem requires Shopware >= 6.7');
         }
