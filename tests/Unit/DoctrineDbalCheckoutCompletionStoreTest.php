@@ -65,4 +65,19 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
 
         static::assertSame(self::ORDER_ID, (new DoctrineDbalCheckoutCompletionStore($connection))->completedOrderId(self::CHECKOUT_ID));
     }
+
+    #[Test]
+    public function testCompletedCheckoutIdReturnsStoredCheckoutId(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(static::once())
+            ->method('fetchAssociative')
+            ->with(
+                static::stringContains(self::TABLE),
+                ['orderId' => Uuid::fromHexToBytes(self::ORDER_ID)],
+            )
+            ->willReturn(['checkout_id' => self::CHECKOUT_ID]);
+
+        static::assertSame(self::CHECKOUT_ID, (new DoctrineDbalCheckoutCompletionStore($connection))->completedCheckoutId(self::ORDER_ID));
+    }
 }

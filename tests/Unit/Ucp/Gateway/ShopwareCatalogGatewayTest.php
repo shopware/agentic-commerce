@@ -104,7 +104,8 @@ final class ShopwareCatalogGatewayTest extends TestCase
 
         self::assertSame([['product-a', 'product-b']], $criteriaIds);
         self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $products));
-        self::assertSame([['id' => 'product-a', 'match' => 'exact']], $products[0]->toArray()['variants'][0]['inputs']);
+
+        self::assertSame([['id' => 'product-a', 'match' => 'exact']], self::variantInputs($products[0]->extra));
     }
 
     private function gateway(
@@ -129,6 +130,24 @@ final class ShopwareCatalogGatewayTest extends TestCase
             $this->createMock(AbstractProductDetailRoute::class),
             new ShopwareDataMapper(),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $extra
+     */
+    private static function variantInputs(array $extra): mixed
+    {
+        $variants = $extra['variants'] ?? null;
+        if (!\is_array($variants)) {
+            return null;
+        }
+
+        $variant = $variants[0] ?? null;
+        if (!\is_array($variant)) {
+            return null;
+        }
+
+        return $variant['inputs'] ?? null;
     }
 
     private function createSalesChannelContext(): SalesChannelContext

@@ -14,9 +14,12 @@ function shoppingTransports(profile) {
 }
 
 async function initializeMcpSession(mcpApi, mcpEndpoint) {
+    const profileUrl = new URL('/.well-known/ucp', mcpEndpoint).toString();
+
     const initializeResponse = await mcpApi.post(mcpEndpoint, {
         headers: {
             'content-type': 'application/json',
+            'ucp-agent': `ucp-playwright; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',
@@ -38,6 +41,7 @@ async function initializeMcpSession(mcpApi, mcpEndpoint) {
         headers: {
             'content-type': 'application/json',
             'Mcp-Session-Id': sessionId,
+            'ucp-agent': `ucp-playwright; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',

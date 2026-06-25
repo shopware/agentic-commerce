@@ -28,7 +28,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     {
         $name = $product->getTranslation('name');
         if (!\is_string($name) || '' === $name) {
-            $name = (string) ($product->getName() ?: $product->getProductNumber() ?: $product->getId());
+            $name = $product->getName() ?: $product->getProductNumber() ?: $product->getId();
         }
 
         $cover = $product->getCover();
@@ -51,6 +51,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $name,
             $price,
             \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
+            // @phpstan-ignore-next-line argument.type -- SDK schema requires lookup inputs, but Product::$extra is typed too narrowly.
             $extra,
         );
     }
@@ -58,7 +59,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     public function toCart(Cart $cart, SalesChannelContext $context): \Ucp\Sdk\Model\Cart\Cart
     {
         return new \Ucp\Sdk\Model\Cart\Cart(
-            $cart->getToken(),
+            $cart->getToken() ?: $context->getToken(),
             $this->mapShopwareLineItems($cart->getLineItems()),
             $context->getCurrency()->getIsoCode(),
             $this->cartMoneySummary($cart),
@@ -75,7 +76,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         ?OrderEntity $order = null,
     ): Checkout {
         return new Checkout(
-            $cart->getToken(),
+            $cart->getToken() ?: $context->getToken(),
             $status,
             $context->getCurrency()->getIsoCode(),
             $this->mapShopwareLineItems($cart->getLineItems()),
@@ -106,7 +107,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
-    public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+    public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
     {
         return new OrderView(
             $order->getId(),
@@ -117,6 +118,9 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
             $order->getCreatedAt()?->format(\DATE_ATOM),
+            checkoutId: $checkoutId,
+            permalinkUrl: $permalinkUrl,
+            fulfillment: ['expectations' => [], 'events' => []],
         );
     }
 
@@ -242,7 +246,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     ): array {
         return [
             new Money('subtotal', $subtotal),
-            new Money('shipping', $shipping),
+            new Money('fulfillment', $shipping),
             new Money('total', $total),
             new Money('tax', $this->totalTax($taxes)),
         ];
