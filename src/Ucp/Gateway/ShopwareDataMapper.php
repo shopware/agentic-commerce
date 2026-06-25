@@ -269,7 +269,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
-     * @return array{expectations: list<array<string, mixed>>, events: list<array<string, mixed>>}
+     * @return array{expectations: array{}, events: array{}}
      */
     private function orderFulfillment(): array
     {
