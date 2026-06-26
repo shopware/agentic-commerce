@@ -85,6 +85,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
+use Swag\AgenticCommerce\Ucp\Embedded\ShopwareEmbeddedPageRenderer;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -132,6 +133,7 @@ use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
+use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
 return static function (ContainerConfigurator $container): void {
     $container->extension('ucp_sdk', [
@@ -229,6 +231,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(OrderCapabilityInterface::class, OrderCapability::class);
     $services->alias(IdentityLinkingCapabilityInterface::class, IdentityLinkingCapability::class);
     $services->alias(TokenizationCapabilityInterface::class, PaymentTokenizationCapability::class);
+    $services->alias(EmbeddedPageRendererInterface::class, ShopwareEmbeddedPageRenderer::class);
 
     // Capabilities that collect tagged adapters via iteration.
 

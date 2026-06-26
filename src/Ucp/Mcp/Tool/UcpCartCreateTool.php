@@ -28,7 +28,7 @@ final class UcpCartCreateTool
             return $this->toolContext->executeMutating(
                 'cart.create',
                 $requestPayload,
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'cart.create',
                     $requestPayload,
                     $context,

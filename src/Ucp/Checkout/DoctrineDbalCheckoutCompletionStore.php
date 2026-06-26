@@ -44,4 +44,23 @@ final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionSto
 
         return \is_string($orderId) && '' !== $orderId ? $orderId : null;
     }
+
+    public function completedCheckoutId(string $orderId): ?string
+    {
+        $row = $this->connection->fetchAssociative(
+            \sprintf(
+                'SELECT checkout_id FROM `%s` WHERE order_id = :orderId',
+                self::TABLE,
+            ),
+            ['orderId' => Uuid::fromHexToBytes($orderId)],
+        );
+
+        if (false === $row) {
+            return null;
+        }
+
+        $checkoutId = $row['checkout_id'] ?? null;
+
+        return \is_string($checkoutId) && '' !== $checkoutId ? $checkoutId : null;
+    }
 }
