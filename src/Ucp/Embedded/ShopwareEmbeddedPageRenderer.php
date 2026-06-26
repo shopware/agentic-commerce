@@ -10,7 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
 use Ucp\Sdk\Contract\CartCapabilityInterface;
 use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
+use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
+use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
 #[Package('checkout')]
@@ -20,15 +22,13 @@ final class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterfac
         private readonly CartCapabilityInterface $cartCapability,
         private readonly CheckoutCapabilityInterface $checkoutCapability,
         private readonly Environment $twig,
+        private readonly RuntimeConfigurationResolverInterface $runtimeConfigurationResolver,
     ) {
     }
 
     public function render(string $type, string $id, Request $request): ?Response
     {
-        $context = $request->attributes->get('ucp_request_context');
-        if (!$context instanceof RequestContext) {
-            return null;
-        }
+        $context = $this->context($request);
 
         $data = match ($type) {
             'cart' => $this->cartCapability->getCart($id, $context)->toArray(),
@@ -66,5 +66,46 @@ final class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterfac
     private function title(string $type): string
     {
         return 'checkout' === $type ? 'Checkout session' : 'Cart';
+    }
+
+    private function context(Request $request): RequestContext
+    {
+        $context = $request->attributes->get('ucp_request_context');
+        if ($context instanceof RequestContext) {
+            return $context;
+        }
+
+        return new RequestContext(
+            parse_url($request->getUri(), \PHP_URL_HOST) ?: '',
+            $this->headers($request),
+            runtimeConfiguration: $this->runtimeConfigurationResolver->resolve($this->toHttpRequest($request)),
+        );
+    }
+
+    private function toHttpRequest(Request $request): HttpRequest
+    {
+        $query = $request->query->all();
+        ksort($query);
+
+        return new HttpRequest(
+            $request->getMethod(),
+            $request->getUri(),
+            $this->headers($request),
+            array_map(static fn (mixed $value): string => \is_scalar($value) ? (string) $value : (string) json_encode($value, \JSON_THROW_ON_ERROR), $query),
+            '',
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function headers(Request $request): array
+    {
+        $headers = [];
+        foreach ($request->headers->all() as $name => $value) {
+            $headers[$name] = implode(', ', array_map(static fn (?string $entry): string => (string) $entry, $value));
+        }
+
+        return $headers;
     }
 }

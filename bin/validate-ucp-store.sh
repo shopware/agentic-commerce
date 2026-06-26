@@ -12,6 +12,7 @@ fi
 
 BASE_URL="${BASE_URL%/}"
 PROFILE_URL="${PROFILE_URL:-${BASE_URL}/.well-known/ucp}"
+UCP_AGENT_HEADER="UCP-Agent: shopware-agentic-commerce-validator; profile=\"${PROFILE_URL}\""
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -59,7 +60,7 @@ if [[ "${oauth_status}" != "501" ]]; then
   exit 1
 fi
 
-tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H 'content-type: application/json' -H "Idempotency-Key: validate-tokenize-$(date +%s)" -d '{"type":"tokenized","handler_id":"test","credential":{}}')"
+tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${UCP_AGENT_HEADER}" -H 'content-type: application/json' -H "Idempotency-Key: validate-tokenize-$(date +%s)" -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}')"
 if [[ "${tokenize_status}" != "501" ]]; then
   echo "Payment tokenization must stay unsupported until a Shopware-backed adapter exists. Expected 501, got ${tokenize_status}." >&2
   cat "${tokenize_body_file}" >&2
@@ -78,6 +79,7 @@ jsonrpc_call() {
 
   curl -fsS \
     -X POST "${endpoint}" \
+    -H "${UCP_AGENT_HEADER}" \
     -H 'content-type: application/json' \
     -H "idempotency-key: validate-${method//./-}-${id}-$(date +%s)" \
     -d "$(jq -nc --arg method "${method}" --argjson params "${params}" --argjson id "${id}" '{jsonrpc:"2.0", id:$id, method:$method, params:$params}')"
@@ -96,7 +98,7 @@ run_extended_checks() {
     search_response="$(jsonrpc_call "${a2a_endpoint}" catalog.search "$(jq -nc --arg query "${query}" '{query:$query, limit:1}')" 101)"
     jq -e '.jsonrpc == "2.0" and (.result | type == "object")' >/dev/null <<<"${search_response}"
 
-    first_item="$(jq -c '.result.items[0] // empty' <<<"${search_response}")"
+    first_item="$(jq -c '(.result.products // .result.items)[0] // empty' <<<"${search_response}")"
     if [[ -n "${first_item}" ]]; then
       echo "Validating A2A cart.create"
       cart_response="$(jsonrpc_call "${a2a_endpoint}" cart.create "$(jq -nc --argjson item "${first_item}" '{line_items:[{item:$item, quantity:1}]}')" 102)"
