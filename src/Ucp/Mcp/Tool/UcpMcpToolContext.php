@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\IdempotencyRecord;
+use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
 
@@ -21,6 +22,7 @@ use Ucp\Sdk\Service\IdempotencyServiceInterface;
  * @phpstan-type UcpMcpJsonValue UcpMcpJsonScalar|array<array-key, UcpMcpJsonLevel2>
  * @phpstan-type UcpMcpNestedJsonObject array<string, UcpMcpJsonLevel2>
  * @phpstan-type UcpMcpJsonObject array<string, UcpMcpJsonValue>
+ * @phpstan-type UcpMcpOperationResult UcpMcpJsonObject|UcpOperationResponse
  */
 #[Package('checkout')]
 final class UcpMcpToolContext
@@ -53,8 +55,8 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param UcpMcpJsonObject                           $fingerprintInput
-     * @param callable(RequestContext): UcpMcpJsonObject $execute
+     * @param UcpMcpJsonObject                                $fingerprintInput
+     * @param callable(RequestContext): UcpMcpOperationResult $execute
      */
     public function executeMutating(string $operation, array $fingerprintInput, callable $execute): string
     {
@@ -93,6 +95,7 @@ final class UcpMcpToolContext
             throw $exception;
         }
 
+        $data = $this->normalizeData($data);
         $this->idempotencyService->complete($record, $data, 200);
 
         return $this->success($data);
@@ -139,14 +142,24 @@ final class UcpMcpToolContext
     }
 
     /**
-     * @param UcpMcpJsonObject $data
+     * @param UcpMcpOperationResult $data
      */
-    public function success(array $data): string
+    public function success(array|UcpOperationResponse $data): string
     {
         return json_encode([
             'success' => true,
-            'data' => $data,
+            'data' => $this->normalizeData($data),
         ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param UcpMcpOperationResult $data
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeData(array|UcpOperationResponse $data): array
+    {
+        return $data instanceof UcpOperationResponse ? $data->jsonSerialize() : $data;
     }
 
     private function abortIdempotency(IdempotencyRecord $record): void

@@ -14,9 +14,12 @@ function shoppingTransports(profile) {
 }
 
 async function initializeMcpSession(mcpApi, mcpEndpoint) {
+    const profileUrl = new URL('/.well-known/ucp', mcpEndpoint).toString();
+
     const initializeResponse = await mcpApi.post(mcpEndpoint, {
         headers: {
             'content-type': 'application/json',
+            'ucp-agent': `ucp-playwright; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',
@@ -38,6 +41,7 @@ async function initializeMcpSession(mcpApi, mcpEndpoint) {
         headers: {
             'content-type': 'application/json',
             'Mcp-Session-Id': sessionId,
+            'ucp-agent': `ucp-playwright; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',
@@ -79,17 +83,20 @@ test.describe('UCP public profile and transports', () => {
     });
 
     test('keeps OAuth and tokenization unsupported by default', async ({ request: api }) => {
+        const config = laneConfig();
         const oauthResponse = await api.get('/.well-known/oauth-authorization-server', { failOnStatusCode: false });
         expect(oauthResponse.status()).toBe(501);
 
         const tokenizeResponse = await api.post('/ucp/v1/tokenize', {
             headers: {
                 'idempotency-key': `playwright-tokenize-${Date.now()}`,
+                'ucp-agent': `playwright; profile="${config.baseUrl}/.well-known/ucp"`,
             },
             data: {
                 type: 'tokenized',
                 handler_id: 'test',
-                credential: {},
+                credential: { type: 'test' },
+                binding: { checkout_id: 'test' },
             },
             failOnStatusCode: false,
         });

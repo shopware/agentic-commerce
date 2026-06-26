@@ -34,6 +34,7 @@ export function ucpProtocolConfig(originalConfig, meta, baseUrl) {
 }
 
 export async function a2aCall(api, endpoint, method, params = {}, id = Date.now()) {
+    const profileUrl = new URL('/.well-known/ucp', endpoint).toString();
     const idempotencyKey = [
         'playwright-a2a',
         method.replace(/\./g, '-'),
@@ -45,6 +46,7 @@ export async function a2aCall(api, endpoint, method, params = {}, id = Date.now(
         headers: {
             'content-type': 'application/json',
             'idempotency-key': idempotencyKey,
+            'ucp-agent': `playwright; profile="${profileUrl}"`,
         },
         data: {
             jsonrpc: '2.0',
@@ -73,26 +75,36 @@ export async function expectA2aResult(api, endpoint, method, params = {}, id = D
     return body.result;
 }
 
+function productPriceAmount(product) {
+    return product?.price_range?.min?.amount
+        ?? product?.variants?.[0]?.price?.amount
+        ?? product?.price;
+}
+
 export async function createA2aCart(api, endpoint) {
     const seed = Date.now();
     const search = await expectA2aResult(api, endpoint, 'catalog.search', {
         query: 'music',
         limit: 1,
     }, `${seed}-search`);
-    const product = search.items?.[0];
+    const product = (search.products || search.items || [])[0];
 
     expect(product, 'A2A catalog.search must return a product for live protocol validation').toEqual(expect.objectContaining({
         id: expect.any(String),
         title: expect.any(String),
-        price: expect.any(Number),
     }));
+
+    const price = productPriceAmount(product);
+    expect(price, 'A2A catalog.search must expose a numeric product price for cart creation').toEqual(expect.any(Number));
+    const cartProduct = {
+        ...product,
+        price,
+    };
 
     const cart = await expectA2aResult(api, endpoint, 'cart.create', {
         line_items: [{
             item: {
-                id: product.id,
-                title: product.title,
-                price: product.price,
+                id: cartProduct.id,
             },
             quantity: 1,
         }],
@@ -101,7 +113,7 @@ export async function createA2aCart(api, endpoint) {
     expect(cart.id).toEqual(expect.any(String));
     expect(cart.line_items).toHaveLength(1);
 
-    return { product, cart };
+    return { product: cartProduct, cart };
 }
 
 export async function createA2aCheckout(api, endpoint, product) {
@@ -110,8 +122,6 @@ export async function createA2aCheckout(api, endpoint, product) {
         line_items: [{
             item: {
                 id: product.id,
-                title: product.title,
-                price: product.price,
             },
             quantity: 1,
         }],
