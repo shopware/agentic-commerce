@@ -26,7 +26,8 @@
     {%- endfor -%}
 {%- endif -%}
 {%- set hasVariantListing = productExport.includeVariants and (product.parentId or product.childCount > 0) -%}
-{%- set productUrl = seoUrl('frontend.detail.page', {'productId': product.id}) ~ '?referringSalesChannel=' ~ provider.referringSalesChannel -%}
+{%- set canonicalUrl = seoUrl('frontend.detail.page', {'productId': product.id}) -%}
+{%- set productUrl = canonicalUrl ~ '?referringSalesChannel=' ~ provider.referringSalesChannel -%}
 {%- if provider.affiliateCode -%}
     {%- set productUrl = productUrl ~ '&affiliateCode=' ~ provider.affiliateCode|url_encode -%}
 {%- endif -%}
@@ -163,6 +164,7 @@
     <title>{{ title|escape }}</title>
     <description>{{ description|escape }}</description>
     <link>{{ productUrl|escape }}</link>
+    <g:canonical_link>{{ canonicalUrl|escape }}</g:canonical_link>
     <g:image_link>{{ imageUrl|escape }}</g:image_link>
     {%- for additionalImageUrl in additionalImageUrls|slice(0, 10) %}
     <g:additional_image_link>{{ additionalImageUrl|escape }}</g:additional_image_link>

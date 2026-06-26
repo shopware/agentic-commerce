@@ -66,3 +66,11 @@ parameters:
             identifier: argument.type
             message: '#.+#'
             path: tests/Unit/Content/ProductExport/Tracking/SalesChannelTrackingListenerTest.php
+        # The storefront robots.txt subsystem (RobotsPageLoadedEvent and the Robots\Struct
+        # classes) is 6.7-only; the subscriber does nothing on 6.5/6.6, where the event is
+        # never dispatched, so these "class not found" errors only occur on those lanes.
+        -
+            message: '#Shopware\\Storefront\\Page\\Robots#'
+            paths:
+                - src/Storefront/Robots
+                - tests/Unit/Storefront/Robots
