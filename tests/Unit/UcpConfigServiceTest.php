@@ -187,6 +187,7 @@ final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
     }
 }
 
+/** @internal */
 final class RecordingAgenticFilesCoreBridge implements AgenticFilesCoreBridgeInterface
 {
     /**
