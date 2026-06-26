@@ -91,6 +91,8 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
+use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
@@ -248,6 +250,14 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareInvoicePaymentHandler::class)
         ->tag('ucp_sdk.payment_handler');
+
+    // Scheduled tasks.
+    $services->set(CleanupExpiredOAuthTokensTask::class)
+        ->tag('shopware.scheduled.task');
+
+    // The handler needs the DAL repository wired by service id (not autowirable by type).
+    $services->set(CleanupExpiredOAuthTokensTaskHandler::class)
+        ->arg('$scheduledTaskRepository', service('scheduled_task.repository'));
 
     // Store API MCP tools.
 
