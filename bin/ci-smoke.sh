@@ -564,16 +564,4 @@ smoke_catalog
 smoke_cart
 smoke_checkout
 
-# Optionally run the kernel integration suite inside the already-booted stack. These tests
-# boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) rather than
-# hitting the deployed HTTP stack, so they cannot share the smoke's request path.
-if [[ "${CI_SMOKE_RUN_INTEGRATION:-0}" == "1" ]]; then
-  echo "Running kernel integration suite (booting test kernel)."
-  "${compose[@]}" exec -T \
-    -e SHOPWARE_PROJECT_DIR= \
-    -e APP_ENV=test \
-    -w /var/www/html/custom/plugins/SwagAgenticCommerce \
-    web php bin/run.php phpunit --testsuite kernel
-fi
-
 echo "Smoke test passed for ${SHOPWARE_DIR}."

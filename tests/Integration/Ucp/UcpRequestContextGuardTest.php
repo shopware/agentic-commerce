@@ -42,7 +42,7 @@ final class UcpRequestContextGuardTest extends TestCase
             ->fetchOne("SELECT url FROM sales_channel_domain WHERE url LIKE 'http%' ORDER BY url LIMIT 1");
         self::assertIsString($domain, 'Expected a storefront sales-channel domain in the test database.');
 
-        $request = Request::create($domain.'/ucp/v1/catalog/search', 'POST', [], [], [], [
+        $request = Request::create($domain.'/ucp/v1/catalog/search', Request::METHOD_POST, [], [], [], [
             'CONTENT_TYPE' => 'application/json',
             'HTTP_IDEMPOTENCY_KEY' => 'it-no-agent-'.uniqid('', true),
         ], '{"query":"smoke","limit":1}');
