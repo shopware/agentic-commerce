@@ -247,87 +247,15 @@ db_table_exists() {
   [[ "${result}" == "1" ]]
 }
 
-assert_jq() {
-  local json="$1"
-  local message="$2"
-  local expression="$3"
-  shift 3
-
-  if ! printf '%s' "${json}" | jq -e "$@" "${expression}" >/dev/null; then
-    echo "${message}" >&2
-    printf '%s\n' "${json}" >&2
-    exit 1
-  fi
-}
-
-assert_contains() {
-  local content="$1"
-  local message="$2"
-  local expected="$3"
-
-  if [[ "${content}" != *"${expected}"* ]]; then
-    echo "${message}" >&2
-    printf '%s\n' "${content}" >&2
-    exit 1
-  fi
-}
-
-fetch_required_url() {
-  local url="$1"
-  local label="$2"
-  local headers_file="$3"
-  local body_file="$4"
-  local status
-
-  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}")"
-  if [[ ! "${status}" =~ ^[0-9]{3}$ || "${status}" -lt 200 || "${status}" -ge 300 ]]; then
-    echo "Expected ${label} to return a 2xx response, got ${status}." >&2
-    echo "Response headers:" >&2
-    cat "${headers_file}" >&2
-    echo "Response body:" >&2
-    cat "${body_file}" >&2
-    exit 1
-  fi
-
-  cat "${body_file}"
-}
-
-curl_required() {
-  local label="$1"
-  shift
-
-  local headers_file
-  local body_file
-  local status
-  headers_file="$(mktemp)"
-  body_file="$(mktemp)"
-
-  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "$@")"
-  if [[ ! "${status}" =~ ^[0-9]{3}$ || "${status}" -lt 200 || "${status}" -ge 300 ]]; then
-    echo "Expected ${label} to return a 2xx response, got ${status}." >&2
-    echo "Response headers:" >&2
-    cat "${headers_file}" >&2
-    echo "Response body:" >&2
-    cat "${body_file}" >&2
-    rm -f "${headers_file}" "${body_file}"
-    exit 1
-  fi
-
-  cat "${body_file}"
-  rm -f "${headers_file}" "${body_file}"
-}
+# HTTP/assertion/JSON-RPC helpers (assert_jq, assert_contains, fetch_required_url,
+# curl_required, ucp_status, ucp_expect_status, ucp_jsonrpc, next_idempotency_key) come
+# from the shared smoke library so they stay in sync with bin/validate-ucp-store.sh.
+# shellcheck source=bin/lib/ucp-http.sh
+source "${PLUGIN_ROOT}/bin/lib/ucp-http.sh"
 
 idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
 smoke_email="${idempotency_run_prefix}@example.com"
-
-next_idempotency_key() {
-  if command -v uuidgen >/dev/null 2>&1; then
-    printf '%s-%s' "${idempotency_run_prefix}" "$(uuidgen | tr '[:upper:]' '[:lower:]')"
-    return 0
-  fi
-
-  printf '%s-%s' "${idempotency_run_prefix}" "$(openssl rand -hex 16)"
-}
+UCP_IDEMPOTENCY_PREFIX="${idempotency_run_prefix}"
 
 wait_for_capture() {
   local attempt

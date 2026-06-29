@@ -12,27 +12,14 @@ fi
 
 BASE_URL="${BASE_URL%/}"
 PROFILE_URL="${PROFILE_URL:-${BASE_URL}/.well-known/ucp}"
-UCP_AGENT_HEADER="UCP-Agent: shopware-agentic-commerce-validator; profile=\"${PROFILE_URL}\""
 
-need() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Missing required command: $1" >&2
-    exit 127
-  fi
-}
+# shellcheck source=bin/lib/ucp-http.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/ucp-http.sh"
 
-need curl
-need jq
-
-oauth_body_file="$(mktemp)"
-tokenize_body_file="$(mktemp)"
-embedded_body_file="$(mktemp)"
-embedded_header_file="$(mktemp)"
-init_header_file="$(mktemp)"
-cleanup() {
-  rm -f "${oauth_body_file}" "${tokenize_body_file}" "${embedded_body_file}" "${embedded_header_file}" "${init_header_file}"
-}
-trap cleanup EXIT
+ucp_need curl jq
+UCP_IDEMPOTENCY_PREFIX="validate-$(date +%s)"
+# Authenticate runtime requests as the store's own profile (same-origin agent).
+ucp_http_init "${PROFILE_URL}" shopware-agentic-commerce-validator
 
 echo "Validating UCP profile: ${PROFILE_URL}"
 profile_json="$(curl -fsS "${PROFILE_URL}")"
@@ -53,36 +40,19 @@ if jq -e '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp")' >/d
   fi
 fi
 
-oauth_status="$(curl -sS -o "${oauth_body_file}" -w '%{http_code}' "${BASE_URL}/.well-known/oauth-authorization-server")"
-if [[ "${oauth_status}" != "501" ]]; then
-  echo "OAuth identity linking must stay unsupported until identity_linking is enabled for the sales channel. Expected 501, got ${oauth_status}." >&2
-  cat "${oauth_body_file}" >&2
-  exit 1
-fi
+# OAuth identity linking and payment tokenization must stay unsupported by default
+# (identity_linking is opt-in per sales channel; tokenization needs a real handler).
+ucp_expect_status 501 'OAuth identity linking metadata' \
+  "${BASE_URL}/.well-known/oauth-authorization-server" >/dev/null
 
-tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${UCP_AGENT_HEADER}" -H 'content-type: application/json' -H "Idempotency-Key: validate-tokenize-$(date +%s)" -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}')"
-if [[ "${tokenize_status}" != "501" ]]; then
-  echo "Payment tokenization must stay unsupported until a Shopware-backed adapter exists. Expected 501, got ${tokenize_status}." >&2
-  cat "${tokenize_body_file}" >&2
-  exit 1
-fi
+ucp_expect_status 501 'payment tokenization' \
+  -X POST "${BASE_URL}/ucp/v1/tokenize" \
+  -H 'content-type: application/json' \
+  -H "Idempotency-Key: $(next_idempotency_key)" \
+  -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}' >/dev/null
 
 has_transport() {
   jq -e --arg transport "$1" '.ucp.services["dev.ucp.shopping"][] | select(.transport == $transport)' >/dev/null <<<"${profile_json}"
-}
-
-jsonrpc_call() {
-  local endpoint="$1"
-  local method="$2"
-  local params="$3"
-  local id="${4:-1}"
-
-  curl -fsS \
-    -X POST "${endpoint}" \
-    -H "${UCP_AGENT_HEADER}" \
-    -H 'content-type: application/json' \
-    -H "idempotency-key: validate-${method//./-}-${id}-$(date +%s)" \
-    -d "$(jq -nc --arg method "${method}" --argjson params "${params}" --argjson id "${id}" '{jsonrpc:"2.0", id:$id, method:$method, params:$params}')"
 }
 
 run_extended_checks() {
@@ -95,13 +65,13 @@ run_extended_checks() {
   if has_transport a2a; then
     a2a_endpoint="$(jq -r '.ucp.services["dev.ucp.shopping"][] | select(.transport == "a2a") | .endpoint' <<<"${profile_json}" | head -n1)"
     echo "Validating A2A catalog.search: ${a2a_endpoint}"
-    search_response="$(jsonrpc_call "${a2a_endpoint}" catalog.search "$(jq -nc --arg query "${query}" '{query:$query, limit:1}')" 101)"
+    search_response="$(ucp_jsonrpc "${a2a_endpoint}" catalog.search "$(jq -nc --arg query "${query}" '{query:$query, limit:1}')" 101)"
     jq -e '.jsonrpc == "2.0" and (.result | type == "object")' >/dev/null <<<"${search_response}"
 
     first_item="$(jq -c '(.result.products // .result.items)[0] // empty' <<<"${search_response}")"
     if [[ -n "${first_item}" ]]; then
       echo "Validating A2A cart.create"
-      cart_response="$(jsonrpc_call "${a2a_endpoint}" cart.create "$(jq -nc --argjson item "${first_item}" '{line_items:[{item:$item, quantity:1}]}')" 102)"
+      cart_response="$(ucp_jsonrpc "${a2a_endpoint}" cart.create "$(jq -nc --argjson item "${first_item}" '{line_items:[{item:$item, quantity:1}]}')" 102)"
       jq -e '.result.id | type == "string" and length > 0' >/dev/null <<<"${cart_response}"
       cart_id="$(jq -r '.result.id' <<<"${cart_response}")"
     else
@@ -113,18 +83,24 @@ run_extended_checks() {
 
   if has_transport embedded && [[ -n "${cart_id}" ]]; then
     local origin="${UCP_VALIDATE_EMBEDDED_ORIGIN:-${BASE_URL}}"
+    local embedded_header_file embedded_body_file
+    embedded_header_file="$(mktemp)"
+    embedded_body_file="$(mktemp)"
     echo "Validating embedded cart headers and bridge"
     curl -fsS \
       -D "${embedded_header_file}" \
       -o "${embedded_body_file}" \
       -H "Origin: ${origin}" \
+      -H "${UCP_AGENT_HEADER}" \
       "${BASE_URL}/ucp/embedded/cart/${cart_id}"
     grep -qi '^content-security-policy:.*frame-ancestors' "${embedded_header_file}"
     if grep -qi '^x-frame-options:' "${embedded_header_file}"; then
       echo "Embedded responses must not emit X-Frame-Options; CSP frame-ancestors is the source of truth." >&2
+      rm -f "${embedded_header_file}" "${embedded_body_file}"
       exit 1
     fi
     grep -q 'ucp.embedded.ready' "${embedded_body_file}"
+    rm -f "${embedded_header_file}" "${embedded_body_file}"
   elif has_transport embedded; then
     echo "Skipping embedded body check: no sample cart id is available."
   else
@@ -132,9 +108,8 @@ run_extended_checks() {
   fi
 
   if has_transport mcp; then
-    local mcp_endpoint
-    local session_id
-    local tools_response
+    local mcp_endpoint init_header_file session_id tools_response
+    init_header_file="$(mktemp)"
 
     mcp_endpoint="$(jq -r '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint' <<<"${profile_json}" | head -n1)"
 
@@ -144,9 +119,11 @@ run_extended_checks() {
       -o /dev/null \
       -X POST "${mcp_endpoint}" \
       -H 'content-type: application/json' \
+      -H "${UCP_AGENT_HEADER}" \
       -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ucp-store-validator","version":"1.0"}},"id":201}'
 
     session_id="$(awk 'tolower($1) == "mcp-session-id:" {gsub(/\r/,"",$2); print $2; exit}' "${init_header_file}")"
+    rm -f "${init_header_file}"
     if [[ -z "${session_id}" ]]; then
       echo "MCP initialize did not return Mcp-Session-Id." >&2
       exit 1
@@ -156,6 +133,7 @@ run_extended_checks() {
       -X POST "${mcp_endpoint}" \
       -H 'content-type: application/json' \
       -H "mcp-session-id: ${session_id}" \
+      -H "${UCP_AGENT_HEADER}" \
       -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":202}')"
     jq -e '.result.tools | map(.name) | index("shopware-ucp-catalog-search") and index("shopware-ucp-cart-create") and index("shopware-ucp-checkout-create") and index("shopware-ucp-order-get")' >/dev/null <<<"${tools_response}"
   else
@@ -188,7 +166,7 @@ if [[ ! -d "${CONFORMANCE_DIR}" ]]; then
   exit 66
 fi
 
-need uv
+ucp_need uv
 
 (
   cd "${CONFORMANCE_DIR}"
