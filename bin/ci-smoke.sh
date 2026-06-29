@@ -582,142 +582,22 @@ fi
 search_term="${product_name%% *}"
 ucp_agent_header="UCP-Agent: shopware-agentic-commerce-ci; profile=\"${BASE_URL}/.well-known/ucp\""
 
-profile_json="$(curl_required 'UCP profile' "${BASE_URL}/.well-known/ucp")"
-assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
-assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
-assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.ucp.payment_handlers | type == "object" and length == 0'
+# Smoke check stages live in named modules so a failing banner names the area.
+# shellcheck source=bin/lib/smoke/discovery.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/discovery.sh"
+# shellcheck source=bin/lib/smoke/identity.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/identity.sh"
+# shellcheck source=bin/lib/smoke/catalog.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/catalog.sh"
+# shellcheck source=bin/lib/smoke/cart.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/cart.sh"
+# shellcheck source=bin/lib/smoke/checkout.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/checkout.sh"
 
-if [[ "${store_api_mcp_available}" == "1" ]]; then
-  assert_jq "${profile_json}" 'Expected MCP transport to point at the public UCP MCP endpoint.' '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint == $endpoint' --arg endpoint "${BASE_URL}/ucp/mcp"
-else
-  assert_jq "${profile_json}" 'Expected MCP transport to stay hidden when Store API MCP is unavailable.' '[.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp")] | length == 0'
-fi
+smoke_discovery
+smoke_identity
+smoke_catalog
+smoke_cart
+smoke_checkout
 
-if [[ "${core_agentic_files_available}" == "0" ]]; then
-  echo "Verifying fallback agentic discovery files."
-  llms_headers_file="$(mktemp)"
-  agents_headers_file="$(mktemp)"
-  llms_body_file="$(mktemp)"
-  agents_body_file="$(mktemp)"
-  llms_txt="$(fetch_required_url "${BASE_URL}/llms.txt" 'fallback /llms.txt' "${llms_headers_file}" "${llms_body_file}")"
-  agents_md="$(fetch_required_url "${BASE_URL}/agents.md" 'fallback /agents.md' "${agents_headers_file}" "${agents_body_file}")"
-
-  if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
-    echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
-    cat "${llms_headers_file}" >&2
-    exit 1
-  fi
-
-  if ! grep -Eiq '^content-type:[[:space:]]*text/markdown; charset=utf-8' "${agents_headers_file}"; then
-    echo "Expected fallback /agents.md to use text/markdown; charset=utf-8." >&2
-    cat "${agents_headers_file}" >&2
-    exit 1
-  fi
-
-  assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include localization guidance.' '## Localization'
-  assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include the UCP profile link.' '- [UCP profile](/.well-known/ucp)'
-  assert_contains "${agents_md}" 'Expected fallback /agents.md to include UCP agent guidance.' '## Agentic commerce via UCP'
-
-  localization_next_line="$(printf '%s\n' "${llms_txt}" | awk '/^## Localization$/ {getline; print; exit}')"
-  if [[ "${localization_next_line}" != "- Current language:"* ]]; then
-    echo "Expected fallback /llms.txt localization details to start immediately after the heading." >&2
-    printf '%s\n' "${llms_txt}" >&2
-    exit 1
-  fi
-
-  rm -f "${llms_headers_file}" "${agents_headers_file}" "${llms_body_file}" "${agents_body_file}"
-fi
-
-oauth_body_file="$(mktemp)"
-oauth_status="$(curl -sS -o "${oauth_body_file}" -w '%{http_code}' "${BASE_URL}/.well-known/oauth-authorization-server")"
-if [[ "${oauth_status}" != "501" ]]; then
-  echo "Expected OAuth metadata endpoint to return 501, got ${oauth_status}." >&2
-  cat "${oauth_body_file}" >&2
-  exit 1
-fi
-
-# Runtime requests must carry a UCP-Agent header (ucp-php-sdk request-time validation).
-# ucp_status sends no agent header here (UCP_AGENT_HEADER is unset in this script), so the
-# request must be rejected with 422 before reaching the capability.
-echo "Verifying the UCP-Agent header is required for runtime requests."
-no_agent_status="$(ucp_status -X POST "${BASE_URL}/ucp/v1/catalog/search" -H 'content-type: application/json' -H "Idempotency-Key: $(next_idempotency_key)" -d '{"query":"smoke","limit":1}')"
-if [[ "${no_agent_status}" != "422" ]]; then
-  echo "Expected a runtime request without a UCP-Agent header to return 422, got ${no_agent_status}." >&2
-  exit 1
-fi
-
-tokenize_body_file="$(mktemp)"
-tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}')"
-if [[ "${tokenize_status}" != "501" ]]; then
-  echo "Expected tokenization endpoint to return 501, got ${tokenize_status}." >&2
-  cat "${tokenize_body_file}" >&2
-  exit 1
-fi
-
-search_json="$(curl_required 'catalog.search' -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 3}')")"
-assert_jq "${search_json}" 'Expected catalog.search to return between 1 and 3 products.' '(.products // .items) | length > 0 and length <= 3'
-
-lookup_json="$(curl_required 'catalog.lookup' -X POST "${BASE_URL}/ucp/v1/catalog/lookup" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${product_id}" '{ids: [$id]}')")"
-assert_jq "${lookup_json}" 'Expected catalog.lookup to resolve exactly one product.' '(.products // .items) | length == 1'
-
-resolved_product_id="$(printf '%s' "${lookup_json}" | jq -r '(.products // .items)[0].id')"
-resolved_title="$(printf '%s' "${lookup_json}" | jq -r '(.products // .items)[0].title')"
-resolved_price="$(printf '%s' "${lookup_json}" | jq -r '(.products // .items)[0] as $product | $product.price // ((($product.variants[0].price.amount // $product.price_range.min.amount) / 100))')"
-
-product_json="$(curl_required 'catalog.product' "${BASE_URL}/ucp/v1/catalog/product/${product_id}" -H "${ucp_agent_header}")"
-assert_jq "${product_json}" 'Expected catalog.product to resolve the looked-up product title.' '(.product // .).title == $title' --arg title "${resolved_title}"
-
-cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}]}')"
-cart_json="$(curl_required 'cart.create' -X POST "${BASE_URL}/ucp/v1/carts" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_create_payload}")"
-assert_jq "${cart_json}" 'Expected cart.create to create one line item.' '.line_items | length == 1'
-cart_id="$(printf '%s' "${cart_json}" | jq -r '.id')"
-
-cart_get_json="$(curl_required 'cart.get' "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "${ucp_agent_header}")"
-assert_jq "${cart_get_json}" 'Expected cart.get to return the cart id.' '.id != null and .id != ""'
-
-cart_update_payload="$(jq -cn --arg cartId "${cart_id}" --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{id: $cartId, line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}]}')"
-cart_updated_json="$(curl_required 'cart.update' -X PATCH "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_update_payload}")"
-assert_jq "${cart_updated_json}" 'Expected cart.update to change the line-item quantity.' '.line_items[0].quantity == 2'
-
-cart_canceled_json="$(curl_required 'cart.cancel' -X POST "${BASE_URL}/ucp/v1/carts/${cart_id}/cancel" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
-assert_jq "${cart_canceled_json}" 'Expected cart.cancel to empty the cart.' '.line_items | length == 0'
-
-checkout_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
-checkout_json="$(curl_required 'checkout.create' -X POST "${BASE_URL}/ucp/v1/checkout-sessions" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_create_payload}")"
-assert_jq "${checkout_json}" 'Expected checkout.create to produce a ready-for-complete session.' '.status == "ready_for_complete"'
-checkout_id="$(printf '%s' "${checkout_json}" | jq -r '.id')"
-
-checkout_get_json="$(curl_required 'checkout.get' "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "${ucp_agent_header}")"
-assert_jq "${checkout_get_json}" 'Expected checkout.get to return the checkout session.' '.id != null and .id != ""'
-
-checkout_update_payload="$(jq -cn --arg checkoutId "${checkout_id}" --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{id: $checkoutId, line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
-checkout_updated_json="$(curl_required 'checkout.update' -X PATCH "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_update_payload}")"
-assert_jq "${checkout_updated_json}" 'Expected checkout.update to change the checkout quantity.' '.line_items[0].quantity == 2'
-
-curl_required 'webhook capture clear' -X DELETE "${WEBHOOK_CAPTURE_URL}" >/dev/null
-checkout_complete_json="$(curl_required 'checkout.complete' -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${checkout_id}" '{id: $id, payment: {}}')")"
-assert_jq "${checkout_complete_json}" 'Expected checkout.complete to create a Shopware order.' '.status == "completed" and .order.id != null and .order.id != ""'
-order_id="$(printf '%s' "${checkout_complete_json}" | jq -r '.order.id')"
-
-echo "Verifying secured order read."
-order_context_token="$(db_query "SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.swagAgenticCommerce.ucpCheckout.shopwareContextToken')) FROM sales_channel_api_context WHERE sales_channel_id = UNHEX('${sales_channel_id}') AND token = '${checkout_id}' LIMIT 1;")"
-if [[ -z "${order_context_token}" || "${order_context_token}" == "NULL" ]]; then
-  echo "Expected checkout metadata to contain a Shopware context token for secured order reads." >&2
-  exit 1
-fi
-
-order_json="$(curl_required 'order.read' "${BASE_URL}/ucp/v1/orders/${order_id}" -H "${ucp_agent_header}" -H "sw-context-token: ${order_context_token}")"
-assert_jq "${order_json}" 'Expected order.read to return the created order.' '.id == $orderId' --arg orderId "${order_id}"
-
-webhook_capture_json="$(wait_for_capture)"
-assert_jq "${webhook_capture_json}" 'Expected the captured webhook payload to reference the created order.' '.data.payload.order_id == $orderId' --arg orderId "${order_id}"
-assert_jq "${webhook_capture_json}" 'Expected the captured webhook request to include HTTP signature headers.' '.data.headers.signature != null and .data.headers["signature-input"] != null and .data.headers["content-digest"] != null'
-
-# NOTE: strict-signature acceptance/rejection is intentionally NOT asserted here. This smoke
-# sends unsigned requests, and flipping signaturePolicy=strict at runtime did not reject the
-# no-signature request (the SDK rejects bad signatures, not absent ones, on this path). Signed
-# request verification is covered by the conformance suite (bin/validate-ucp-store.sh
-# conformance) and the manual-testing doc.
-
-rm -f "${oauth_body_file}" "${tokenize_body_file}"
 echo "Smoke test passed for ${SHOPWARE_DIR}."
