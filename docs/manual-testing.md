@@ -3,8 +3,12 @@
 This document describes how a human tester validates `SwagAgenticCommerce`
 across the supported Shopware lanes.
 
-Automated coverage (PHPUnit, `bin/ci-smoke.sh`, e2e Playwright) runs in CI;
-this document covers only what automation cannot. The REST happy-path,
+Automated coverage (PHPUnit unit/integration/kernel suites, `bin/ci-smoke.sh`,
+e2e Playwright) runs in CI; this document covers only what automation cannot.
+Behavior is covered at the lowest layer that can express it — route and
+request-context behavior lives in the `kernel` integration suite
+(`composer test:kernel`, see [AGENTS.md](../AGENTS.md)), and shell smoke is
+reserved for deployed-stack concerns. The REST happy-path,
 profile/transport advertising, OAuth/tokenization `501` stubs, signed-webhook
 header capture, admin module rendering, and storefront shell rendering are all
 exercised automatically and need no manual repro — see the pointers throughout
@@ -173,9 +177,12 @@ Run these in the plugin repo:
 composer ci
 composer test
 composer test:integration
+composer test:kernel  # requires a lane: SHOPWARE_PROJECT_DIR unset + APP_ENV=test
 ```
 
-Expected result: all commands pass.
+Expected result: all commands pass. `composer test:kernel` boots a real test
+kernel and self-skips when run on the fast-path bootstrap (e.g. plain
+`composer ci`); run it against a configured lane.
 
 ## Automated REST / Profile / Webhook Coverage
 

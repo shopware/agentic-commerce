@@ -32,8 +32,9 @@ Use the repository scripts when dependencies are available:
 composer cs
 composer phpstan
 composer rector
-composer test
-composer test:integration
+composer test              # unit suite (mocks, no kernel)
+composer test:integration  # mock-based integration suite, fast-path bootstrap
+composer test:kernel       # kernel integration suite, boots a real test kernel
 ```
 
 The scripts delegate through `bin/run.php`, which can resolve tooling from this
@@ -44,6 +45,36 @@ files, and explain what was not runnable.
 For PHP changes, run the smallest relevant test suite first. Broaden to static
 analysis, integration tests, or lane smoke checks when the touched code affects
 shared runtime behavior, persistence, routes, or administration assets.
+
+### Test layering: prefer integration over smoke
+
+Cover behavior at the lowest layer that can express it, and prefer a PHP test
+over a shell smoke check whenever the behavior fits one — PHP tests are readable,
+debuggable, and run without a deployed HTTP stack:
+
+1. **`unit`** (`tests/Unit`, `composer test`) — pure logic with mocks; no kernel.
+2. **`integration`** (`tests/Integration`, `composer test:integration`) —
+   mock-based collaboration on the lightweight fast-path bootstrap (no kernel
+   boot). Excludes `tests/Integration/Ucp`.
+3. **`kernel`** (`tests/Integration/Ucp`, `composer test:kernel`) — boots a real
+   Shopware test kernel and drives UCP runtime routes end-to-end via
+   `static::getKernel()->handle(...)`. This is the **preferred** home for
+   route/request-context/capability behavior that used to be asserted by shell
+   smoke. Requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
+   `APP_ENV=test`); each test self-skips under the fast-path bootstrap. Runs
+   against a configured lane (e.g. the `shopware-6-6-branch-web` container) and
+   gates in CI on **every** `shopware-matrix` smoke lane (6.5.x/6.6.x/trunk,
+   `CI_SMOKE_RUN_INTEGRATION=1`) so lane-specific behavior is covered everywhere.
+   The suite uses the plugin's pinned phpunit (`.tools/vendor`), so it does not
+   inherit a lane's platform phpunit version.
+
+**Shell smoke is the last resort, not the default.** Add a check to `bin/lib/smoke/*`
+only when it genuinely cannot be a kernel test — full deployed-stack concerns
+such as the live storefront, theme compilation, admin build output, real HTTP
+transport, or signed-request conformance. Anything provable through a booted
+kernel belongs in the `kernel` suite. When you migrate a smoke assertion into a
+kernel test, remove the now-redundant smoke check once the kernel suite gates in
+CI, so coverage moves rather than duplicates.
 
 ### Shell smoke and lint tooling
 
@@ -61,7 +92,11 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
   `catalog`, `cart`, `checkout`). Each prints a `>>> smoke: <stage>` banner, so a
   failure names the area. Stages share the orchestrator's shell scope (they are
   sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module
-  and calling it from the orchestrator.
+  and calling it from the orchestrator. Before adding a smoke check, confirm it
+  cannot be a `kernel` integration test (see *Test layering* above) — smoke is
+  for deployed-stack concerns only. On every lane the orchestrator also installs
+  the plugin's dev deps and runs `composer test:kernel`
+  (`CI_SMOKE_RUN_INTEGRATION=1`).
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI
 `shell-lint` job; `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows

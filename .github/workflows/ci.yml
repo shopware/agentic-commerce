@@ -275,9 +275,10 @@ jobs:
         env:
           SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
           SHOPWARE_REF: ${{ matrix.lane }}
-          # Gate the kernel integration suite on a single lane (6.6.x): it installs the
-          # plugin's dev deps (phpunit) in the stack and boots a real test kernel.
-          CI_SMOKE_RUN_INTEGRATION: ${{ matrix.lane == '6.6.x' && '1' || '0' }}
+          # Run the kernel integration suite on every shopware-matrix lane: it installs
+          # the plugin's dev deps (phpunit) in the stack and boots a real test kernel,
+          # so lane-specific behavior is covered everywhere the smoke runs.
+          CI_SMOKE_RUN_INTEGRATION: '1'
       - run: npm run test:e2e:ucp -- --reporter=list
         working-directory: agentic-commerce
         env:

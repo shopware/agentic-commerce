@@ -132,12 +132,32 @@ Adjust the paths to match your local checkout layout.
 
 ```bash
 composer ci
-composer test
-composer test:integration
+composer test              # unit suite (mocks, no kernel)
+composer test:integration  # mock-based integration suite (fast-path bootstrap)
+composer test:kernel       # kernel integration suite (boots a real test kernel)
 bin/ci-smoke.sh /path/to/shopware-checkout
 bin/ci-admin-smoke.sh /path/to/shopware-checkout auto
 bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 ```
+
+### Prefer integration tests over shell smoke
+
+Cover behavior at the lowest layer that can express it, and reach for a PHP test
+before a shell smoke check. The `kernel` suite (`tests/Integration/Ucp`,
+`composer test:kernel`) boots a real Shopware test kernel and drives UCP runtime
+routes end-to-end, so it is the preferred home for route, request-context, and
+capability behavior — it is readable and debuggable without a deployed HTTP
+stack. It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
+`APP_ENV=test`); each test self-skips otherwise. In CI it gates on **every**
+`shopware-matrix` smoke lane (6.5.x/6.6.x/trunk, `CI_SMOKE_RUN_INTEGRATION=1`),
+which installs the plugin's dev deps and runs `composer test:kernel` after the
+HTTP smoke. It uses the plugin's pinned phpunit, independent of a lane's platform
+phpunit version.
+
+Shell smoke (`bin/ci-smoke.sh`) is reserved for what a kernel test cannot cover —
+the live deployed stack, real HTTP transport, theme/admin build output, and
+signed-request conformance. When a smoke assertion can become a kernel test,
+move it and drop the redundant smoke check once the kernel suite gates in CI.
 
 Manual human test steps are documented in [docs/manual-testing.md](docs/manual-testing.md).
 
