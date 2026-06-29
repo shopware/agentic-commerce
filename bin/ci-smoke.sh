@@ -566,15 +566,15 @@ smoke_checkout
 
 # Optionally run the kernel integration suite inside the already-booted stack. These tests
 # boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) rather than
-# hitting the deployed HTTP stack, so they need phpunit (the plugin's .tools/vendor, excluded
-# from the synced sources) and the SDK reachable at the plugin's ../ucp-php-sdk path-repo.
+# hitting the deployed HTTP stack. They use Shopware core's test base classes, which are
+# coupled to the lane's phpunit major (6.5->9, 6.6->10, trunk->11), so they must run on the
+# lane's OWN phpunit, not the plugin's pinned .tools 10.5. The smoke stack installs Shopware
+# --no-dev, so pull in the dev deps here: bin/run.php then prefers the platform phpunit and
+# tests/bootstrap.php registers the plugin's src + Tests namespaces on the platform autoloader.
 if [[ "${CI_SMOKE_RUN_INTEGRATION:-0}" == "1" ]]; then
-  echo "Installing plugin dev dependencies (phpunit) for the kernel integration suite."
-  web sh -lc 'ln -sfn ../ucp-php-sdk /var/www/html/custom/plugins/ucp-php-sdk \
-    && cd /var/www/html/custom/plugins/SwagAgenticCommerce \
-    && (composer install --no-interaction --prefer-dist --no-progress \
-        || composer update --no-interaction --prefer-dist --no-progress)'
-  echo "Running kernel integration suite (booting test kernel)."
+  echo "Installing Shopware dev dependencies so the kernel suite runs on the lane's own phpunit."
+  web composer install -d /var/www/html --no-interaction --no-progress --no-scripts
+  echo "Running kernel integration suite (lane phpunit, booting test kernel)."
   "${compose[@]}" exec -T \
     -e SHOPWARE_PROJECT_DIR= \
     -e APP_ENV=test \

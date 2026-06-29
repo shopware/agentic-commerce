@@ -149,13 +149,15 @@ routes end-to-end, so it is the preferred home for route, request-context, and
 capability behavior — it is readable and debuggable without a deployed HTTP
 stack. It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
 `APP_ENV=test`); each test self-skips otherwise. Run it against a configured lane
-with `composer test:kernel`.
+with `composer test:kernel`. In CI it gates on **every** `shopware-matrix` lane
+(`CI_SMOKE_RUN_INTEGRATION=1`).
 
-Note: this suite is not yet CI-gated across all lanes. It uses Shopware core's
-test base classes, which are coupled to each lane's phpunit major (6.5→9.x,
-6.6→10.x, trunk→11.x), so it must run with the lane's own platform phpunit. 6.6
-passes today; cross-lane gating (per-lane phpunit + a 6.7-only `getKernel()->handle()`
-difference) is tracked as follow-up.
+It runs on the **lane's own** phpunit: Shopware core's test base classes are
+coupled to each lane's phpunit major (6.5→9.x, 6.6→10.x, trunk→11.x), so a single
+pinned phpunit can't span lanes. `bin/run.php` prefers the platform phpunit inside
+a lane and `tests/bootstrap.php` registers the plugin on the platform autoloader;
+ci-smoke installs Shopware's dev deps so that binary is present. The unit/mock
+suites stay on the plugin's pinned `.tools` phpunit (fast, lane-independent).
 
 Shell smoke (`bin/ci-smoke.sh`) is reserved for what a kernel test cannot cover —
 the live deployed stack, real HTTP transport, theme/admin build output, and

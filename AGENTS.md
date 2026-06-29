@@ -63,18 +63,21 @@ debuggable, and run without a deployed HTTP stack:
    smoke. Requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
    `APP_ENV=test`); each test self-skips under the fast-path bootstrap. Run it
    against a configured lane (e.g. the `shopware-6-6-branch-web` container) with
-   `composer test:kernel`.
+   `composer test:kernel`. It gates in CI on **every** `shopware-matrix` lane
+   (`CI_SMOKE_RUN_INTEGRATION=1`).
 
-   **Cross-lane caveat (why this is not yet CI-gated on all lanes):** the suite
-   uses Shopware core's test base classes (`IntegrationTestBehaviour`), which are
-   coupled to the lane's phpunit major — 6.5 pins phpunit 9.x (calls the removed
-   `getName()`), 6.6 pins 10.x, trunk pins 11.x. So it must run with the *lane's
-   own* platform phpunit (`bin/run.php` prefers it when present), not the
-   plugin's pinned `.tools` phpunit. 6.6 (10.x) passes; trunk (11.x) runs but a
-   route currently returns `500` instead of `422`/`501` through
-   `getKernel()->handle()` (a 6.7-only difference; the HTTP smoke passes there);
-   6.5 has no platform phpunit in the `--no-dev` smoke stack and needs its 9.x
-   installed. Gating across all lanes is tracked as follow-up work.
+   **Runs on the lane's own phpunit, not the plugin's.** The suite uses Shopware
+   core's test base classes (`IntegrationTestBehaviour`), which are coupled to the
+   lane's phpunit major — 6.5 pins 9.x (the removed `getName()`), 6.6 10.x, trunk
+   11.x — so a single pinned phpunit cannot span all lanes. `bin/run.php` prefers
+   the platform phpunit binary when inside a lane, and `tests/bootstrap.php`
+   registers the plugin's `src` + `Tests` namespaces on the platform autoloader,
+   so the suite runs on whatever phpunit the lane ships. ci-smoke installs
+   Shopware's dev deps (the smoke stack is `--no-dev`) to make that binary
+   available. This is distinct from the **unit/mock** suites, which deliberately
+   run on the plugin's pinned `.tools` phpunit (fast, lane-independent) — do not
+   remove that pin (the PHP-8.1 lane runs against 6.5/phpunit-9, where our
+   attribute-based tests would otherwise break).
 
 **Shell smoke is the last resort, not the default.** Add a check to `bin/lib/smoke/*`
 only when it genuinely cannot be a kernel test — full deployed-stack concerns
@@ -102,10 +105,9 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
   sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module
   and calling it from the orchestrator. Before adding a smoke check, confirm it
   cannot be a `kernel` integration test (see *Test layering* above) — smoke is
-  for deployed-stack concerns only. The orchestrator has a dormant
-  `CI_SMOKE_RUN_INTEGRATION=1` hook that installs dev deps and runs the kernel
-  suite in the stack; it is currently unused in CI pending the cross-lane phpunit
-  work noted above.
+  for deployed-stack concerns only. With `CI_SMOKE_RUN_INTEGRATION=1` (set on
+  every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and
+  runs the kernel suite on the lane's own phpunit after the HTTP smoke.
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI
 `shell-lint` job; `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows
