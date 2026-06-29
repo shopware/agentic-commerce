@@ -564,4 +564,22 @@ smoke_catalog
 smoke_cart
 smoke_checkout
 
+# Optionally run the kernel integration suite inside the already-booted stack. These tests
+# boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) rather than
+# hitting the deployed HTTP stack, so they need phpunit (the plugin's .tools/vendor, excluded
+# from the synced sources) and the SDK reachable at the plugin's ../ucp-php-sdk path-repo.
+if [[ "${CI_SMOKE_RUN_INTEGRATION:-0}" == "1" ]]; then
+  echo "Installing plugin dev dependencies (phpunit) for the kernel integration suite."
+  web sh -lc 'ln -sfn ../ucp-php-sdk /var/www/html/custom/plugins/ucp-php-sdk \
+    && cd /var/www/html/custom/plugins/SwagAgenticCommerce \
+    && (composer install --no-interaction --prefer-dist --no-progress \
+        || composer update --no-interaction --prefer-dist --no-progress)'
+  echo "Running kernel integration suite (booting test kernel)."
+  "${compose[@]}" exec -T \
+    -e SHOPWARE_PROJECT_DIR= \
+    -e APP_ENV=test \
+    -w /var/www/html/custom/plugins/SwagAgenticCommerce \
+    web php bin/run.php phpunit --testsuite kernel
+fi
+
 echo "Smoke test passed for ${SHOPWARE_DIR}."
