@@ -669,6 +669,16 @@ if [[ "${oauth_status}" != "501" ]]; then
   exit 1
 fi
 
+# Runtime requests must carry a UCP-Agent header (ucp-php-sdk request-time validation).
+# ucp_status sends no agent header here (UCP_AGENT_HEADER is unset in this script), so the
+# request must be rejected with 422 before reaching the capability.
+echo "Verifying the UCP-Agent header is required for runtime requests."
+no_agent_status="$(ucp_status -X POST "${BASE_URL}/ucp/v1/catalog/search" -H 'content-type: application/json' -H "Idempotency-Key: $(next_idempotency_key)" -d '{"query":"smoke","limit":1}')"
+if [[ "${no_agent_status}" != "422" ]]; then
+  echo "Expected a runtime request without a UCP-Agent header to return 422, got ${no_agent_status}." >&2
+  exit 1
+fi
+
 tokenize_body_file="$(mktemp)"
 tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}')"
 if [[ "${tokenize_status}" != "501" ]]; then
@@ -735,6 +745,19 @@ assert_jq "${order_json}" 'Expected order.read to return the created order.' '.i
 webhook_capture_json="$(wait_for_capture)"
 assert_jq "${webhook_capture_json}" 'Expected the captured webhook payload to reference the created order.' '.data.payload.order_id == $orderId' --arg orderId "${order_id}"
 assert_jq "${webhook_capture_json}" 'Expected the captured webhook request to include HTTP signature headers.' '.data.headers.signature != null and .data.headers["signature-input"] != null and .data.headers["content-digest"] != null'
+
+# Strict signature policy must reject an unsigned request. The smoke sends unsigned requests
+# throughout (hence the log policy above), so flipping to strict and re-issuing one must be
+# rejected with a 4xx; restore log afterwards. Signed-positive coverage lives in the
+# conformance suite (bin/validate-ucp-store.sh conformance).
+echo "Verifying strict signature policy rejects unsigned requests."
+web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy strict --salesChannelId="${sales_channel_id}" >/dev/null
+strict_status="$(ucp_status -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 1}')")"
+web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy log --salesChannelId="${sales_channel_id}" >/dev/null
+if [[ ! "${strict_status}" =~ ^4 ]]; then
+  echo "Expected strict signature policy to reject the unsigned request with a 4xx, got ${strict_status}." >&2
+  exit 1
+fi
 
 rm -f "${oauth_body_file}" "${tokenize_body_file}"
 echo "Smoke test passed for ${SHOPWARE_DIR}."
