@@ -6,12 +6,10 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
   exit 1
 fi
 
-for dependency in jq; do
-  if ! command -v "${dependency}" >/dev/null 2>&1; then
-    echo "Required dependency '${dependency}' is not available." >&2
-    exit 1
-  fi
-done
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Required dependency 'jq' is not available." >&2
+  exit 1
+fi
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"

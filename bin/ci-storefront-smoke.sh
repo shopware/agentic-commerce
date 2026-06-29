@@ -6,12 +6,10 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-for dependency in curl; do
-  if ! command -v "${dependency}" >/dev/null 2>&1; then
-    echo "Required dependency '${dependency}' is not available." >&2
-    exit 1
-  fi
-done
+if ! command -v curl >/dev/null 2>&1; then
+  echo "Required dependency 'curl' is not available." >&2
+  exit 1
+fi
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
