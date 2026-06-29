@@ -148,11 +148,14 @@ before a shell smoke check. The `kernel` suite (`tests/Integration/Ucp`,
 routes end-to-end, so it is the preferred home for route, request-context, and
 capability behavior — it is readable and debuggable without a deployed HTTP
 stack. It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
-`APP_ENV=test`); each test self-skips otherwise. In CI it gates on **every**
-`shopware-matrix` smoke lane (6.5.x/6.6.x/trunk, `CI_SMOKE_RUN_INTEGRATION=1`),
-which installs the plugin's dev deps and runs `composer test:kernel` after the
-HTTP smoke. It uses the plugin's pinned phpunit, independent of a lane's platform
-phpunit version.
+`APP_ENV=test`); each test self-skips otherwise. Run it against a configured lane
+with `composer test:kernel`.
+
+Note: this suite is not yet CI-gated across all lanes. It uses Shopware core's
+test base classes, which are coupled to each lane's phpunit major (6.5→9.x,
+6.6→10.x, trunk→11.x), so it must run with the lane's own platform phpunit. 6.6
+passes today; cross-lane gating (per-lane phpunit + a 6.7-only `getKernel()->handle()`
+difference) is tracked as follow-up.
 
 Shell smoke (`bin/ci-smoke.sh`) is reserved for what a kernel test cannot cover —
 the live deployed stack, real HTTP transport, theme/admin build output, and
