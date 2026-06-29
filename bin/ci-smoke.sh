@@ -196,6 +196,11 @@ done
 
 container_runtime="${compose_cmd[0]}"
 
+# Container helpers (web, web_container_id, web_is_running, web_root_mount_type,
+# db_query, db_table_exists) come from the shared lane library.
+# shellcheck source=bin/lib/lane.sh
+source "${PLUGIN_ROOT}/bin/lib/lane.sh"
+
 cleanup() {
   rm -rf "${shopware_stage_dir}"
   rm -f "${smoke_override_file}"
@@ -208,44 +213,6 @@ cleanup() {
 }
 
 trap cleanup EXIT
-
-web() {
-  "${compose[@]}" exec -T web "$@"
-}
-
-web_container_id() {
-  "${compose[@]}" ps -a -q web
-}
-
-web_is_running() {
-  [[ -n "$("${compose[@]}" ps -q web)" ]]
-}
-
-web_root_mount_type() {
-  local web_id
-  web_id="$(web_container_id)"
-
-  if [[ -z "${web_id}" ]]; then
-    return 1
-  fi
-
-  "${container_runtime}" inspect \
-    --format '{{range .Mounts}}{{if eq .Destination "/var/www/html"}}{{.Type}}{{end}}{{end}}' \
-    "${web_id}"
-}
-
-db_query() {
-  "${compose[@]}" exec -T database mariadb -N -uroot -proot shopware -e "$1"
-}
-
-db_table_exists() {
-  local table_name="$1"
-  local result
-
-  result="$("${compose[@]}" exec -T database mariadb -N -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'shopware' AND table_name = '${table_name}';")"
-
-  [[ "${result}" == "1" ]]
-}
 
 # HTTP/assertion/JSON-RPC helpers (assert_jq, assert_contains, fetch_required_url,
 # curl_required, ucp_status, ucp_expect_status, ucp_jsonrpc, next_idempotency_key) come
