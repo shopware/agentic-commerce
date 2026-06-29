@@ -7,39 +7,51 @@ class UcpAdminApiService extends ApiService {
     }
 
     getSalesChannels() {
-        return this.httpClient.get('/_admin/ucp/sales-channels', { headers: this.getBasicHeaders() });
+        return this.httpClient.get('/_admin/ucp/sales-channels', this.options());
     }
 
     getSalesChannel(salesChannelId) {
-        return this.httpClient.get(`/_admin/ucp/sales-channels/${salesChannelId}`, { headers: this.getBasicHeaders() });
+        return this.httpClient.get(this.basePath(salesChannelId), this.options());
     }
 
     getConfig(salesChannelId) {
-        return this.httpClient.get(`/_admin/ucp/sales-channels/${salesChannelId}/config`, { headers: this.getBasicHeaders() });
+        return this.httpClient.get(this.basePath(salesChannelId, '/config'), this.options());
     }
 
     saveConfig(salesChannelId, payload) {
-        return this.httpClient.put(`/_admin/ucp/sales-channels/${salesChannelId}/config`, payload, { headers: this.getBasicHeaders() });
+        return this.httpClient.put(this.basePath(salesChannelId, '/config'), payload, this.options());
     }
 
     getProfilePreview(salesChannelId) {
-        return this.httpClient.get(`/_admin/ucp/sales-channels/${salesChannelId}/profile-preview`, { headers: this.getBasicHeaders() });
+        return this.httpClient.get(this.basePath(salesChannelId, '/profile-preview'), this.options());
     }
 
     getKeys(salesChannelId) {
-        return this.httpClient.get(`/_admin/ucp/sales-channels/${salesChannelId}/keys`, { headers: this.getBasicHeaders() });
+        return this.httpClient.get(this.basePath(salesChannelId, '/keys'), this.options());
     }
 
     createKey(salesChannelId, payload = {}) {
-        return this.httpClient.post(`/_admin/ucp/sales-channels/${salesChannelId}/keys`, payload, { headers: this.getBasicHeaders() });
+        return this.httpClient.post(this.basePath(salesChannelId, '/keys'), payload, this.options());
     }
 
     retireKey(salesChannelId, kid) {
-        return this.httpClient.post(`/_admin/ucp/sales-channels/${salesChannelId}/keys/${kid}/retire`, {}, { headers: this.getBasicHeaders() });
+        return this.httpClient.post(this.keyPath(salesChannelId, kid, '/retire'), {}, this.options());
     }
 
     deleteKey(salesChannelId, kid) {
-        return this.httpClient.delete(`/_admin/ucp/sales-channels/${salesChannelId}/keys/${kid}`, { headers: this.getBasicHeaders() });
+        return this.httpClient.delete(this.keyPath(salesChannelId, kid), this.options());
+    }
+
+    basePath(salesChannelId, suffix = '') {
+        return `/_admin/ucp/sales-channels/${encodeURIComponent(salesChannelId)}${suffix}`;
+    }
+
+    keyPath(salesChannelId, kid, suffix = '') {
+        return this.basePath(salesChannelId, `/keys/${encodeURIComponent(kid)}${suffix}`);
+    }
+
+    options() {
+        return { headers: this.getBasicHeaders() };
     }
 }
 

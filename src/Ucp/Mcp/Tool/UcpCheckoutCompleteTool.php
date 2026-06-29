@@ -27,7 +27,7 @@ final class UcpCheckoutCompleteTool
             return $this->toolContext->executeMutating(
                 'checkout.complete',
                 ['id' => $id],
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.complete',
                     [],
                     $context,

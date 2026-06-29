@@ -110,6 +110,51 @@ final class UcpConfigServiceTest extends TestCase
 
         static::assertSame([], $bridge->enabledSalesChannelIds);
     }
+
+    public function testItEnablesCoreAgenticFilesWhenActiveLegacyConfigIsBackfilledOnRead(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(
+            static fn (string $key): mixed => 'SwagAgenticCommerce.config.active' === $key ? true : null,
+        );
+        $bridge = new RecordingAgenticFilesCoreBridge();
+        $service = new UcpConfigService($repository, $legacyStore, $bridge);
+
+        $service->getConfig('sales-channel-b');
+
+        static::assertSame(['sales-channel-b'], $bridge->enabledSalesChannelIds);
+    }
+
+    public function testItDoesNotEnableCoreAgenticFilesWhenInactiveLegacyConfigIsBackfilledOnRead(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(
+            static fn (string $key): mixed => 'SwagAgenticCommerce.config.signaturePolicy' === $key ? 'log' : null,
+        );
+        $bridge = new RecordingAgenticFilesCoreBridge();
+        $service = new UcpConfigService($repository, $legacyStore, $bridge);
+
+        $service->getConfig('sales-channel-b');
+
+        static::assertSame([], $bridge->enabledSalesChannelIds);
+    }
+
+    public function testItDoesNotEnableCoreAgenticFilesWhenConfigAlreadyPersisted(): void
+    {
+        $repository = new InMemoryUcpConfigRepository([
+            'sales-channel-a' => UcpConfig::fromArray(['active' => true]),
+        ]);
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->expects(static::never())->method('get');
+        $bridge = new RecordingAgenticFilesCoreBridge();
+        $service = new UcpConfigService($repository, $legacyStore, $bridge);
+
+        $service->getConfig('sales-channel-a');
+
+        static::assertSame([], $bridge->enabledSalesChannelIds);
+    }
 }
 
 final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
@@ -142,6 +187,7 @@ final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
     }
 }
 
+/** @internal */
 final class RecordingAgenticFilesCoreBridge implements AgenticFilesCoreBridgeInterface
 {
     /**

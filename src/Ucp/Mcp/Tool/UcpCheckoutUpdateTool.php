@@ -29,7 +29,7 @@ final class UcpCheckoutUpdateTool
             return $this->toolContext->executeMutating(
                 'checkout.update',
                 ['id' => $id, 'payload' => $requestPayload],
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.update',
                     $requestPayload,
                     $context,

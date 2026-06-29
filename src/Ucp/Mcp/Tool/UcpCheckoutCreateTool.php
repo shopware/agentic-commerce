@@ -29,7 +29,7 @@ final class UcpCheckoutCreateTool
             return $this->toolContext->executeMutating(
                 'checkout.create',
                 $requestPayload,
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.create',
                     $requestPayload,
                     $context,

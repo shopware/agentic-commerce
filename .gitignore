@@ -18,3 +18,4 @@
 .mcp-js-tooling.json
 .lsp-php-tooling.json
 AGENTS.override.md
+/.idea

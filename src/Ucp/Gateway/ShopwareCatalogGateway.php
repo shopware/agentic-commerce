@@ -73,13 +73,13 @@ final class ShopwareCatalogGateway
         $products = [];
 
         foreach ($response->getProducts() as $product) {
-            $products[$product->getId()] = $this->mapper->toProduct($product);
+            $products[$product->getId()] = $product;
         }
 
         $orderedProducts = [];
         foreach ($ids as $id) {
             if (isset($products[$id])) {
-                $orderedProducts[] = $products[$id];
+                $orderedProducts[] = $this->mapper->toProduct($products[$id], $id);
             }
         }
 

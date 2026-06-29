@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Capability;
 use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Contract\CatalogCapabilityInterface;
 use Ucp\Sdk\Model\Catalog\CatalogLookupRequest;
+use Ucp\Sdk\Model\Catalog\CatalogProductRequest;
 use Ucp\Sdk\Model\Catalog\CatalogSearchRequest;
 use Ucp\Sdk\Model\Catalog\CatalogSearchResponse;
 use Ucp\Sdk\Model\Catalog\Product;
@@ -40,10 +41,10 @@ final class CatalogCapability implements CatalogCapabilityInterface
         return $this->adapter->lookup($request, $context);
     }
 
-    public function getProduct(string $id, RequestContext $context): Product
+    public function getProduct(CatalogProductRequest $request, RequestContext $context): Product
     {
         CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG, 'Catalog capability is disabled for this sales channel.');
 
-        return $this->adapter->getProduct($id, $context);
+        return $this->adapter->getProduct($request, $context);
     }
 }

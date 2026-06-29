@@ -35,6 +35,7 @@ export const swSalesChannelDetailOverride = {
         },
         'productExport.provider'() {
             this.detectCurrentTemplate();
+            this.syncExportFileName();
         },
     },
 
@@ -300,6 +301,33 @@ export const swSalesChannelDetailOverride = {
 
             if (matchedTemplate) {
                 this.productComparison.templateName = matchedTemplate.name;
+            }
+        },
+
+        // Align the export filename extension and fileFormat with the active
+        // provider's registered template (the plugin's source of truth: jsonl for
+        // OpenAI, xml for Google), so the generated feed URL matches the format.
+        syncExportFileName() {
+            if (!this.productExport?.provider || !this.productExport?.fileName) {
+                return;
+            }
+
+            const registry = Shopware.Service('exportTemplateService').getProductExportTemplateRegistry();
+            const matchedTemplate = Object.values(registry).find((entry) => {
+                return entry.providerName === this.productExport.provider;
+            });
+
+            if (!matchedTemplate?.fileFormat) {
+                return;
+            }
+
+            const nextFileName = this.productExport.fileName.replace(/\.[^.]*$/, '') + '.' + matchedTemplate.fileFormat;
+            if (nextFileName !== this.productExport.fileName) {
+                this.productExport.fileName = nextFileName;
+            }
+
+            if (this.productExport.fileFormat !== matchedTemplate.fileFormat) {
+                this.productExport.fileFormat = matchedTemplate.fileFormat;
             }
         },
 

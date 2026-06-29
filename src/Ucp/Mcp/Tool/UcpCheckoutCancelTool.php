@@ -27,7 +27,7 @@ final class UcpCheckoutCancelTool
             return $this->toolContext->executeMutating(
                 'checkout.cancel',
                 ['id' => $id],
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.cancel',
                     [],
                     $context,

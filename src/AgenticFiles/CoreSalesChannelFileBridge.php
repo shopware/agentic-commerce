@@ -23,6 +23,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
     private const FILE_NAMES = [
         'llms.txt',
         'agents.md',
+        '.well-known/ai-catalog.json',
     ];
 
     public function __construct(

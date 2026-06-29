@@ -21,6 +21,7 @@ Internal by default:
 - `Swag\AgenticCommerce\DependencyInjection\`
 - `Swag\AgenticCommerce\Exception\`
 - `Swag\AgenticCommerce\Migration\`
+- `Swag\AgenticCommerce\Storefront\`
 - `Swag\AgenticCommerce\System\`
 - `Swag\AgenticCommerce\Ucp\`
 

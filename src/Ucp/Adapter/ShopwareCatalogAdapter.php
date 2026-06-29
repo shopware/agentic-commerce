@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Adapter;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Model\Catalog\CatalogLookupRequest;
+use Ucp\Sdk\Model\Catalog\CatalogProductRequest;
 use Ucp\Sdk\Model\Catalog\CatalogSearchRequest;
 use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\RequestContext;
@@ -29,8 +30,8 @@ final class ShopwareCatalogAdapter implements CatalogAdapterInterface
         return $this->gateway->lookup($request->ids, $context);
     }
 
-    public function getProduct(string $id, RequestContext $context): Product
+    public function getProduct(CatalogProductRequest $request, RequestContext $context): Product
     {
-        return $this->gateway->getProduct($id, $context);
+        return $this->gateway->getProduct($request->id, $context);
     }
 }

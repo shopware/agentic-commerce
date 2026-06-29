@@ -36,6 +36,12 @@ final class FallbackAgenticFileController
         return $this->render('agents.md', $context);
     }
 
+    #[Route(path: '/.well-known/ai-catalog.json', name: 'swag_agentic_commerce.ai_catalog', methods: ['GET'])]
+    public function aiCatalog(SalesChannelContext $context): Response
+    {
+        return $this->render('.well-known/ai-catalog.json', $context);
+    }
+
     private function render(string $fileName, SalesChannelContext $context): Response
     {
         if (!$this->configService->getConfig($context->getSalesChannelId())->active) {

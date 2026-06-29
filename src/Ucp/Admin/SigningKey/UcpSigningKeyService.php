@@ -14,6 +14,11 @@ use Ucp\Sdk\Service\SigningKeyManagerInterface;
 #[Package('framework')]
 final class UcpSigningKeyService
 {
+    /**
+     * URL- and JWK-safe character set for a key id (also admits the auto-generated "key-<YmdHis>" default).
+     */
+    private const KID_PATTERN = '/^[A-Za-z0-9._-]{1,64}$/';
+
     public function __construct(
         private readonly ManagedSigningKeyRepositoryInterface $repository,
         private readonly SigningKeyManagerInterface $signingKeyManager,
@@ -46,6 +51,14 @@ final class UcpSigningKeyService
      */
     public function create(?string $salesChannelId, ?string $kid = null, string $algorithm = 'ES256'): array
     {
+        if (null === SigningKeyAlgorithm::tryFrom($algorithm)) {
+            throw UcpSigningKeyException::invalidAlgorithm($algorithm, SigningKeyAlgorithm::values());
+        }
+
+        if (null !== $kid && '' !== $kid && 1 !== preg_match(self::KID_PATTERN, $kid)) {
+            throw UcpSigningKeyException::invalidKid('only letters, digits, dot, underscore and hyphen are allowed, with a maximum length of 64 characters');
+        }
+
         $key = $this->signingKeyManager->generate($kid ?: 'key-'.gmdate('YmdHis'), $algorithm);
         $this->saveManaged($salesChannelId, $key);
 
