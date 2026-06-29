@@ -45,6 +45,33 @@ For PHP changes, run the smallest relevant test suite first. Broaden to static
 analysis, integration tests, or lane smoke checks when the touched code affects
 shared runtime behavior, persistence, routes, or administration assets.
 
+### Shell smoke and lint tooling
+
+The `bin/` smoke scripts share helpers from `bin/lib/`:
+
+- `bin/lib/ucp-http.sh` — curl wrappers (`curl_required`, `ucp_status`,
+  `ucp_expect_status`, `ucp_jsonrpc`), assertions, and `next_idempotency_key`.
+  `ucp_http_init` builds the `UCP-Agent` header and the wrappers auto-inject it,
+  so a runtime request can never silently omit it (the SDK rejects a missing
+  header with `422`).
+- `bin/lib/lane.sh` — container helpers (`web`, `db_query`, …) operating on the
+  sourcing script's `compose` array and `container_runtime`.
+- `bin/lib/smoke/*.sh` — `bin/ci-smoke.sh` is a thin orchestrator that, after
+  bootstrap, sources and runs named stage modules (`discovery`, `identity`,
+  `catalog`, `cart`, `checkout`). Each prints a `>>> smoke: <stage>` banner, so a
+  failure names the area. Stages share the orchestrator's shell scope (they are
+  sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module
+  and calling it from the orchestrator.
+
+Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI
+`shell-lint` job; `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows
+the `# shellcheck source=` directives so the sourced modules are validated in
+context.
+
+Signed / strict-signature request verification is **not** covered by the smoke
+(it sends unsigned requests under log policy); use the conformance suite,
+`bin/validate-ucp-store.sh <url> '' conformance`.
+
 ## Administration Build Matrix
 
 The administration build system differs by lane:
