@@ -53,4 +53,18 @@ final class UcpRequestContextGuardTest extends TestCase
         $payload = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         self::assertSame('$.headers.ucp-agent is required', $payload['messages'][0]['content'] ?? null);
     }
+
+    #[Test]
+    public function testOAuthMetadataStaysUnsupportedUntilIdentityLinkingIsEnabled(): void
+    {
+        $domain = static::getContainer()->get(Connection::class)
+            ->fetchOne("SELECT url FROM sales_channel_domain WHERE url LIKE 'http%' ORDER BY url LIMIT 1");
+        self::assertIsString($domain, 'Expected a storefront sales-channel domain in the test database.');
+
+        $response = static::getKernel()->handle(
+            Request::create($domain.'/.well-known/oauth-authorization-server')
+        );
+
+        self::assertSame(Response::HTTP_NOT_IMPLEMENTED, $response->getStatusCode());
+    }
 }
