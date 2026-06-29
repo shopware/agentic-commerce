@@ -275,6 +275,8 @@ jobs:
         env:
           SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
           SHOPWARE_REF: ${{ matrix.lane }}
+          # Kernel integration suite is validated on 6.6 first; widen to other lanes once stable.
+          CI_SMOKE_RUN_INTEGRATION: ${{ matrix.lane == '6.6.x' && '1' || '0' }}
       - run: npm run test:e2e:ucp -- --reporter=list
         working-directory: agentic-commerce
         env:
