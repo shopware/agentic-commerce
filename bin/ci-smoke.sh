@@ -20,24 +20,11 @@ PLUGIN_ZIP="${CI_SMOKE_PLUGIN_ZIP:-}"
 SMOKE_MODE="${CI_SMOKE_MODE:-}"
 SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 
-detect_shopware_lane() {
-  if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
-    printf '%s\n' "${SHOPWARE_REF}"
-    return 0
-  fi
-
-  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
-    printf 'trunk\n'
-    return 0
-  fi
-
-  if grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
-    printf '6.6.x\n'
-    return 0
-  fi
-
-  printf '6.5.x\n'
-}
+# Shared container/lane helpers: web, web_is_running, web_root_mount_type, db_query,
+# db_table_exists, lane_detect_compose_cmd, detect_base_url, detect_shopware_lane.
+# (web_container_id stays defined per-script where its flags differ.)
+# shellcheck source=bin/lib/lane.sh
+source "${PLUGIN_ROOT}/bin/lib/lane.sh"
 
 SHOPWARE_BRANCH="$(detect_shopware_lane)"
 
@@ -133,14 +120,7 @@ elif [[ "${SKIP_PLUGIN}" != "1" && ! -d "${SDK_ROOT}" ]]; then
   exit 1
 fi
 
-if command -v docker >/dev/null 2>&1; then
-  compose_cmd=(docker compose)
-elif command -v podman >/dev/null 2>&1; then
-  compose_cmd=(podman compose)
-else
-  echo "Neither docker nor podman is available." >&2
-  exit 1
-fi
+read -ra compose_cmd <<< "$(lane_detect_compose_cmd)"
 
 if [[ ! -f "${SHOPWARE_DIR}/compose.yaml" ]]; then
   echo "Missing ${SHOPWARE_DIR}/compose.yaml. In CI, run bin/ci-write-compose.sh before bin/ci-smoke.sh." >&2
@@ -151,17 +131,6 @@ compose_files=("${SHOPWARE_DIR}/compose.yaml")
 if [[ -f "${SHOPWARE_DIR}/compose.override.yaml" ]]; then
   compose_files+=("${SHOPWARE_DIR}/compose.override.yaml")
 fi
-
-detect_base_url() {
-  local detected
-  detected="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' "${SHOPWARE_DIR}/compose.yaml" | head -n 1)"
-  if [[ -n "${detected}" ]]; then
-    printf '%s\n' "${detected}"
-    return 0
-  fi
-
-  printf 'http://localhost:8000\n'
-}
 
 BASE_URL="${BASE_URL:-$(detect_base_url)}"
 WEBHOOK_CAPTURE_URL="${WEBHOOK_CAPTURE_URL:-${BASE_URL}/_action/swag-agentic-commerce/test/webhooks}"
@@ -195,11 +164,6 @@ for compose_file in "${compose_files[@]}"; do
 done
 
 container_runtime="${compose_cmd[0]}"
-
-# Container helpers (web, web_container_id, web_is_running, web_root_mount_type,
-# db_query, db_table_exists) come from the shared lane library.
-# shellcheck source=bin/lib/lane.sh
-source "${PLUGIN_ROOT}/bin/lib/lane.sh"
 
 cleanup() {
   rm -rf "${shopware_stage_dir}"

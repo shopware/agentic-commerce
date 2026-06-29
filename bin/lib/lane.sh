@@ -28,6 +28,40 @@ lane_detect_compose_cmd() {
   fi
 }
 
+# detect_base_url — print APP_URL from the lane's compose.yaml, else the localhost default.
+detect_base_url() {
+  local detected
+  # shellcheck disable=SC2154  # SHOPWARE_DIR is provided by the sourcing script
+  detected="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' "${SHOPWARE_DIR}/compose.yaml" | head -n 1)"
+  if [[ -n "${detected}" ]]; then
+    printf '%s\n' "${detected}"
+    return 0
+  fi
+
+  printf 'http://localhost:8000\n'
+}
+
+# detect_shopware_lane — resolve the lane id (6.5.x|6.6.x|trunk) from SHOPWARE_REF or the checkout.
+detect_shopware_lane() {
+  if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
+    printf '%s\n' "${SHOPWARE_REF}"
+    return 0
+  fi
+
+  # shellcheck disable=SC2154  # SHOPWARE_DIR is provided by the sourcing script
+  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
+    printf 'trunk\n'
+    return 0
+  fi
+
+  if grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
+    printf '6.6.x\n'
+    return 0
+  fi
+
+  printf '6.5.x\n'
+}
+
 # web <cmd>...   — run a command in the web service container.
 web() {
   # shellcheck disable=SC2154  # compose is provided by the sourcing script
