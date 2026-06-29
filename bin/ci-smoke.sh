@@ -752,8 +752,11 @@ assert_jq "${webhook_capture_json}" 'Expected the captured webhook request to in
 # conformance suite (bin/validate-ucp-store.sh conformance).
 echo "Verifying strict signature policy rejects unsigned requests."
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy strict --salesChannelId="${sales_channel_id}" >/dev/null
+web php /var/www/html/bin/console cache:clear >/dev/null
 strict_status="$(ucp_status -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 1}')")"
+# Restore log policy (warm mode reuses the stack, so it must not stay strict) before asserting.
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy log --salesChannelId="${sales_channel_id}" >/dev/null
+web php /var/www/html/bin/console cache:clear >/dev/null
 if [[ ! "${strict_status}" =~ ^4 ]]; then
   echo "Expected strict signature policy to reject the unsigned request with a 4xx, got ${strict_status}." >&2
   exit 1
