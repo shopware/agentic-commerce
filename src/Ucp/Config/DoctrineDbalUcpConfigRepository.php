@@ -11,6 +11,7 @@ use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
+/** @internal */
 #[Package('framework')]
 final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
 {

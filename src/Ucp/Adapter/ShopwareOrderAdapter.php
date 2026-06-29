@@ -10,6 +10,7 @@ use Ucp\Sdk\Adapter\OrderAdapterInterface;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareOrderAdapter implements OrderAdapterInterface
 {
     public function __construct(

@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
+/** @internal */
 final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionStoreInterface
 {
     private const TABLE = 'swag_agentic_commerce_ucp_checkout_completion';

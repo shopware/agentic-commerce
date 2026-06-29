@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 
+/** @internal */
 #[Package('framework')]
 final class UcpConfigService
 {

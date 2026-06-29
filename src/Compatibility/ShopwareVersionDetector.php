@@ -9,6 +9,7 @@ use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
 
+/** @internal */
 #[Package('framework')]
 final class ShopwareVersionDetector
 {

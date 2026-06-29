@@ -15,6 +15,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareCatalogGateway
 {
     public function __construct(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp;
 
+/** @internal */
 final class UcpProtocol
 {
     public const VERSION = '2026-04-08';

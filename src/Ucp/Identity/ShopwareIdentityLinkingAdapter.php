@@ -15,6 +15,7 @@ use Ucp\Sdk\Model\Identity\OAuthTokenRequest;
 use Ucp\Sdk\Model\Identity\OAuthTokenResponse;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
 {
     /**

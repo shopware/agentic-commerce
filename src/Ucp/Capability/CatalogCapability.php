@@ -13,6 +13,7 @@ use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class CatalogCapability implements CatalogCapabilityInterface
 {
     public function __construct(

@@ -21,6 +21,8 @@ use Ucp\Sdk\Service\IdempotencyServiceInterface;
  * @phpstan-type UcpMcpJsonValue UcpMcpJsonScalar|array<array-key, UcpMcpJsonLevel2>
  * @phpstan-type UcpMcpNestedJsonObject array<string, UcpMcpJsonLevel2>
  * @phpstan-type UcpMcpJsonObject array<string, UcpMcpJsonValue>
+ *
+ * @internal
  */
 #[Package('checkout')]
 final class UcpMcpToolContext

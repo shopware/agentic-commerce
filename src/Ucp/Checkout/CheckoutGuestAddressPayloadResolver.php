@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Ucp\Sdk\Model\Checkout\FulfillmentSelection;
 
+/** @internal */
 final class CheckoutGuestAddressPayloadResolver
 {
     public function __construct(

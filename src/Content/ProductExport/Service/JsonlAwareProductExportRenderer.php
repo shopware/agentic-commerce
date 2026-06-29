@@ -24,6 +24,8 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  * would preserve template whitespace noise inside a JSONL row. This decorator
  * trims the rendered body, skips empty renders entirely, and re-encodes each
  * line so that every non-empty product becomes exactly one JSONL row.
+ *
+ * @internal
  */
 class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
 {

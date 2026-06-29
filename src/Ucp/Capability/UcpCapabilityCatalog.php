@@ -8,6 +8,7 @@ use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 
+/** @internal */
 final class UcpCapabilityCatalog
 {
     public const CONFIG_CATALOG = 'catalog';

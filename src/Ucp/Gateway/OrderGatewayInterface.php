@@ -9,6 +9,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 interface OrderGatewayInterface
 {
     public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity;

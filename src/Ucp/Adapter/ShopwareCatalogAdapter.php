@@ -11,6 +11,7 @@ use Ucp\Sdk\Model\Catalog\CatalogSearchRequest;
 use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareCatalogAdapter implements CatalogAdapterInterface
 {
     public function __construct(

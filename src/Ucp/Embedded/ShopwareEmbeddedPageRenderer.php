@@ -13,6 +13,7 @@ use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
+/** @internal */
 #[Package('checkout')]
 final class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterface
 {

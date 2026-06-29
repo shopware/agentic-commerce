@@ -21,6 +21,8 @@ use Shopware\Core\System\SystemConfig\Util\ConfigReader;
  * named child elements with a single `xs:any processContents="lax"`. The 6.6
  * schema is strictly more permissive — every document valid under 6.5's schema
  * is also valid under the 6.6 schema.
+ *
+ * @internal
  */
 class CompatConfigReader extends ConfigReader
 {

@@ -20,6 +20,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
+/** @internal */
 class GoogleProductExportProvider extends AbstractAgenticCommerceProductExportProvider
 {
     /**
