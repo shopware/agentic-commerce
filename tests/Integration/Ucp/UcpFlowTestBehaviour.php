@@ -83,6 +83,9 @@ trait UcpFlowTestBehaviour
         $config = $container->get(SystemConfigService::class);
         $config->set('SwagAgenticCommerce.config.active', true, $this->ucpSalesChannelId);
         $config->set('SwagAgenticCommerce.config.signaturePolicy', 'log', $this->ucpSalesChannelId);
+        // The completed-checkout response requires order.permalink_url, which is built from the
+        // continue-url template; set it (as the smoke does) before any config read is cached.
+        $config->set('SwagAgenticCommerce.config.continueUrlTemplate', $this->ucpDomain.'/checkout/confirm?checkoutId={checkoutId}', $this->ucpSalesChannelId);
 
         $container->set(AgentProfileFetcherInterface::class, new class($this->buildMerchantProfile()) implements AgentProfileFetcherInterface {
             public function __construct(private readonly PlatformProfile $profile)
@@ -126,13 +129,14 @@ trait UcpFlowTestBehaviour
      * idempotency key.
      *
      * @param array<string, mixed>|null $json
+     * @param array<string, string>     $extraServer extra server params, e.g. ['HTTP_SW_CONTEXT_TOKEN' => '...']
      */
-    protected function ucpRequest(string $method, string $path, ?array $json = null): Response
+    protected function ucpRequest(string $method, string $path, ?array $json = null, array $extraServer = []): Response
     {
         $server = [
             'HTTP_UCP_AGENT' => \sprintf('platform; profile="%s/.well-known/ucp"', $this->ucpDomain),
             'HTTP_IDEMPOTENCY_KEY' => 'it-'.Uuid::randomHex(),
-        ];
+        ] + $extraServer;
         $body = null;
         if (null !== $json) {
             $server['CONTENT_TYPE'] = 'application/json';
@@ -148,6 +152,22 @@ trait UcpFlowTestBehaviour
     protected function decode(Response $response): array
     {
         return json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The Shopware context token persisted for a completed checkout, used to authorize the secured
+     * order read (mirrors the smoke's sales_channel_api_context lookup).
+     */
+    protected function completedCheckoutContextToken(string $checkoutId): string
+    {
+        $token = static::getContainer()->get(Connection::class)->fetchOne(
+            "SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.swagAgenticCommerce.ucpCheckout.shopwareContextToken'))
+             FROM sales_channel_api_context WHERE sales_channel_id = UNHEX(:scId) AND token = :checkoutId LIMIT 1",
+            ['scId' => $this->ucpSalesChannelId, 'checkoutId' => $checkoutId]
+        );
+        self::assertIsString($token, 'Expected a persisted Shopware context token for the completed checkout.');
+
+        return $token;
     }
 
     private function buildMerchantProfile(): PlatformProfile
