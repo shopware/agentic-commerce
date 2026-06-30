@@ -147,9 +147,12 @@ before a shell smoke check. The `kernel` suite (`tests/Integration/Ucp`,
 `composer test:kernel`) boots a real Shopware test kernel and drives UCP runtime
 routes end-to-end, so it is the preferred home for route, request-context, and
 capability behavior — it is readable and debuggable without a deployed HTTP
-stack. It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
-`APP_ENV=test`); each test self-skips otherwise. Run it against a configured lane
-with `composer test:kernel`. In CI it gates on **every** `shopware-matrix` lane
+stack. It covers the request-context guards and the **catalog/cart/checkout
+capability flows**, including completing a checkout into a **real Shopware order**
+and reading it back via its context token (via the shared `UcpFlowTestBehaviour`).
+It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`);
+each test self-skips otherwise. Run it against a configured lane with
+`composer test:kernel`. In CI it gates on **every** `shopware-matrix` lane
 (`CI_SMOKE_RUN_INTEGRATION=1`).
 
 It runs on the **lane's own** phpunit: Shopware core's test base classes are
@@ -160,9 +163,23 @@ ci-smoke installs Shopware's dev deps so that binary is present. The unit/mock
 suites stay on the plugin's pinned `.tools` phpunit (fast, lane-independent).
 
 Shell smoke (`bin/ci-smoke.sh`) is reserved for what a kernel test cannot cover —
-the live deployed stack, real HTTP transport, theme/admin build output, and
-signed-request conformance. When a smoke assertion can become a kernel test,
-move it and drop the redundant smoke check once the kernel suite gates in CI.
+genuine deployed-stack / on-the-wire concerns. After the capability flows moved to
+the kernel suite, what stays in smoke and why:
+
+- the **outbound signed order webhook** — actually delivered to an external
+  endpoint with `signature`/`signature-input`/`content-digest` headers (on-the-wire);
+- **tokenize 501** — the payment endpoint needs a *signed* request;
+- **profile/discovery** — lane-aware MCP transport detection + storefront-rendered
+  `/llms.txt` and `/agents.md`;
+- **admin/storefront** builds + UI shells (`bin/ci-admin-smoke.sh`,
+  `bin/ci-storefront-smoke.sh`) — closer to a browser-e2e concern;
+- **signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
+
+`smoke/catalog.sh` and `smoke/cart.sh` are now *also* in the kernel suite; they
+stay in smoke only because the smoke runs as a dependent chain
+(`catalog → cart → checkout`) that drives the webhook. When a smoke assertion can
+become a kernel test, move it and drop the redundant smoke check once the kernel
+suite gates in CI. See [AGENTS.md](AGENTS.md) for the full layering rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](docs/manual-testing.md).
 

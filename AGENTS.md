@@ -60,11 +60,26 @@ debuggable, and run without a deployed HTTP stack:
    Shopware test kernel and drives UCP runtime routes end-to-end via
    `static::getKernel()->handle(...)`. This is the **preferred** home for
    route/request-context/capability behavior that used to be asserted by shell
-   smoke. Requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
-   `APP_ENV=test`); each test self-skips under the fast-path bootstrap. Run it
-   against a configured lane (e.g. the `shopware-6-6-branch-web` container) with
-   `composer test:kernel`. It gates in CI on **every** `shopware-matrix` lane
-   (`CI_SMOKE_RUN_INTEGRATION=1`).
+   smoke. It already covers the request-context guards (missing UCP-Agent → 422,
+   OAuth metadata → 501) and the **catalog/cart/checkout capability flows** —
+   including completing a checkout into a **real Shopware order** and reading it
+   back via its persisted context token. Requires the booting bootstrap
+   (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`); each test self-skips under the
+   fast-path bootstrap. Run it against a configured lane (e.g. the
+   `shopware-6-6-branch-web` container) with `composer test:kernel`. It gates in CI
+   on **every** `shopware-matrix` lane (`CI_SMOKE_RUN_INTEGRATION=1`).
+
+   The flow tests share `UcpFlowTestBehaviour`, which reproduces the SDK
+   request-context handshake offline: it sets the sales-channel config the smoke
+   sets (`active`, `signaturePolicy=log`, `continueUrlTemplate`), seeds a product
+   like `SeedSmokeCatalogCommand`, and returns the merchant's own
+   capability-bearing `PlatformProfile` (built via `ProfileBuilderInterface` with
+   `enabledCapabilities`) from a stubbed `AgentProfileFetcherInterface`. The stub
+   (not the SDK profile cache) is required: the real fetcher runs an SSRF
+   URL-safety check that rejects the lane's `*.localhost` host. The trait reboots
+   the kernel (`KernelLifecycleManager::bootKernel(true)`, reusing the connection
+   so the test transaction still rolls back) so the stub can replace a
+   not-yet-initialized service on the suite's shared kernel.
 
    **Runs on the lane's own phpunit, not the plugin's.** The suite uses Shopware
    core's test base classes (`IntegrationTestBehaviour`), which are coupled to the
@@ -80,12 +95,40 @@ debuggable, and run without a deployed HTTP stack:
    attribute-based tests would otherwise break).
 
 **Shell smoke is the last resort, not the default.** Add a check to `bin/lib/smoke/*`
-only when it genuinely cannot be a kernel test — full deployed-stack concerns
-such as the live storefront, theme compilation, admin build output, real HTTP
-transport, or signed-request conformance. Anything provable through a booted
+only when it genuinely cannot be a kernel test. Anything provable through a booted
 kernel belongs in the `kernel` suite. When you migrate a smoke assertion into a
 kernel test, remove the now-redundant smoke check once the kernel suite gates in
 CI, so coverage moves rather than duplicates.
+
+#### What deliberately stays in shell smoke, and why
+
+These are genuine deployed-stack / on-the-wire concerns a booted kernel cannot
+observe — do **not** try to move them into the `kernel` suite:
+
+- **Outbound signed order webhook** (`smoke/checkout.sh`) — asserts the webhook is
+  actually *delivered* to an external capture endpoint with `signature`,
+  `signature-input`, and `content-digest` headers. A kernel test can at most
+  assert the webhook was *dispatched*; the signed HTTP on the wire is e2e.
+- **Tokenize 501** (`smoke/identity.sh`) — the payment endpoint requires a
+  *signed* request; the smoke only reaches it because it fetches a real profile
+  with signing keys over HTTP.
+- **Profile / discovery** (`smoke/discovery.sh`) — lane-aware MCP transport
+  detection (depends on the live Store-API MCP endpoint) and the
+  storefront-rendered `/llms.txt` + `/agents.md` fallbacks (real `Content-Type`
+  and rendering).
+- **Admin & storefront** (`bin/ci-admin-smoke.sh`, `bin/ci-storefront-smoke.sh`) —
+  per-lane JS builds (webpack/Vite) and the rendered admin/storefront shells.
+  (These are closer to a Playwright/browser-e2e concern than a bash one; treat the
+  bash check as a pragmatic build-plus-shell gate, not the ideal long-term home.)
+- **Signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
+
+**Known duplication (intentional):** `smoke/catalog.sh` and `smoke/cart.sh` are now
+also covered by the `kernel` suite. They stay in smoke because the smoke stages run
+as a dependent chain (`catalog → cart → checkout`) — catalog resolves the product
+that cart and checkout reuse, and checkout must stay to drive the signed webhook.
+The kernel tests are the readable capability coverage; the smoke chain is the
+webhook-driving e2e. Only refactor this if you make the checkout smoke seed its own
+product so the early stages can be dropped.
 
 ### Shell smoke and lint tooling
 
