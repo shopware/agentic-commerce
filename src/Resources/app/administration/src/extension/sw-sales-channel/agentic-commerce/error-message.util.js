@@ -1,3 +1,7 @@
+/**
+ * Extract a human-readable message from a UCP admin API error response,
+ * preferring JSON:API `errors[].detail`/`title`, then HTTP status text.
+ */
 export function extractApiErrorMessage(error) {
     const detailErrors = error?.response?.data?.errors;
     if (Array.isArray(detailErrors) && detailErrors.length > 0) {

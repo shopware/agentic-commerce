@@ -142,10 +142,24 @@ final class UcpAdminController
         return new JsonResponse(['success' => true]);
     }
 
-    #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/profile-preview', name: 'api.action.swag_agentic_commerce.ucp.profile_preview', methods: ['GET'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]
-    public function profilePreview(string $salesChannelId, Context $context): JsonResponse
+    #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/profile-preview', name: 'api.action.swag_agentic_commerce.ucp.profile_preview', methods: ['GET', 'POST'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]
+    public function profilePreview(string $salesChannelId, Request $request, Context $context): JsonResponse
     {
-        $config = $this->configService->getConfig($salesChannelId);
+        // GET renders the saved profile. POST renders a live preview from the
+        // edited (unsaved) admin form so the merchant sees pending changes
+        // before saving (redesign §10.4). Nothing is persisted either way.
+        if ($request->isMethod('POST')) {
+            try {
+                $payload = $request->toArray();
+            } catch (JsonException) {
+                throw UcpConfigException::invalidJsonPayload();
+            }
+
+            $config = UcpConfig::fromArray($payload);
+        } else {
+            $config = $this->configService->getConfig($salesChannelId);
+        }
+
         $baseUri = $this->salesChannelViewProvider->firstDomainUrl($salesChannelId, $context) ?? 'https://example.invalid';
 
         return new JsonResponse([

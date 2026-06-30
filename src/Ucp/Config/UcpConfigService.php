@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
+use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 
 #[Package('framework')]
 final class UcpConfigService
@@ -18,8 +19,7 @@ final class UcpConfigService
     private const KEYS = [
         'active',
         'ucpVersion',
-        'profileUriStrategy',
-        'customProfileUri',
+        'profileDomain',
         'enabledCapabilities',
         'enabledTransports',
         'continueUrlTemplate',
@@ -39,6 +39,7 @@ final class UcpConfigService
         private readonly UcpConfigRepositoryInterface $repository,
         private readonly LegacyConfigStoreInterface $legacyConfigStore,
         private readonly ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
+        private readonly ?UcpSigningKeyService $signingKeyService = null,
     ) {
     }
 
@@ -114,9 +115,31 @@ final class UcpConfigService
 
         if ($config->active) {
             $this->agenticFilesCoreBridge?->enableForSalesChannel($salesChannelId);
+            $this->ensureSigningKey($salesChannelId);
         }
 
         return $config;
+    }
+
+    /**
+     * Auto-provision a signing key so that an activated sales channel is usable
+     * under the default "strict" signature policy without a manual key-creation
+     * step (redesign §10.1). Idempotent: a no-op when a non-retired key already
+     * exists, and self-healing if the only key was deleted.
+     */
+    private function ensureSigningKey(string $salesChannelId): void
+    {
+        if (null === $this->signingKeyService) {
+            return;
+        }
+
+        foreach ($this->signingKeyService->all($salesChannelId) as $key) {
+            if ('retired' !== ($key['status'] ?? null)) {
+                return;
+            }
+        }
+
+        $this->signingKeyService->create($salesChannelId, null, 'ES256');
     }
 
     /**

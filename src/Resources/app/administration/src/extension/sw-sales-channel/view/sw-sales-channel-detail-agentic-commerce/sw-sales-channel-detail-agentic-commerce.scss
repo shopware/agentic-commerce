@@ -1,0 +1,73 @@
+.sw-sales-channel-detail-agentic-commerce {
+    &__hint {
+        color: var(--color-text-secondary-default, #52667a);
+        margin-bottom: var(--scale-size-8, 8px);
+    }
+
+    // Align the top unsaved-changes banner with the mt-card column below it
+    // (mt-card caps at 960px and centres inside the sw-card-view column).
+    &__unsaved-banner {
+        width: 100%;
+        max-width: 960px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    &__section-label {
+        margin-top: var(--scale-size-20, 20px);
+        margin-bottom: var(--scale-size-8, 8px);
+        font-weight: var(--font-weight-semibold, 600);
+    }
+
+    // Give stacked Meteor checkboxes room to breathe (they render edge-to-edge
+    // by default), regardless of the component's internal class names.
+    &__checkbox-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--scale-size-10, 10px);
+        margin-bottom: var(--scale-size-12, 12px);
+
+        // Transports sit on one row (short labels); capabilities stay stacked.
+        &--inline {
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: var(--scale-size-24, 24px);
+        }
+    }
+
+    &__keys {
+        list-style: none;
+        margin: 0 0 var(--scale-size-12, 12px);
+        padding: 0;
+    }
+
+    &__keys li {
+        display: flex;
+        align-items: center;
+        gap: var(--scale-size-8, 8px);
+        margin-bottom: var(--scale-size-6, 6px);
+    }
+
+    &__key-create {
+        display: flex;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: var(--scale-size-12, 12px);
+        margin-top: var(--scale-size-8, 8px);
+    }
+
+    // Developer profile preview — a readable, scrollable code block.
+    &__preview {
+        margin: 0;
+        padding: var(--scale-size-16, 16px);
+        max-height: 420px;
+        overflow: auto;
+        background: #1e293b;
+        color: #e2e8f0;
+        border-radius: var(--border-radius-default, 8px);
+        font-family: var(--font-family-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", "Menlo", monospace);
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre;
+    }
+}

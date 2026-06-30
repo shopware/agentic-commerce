@@ -15,14 +15,6 @@ use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 final class UcpConfig
 {
     /**
-     * String allowlists mirror the scalar admin JSON/stored config contract
-     * across supported Shopware lanes.
-     *
-     * @var list<string>
-     */
-    private const PROFILE_URI_STRATEGIES = ['domain', 'config'];
-
-    /**
      * @var list<string>
      */
     private const URL_SCHEMES = ['http', 'https'];
@@ -44,8 +36,7 @@ final class UcpConfig
     public function __construct(
         public readonly bool $active = false,
         public readonly string $ucpVersion = UcpProtocol::VERSION,
-        public readonly string $profileUriStrategy = 'domain',
-        public readonly ?string $customProfileUri = null,
+        public readonly ?string $profileDomain = null,
         public readonly array $enabledCapabilities = [],
         public readonly array $enabledTransports = ['rest'],
         public readonly ?string $continueUrlTemplate = null,
@@ -67,11 +58,10 @@ final class UcpConfig
      */
     public static function fromArray(array $payload): self
     {
-        $profileUriStrategy = self::profileUriStrategyValue($payload['profileUriStrategy'] ?? 'domain');
-        $customProfileUri = self::nullableHttpUrlValue($payload['customProfileUri'] ?? null, '$.customProfileUri');
-        if ('config' === $profileUriStrategy && null === $customProfileUri) {
-            throw self::invalid('$.customProfileUri', 'must be set when profileUriStrategy is "config"');
-        }
+        // Legacy keys profileUriStrategy/customProfileUri are intentionally ignored
+        // (redesign §10.5): the profile is always served from a configured channel
+        // domain, optionally pinned via profileDomain.
+        $profileDomain = self::nullableHttpUrlValue($payload['profileDomain'] ?? null, '$.profileDomain');
 
         $platformAllowlist = self::hostList($payload['platformAllowlist'] ?? null, '$.platformAllowlist');
         $remoteProfileAllowlist = self::hostList($payload['remoteProfileAllowlist'] ?? null, '$.remoteProfileAllowlist');
@@ -84,8 +74,7 @@ final class UcpConfig
         return new self(
             self::boolValue($payload['active'] ?? null, false, '$.active'),
             self::ucpVersionValue($payload['ucpVersion'] ?? null),
-            $profileUriStrategy,
-            $customProfileUri,
+            $profileDomain,
             self::enabledCapabilityList($payload),
             self::enabledTransportList($payload),
             self::continueUrlTemplateValue($payload['continueUrlTemplate'] ?? null),
@@ -110,8 +99,7 @@ final class UcpConfig
         return [
             'active' => $this->active,
             'ucpVersion' => $this->ucpVersion,
-            'profileUriStrategy' => $this->profileUriStrategy,
-            'customProfileUri' => $this->customProfileUri,
+            'profileDomain' => $this->profileDomain,
             'enabledCapabilities' => $this->enabledCapabilities,
             'enabledTransports' => $this->enabledTransports,
             'continueUrlTemplate' => $this->continueUrlTemplate,
@@ -130,8 +118,8 @@ final class UcpConfig
 
     public function resolveBaseUri(string $fallbackBaseUri): string
     {
-        if ('config' === $this->profileUriStrategy && null !== $this->customProfileUri && '' !== $this->customProfileUri) {
-            return rtrim($this->customProfileUri, '/');
+        if (null !== $this->profileDomain && '' !== $this->profileDomain) {
+            return rtrim($this->profileDomain, '/');
         }
 
         return rtrim($fallbackBaseUri, '/');
@@ -278,23 +266,6 @@ final class UcpConfig
 
         if (UcpProtocol::VERSION !== $value) {
             throw self::invalid('$.ucpVersion', \sprintf('must be "%s"', UcpProtocol::VERSION));
-        }
-
-        return $value;
-    }
-
-    private static function profileUriStrategyValue(mixed $value): string
-    {
-        if (null === $value || '' === $value) {
-            return 'domain';
-        }
-
-        if (!\is_string($value)) {
-            throw self::invalid('$.profileUriStrategy', 'must be a string');
-        }
-
-        if (!\in_array($value, self::PROFILE_URI_STRATEGIES, true)) {
-            throw self::invalid('$.profileUriStrategy', 'must be one of "domain", "config"');
         }
 
         return $value;

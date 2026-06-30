@@ -1,0 +1,85 @@
+{% block sw_sales_channel_detail_agentic_commerce %}
+{# Legacy (Shopware 6.5) layout: stacked sw-card form, no in-card sub-tabs. #}
+<div class="sw-sales-channel-detail-agentic-commerce">
+    <sw-skeleton v-if="isUcpLoading" />
+
+    <template v-else>
+        <sw-alert v-if="isDirty" variant="warning">
+            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.unsavedMessage') }}
+        </sw-alert>
+
+        <sw-card
+            position-identifier="sw-sales-channel-detail-agentic-commerce-ucp"
+            :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle')"
+        >
+            <sw-switch-field
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
+                :disabled="!canEditConfig"
+                :value="isActive"
+                @change="setActive"
+            />
+
+            <sw-single-select
+                v-if="hasMultipleDomains"
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.profileDomainLabel')"
+                :options="profileDomainOptions"
+                :disabled="!canEditConfig"
+                :value="form.profileDomain"
+                @change="(value) => setValue('profileDomain', value)"
+            />
+
+            <sw-single-select
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyLabel')"
+                :options="signaturePolicyItems"
+                :disabled="!canEditConfig || !isActive"
+                :value="form.signaturePolicy"
+                @change="(value) => setValue('signaturePolicy', value)"
+            />
+            <sw-alert v-if="showSignatureWarning" variant="warning">
+                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyWarning') }}
+            </sw-alert>
+
+            <sw-checkbox-field
+                v-for="capability in readyCapabilities"
+                :key="capability.value"
+                :label="$t(capability.label)"
+                :disabled="!canEditConfig || !isActive"
+                :value="isCapabilityEnabled(capability.value)"
+                @change="(checked) => updateCapability(capability.value, checked)"
+            />
+
+            <sw-text-field
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.continueUrlLabel')"
+                :disabled="!canEditConfig"
+                :value="form.continueUrlTemplate"
+                @change="(value) => setValue('continueUrlTemplate', value || null)"
+            />
+            <sw-textarea-field
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.agentAllowlistLabel')"
+                :disabled="!canEditConfig"
+                :value="hostListText('agentAllowlist')"
+                @change="(value) => setHostListText('agentAllowlist', value)"
+            />
+            <sw-switch-field
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.idempotencyLabel')"
+                :disabled="!canEditConfig"
+                :value="form.idempotencyRequired"
+                @change="(value) => setValue('idempotencyRequired', Boolean(value))"
+            />
+        </sw-card>
+
+        <sw-card
+            v-if="isAgenticCommerce"
+            position-identifier="sw-sales-channel-detail-agentic-commerce-export"
+            :title="$t('sw-sales-channel.detail.agenticCommerce.exportCardTitle')"
+        >
+            <sw-sales-channel-detail-agentic-commerce-integration
+                :sales-channel="salesChannel"
+                :product-export="productExport"
+                :product-comparison-access-url="productComparisonAccessUrl"
+                :is-loading="isLoading"
+            />
+        </sw-card>
+    </template>
+</div>
+{% endblock %}
