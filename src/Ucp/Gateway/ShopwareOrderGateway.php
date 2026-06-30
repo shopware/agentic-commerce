@@ -21,6 +21,7 @@ use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareOrderGateway implements OrderGatewayInterface
 {
     public function __construct(

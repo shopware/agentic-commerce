@@ -21,6 +21,8 @@ use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportException;
  * (populated via the plugin's DAL extension and hydrator) and only delegates
  * to {@see validateProviderExport()} when it matches the concrete
  * implementation's technical name.
+ *
+ * @internal
  */
 abstract class AbstractProviderValidator implements ValidatorInterface
 {

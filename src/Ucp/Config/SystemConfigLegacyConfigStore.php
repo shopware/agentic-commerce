@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 
+/** @internal */
 #[Package('framework')]
 final class SystemConfigLegacyConfigStore implements LegacyConfigStoreInterface
 {

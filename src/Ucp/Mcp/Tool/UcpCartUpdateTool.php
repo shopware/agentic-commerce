@@ -11,6 +11,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-cart-update', title: 'UCP Cart Update', description: 'Replace cart line items through the shared UCP cart capability. The payload parameter is a JSON object string matching the UCP cart.update request.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpCartUpdateTool
 {

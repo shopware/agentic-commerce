@@ -9,6 +9,7 @@ use Shopware\Core\Framework\Log\Package;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
+/** @internal */
 #[Package('framework')]
 final class SalesChannelDomainResolverCacheInvalidator implements EventSubscriberInterface
 {

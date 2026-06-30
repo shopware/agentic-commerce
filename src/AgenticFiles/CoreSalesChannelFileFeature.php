@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\AgenticFiles;
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Framework\Log\Package;
 
+/** @internal */
 #[Package('discovery')]
 final class CoreSalesChannelFileFeature
 {

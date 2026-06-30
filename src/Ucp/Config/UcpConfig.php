@@ -11,6 +11,7 @@ use Ucp\Sdk\Enum\SignaturePolicy;
 use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 
+/** @internal */
 #[Package('framework')]
 final class UcpConfig
 {

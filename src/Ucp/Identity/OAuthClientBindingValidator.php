@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Identity;
 use Ucp\Sdk\Exception\OAuthException;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class OAuthClientBindingValidator
 {
     public function assertClientId(string $clientId, RequestContext $context): void

@@ -18,6 +18,10 @@ detection.
   entities, template context, and documented SDK/UCP behavior are the BC
   surface. Controllers, subscribers, loaders, renderers, and discovery services
   should be internal unless they are intended extension points.
+- Follow `docs/public-api-boundaries.md` for PHP API scope. Classes,
+  interfaces, and traits in internal-by-default namespaces must carry
+  `@internal`; keep package annotations out of scope unless a task explicitly
+  asks for them.
 - Keep services unit-testable without external systems. Translate framework
   objects (`Request`, IO, database, filesystem, HTTP) at the edge before calling
   application services.
@@ -185,3 +189,4 @@ The script handles the important differences:
 - [docs/shopware-version-differences.md](docs/shopware-version-differences.md)
 - [docs/manual-testing.md](docs/manual-testing.md)
 - [docs/full-ucp-parity-plan.md](docs/full-ucp-parity-plan.md)
+- [docs/public-api-boundaries.md](docs/public-api-boundaries.md)

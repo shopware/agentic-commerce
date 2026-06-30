@@ -27,6 +27,7 @@ use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\UcpSdkConfiguration;
 
+/** @internal */
 #[Package('checkout')]
 final class UcpMcpProxyController
 {

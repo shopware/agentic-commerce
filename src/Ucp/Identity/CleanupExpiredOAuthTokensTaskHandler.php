@@ -10,6 +10,7 @@ use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTaskCollection;
 use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTaskHandler;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
+/** @internal */
 #[AsMessageHandler(handles: CleanupExpiredOAuthTokensTask::class)]
 final class CleanupExpiredOAuthTokensTaskHandler extends ScheduledTaskHandler
 {

@@ -11,6 +11,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-discount-apply', title: 'UCP Discount Apply', description: 'Apply a discount code to a cart through the shared UCP discount capability.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpDiscountApplyTool
 {

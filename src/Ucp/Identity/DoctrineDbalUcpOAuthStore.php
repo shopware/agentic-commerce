@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
+/** @internal */
 final class DoctrineDbalUcpOAuthStore
 {
     private const ACCESS_TOKEN_TTL = 3600;

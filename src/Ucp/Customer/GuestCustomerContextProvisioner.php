@@ -13,6 +13,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Common\Buyer;
 
+/** @internal */
 final class GuestCustomerContextProvisioner implements GuestCustomerContextProvisionerInterface
 {
     public function __construct(

@@ -12,6 +12,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 
+/** @internal */
 #[Package('framework')]
 final class SalesChannelViewProvider
 {

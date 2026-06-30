@@ -25,6 +25,8 @@ use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
 /**
  * Mirror of {@see \Shopware\Core\Content\ProductExport\Tracking\SalesChannelTrackingCustomerDefinition}
  * in Shopware 6.7.10+. Entity name and field shape match exactly.
+ *
+ * @internal
  */
 class SalesChannelTrackingCustomerDefinition extends EntityDefinition
 {
