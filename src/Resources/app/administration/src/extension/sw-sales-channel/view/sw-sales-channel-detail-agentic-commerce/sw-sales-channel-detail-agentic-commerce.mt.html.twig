@@ -23,6 +23,7 @@
             class="sw-sales-channel-detail-agentic-commerce__ucp-card"
             position-identifier="sw-sales-channel-detail-agentic-commerce-ucp"
             :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle')"
+            :subtitle="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardIntro')"
         >
             {% block sw_sales_channel_detail_agentic_commerce_ucp_toggle %}
             <template #headerRight>
@@ -75,14 +76,12 @@
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
                     <mt-select
                         :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyLabel')"
+                        :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyWarning')"
                         :options="signaturePolicyItems"
                         :disabled="!canEditConfig || !isActive"
                         :model-value="form.signaturePolicy"
                         @update:model-value="(value) => setValue('signaturePolicy', value)"
                     />
-                    <p v-if="showSignatureWarning" class="sw-sales-channel-detail-agentic-commerce__inline-warning">
-                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyWarning') }}
-                    </p>
                 </div>
 
                 <div class="sw-sales-channel-detail-agentic-commerce__section">

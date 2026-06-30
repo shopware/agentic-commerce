@@ -17,6 +17,7 @@
         "filesCardHint": "AI-readable files (llms.txt, agents.md, ai-catalog.json) are managed in the core \"Agentic files\" tab.",
         "ucp": {
           "cardTitle": "UCP",
+          "cardIntro": "Configure how this sales channel is exposed to AI agents over the Universal Commerce Protocol (UCP) — which capabilities agents may use, how requests are secured, and the profile they discover. Turn it on with the switch, then review the tabs below.",
           "exposeLabel": "Expose via UCP",
           "unsavedTitle": "Unsaved changes",
           "unsavedMessage": "You have unsaved changes. Save the sales channel to apply them.",

@@ -147,9 +147,6 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         keyAlgorithmItems() {
             return keyAlgorithmOptions;
         },
-        showSignatureWarning() {
-            return this.form?.signaturePolicy !== 'strict';
-        },
         profileDomainOptions() {
             const domains = Array.isArray(this.salesChannel?.domains) ? this.salesChannel.domains : [];
             return domains.map((domain) => ({ value: domain.url, label: domain.url })).filter((option) => option.value);

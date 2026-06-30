@@ -63,13 +63,6 @@
         }
     }
 
-    // Soft, inline security note under the signature-policy select — informative
-    // without the heavy banner box.
-    &__inline-warning {
-        margin: var(--scale-size-6, 6px) 0 0;
-        color: var(--color-text-attention-default, #9a6a00);
-        font-size: var(--font-size-xs, 0.875rem);
-    }
 
     &__key-create {
         display: flex;
