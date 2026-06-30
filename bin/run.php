@@ -120,6 +120,8 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
+        '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
+        '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
     ]);
 
@@ -183,6 +185,53 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
         '    - '.$phpStanDir.'/rules.neon',
         '    - '.$phpStanDir.'/core-rules.neon',
     ]);
+}
+
+function renderShopwarePhpstanParameters(string $coreDir): string
+{
+    if (!supportsConfigurableCoversRule($coreDir)) {
+        return '';
+    }
+
+    return implode("\n", [
+        '    shopware:',
+        '        allowedUnitTestClassNamespaces:',
+        '            - Swag\AgenticCommerce\Tests\Unit\Content\ProductExport\\',
+        '            - Swag\AgenticCommerce\Tests\Unit\DependencyInjection\\',
+        '            - Swag\AgenticCommerce\Tests\Unit\Migration\\',
+        '            - Swag\AgenticCommerce\Tests\Unit\Storefront\Robots\\',
+        '            - Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Subscriber\\',
+        '            - Swag\AgenticCommerce\Tests\Unit\CheckoutCompleterTest',
+        '            - Swag\AgenticCommerce\Tests\Unit\DoctrineDbalCheckoutCompletionStoreTest',
+        '            - Swag\AgenticCommerce\Tests\Unit\SalesChannelDomainResolverTest',
+        '            - Swag\AgenticCommerce\Tests\Integration\Migration\\',
+    ]);
+}
+
+function renderUnexpectedTestCoversIgnore(string $coreDir): string
+{
+    if (supportsConfigurableCoversRule($coreDir)) {
+        return '';
+    }
+
+    return implode("\n", [
+        '        # CoversClass on unit tests in subdirs — fixed by configurable covers namespaces in newer Shopware.',
+        '        -',
+        '            identifier: shopware.unexpectedTestCovers',
+        "            message: '#.+#'",
+    ]);
+}
+
+function supportsConfigurableCoversRule(string $coreDir): bool
+{
+    $commonConfig = $coreDir.'/DevOps/StaticAnalyze/PHPStan/common.neon';
+    if (!is_file($commonConfig)) {
+        return false;
+    }
+
+    $contents = file_get_contents($commonConfig);
+
+    return \is_string($contents) && str_contains($contents, 'allowedUnitTestClassNamespaces: list(string)');
 }
 
 function renderPhpstanAutoload(string $pluginDir, string $coreDir, string $tmpDir): string

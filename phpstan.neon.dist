@@ -22,17 +22,7 @@ parameters:
         - tests/phpstan/Package.php
         - tests/phpstan/Generator.php
         - tests/phpstan/EntityWriteResult.php
-    shopware:
-        allowedUnitTestClassNamespaces:
-            - Swag\AgenticCommerce\Tests\Unit\Content\ProductExport\
-            - Swag\AgenticCommerce\Tests\Unit\DependencyInjection\
-            - Swag\AgenticCommerce\Tests\Unit\Migration\
-            - Swag\AgenticCommerce\Tests\Unit\Storefront\Robots\
-            - Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Subscriber\
-            - Swag\AgenticCommerce\Tests\Unit\CheckoutCompleterTest
-            - Swag\AgenticCommerce\Tests\Unit\DoctrineDbalCheckoutCompletionStoreTest
-            - Swag\AgenticCommerce\Tests\Unit\SalesChannelDomainResolverTest
-            - Swag\AgenticCommerce\Tests\Integration\Migration\
+__SHOPWARE_PHPSTAN_PARAMETERS__
     ignoreErrors:
         -
             identifier: shopware.namespace
@@ -52,6 +42,7 @@ parameters:
         -
             identifier: shopware.addColumn
             message: '#.+#'
+__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__
         # DBAL fetchAllKeyValue() declares array<int|string, mixed>; the actual keys/values are strings.
         -
             identifier: return.type
