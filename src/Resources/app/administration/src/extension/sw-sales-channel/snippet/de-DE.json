@@ -46,7 +46,7 @@
           "capabilityIdentityLinkingReason": "Erfordert einen Identity-Adapter – noch nicht verfügbar.",
           "capabilityPaymentTokenizationLabel": "Zahlungs-Tokenisierung",
           "capabilityPaymentTokenizationReason": "Erfordert einen Payment-Handler – noch nicht verfügbar.",
-          "signingKeysLabel": "Signaturschlüssel",
+          "signingKeysLabel": "Schlüsselübersicht",
           "noKeys": "Noch keine Signaturschlüssel. Beim Aktivieren von UCP wird automatisch einer erstellt.",
           "retireKey": "Stilllegen",
           "deleteKey": "Löschen",
