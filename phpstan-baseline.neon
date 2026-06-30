@@ -42,6 +42,12 @@ parameters:
 			path: src/System/SystemConfig/CompatConfigReader.php
 
 		-
+			message: '#^Method Context\:\:createDefaultContext\(\) should not be used in CLI context\. Use Context\:\:createCLIContext\(\) instead\.$#'
+			identifier: shopware.cliContext
+			count: 1
+			path: src/Ucp/Command/SeedSmokeCatalogCommand.php
+
+		-
 			message: '#^Call to function method_exists\(\) with Shopware\\Core\\System\\SalesChannel\\SalesChannelContext and ''getCustomerGroupId'' will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1
