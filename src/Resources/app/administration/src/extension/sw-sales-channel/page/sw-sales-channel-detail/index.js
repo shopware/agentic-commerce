@@ -1,4 +1,5 @@
 import template from './sw-sales-channel-detail.html.twig';
+import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
 import {
     defaultForm as ucpDefaultForm,

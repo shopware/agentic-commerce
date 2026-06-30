@@ -48,12 +48,38 @@
         margin-bottom: var(--scale-size-6, 6px);
     }
 
+    // Bordered panel that visually groups the "create a new key" controls and
+    // separates them from the existing-keys list above.
+    &__subpanel {
+        margin-top: var(--scale-size-12, 12px);
+        padding: var(--scale-size-16, 16px);
+        border: 1px solid var(--color-border-primary-default, #d1d9e0);
+        border-radius: var(--border-radius-default, 8px);
+        background: var(--color-elevation-surface-raised, #fff);
+    }
+
+    &__subpanel-title {
+        margin: 0 0 var(--scale-size-12, 12px);
+        font-weight: var(--font-weight-semibold, 600);
+    }
+
     &__key-create {
         display: flex;
         align-items: flex-end;
         flex-wrap: wrap;
         gap: var(--scale-size-12, 12px);
-        margin-top: var(--scale-size-8, 8px);
+
+        // Inputs share the row and grow; the create button keeps its size.
+        > .mt-field,
+        > .mt-select,
+        > .mt-text-field {
+            flex: 1 1 200px;
+            margin-bottom: 0;
+        }
+
+        > .mt-button {
+            flex: 0 0 auto;
+        }
     }
 
     // Developer profile preview — a readable, scrollable code block.

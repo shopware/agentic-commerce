@@ -90,7 +90,7 @@
                 <p class="sw-sales-channel-detail-agentic-commerce__section-label">
                     {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.capabilitiesLabel') }}
                 </p>
-                <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group">
+                <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group sw-sales-channel-detail-agentic-commerce__checkbox-group--inline">
                     <mt-checkbox
                         v-for="capability in readyCapabilities"
                         :key="capability.value"
@@ -132,21 +132,26 @@
                         {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.noKeys') }}
                     </li>
                 </ul>
-                <div v-if="canRotateKeys" class="sw-sales-channel-detail-agentic-commerce__key-create">
-                    <mt-text-field
-                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.newKeyId')"
-                        :model-value="newKeyKid"
-                        @change="(value) => { newKeyKid = value; }"
-                    />
-                    <mt-select
-                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.keyAlgorithm')"
-                        :options="keyAlgorithmItems"
-                        :model-value="newKeyAlgorithm"
-                        @update:model-value="(value) => { newKeyAlgorithm = value; }"
-                    />
-                    <mt-button variant="primary" :is-loading="isKeyActionLoading" @click="createKey">
+                <div v-if="canRotateKeys" class="sw-sales-channel-detail-agentic-commerce__subpanel">
+                    <p class="sw-sales-channel-detail-agentic-commerce__subpanel-title">
                         {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.createKey') }}
-                    </mt-button>
+                    </p>
+                    <div class="sw-sales-channel-detail-agentic-commerce__key-create">
+                        <mt-text-field
+                            :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.newKeyId')"
+                            :model-value="newKeyKid"
+                            @change="(value) => { newKeyKid = value; }"
+                        />
+                        <mt-select
+                            :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.keyAlgorithm')"
+                            :options="keyAlgorithmItems"
+                            :model-value="newKeyAlgorithm"
+                            @update:model-value="(value) => { newKeyAlgorithm = value; }"
+                        />
+                        <mt-button variant="primary" :is-loading="isKeyActionLoading" @click="createKey">
+                            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.createKey') }}
+                        </mt-button>
+                    </div>
                 </div>
                 {% endblock %}
             </template>
@@ -268,7 +273,15 @@
         {% endblock %}
 
         {% block sw_sales_channel_detail_agentic_commerce_files_card %}
+        {# Reuse the core Agentic files management component (it ships its own
+           card + File/Status/Description table + pagination). Falls back to a
+           pointer when core does not provide it (older lanes). #}
+        <sw-sales-channel-detail-agentic-files
+            v-if="coreAgenticFilesAvailable"
+            :sales-channel="salesChannel"
+        />
         <mt-card
+            v-else
             position-identifier="sw-sales-channel-detail-agentic-commerce-files"
             :title="$t('sw-sales-channel.detail.agenticCommerce.filesCardTitle')"
         >

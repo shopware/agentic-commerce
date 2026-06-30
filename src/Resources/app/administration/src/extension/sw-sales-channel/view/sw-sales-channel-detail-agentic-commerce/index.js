@@ -121,6 +121,14 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         isAgenticCommerce() {
             return this.salesChannel?.typeId === Defaults.agenticCommerceTypeId;
         },
+
+        // Core ships the Agentic files management view from 6.7; embed it when
+        // present, otherwise fall back to a pointer (see template).
+        coreAgenticFilesAvailable() {
+            return Boolean(
+                Shopware?.Component?.getComponentRegistry?.().has('sw-sales-channel-detail-agentic-files'),
+            );
+        },
         readyCapabilities() {
             return READY_CAPABILITIES;
         },
