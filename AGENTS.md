@@ -34,7 +34,7 @@ composer phpstan
 composer rector
 composer test              # unit suite (mocks, no kernel)
 composer test:integration  # mock-based integration suite, fast-path bootstrap
-composer test:kernel       # kernel integration suite, boots a real test kernel
+composer test:functional   # functional suite, boots a real test kernel + Symfony browser
 ```
 
 The scripts delegate through `bin/run.php`, which can resolve tooling from this
@@ -46,7 +46,7 @@ For PHP changes, run the smallest relevant test suite first. Broaden to static
 analysis, integration tests, or lane smoke checks when the touched code affects
 shared runtime behavior, persistence, routes, or administration assets.
 
-### Test layering: prefer integration over smoke
+### Test layering: prefer functional over smoke
 
 Cover behavior at the lowest layer that can express it, and prefer a PHP test
 over a shell smoke check whenever the behavior fits one — PHP tests are readable,
@@ -55,31 +55,36 @@ debuggable, and run without a deployed HTTP stack:
 1. **`unit`** (`tests/Unit`, `composer test`) — pure logic with mocks; no kernel.
 2. **`integration`** (`tests/Integration`, `composer test:integration`) —
    mock-based collaboration on the lightweight fast-path bootstrap (no kernel
-   boot). Excludes `tests/Integration/Ucp`.
-3. **`kernel`** (`tests/Integration/Ucp`, `composer test:kernel`) — boots a real
-   Shopware test kernel and drives UCP runtime routes end-to-end via
-   `static::getKernel()->handle(...)`. This is the **preferred** home for
-   route/request-context/capability behavior that used to be asserted by shell
-   smoke. It already covers the request-context guards (missing UCP-Agent → 422,
-   OAuth metadata → 501) and the **catalog/cart/checkout capability flows** —
-   including completing a checkout into a **real Shopware order** and reading it
-   back via its persisted context token. Requires the booting bootstrap
-   (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`); each test self-skips under the
-   fast-path bootstrap. Run it against a configured lane (e.g. the
-   `shopware-6-6-branch-web` container) with `composer test:kernel`. It gates in CI
-   on **every** `shopware-matrix` lane (`CI_SMOKE_RUN_INTEGRATION=1`).
+   boot).
+3. **`functional`** (`tests/Functional`, `composer test:functional`) — boots a
+   real Shopware test kernel and drives UCP runtime routes end-to-end through a
+   real Symfony `KernelBrowser` (the full HttpKernel request/response cycle,
+   kernel events included), against `APP_URL` — the test database's default
+   storefront sales-channel domain — exactly as Shopware's own functional tests
+   do. This is the **preferred** home for route/request-context/capability
+   behavior that used to be asserted by shell smoke. It already covers the
+   request-context guards (missing UCP-Agent → 422, OAuth metadata → 501) and the
+   **catalog/cart/checkout capability flows** — including completing a checkout
+   into a **real Shopware order** and reading it back via its persisted context
+   token. Requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
+   `APP_ENV=test`). Like core, the suite assumes a booted kernel (no per-test
+   skip-guards) — run it via `composer test:functional` against a configured lane
+   (e.g. the `shopware-6-6-branch-web` container), never under the fast-path
+   bootstrap. It gates in CI on **every** `shopware-matrix` lane
+   (`CI_SMOKE_RUN_FUNCTIONAL=1`).
 
    The flow tests share `UcpFlowTestBehaviour`, which reproduces the SDK
    request-context handshake offline: it sets the sales-channel config the smoke
    sets (`active`, `signaturePolicy=log`, `continueUrlTemplate`), seeds a product
-   like `SeedSmokeCatalogCommand`, and returns the merchant's own
+   with the core `ProductBuilder` fixture, and hands the merchant's own
    capability-bearing `PlatformProfile` (built via `ProfileBuilderInterface` with
-   `enabledCapabilities`) from a stubbed `AgentProfileFetcherInterface`. The stub
-   (not the SDK profile cache) is required: the real fetcher runs an SSRF
-   URL-safety check that rejects the lane's `*.localhost` host. The trait reboots
-   the kernel (`KernelLifecycleManager::bootKernel(true)`, reusing the connection
-   so the test transaction still rolls back) so the stub can replace a
-   not-yet-initialized service on the suite's shared kernel.
+   `enabledCapabilities`) to a test `AgentProfileFetcherInterface`. The stub (not
+   the SDK profile cache) is required: the real fetcher runs an SSRF URL-safety
+   check that rejects the lane's `*.localhost` host. The override is wired the way
+   core overrides services for tests — a `test`-environment-only service swap
+   (`TestAgentProfileFetcherCompilerPass` replaces the SDK's `HttpAgentProfileFetcher`
+   with `Ucp\Test\StaticAgentProfileFetcher`), so the test just calls `setProfile()`
+   on it; no kernel reboot is needed.
 
    **Runs on the lane's own phpunit, not the plugin's.** The suite uses Shopware
    core's test base classes (`IntegrationTestBehaviour`), which are coupled to the
@@ -94,20 +99,24 @@ debuggable, and run without a deployed HTTP stack:
    remove that pin (the PHP-8.1 lane runs against 6.5/phpunit-9, where our
    attribute-based tests would otherwise break).
 
-**Shell smoke is the last resort, not the default.** Add a check to `bin/lib/smoke/*`
-only when it genuinely cannot be a kernel test. Anything provable through a booted
-kernel belongs in the `kernel` suite. When you migrate a smoke assertion into a
-kernel test, remove the now-redundant smoke check once the kernel suite gates in
-CI, so coverage moves rather than duplicates.
+**Shell smoke is the last resort, not the default.** Almost any smoke assertion can
+be expressed as a Symfony-browser functional test, so default to that: add a check
+to `bin/lib/smoke/*` only when it genuinely needs the deployed stack (real on-the-wire
+delivery, a live external endpoint, a per-lane JS build). Anything provable through a
+booted kernel belongs in the `functional` suite. When you migrate a smoke assertion
+into a functional test, remove the now-redundant smoke check once the functional suite
+gates in CI, so coverage moves rather than duplicates.
 
-#### What deliberately stays in shell smoke, and why
+#### What still lives in shell smoke today, and why
 
-These are genuine deployed-stack / on-the-wire concerns a booted kernel cannot
-observe — do **not** try to move them into the `kernel` suite:
+These are the checks not yet migrated because they exercise genuine deployed-stack /
+on-the-wire behavior that a booted kernel does not observe directly. They are not
+"impossible as functional tests" in principle — an e2e/browser harness could cover
+most of them — but the booted-kernel suite is the wrong layer for them today:
 
 - **Outbound signed order webhook** (`smoke/checkout.sh`) — asserts the webhook is
   actually *delivered* to an external capture endpoint with `signature`,
-  `signature-input`, and `content-digest` headers. A kernel test can at most
+  `signature-input`, and `content-digest` headers. A booted-kernel test can at most
   assert the webhook was *dispatched*; the signed HTTP on the wire is e2e.
 - **Tokenize 501** (`smoke/identity.sh`) — the payment endpoint requires a
   *signed* request; the smoke only reaches it because it fetches a real profile
@@ -123,10 +132,10 @@ observe — do **not** try to move them into the `kernel` suite:
 - **Signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
 
 **Known duplication (intentional):** `smoke/catalog.sh` and `smoke/cart.sh` are now
-also covered by the `kernel` suite. They stay in smoke because the smoke stages run
+also covered by the `functional` suite. They stay in smoke because the smoke stages run
 as a dependent chain (`catalog → cart → checkout`) — catalog resolves the product
 that cart and checkout reuse, and checkout must stay to drive the signed webhook.
-The kernel tests are the readable capability coverage; the smoke chain is the
+The functional tests are the readable capability coverage; the smoke chain is the
 webhook-driving e2e. Only refactor this if you make the checkout smoke seed its own
 product so the early stages can be dropped.
 
@@ -147,10 +156,10 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
   failure names the area. Stages share the orchestrator's shell scope (they are
   sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module
   and calling it from the orchestrator. Before adding a smoke check, confirm it
-  cannot be a `kernel` integration test (see *Test layering* above) — smoke is
-  for deployed-stack concerns only. With `CI_SMOKE_RUN_INTEGRATION=1` (set on
+  cannot be a `functional` test (see *Test layering* above) — smoke is
+  for deployed-stack concerns only. With `CI_SMOKE_RUN_FUNCTIONAL=1` (set on
   every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and
-  runs the kernel suite on the lane's own phpunit after the HTTP smoke.
+  runs the functional suite on the lane's own phpunit after the HTTP smoke.
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI
 `shell-lint` job; `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows

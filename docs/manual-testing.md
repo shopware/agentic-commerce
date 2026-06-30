@@ -7,8 +7,8 @@ Automated coverage (PHPUnit unit/integration/kernel suites, `bin/ci-smoke.sh`,
 e2e Playwright) runs in CI; this document covers only what automation cannot.
 Behavior is covered at the lowest layer that can express it — route,
 request-context, and the **catalog/cart/checkout capability flows** (including
-completing a checkout into a real order and reading it back) live in the `kernel`
-integration suite (`composer test:kernel`, see [AGENTS.md](../AGENTS.md)). Shell
+completing a checkout into a real order and reading it back) live in the `functional`
+suite (`composer test:functional`, see [AGENTS.md](../AGENTS.md)). Shell
 smoke is reserved for deployed-stack / on-the-wire concerns that a booted kernel
 cannot observe: the outbound **signed order webhook** delivery, **tokenize** (needs
 a signed request), lane-aware MCP detection + storefront-rendered `/llms.txt` and
@@ -182,12 +182,13 @@ Run these in the plugin repo:
 composer ci
 composer test
 composer test:integration
-composer test:kernel  # requires a lane: SHOPWARE_PROJECT_DIR unset + APP_ENV=test
+composer test:functional  # requires a lane: SHOPWARE_PROJECT_DIR unset + APP_ENV=test
 ```
 
-Expected result: all commands pass. `composer test:kernel` boots a real test
-kernel and self-skips when run on the fast-path bootstrap (e.g. plain
-`composer ci`); run it against a configured lane.
+Expected result: all commands pass. `composer test:functional` boots a real test
+kernel and drives UCP routes through a real Symfony browser; like core's functional
+tests it assumes a booted kernel, so run it against a configured lane (not the
+fast-path bootstrap used by plain `composer ci`).
 
 ## Automated REST / Profile / Webhook Coverage
 

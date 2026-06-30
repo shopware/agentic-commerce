@@ -2,28 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Swag\AgenticCommerce\Tests\Integration\Ucp;
+namespace Swag\AgenticCommerce\Tests\Functional\Ucp;
 
 use Doctrine\DBAL\Connection;
-use Shopware\Core\Content\Product\Aggregate\ProductVisibility\ProductVisibilityDefinition;
-use Shopware\Core\Defaults;
+use Shopware\Core\Content\Test\Product\ProductBuilder;
+use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\Framework\Context;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Test\TestCaseBase\IntegrationTestBehaviour;
 use Shopware\Core\Framework\Test\TestCaseBase\KernelLifecycleManager;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
+use Swag\AgenticCommerce\Ucp\Test\StaticAgentProfileFetcher;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\BrowserKit\Response;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
-use Ucp\Sdk\Service\AgentProfileFetcherInterface;
 use Ucp\Sdk\Service\ProfileBuilderInterface;
 
 /**
- * Shared setup for UCP runtime-capability kernel tests (catalog/cart/checkout).
+ * Shared setup for UCP runtime-capability functional tests (catalog/cart/checkout).
  *
  * A real UCP runtime request must pass the SDK request-context handshake: a UCP-Agent header
  * pointing at an agent profile whose capabilities intersect the merchant's. Against the deployed
@@ -31,54 +30,46 @@ use Ucp\Sdk\Service\ProfileBuilderInterface;
  * and fetches it over HTTP. Offline we reproduce that without the network:
  *
  *  - set the sales-channel config the smoke sets (active + non-strict signature policy);
- *  - build the merchant PlatformProfile (with its enabled capabilities) and return it from a
- *    stubbed {@see AgentProfileFetcherInterface}, so context-building negotiates the full
- *    capability set without an HTTP fetch. The stub (rather than the SDK's profile-cache) is
- *    deliberate: the real fetcher runs an SSRF URL-safety check that rejects the lane's
- *    `*.localhost` host (only literal localhost/127.0.0.1 are exempt), so the cache path can't
- *    be exercised from a local lane regardless of scheme.
+ *  - build the merchant PlatformProfile (with its enabled capabilities) and hand it to the
+ *    {@see StaticAgentProfileFetcher} that replaces the SDK's HTTP fetcher in the `test`
+ *    environment (wired by {@see \Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass}),
+ *    so context-building negotiates the full capability set without an HTTP fetch. The stub
+ *    (rather than the SDK's profile-cache) is deliberate: the real fetcher runs an SSRF
+ *    URL-safety check that rejects the lane's `*.localhost` host (only literal localhost/127.0.0.1
+ *    are exempt), so the cache path can't be exercised from a local lane regardless of scheme.
  *
- * `configureUcpRuntime()` reboots the kernel first (reusing the DB connection, so the
- * transaction-rollback isolation is preserved) so the stub can replace a not-yet-initialized
- * service even though the test kernel is shared across the suite.
- *
- * Requires the booting bootstrap (SHOPWARE_PROJECT_DIR unset + APP_ENV=test); self-skips otherwise.
+ * Requests go through a real Symfony {@see KernelBrowser} (the full HttpKernel request/response
+ * cycle, kernel events included) against `APP_URL` — the test database's default storefront
+ * sales-channel domain — exactly as Shopware's own functional tests do.
  */
 trait UcpFlowTestBehaviour
 {
     use IntegrationTestBehaviour;
 
+    private KernelBrowser $browser;
+
     private string $ucpDomain;
 
     private string $ucpSalesChannelId;
 
-    public static function setUpBeforeClass(): void
-    {
-        $projectDir = getenv('SHOPWARE_PROJECT_DIR');
-        if (\is_string($projectDir) && '' !== $projectDir && is_dir($projectDir)) {
-            self::markTestSkipped('UCP flow kernel test requires the booting bootstrap (SHOPWARE_PROJECT_DIR unset).');
-        }
-    }
-
     /**
-     * Configures the first storefront sales channel for UCP runtime traffic and replaces the agent
-     * profile fetcher with the merchant's own capability-bearing profile. Call from the test body.
+     * Configures the storefront sales channel at APP_URL for UCP runtime traffic and hands the
+     * agent-profile fetcher the merchant's own capability-bearing profile. Call from the test body.
      */
     protected function configureUcpRuntime(): void
     {
-        // Fresh container so the agent-fetcher service is replaceable (the suite shares one kernel);
-        // reuseConnection keeps the open test transaction so DB writes still roll back.
-        KernelLifecycleManager::bootKernel(true);
+        $this->browser = KernelLifecycleManager::createBrowser($this->getKernel());
         $container = static::getContainer();
 
-        $domainRow = $container->get(Connection::class)->fetchAssociative(
-            "SELECT url, LOWER(HEX(sales_channel_id)) AS salesChannelId
-             FROM sales_channel_domain WHERE url LIKE 'http%' ORDER BY url LIMIT 1"
+        // APP_URL is the test database's default storefront sales-channel domain (the same value
+        // Shopware's own functional tests build their request URLs from).
+        $this->ucpDomain = rtrim((string) EnvironmentHelper::getVariable('APP_URL'), '/');
+        $salesChannelId = $container->get(Connection::class)->fetchOne(
+            'SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url = :url LIMIT 1',
+            ['url' => $this->ucpDomain]
         );
-        self::assertIsArray($domainRow, 'Expected a storefront sales-channel domain in the test database.');
-
-        $this->ucpDomain = (string) $domainRow['url'];
-        $this->ucpSalesChannelId = (string) $domainRow['salesChannelId'];
+        self::assertIsString($salesChannelId, \sprintf('Expected a storefront sales-channel domain at APP_URL (%s).', $this->ucpDomain));
+        $this->ucpSalesChannelId = $salesChannelId;
 
         $config = $container->get(SystemConfigService::class);
         $config->set('SwagAgenticCommerce.config.active', true, $this->ucpSalesChannelId);
@@ -87,46 +78,35 @@ trait UcpFlowTestBehaviour
         // continue-url template; set it (as the smoke does) before any config read is cached.
         $config->set('SwagAgenticCommerce.config.continueUrlTemplate', $this->ucpDomain.'/checkout/confirm?checkoutId={checkoutId}', $this->ucpSalesChannelId);
 
-        $container->set(AgentProfileFetcherInterface::class, new class($this->buildMerchantProfile()) implements AgentProfileFetcherInterface {
-            public function __construct(private readonly PlatformProfile $profile)
-            {
-            }
-
-            public function fetch(string $uri): PlatformProfile
-            {
-                return $this->profile;
-            }
-        });
+        $container->get(StaticAgentProfileFetcher::class)->setProfile($this->buildMerchantProfile());
     }
 
     /**
-     * Creates a minimal active storefront product visible in the configured sales channel, mirroring
-     * SeedSmokeCatalogCommand. Returns the product id.
+     * Creates a minimal active storefront product visible in the configured sales channel via the
+     * core {@see ProductBuilder} fixture. Returns the product id.
      */
     protected function seedStorefrontProduct(string $name = 'Kernel Test Album', string $productNumber = 'UCP-IT-1'): string
     {
-        $context = Context::createDefaultContext();
-        $taxId = static::getContainer()->get('tax.repository')->searchIds((new Criteria())->setLimit(1), $context)->firstId();
-        self::assertIsString($taxId, 'Expected a tax record in the test database.');
+        // IdsCollection moved to Test\Stub\Framework in 6.6; the plugin still supports 6.5.
+        $ids = class_exists(\Shopware\Core\Test\Stub\Framework\IdsCollection::class)
+            ? new \Shopware\Core\Test\Stub\Framework\IdsCollection()
+            : new \Shopware\Core\Framework\Test\IdsCollection();
 
-        $productId = Uuid::randomHex();
-        static::getContainer()->get('product.repository')->upsert([[
-            'id' => $productId,
-            'productNumber' => $productNumber,
-            'active' => true,
-            'stock' => 100,
-            'name' => $name,
-            'taxId' => $taxId,
-            'price' => [['currencyId' => Defaults::CURRENCY, 'gross' => 19.99, 'net' => 16.80, 'linked' => false]],
-            'visibilities' => [['salesChannelId' => $this->ucpSalesChannelId, 'visibility' => ProductVisibilityDefinition::VISIBILITY_ALL]],
-        ]], $context);
+        $product = (new ProductBuilder($ids, $productNumber, 100))
+            ->name($name)
+            ->price(19.99, 16.80)
+            ->visibility($this->ucpSalesChannelId)
+            ->build();
 
-        return $productId;
+        static::getContainer()->get('product.repository')->create([$product], Context::createDefaultContext());
+
+        return $product['id'];
     }
 
     /**
-     * Drives a UCP runtime route through the booted kernel with a valid UCP-Agent header and a fresh
-     * idempotency key.
+     * Drives a UCP runtime route through a real Symfony browser with a valid UCP-Agent header and a
+     * fresh idempotency key. Each call starts from a clean cookie jar so requests stay independent,
+     * mirroring the curl-based smoke.
      *
      * @param array<string, mixed>|null $json
      * @param array<string, string>     $extraServer extra server params, e.g. ['HTTP_SW_CONTEXT_TOKEN' => '...']
@@ -143,7 +123,10 @@ trait UcpFlowTestBehaviour
             $body = json_encode($json, \JSON_THROW_ON_ERROR);
         }
 
-        return static::getKernel()->handle(Request::create($this->ucpDomain.$path, $method, [], [], [], $server, $body));
+        $this->browser->getCookieJar()->clear();
+        $this->browser->request($method, $this->ucpDomain.$path, [], [], $server, $body);
+
+        return $this->browser->getResponse();
     }
 
     /**

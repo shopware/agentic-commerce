@@ -564,22 +564,23 @@ smoke_catalog
 smoke_cart
 smoke_checkout
 
-# Optionally run the kernel integration suite inside the already-booted stack. These tests
-# boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) rather than
-# hitting the deployed HTTP stack. They use Shopware core's test base classes, which are
-# coupled to the lane's phpunit major (6.5->9, 6.6->10, trunk->11), so they must run on the
-# lane's OWN phpunit, not the plugin's pinned .tools 10.5. The smoke stack installs Shopware
-# --no-dev, so pull in the dev deps here: bin/run.php then prefers the platform phpunit and
-# tests/bootstrap.php registers the plugin's src + Tests namespaces on the platform autoloader.
-if [[ "${CI_SMOKE_RUN_INTEGRATION:-0}" == "1" ]]; then
-  echo "Installing Shopware dev dependencies so the kernel suite runs on the lane's own phpunit."
+# Optionally run the functional suite inside the already-booted stack. These tests
+# boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) and drive UCP
+# routes through a real Symfony browser, rather than hitting the deployed HTTP stack. They use
+# Shopware core's test base classes, which are coupled to the lane's phpunit major
+# (6.5->9, 6.6->10, trunk->11), so they must run on the lane's OWN phpunit, not the plugin's
+# pinned .tools 10.5. The smoke stack installs Shopware --no-dev, so pull in the dev deps here:
+# bin/run.php then prefers the platform phpunit and tests/bootstrap.php registers the plugin's
+# src + Tests namespaces on the platform autoloader.
+if [[ "${CI_SMOKE_RUN_FUNCTIONAL:-0}" == "1" ]]; then
+  echo "Installing Shopware dev dependencies so the functional suite runs on the lane's own phpunit."
   web composer install -d /var/www/html --no-interaction --no-progress --no-scripts
-  echo "Running kernel integration suite (lane phpunit, booting test kernel)."
+  echo "Running functional suite (lane phpunit, booting test kernel)."
   "${compose[@]}" exec -T \
     -e SHOPWARE_PROJECT_DIR= \
     -e APP_ENV=test \
     -w /var/www/html/custom/plugins/SwagAgenticCommerce \
-    web php bin/run.php phpunit --testsuite kernel
+    web php bin/run.php phpunit --testsuite functional
 fi
 
 echo "Smoke test passed for ${SHOPWARE_DIR}."

@@ -134,26 +134,27 @@ Adjust the paths to match your local checkout layout.
 composer ci
 composer test              # unit suite (mocks, no kernel)
 composer test:integration  # mock-based integration suite (fast-path bootstrap)
-composer test:kernel       # kernel integration suite (boots a real test kernel)
+composer test:functional   # functional suite (boots a real test kernel + Symfony browser)
 bin/ci-smoke.sh /path/to/shopware-checkout
 bin/ci-admin-smoke.sh /path/to/shopware-checkout auto
 bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 ```
 
-### Prefer integration tests over shell smoke
+### Prefer functional tests over shell smoke
 
 Cover behavior at the lowest layer that can express it, and reach for a PHP test
-before a shell smoke check. The `kernel` suite (`tests/Integration/Ucp`,
-`composer test:kernel`) boots a real Shopware test kernel and drives UCP runtime
-routes end-to-end, so it is the preferred home for route, request-context, and
+before a shell smoke check. The `functional` suite (`tests/Functional`,
+`composer test:functional`) boots a real Shopware test kernel and drives UCP runtime
+routes end-to-end through a real Symfony browser (against `APP_URL`, as Shopware's
+own functional tests do), so it is the preferred home for route, request-context, and
 capability behavior — it is readable and debuggable without a deployed HTTP
 stack. It covers the request-context guards and the **catalog/cart/checkout
 capability flows**, including completing a checkout into a **real Shopware order**
 and reading it back via its context token (via the shared `UcpFlowTestBehaviour`).
-It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`);
-each test self-skips otherwise. Run it against a configured lane with
-`composer test:kernel`. In CI it gates on **every** `shopware-matrix` lane
-(`CI_SMOKE_RUN_INTEGRATION=1`).
+It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`) and,
+like core, assumes a booted kernel — run it against a configured lane with
+`composer test:functional`. In CI it gates on **every** `shopware-matrix` lane
+(`CI_SMOKE_RUN_FUNCTIONAL=1`).
 
 It runs on the **lane's own** phpunit: Shopware core's test base classes are
 coupled to each lane's phpunit major (6.5→9.x, 6.6→10.x, trunk→11.x), so a single
@@ -162,9 +163,9 @@ a lane and `tests/bootstrap.php` registers the plugin on the platform autoloader
 ci-smoke installs Shopware's dev deps so that binary is present. The unit/mock
 suites stay on the plugin's pinned `.tools` phpunit (fast, lane-independent).
 
-Shell smoke (`bin/ci-smoke.sh`) is reserved for what a kernel test cannot cover —
-genuine deployed-stack / on-the-wire concerns. After the capability flows moved to
-the kernel suite, what stays in smoke and why:
+Shell smoke (`bin/ci-smoke.sh`) is reserved for what the functional suite is the wrong
+layer for — genuine deployed-stack / on-the-wire concerns. After the capability flows
+moved to the functional suite, what stays in smoke and why:
 
 - the **outbound signed order webhook** — actually delivered to an external
   endpoint with `signature`/`signature-input`/`content-digest` headers (on-the-wire);
@@ -175,11 +176,12 @@ the kernel suite, what stays in smoke and why:
   `bin/ci-storefront-smoke.sh`) — closer to a browser-e2e concern;
 - **signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
 
-`smoke/catalog.sh` and `smoke/cart.sh` are now *also* in the kernel suite; they
+`smoke/catalog.sh` and `smoke/cart.sh` are now *also* in the functional suite; they
 stay in smoke only because the smoke runs as a dependent chain
-(`catalog → cart → checkout`) that drives the webhook. When a smoke assertion can
-become a kernel test, move it and drop the redundant smoke check once the kernel
-suite gates in CI. See [AGENTS.md](AGENTS.md) for the full layering rationale.
+(`catalog → cart → checkout`) that drives the webhook. Almost any smoke assertion can
+become a functional test — when one can, move it and drop the redundant smoke check
+once the functional suite gates in CI. See [AGENTS.md](AGENTS.md) for the full layering
+rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](docs/manual-testing.md).
 

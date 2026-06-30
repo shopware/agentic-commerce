@@ -16,10 +16,10 @@ parameters:
     tmpDir: __PHPSTAN_TMP_DIR__
     excludePaths:
         - src/Resources/app
-        # Kernel integration tests rely on core's test-dev classes (IntegrationTestBehaviour,
-        # KernelLifecycleManager) that aren't on the php-quality job's autoload. They are
-        # validated by running against a booted kernel in a lane, not by static analysis.
-        - tests/Integration/Ucp
+        # Functional tests rely on core's test-dev classes (IntegrationTestBehaviour,
+        # KernelLifecycleManager, ProductBuilder) that aren't on the php-quality job's autoload.
+        # They are validated by running against a booted kernel in a lane, not by static analysis.
+        - tests/Functional
     bootstrapFiles:
         - tests/bootstrap.php
     stubFiles:

@@ -10,19 +10,18 @@
         <!-- Mock-based suite, runs on the lightweight fast-path bootstrap. -->
         <testsuite name="integration">
             <directory>tests/Integration</directory>
-            <exclude>tests/Integration/Ucp</exclude>
         </testsuite>
-        <!-- Kernel tests: require the booting bootstrap (SHOPWARE_PROJECT_DIR unset
-             + APP_ENV=test) and run a real test kernel; kept separate from the mock
-             suite, which fails under a booted kernel. -->
-        <testsuite name="kernel">
-            <directory>tests/Integration/Ucp</directory>
+        <!-- Functional tests: boot a real test kernel (booting bootstrap: SHOPWARE_PROJECT_DIR
+             unset + APP_ENV=test) and drive UCP runtime routes through a real Symfony browser.
+             Kept separate from the mock integration suite, which fails under a booted kernel. -->
+        <testsuite name="functional">
+            <directory>tests/Functional</directory>
         </testsuite>
     </testsuites>
     <php>
         <ini name="date.timezone" value="UTC"/>
         <env name="SWAG_AGENTIC_COMMERCE_SHOPWARE_BOOTSTRAP" value="1"/>
-        <!-- The kernel suite runs on the lane's platform phpunit, which ships the Symfony
+        <!-- The functional suite runs on the lane's platform phpunit, which ships the Symfony
              PHPUnit bridge. Its deprecation helper otherwise fails the run on direct
              deprecations emitted by Shopware's own TestBootstrapper (notably on 6.5/Symfony 6.4),
              even when every test passes. Disable it as Shopware's own phpunit config does.

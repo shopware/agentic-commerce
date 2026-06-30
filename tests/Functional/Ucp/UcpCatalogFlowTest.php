@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Swag\AgenticCommerce\Tests\Integration\Ucp;
+namespace Swag\AgenticCommerce\Tests\Functional\Ucp;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
