@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -11,6 +12,8 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 
+/** @internal */
+#[CoversClass(UcpConfigService::class)]
 final class UcpConfigServiceTest extends TestCase
 {
     public function testItLoadsPersistedSalesChannelConfigFromRepository(): void
@@ -55,7 +58,9 @@ final class UcpConfigServiceTest extends TestCase
         static::assertTrue($config->active);
         static::assertSame('log', $config->signaturePolicy);
         static::assertSame(7, $config->catalogResultLimit);
-        static::assertTrue($repository->find('sales-channel-b')?->active ?? false);
+        $persistedConfig = $repository->find('sales-channel-b');
+        static::assertNotNull($persistedConfig);
+        static::assertTrue($persistedConfig->active);
     }
 
     public function testItLoadsConfigSummariesInBulk(): void
@@ -157,6 +162,7 @@ final class UcpConfigServiceTest extends TestCase
     }
 }
 
+/** @internal */
 final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
 {
     /**

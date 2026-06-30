@@ -64,7 +64,7 @@ final class SeedSmokeCatalogCommand extends Command
             return self::FAILURE;
         }
 
-        $context = Context::createDefaultContext();
+        $context = Context::createCLIContext();
         $productName = trim((string) $input->getOption('product-name'));
         $productName = '' !== $productName ? $productName : 'Smoke Music Album';
 

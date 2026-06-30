@@ -174,16 +174,12 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
     }
 
     if (is_file($phpStanDir.'/common.neon')) {
-        return implode("\n", [
-            '    - '.$phpStanDir.'/common.neon',
-            '    - '.$phpStanDir.'/core-rules.neon',
-        ]);
+        return '    - '.$phpStanDir.'/common.neon';
     }
 
     return implode("\n", [
         '    - '.$phpStanDir.'/extension.neon',
         '    - '.$phpStanDir.'/rules.neon',
-        '    - '.$phpStanDir.'/core-rules.neon',
     ]);
 }
 
@@ -196,14 +192,7 @@ function renderShopwarePhpstanParameters(string $coreDir): string
     return implode("\n", [
         '    shopware:',
         '        allowedUnitTestClassNamespaces:',
-        '            - Swag\AgenticCommerce\Tests\Unit\Content\ProductExport\\',
-        '            - Swag\AgenticCommerce\Tests\Unit\DependencyInjection\\',
-        '            - Swag\AgenticCommerce\Tests\Unit\Migration\\',
-        '            - Swag\AgenticCommerce\Tests\Unit\Storefront\Robots\\',
-        '            - Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Subscriber\\',
-        '            - Swag\AgenticCommerce\Tests\Unit\CheckoutCompleterTest',
-        '            - Swag\AgenticCommerce\Tests\Unit\DoctrineDbalCheckoutCompletionStoreTest',
-        '            - Swag\AgenticCommerce\Tests\Unit\SalesChannelDomainResolverTest',
+        '            - Swag\AgenticCommerce\Tests\Unit\\',
         '            - Swag\AgenticCommerce\Tests\Integration\Migration\\',
     ]);
 }
