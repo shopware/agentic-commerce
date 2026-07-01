@@ -129,49 +129,6 @@ export async function withRestoredUcpConfig(adminApi, salesChannelId, callback) 
     }
 }
 
-export async function assertSettingsItemRegistered(page) {
-    const state = await page.evaluate(() => {
-        const getSettingsGroups = () => {
-            try {
-                const groups = globalThis.Shopware?.Store?.get?.('settingsItems')?.settingsGroups;
-                if (groups) {
-                    return groups;
-                }
-            } catch {
-                // 6.5/6.6 can expose the legacy state store while the newer store is unavailable.
-            }
-
-            return globalThis.Shopware?.State?.get?.('settingsItems')?.settingsGroups ?? {};
-        };
-
-        const registry = globalThis.Shopware?.Module?.getModuleRegistry?.();
-        const settingsGroups = getSettingsGroups();
-        const groups = Object.fromEntries(
-            Object.entries(settingsGroups).map(([group, items]) => [
-                group,
-                (items || []).map((item) => ({
-                    name: item.name ?? null,
-                    to: typeof item.to === 'string' ? item.to : item.to?.name ?? null,
-                    label: typeof item.label === 'string' ? item.label : item.label?.label ?? null,
-                })),
-            ]),
-        );
-
-        return {
-            moduleExists: Boolean(registry?.get?.('sw-settings-ucp')),
-            ucpItems: Object.entries(groups).flatMap(([group, items]) => (
-                items
-                    .filter((item) => item.name === 'sw-settings-ucp' || item.to === 'sw.settings.ucp.index' || /ucp/i.test(item.label || ''))
-                    .map((item) => ({ group, ...item }))
-            )),
-        };
-    });
-
-    expect(state.moduleExists, 'sw-settings-ucp module must be registered').toBe(true);
-    expect(state.ucpItems.length, 'UCP settings item must be registered').toBeGreaterThan(0);
-    await expect(page.locator('a[href*="sw/settings/ucp/index"], a[href*="sw.settings.ucp.index"]').first()).toBeVisible();
-}
-
 export async function assertProfileTransports(profile, expectedTransports) {
     const profileRoot = profile.ucp || profile;
     const transports = [...new Set((profileRoot.services?.['dev.ucp.shopping'] || []).map((entry) => entry.transport))].sort();
