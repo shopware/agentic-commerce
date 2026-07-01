@@ -11,7 +11,7 @@ import {
 } from '../../agentic-commerce/ucp-sub-tabs';
 import { READY_CAPABILITIES } from '../../agentic-commerce/ucp-capabilities';
 import { availableTransports } from '../../agentic-commerce/ucp-options';
-import { isPreviewDirty, profileCapabilityNames, serviceEndpointCount } from '../../agentic-commerce/ucp-profile-preview';
+import { isPreviewDirty } from '../../agentic-commerce/ucp-profile-preview';
 
 const { Mixin, Defaults } = Shopware;
 
@@ -138,12 +138,6 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         },
         previewJson() {
             return this.preview ? JSON.stringify(this.preview, null, 2) : '';
-        },
-        previewCapabilityCount() {
-            return profileCapabilityNames(this.preview).length;
-        },
-        previewEndpointCount() {
-            return serviceEndpointCount(this.preview);
         },
     },
 

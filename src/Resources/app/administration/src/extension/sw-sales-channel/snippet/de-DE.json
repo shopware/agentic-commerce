@@ -46,7 +46,7 @@
           "transportA2aDescription": "A2A – Agent-zu-Agent-Protokoll.",
           "transportEmbeddedDescription": "Embedded – eingebettete In-Context-Oberfläche.",
           "transportMcpDescription": "MCP – Model-Context-Protocol-Server.",
-          "previewLabel": "Profilvorschau (Fähigkeiten / Endpunkte)"
+          "previewLabel": "Profilvorschau"
         },
         "openAiSettingsTitle": "OpenAI-Einstellungen",
         "googleSettingsTitle": "Google-Einstellungen",
