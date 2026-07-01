@@ -9,7 +9,6 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\ApiRouteScope;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
-use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -30,7 +29,6 @@ final class UcpAdminController
     public function __construct(
         private readonly SalesChannelViewProvider $salesChannelViewProvider,
         private readonly UcpConfigService $configService,
-        private readonly UcpSigningKeyService $signingKeyService,
         private readonly ProfilePreviewBuilder $profilePreviewBuilder,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
@@ -100,46 +98,6 @@ final class UcpAdminController
         return new JsonResponse([
             'data' => $this->configService->saveConfig($payload, $salesChannelId)->toArray(),
         ]);
-    }
-
-    #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/keys', name: 'api.action.swag_agentic_commerce.ucp.keys.list', methods: ['GET'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]
-    public function keys(string $salesChannelId): JsonResponse
-    {
-        return new JsonResponse(['data' => $this->signingKeyService->all($salesChannelId)]);
-    }
-
-    #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/keys', name: 'api.action.swag_agentic_commerce.ucp.keys.create', methods: ['POST'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.key_rotator']])]
-    public function createKey(string $salesChannelId, Request $request): JsonResponse
-    {
-        $payload = $request->toArray();
-
-        return new JsonResponse([
-            'data' => $this->signingKeyService->create(
-                $salesChannelId,
-                isset($payload['kid']) && \is_string($payload['kid']) ? $payload['kid'] : null,
-                isset($payload['algorithm']) && \is_string($payload['algorithm']) ? $payload['algorithm'] : 'ES256',
-            ),
-        ], Response::HTTP_CREATED);
-    }
-
-    #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/keys/{kid}/retire', name: 'api.action.swag_agentic_commerce.ucp.keys.retire', methods: ['POST'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.key_rotator']])]
-    public function retireKey(string $salesChannelId, string $kid): JsonResponse
-    {
-        if (!$this->signingKeyService->retire($salesChannelId, $kid)) {
-            return new JsonResponse(['errors' => [['detail' => 'Signing key not found.']]], Response::HTTP_NOT_FOUND);
-        }
-
-        return new JsonResponse(['success' => true]);
-    }
-
-    #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/keys/{kid}', name: 'api.action.swag_agentic_commerce.ucp.keys.delete', methods: ['DELETE'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.key_rotator']])]
-    public function deleteKey(string $salesChannelId, string $kid): JsonResponse
-    {
-        if (!$this->signingKeyService->delete($salesChannelId, $kid)) {
-            return new JsonResponse(['errors' => [['detail' => 'Signing key not found.']]], Response::HTTP_NOT_FOUND);
-        }
-
-        return new JsonResponse(['success' => true]);
     }
 
     #[Route(path: '/api/_admin/ucp/sales-channels/{salesChannelId}/profile-preview', name: 'api.action.swag_agentic_commerce.ucp.profile_preview', methods: ['GET', 'POST'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]

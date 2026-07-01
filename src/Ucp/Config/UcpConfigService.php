@@ -97,19 +97,29 @@ final class UcpConfigService
     }
 
     /**
+     * Persist a (possibly partial) config payload. The incoming keys are merged
+     * over the currently stored config, so callers that only own a subset of the
+     * fields do not reset the rest: the admin UI saves the Exposure subset
+     * (active / profileDomain / capabilities / transports) while signature
+     * policy, signing keys and the advanced host/delivery settings are managed
+     * via console commands (ucp:config:* / ucp:key:*). Whichever writes last
+     * preserves the other's fields.
+     *
      * @param array<string, mixed> $payload
      */
     public function saveConfig(array $payload, ?string $salesChannelId = null): UcpConfig
     {
-        $config = UcpConfig::fromArray($payload);
-
         if (null === $salesChannelId) {
+            $config = UcpConfig::fromArray($payload);
             foreach ($config->toArray() as $key => $value) {
                 $this->legacyConfigStore->set(self::DOMAIN.$key, $value, null);
             }
 
             return $config;
         }
+
+        $merged = array_merge($this->getConfig($salesChannelId)->toArray(), $payload);
+        $config = UcpConfig::fromArray($merged);
 
         $this->repository->save($salesChannelId, $config);
 

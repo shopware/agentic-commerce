@@ -155,6 +155,38 @@ final class UcpConfigServiceTest extends TestCase
 
         static::assertSame([], $bridge->enabledSalesChannelIds);
     }
+
+    public function testSaveConfigMergesPartialPayloadOverStoredConfig(): void
+    {
+        // Fields managed via console (signature policy, allowlists) are stored;
+        // the admin then saves only the Exposure subset — the console-managed
+        // fields must survive the merge (they are not in the payload).
+        $repository = new InMemoryUcpConfigRepository([
+            'sales-channel-a' => UcpConfig::fromArray([
+                'active' => true,
+                'signaturePolicy' => 'log',
+                'agentAllowlist' => ['agent.example'],
+                'enabledCapabilities' => ['catalog'],
+            ]),
+        ]);
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $service = new UcpConfigService($repository, $legacyStore);
+
+        $service->saveConfig([
+            'active' => true,
+            'enabledCapabilities' => ['catalog', 'cart'],
+            'enabledTransports' => ['rest', 'a2a'],
+        ], 'sales-channel-a');
+
+        $stored = $repository->find('sales-channel-a');
+        static::assertNotNull($stored);
+        // Updated by the payload:
+        static::assertSame(['catalog', 'cart'], $stored->enabledCapabilities);
+        static::assertSame(['rest', 'a2a'], $stored->enabledTransports);
+        // Preserved because the payload omitted them:
+        static::assertSame('log', $stored->signaturePolicy);
+        static::assertSame(['agent.example'], $stored->agentAllowlist);
+    }
 }
 
 final class InMemoryUcpConfigRepository implements UcpConfigRepositoryInterface
