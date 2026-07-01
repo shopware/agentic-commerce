@@ -203,12 +203,16 @@ script covers, per lane:
 - the "MCP supported &hArr; MCP advertised" invariant (server-side
   `StoreApiMcpServerController` class check)
 - fallback `/llms.txt` and `/agents.md` when core agentic files are absent
-- `oauth-authorization-server` &rarr; `501` and `tokenize` &rarr; `501`
-- a runtime request **without a `UCP-Agent` header** &rarr; `422`
-- catalog search/lookup/product, cart create/get/update/cancel, checkout
-  create/get/update/complete &rarr; a real Shopware order, and secured order read
+- `tokenize` &rarr; `501` (the payment endpoint needs a *signed* request over real HTTP)
+- checkout create/get/update/complete &rarr; a real Shopware order, and secured order
+  read (the checkout stage resolves the seeded product itself, then drives the webhook)
 - signed outbound webhook capture (`signature`, `signature-input`, and
   `content-digest` headers present)
+
+The OAuth-metadata `501`, the missing-`UCP-Agent` `422` guard, and the catalog/cart
+capability flows are **no longer** in shell smoke — they are covered by the `functional`
+PHPUnit suite (`UcpRequestContextGuardTest`, `UcpCatalogFlowTest`, `UcpCartFlowTest`),
+which also gates on every `shopware-matrix` lane.
 
 You can still run the smoke runner locally if you want a fast confidence pass:
 

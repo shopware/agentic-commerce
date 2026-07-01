@@ -543,25 +543,20 @@ if [[ -z "${product_id}" || -z "${product_name}" ]]; then
   exit 1
 fi
 
-search_term="${product_name%% *}"
 ucp_agent_header="UCP-Agent: shopware-agentic-commerce-ci; profile=\"${BASE_URL}/.well-known/ucp\""
 
-# Smoke check stages live in named modules so a failing banner names the area.
+# Smoke check stages live in named modules so a failing banner names the area. Catalog and cart
+# capability coverage lives in the functional suite; the checkout stage resolves the seeded
+# product itself and stays here only to drive the on-the-wire signed order webhook.
 # shellcheck source=bin/lib/smoke/discovery.sh
 source "${PLUGIN_ROOT}/bin/lib/smoke/discovery.sh"
 # shellcheck source=bin/lib/smoke/identity.sh
 source "${PLUGIN_ROOT}/bin/lib/smoke/identity.sh"
-# shellcheck source=bin/lib/smoke/catalog.sh
-source "${PLUGIN_ROOT}/bin/lib/smoke/catalog.sh"
-# shellcheck source=bin/lib/smoke/cart.sh
-source "${PLUGIN_ROOT}/bin/lib/smoke/cart.sh"
 # shellcheck source=bin/lib/smoke/checkout.sh
 source "${PLUGIN_ROOT}/bin/lib/smoke/checkout.sh"
 
 smoke_discovery
 smoke_identity
-smoke_catalog
-smoke_cart
 smoke_checkout
 
 # Optionally run the functional suite inside the already-booted stack. These tests

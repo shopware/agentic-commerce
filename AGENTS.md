@@ -134,13 +134,11 @@ most of them — but the booted-kernel suite is the wrong layer for them today:
   bash check as a pragmatic build-plus-shell gate, not the ideal long-term home.)
 - **Signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
 
-**Known duplication (intentional):** `smoke/catalog.sh` and `smoke/cart.sh` are now
-also covered by the `functional` suite. They stay in smoke because the smoke stages run
-as a dependent chain (`catalog → cart → checkout`) — catalog resolves the product
-that cart and checkout reuse, and checkout must stay to drive the signed webhook.
-The functional tests are the readable capability coverage; the smoke chain is the
-webhook-driving e2e. Only refactor this if you make the checkout smoke seed its own
-product so the early stages can be dropped.
+**No capability duplication:** the catalog and cart smoke stages have been removed — their
+capability coverage lives entirely in the `functional` suite now. The `checkout` stage stays
+in smoke solely to drive the signed order webhook; it resolves the seeded product's title and
+price itself (a single `catalog.lookup` as data setup, not a catalog assertion), so it no
+longer depends on a `catalog → cart → checkout` stage chain.
 
 ### Shell smoke and lint tooling
 
@@ -155,7 +153,7 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
   sourcing script's `compose` array and `container_runtime`.
 - `bin/lib/smoke/*.sh` — `bin/ci-smoke.sh` is a thin orchestrator that, after
   bootstrap, sources and runs named stage modules (`discovery`, `identity`,
-  `catalog`, `cart`, `checkout`). Each prints a `>>> smoke: <stage>` banner, so a
+  `checkout`). Each prints a `>>> smoke: <stage>` banner, so a
   failure names the area. Stages share the orchestrator's shell scope (they are
   sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module
   and calling it from the orchestrator. Before adding a smoke check, confirm it

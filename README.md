@@ -176,12 +176,12 @@ moved to the functional suite, what stays in smoke and why:
   `bin/ci-storefront-smoke.sh`) — closer to a browser-e2e concern;
 - **signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
 
-`smoke/catalog.sh` and `smoke/cart.sh` are now *also* in the functional suite; they
-stay in smoke only because the smoke runs as a dependent chain
-(`catalog → cart → checkout`) that drives the webhook. Almost any smoke assertion can
-become a functional test — when one can, move it and drop the redundant smoke check
-once the functional suite gates in CI. See [AGENTS.md](AGENTS.md) for the full layering
-rationale.
+The former `catalog` and `cart` smoke stages have been removed — that capability coverage now
+lives entirely in the functional suite. The `checkout` stage resolves the seeded product itself
+(one `catalog.lookup` as data setup) and stays in smoke only to drive the signed order webhook.
+Almost any smoke assertion can become a functional test — when one can, move it and drop the
+redundant smoke check once the functional suite gates in CI. See [AGENTS.md](AGENTS.md) for the
+full layering rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](docs/manual-testing.md).
 
