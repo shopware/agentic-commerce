@@ -18,3 +18,15 @@
     >{{ item.translated.name || item.name }}</router-link>
 </template>
 {% endblock %}
+
+{% block sw_sales_channel_list_grid_column_status %}
+{% parent %}
+<template #column-ucpActive="{ item }">
+    <sw-status v-if="ucpActiveMap[item.id]" color="green">
+        {{ $t('swagAgenticCommerce.salesChannelList.ucpExposed') }}
+    </sw-status>
+    <sw-status v-else color="gray">
+        {{ $t('swagAgenticCommerce.salesChannelList.ucpOff') }}
+    </sw-status>
+</template>
+{% endblock %}

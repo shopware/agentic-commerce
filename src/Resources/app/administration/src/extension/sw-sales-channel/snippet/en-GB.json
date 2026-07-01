@@ -2,6 +2,11 @@
   "swagAgenticCommerce": {
     "modalGrid": {
       "agenticCommerceBadge": "New"
+    },
+    "salesChannelList": {
+      "columnUcp": "UCP",
+      "ucpExposed": "Exposed",
+      "ucpOff": "Off"
     }
   },
   "sw-sales-channel": {
