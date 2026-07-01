@@ -33,7 +33,7 @@ composer cs
 composer phpstan
 composer rector
 composer test              # unit suite (mocks, no kernel)
-composer test:integration  # mock-based integration suite, fast-path bootstrap
+composer test:integration  # DB-backed integration suite (real connection, e.g. migrations)
 composer test:functional   # functional suite, boots a real test kernel + Symfony browser
 ```
 
@@ -53,9 +53,12 @@ over a shell smoke check whenever the behavior fits one — PHP tests are readab
 debuggable, and run without a deployed HTTP stack:
 
 1. **`unit`** (`tests/Unit`, `composer test`) — pure logic with mocks; no kernel.
-2. **`integration`** (`tests/Integration`, `composer test:integration`) —
-   mock-based collaboration on the lightweight fast-path bootstrap (no kernel
-   boot).
+   Mock-only collaboration tests (no kernel boot) live here too — a test that only
+   wires mocks is a unit test regardless of how many collaborators it stubs.
+2. **`integration`** (`tests/Integration`, `composer test:integration`) — DB-backed
+   tests that use a real Doctrine connection through the kernel (e.g. the migration
+   tests). Reserve this tier for tests that genuinely touch the database/kernel;
+   mock-only tests belong in `unit`.
 3. **`functional`** (`tests/Functional`, `composer test:functional`) — boots a
    real Shopware test kernel and drives UCP runtime routes end-to-end through a
    real Symfony `KernelBrowser` (the full HttpKernel request/response cycle,

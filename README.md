@@ -133,7 +133,7 @@ Adjust the paths to match your local checkout layout.
 ```bash
 composer ci
 composer test              # unit suite (mocks, no kernel)
-composer test:integration  # mock-based integration suite (fast-path bootstrap)
+composer test:integration  # DB-backed integration suite (real connection, e.g. migrations)
 composer test:functional   # functional suite (boots a real test kernel + Symfony browser)
 bin/ci-smoke.sh /path/to/shopware-checkout
 bin/ci-admin-smoke.sh /path/to/shopware-checkout auto
