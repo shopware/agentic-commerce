@@ -7,15 +7,17 @@
 const SNIPPET_ROOT = 'sw-sales-channel.detail.agenticCommerce.ucp';
 
 export const SUB_TAB_EXPOSURE = 'exposure';
-export const SUB_TAB_CAPABILITIES_SECURITY = 'capabilitiesSecurity';
-export const SUB_TAB_DEVELOPER_ADVANCED = 'developerAdvanced';
+export const SUB_TAB_SECURITY = 'security';
+export const SUB_TAB_ADVANCED = 'advanced';
+export const SUB_TAB_PREVIEW = 'preview';
 
 export const DEFAULT_SUB_TAB = SUB_TAB_EXPOSURE;
 
 export const UCP_SUB_TABS = [
     { name: SUB_TAB_EXPOSURE, label: `${SNIPPET_ROOT}.subTabExposure` },
-    { name: SUB_TAB_CAPABILITIES_SECURITY, label: `${SNIPPET_ROOT}.subTabCapabilitiesSecurity` },
-    { name: SUB_TAB_DEVELOPER_ADVANCED, label: `${SNIPPET_ROOT}.subTabDeveloperAdvanced` },
+    { name: SUB_TAB_SECURITY, label: `${SNIPPET_ROOT}.subTabSecurity` },
+    { name: SUB_TAB_ADVANCED, label: `${SNIPPET_ROOT}.subTabAdvanced` },
+    { name: SUB_TAB_PREVIEW, label: `${SNIPPET_ROOT}.subTabPreview` },
 ];
 
 /**

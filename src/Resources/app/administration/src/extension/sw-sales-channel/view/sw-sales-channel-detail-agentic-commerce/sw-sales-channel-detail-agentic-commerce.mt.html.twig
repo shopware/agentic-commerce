@@ -5,7 +5,10 @@
     <sw-skeleton v-if="isUcpLoading" />
     {% endblock %}
 
-    <sw-card-view v-else>
+    {# Tab content renders inside the page's own sw-card-view (core template),
+       so we must NOT nest another one here — a second sw-card-view is
+       position:absolute with its own 40px padding and shifts the cards. #}
+    <template v-else>
         {% block sw_sales_channel_detail_agentic_commerce_unsaved_banner %}
         {# Always-visible unsaved-changes notice — visible from any sub-tab. #}
         <mt-banner
@@ -22,20 +25,18 @@
         <mt-card
             class="sw-sales-channel-detail-agentic-commerce__ucp-card"
             position-identifier="sw-sales-channel-detail-agentic-commerce-ucp"
-            :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle')"
-            :subtitle="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardIntro')"
         >
-            {% block sw_sales_channel_detail_agentic_commerce_ucp_toggle %}
-            <template #headerRight>
-                <mt-switch
-                    class="sw-sales-channel-detail-agentic-commerce__expose-switch"
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
-                    :disabled="!canEditConfig"
-                    :checked="isActive"
-                    :value="isActive"
-                    @change="setActive"
-                    @update:value="setActive"
-                />
+            {% block sw_sales_channel_detail_agentic_commerce_ucp_title %}
+            <template #title>
+                <div class="sw-sales-channel-detail-agentic-commerce__card-title">
+                    <h3 class="sw-sales-channel-detail-agentic-commerce__card-headline">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle') }}
+                    </h3>
+
+                    <p class="sw-sales-channel-detail-agentic-commerce__card-description">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.cardIntro') }}
+                    </p>
+                </div>
             </template>
             {% endblock %}
 
@@ -52,36 +53,30 @@
             {# ---- Exposure ---- #}
             {% block sw_sales_channel_detail_agentic_commerce_ucp_exposure %}
             <template v-if="resolvedSubTab === 'exposure'">
-                <p class="sw-sales-channel-detail-agentic-commerce__hint">
-                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.exposureHint') }}
-                </p>
-
-                <mt-select
-                    v-if="hasMultipleDomains"
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.profileDomainLabel')"
-                    :options="profileDomainOptions"
-                    :disabled="!canEditConfig"
-                    :model-value="form.profileDomain"
-                    @update:model-value="(value) => setValue('profileDomain', value)"
-                />
-                <p v-else class="sw-sales-channel-detail-agentic-commerce__hint">
-                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.profileDomainSingle') }}
-                </p>
-            </template>
-            {% endblock %}
-
-            {# ---- Capabilities & Security ---- #}
-            {% block sw_sales_channel_detail_agentic_commerce_ucp_capabilities %}
-            <template v-if="resolvedSubTab === 'capabilitiesSecurity'">
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
-                    <mt-select
-                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyLabel')"
-                        :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyWarning')"
-                        :options="signaturePolicyItems"
-                        :disabled="!canEditConfig || !isActive"
-                        :model-value="form.signaturePolicy"
-                        @update:model-value="(value) => setValue('signaturePolicy', value)"
+                    <mt-switch
+                        class="sw-sales-channel-detail-agentic-commerce__expose-switch"
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
+                        :disabled="!canEditConfig"
+                        :checked="isActive"
+                        @change="setActive"
                     />
+                </div>
+
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.profileDomainLabel') }}
+                    </p>
+                    <mt-select
+                        v-if="hasMultipleDomains"
+                        :options="profileDomainOptions"
+                        :disabled="!canEditConfig"
+                        :model-value="selectedProfileDomain"
+                        @update:model-value="(value) => setValue('profileDomain', value)"
+                    />
+                    <p v-else class="sw-sales-channel-detail-agentic-commerce__hint">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.profileDomainSingle') }}
+                    </p>
                 </div>
 
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
@@ -100,38 +95,72 @@
                         />
                     </div>
                 </div>
+            </template>
+            {% endblock %}
+
+            {# ---- Security ---- #}
+            {% block sw_sales_channel_detail_agentic_commerce_ucp_security %}
+            <template v-if="resolvedSubTab === 'security'">
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyLabel') }}
+                        <mt-icon
+                            class="sw-sales-channel-detail-agentic-commerce__label-help"
+                            name="solid-question-circle-s"
+                            size="16"
+                            v-tooltip="{ message: $t('sw-sales-channel.detail.agenticCommerce.ucp.signaturePolicyWarning'), width: 280 }"
+                        />
+                    </p>
+                    <mt-select
+                        :options="signaturePolicyItems"
+                        :disabled="!canEditConfig || !isActive"
+                        :model-value="form.signaturePolicy"
+                        @update:model-value="(value) => setValue('signaturePolicy', value)"
+                    />
+                </div>
 
                 {% block sw_sales_channel_detail_agentic_commerce_ucp_keys %}
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
                     <p class="sw-sales-channel-detail-agentic-commerce__section-label">
                         {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.signingKeysLabel') }}
                     </p>
-                    <ul class="sw-sales-channel-detail-agentic-commerce__keys">
-                        <li v-for="key in sortedKeys" :key="key.kid">
-                            <span>{{ key.kid }} · {{ key.algorithm }} · {{ key.status }}</span>
-                            <mt-button
-                                v-if="canRotateKeys"
-                                size="small"
-                                variant="secondary"
-                                :is-loading="isKeyActionLoading"
-                                @click="retireKey(key.kid)"
-                            >
-                                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.retireKey') }}
-                            </mt-button>
-                            <mt-button
-                                v-if="canRotateKeys"
-                                size="small"
-                                variant="critical"
-                                :is-loading="isKeyActionLoading"
-                                @click="deleteKey(key.kid)"
-                            >
-                                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.deleteKey') }}
-                            </mt-button>
-                        </li>
-                        <li v-if="sortedKeys.length === 0">
-                            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.noKeys') }}
-                        </li>
-                    </ul>
+                    <div v-if="sortedKeys.length" class="sw-sales-channel-detail-agentic-commerce__keys">
+                        <div class="sw-sales-channel-detail-agentic-commerce__keys-row sw-sales-channel-detail-agentic-commerce__keys-row--head">
+                            <span>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.keyColId') }}</span>
+                            <span>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.keyAlgorithm') }}</span>
+                            <span>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.keyColStatus') }}</span>
+                            <span></span>
+                        </div>
+                        <div
+                            v-for="key in sortedKeys"
+                            :key="key.kid"
+                            class="sw-sales-channel-detail-agentic-commerce__keys-row"
+                        >
+                            <span class="sw-sales-channel-detail-agentic-commerce__keys-kid">{{ key.kid }}</span>
+                            <span>{{ key.algorithm }}</span>
+                            <span>{{ key.status }}</span>
+                            <div v-if="canRotateKeys" class="sw-sales-channel-detail-agentic-commerce__keys-actions">
+                                <mt-button
+                                    variant="secondary"
+                                    :is-loading="isKeyActionLoading"
+                                    @click="retireKey(key.kid)"
+                                >
+                                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.retireKey') }}
+                                </mt-button>
+                                <mt-button
+                                    variant="critical"
+                                    :is-loading="isKeyActionLoading"
+                                    @click="deleteKey(key.kid)"
+                                >
+                                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.deleteKey') }}
+                                </mt-button>
+                            </div>
+                            <span v-else></span>
+                        </div>
+                    </div>
+                    <p v-else class="sw-sales-channel-detail-agentic-commerce__hint">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.noKeys') }}
+                    </p>
                 </div>
 
                 <div v-if="canRotateKeys" class="sw-sales-channel-detail-agentic-commerce__section">
@@ -159,100 +188,114 @@
             </template>
             {% endblock %}
 
-            {# ---- Developer & Advanced ---- #}
+            {# ---- Advanced ---- #}
             {% block sw_sales_channel_detail_agentic_commerce_ucp_advanced %}
-            <template v-if="resolvedSubTab === 'developerAdvanced'">
-                <mt-text-field
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.continueUrlLabel')"
-                    :disabled="!canEditConfig"
-                    :model-value="form.continueUrlTemplate"
-                    @change="(value) => setValue('continueUrlTemplate', value || null)"
-                />
+            <template v-if="resolvedSubTab === 'advanced'">
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
+                    </p>
+                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group sw-sales-channel-detail-agentic-commerce__checkbox-group--inline">
+                        <mt-checkbox
+                            v-for="transport in transportItems"
+                            :key="transport.value"
+                            :label="transport.label"
+                            :help-text="$t(transport.description)"
+                            :disabled="!canEditConfig || !isActive"
+                            :checked="isTransportEnabled(transport.value)"
+                            @update:checked="(checked) => updateTransport(transport.value, checked)"
+                        />
+                    </div>
+                </div>
 
-                <mt-textarea
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.agentAllowlistLabel')"
-                    :disabled="!canEditConfig"
-                    :model-value="hostListText('agentAllowlist')"
-                    @change="(value) => setHostListText('agentAllowlist', value)"
-                />
-                <mt-textarea
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.remoteProfileAllowlistLabel')"
-                    :disabled="!canEditConfig"
-                    :model-value="hostListText('remoteProfileAllowlist')"
-                    @change="(value) => setHostListText('remoteProfileAllowlist', value)"
-                />
-                <mt-textarea
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.embeddedAllowedOriginsLabel')"
-                    :disabled="!canEditConfig"
-                    :model-value="hostListText('embeddedAllowedOrigins')"
-                    @change="(value) => setHostListText('embeddedAllowedOrigins', value)"
-                />
-                <mt-textarea
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.embeddedFrameAncestorsLabel')"
-                    :disabled="!canEditConfig"
-                    :model-value="hostListText('embeddedFrameAncestors')"
-                    @change="(value) => setHostListText('embeddedFrameAncestors', value)"
-                />
-                <mt-text-field
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.webhookUrlOverrideLabel')"
-                    :disabled="!canEditConfig"
-                    :model-value="form.webhookUrlOverride"
-                    @change="(value) => setValue('webhookUrlOverride', value || null)"
-                />
-                <mt-switch
-                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.idempotencyLabel')"
-                    :disabled="!canEditConfig"
-                    :checked="form.idempotencyRequired"
-                    :value="form.idempotencyRequired"
-                    @change="(value) => setValue('idempotencyRequired', Boolean(value))"
-                    @update:value="(value) => setValue('idempotencyRequired', Boolean(value))"
-                />
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.advancedAllowlistsLabel') }}
+                    </p>
+                    <mt-textarea
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.agentAllowlistLabel')"
+                        :disabled="!canEditConfig"
+                        :model-value="hostListText('agentAllowlist')"
+                        @change="(value) => setHostListText('agentAllowlist', value)"
+                    />
+                    <mt-textarea
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.remoteProfileAllowlistLabel')"
+                        :disabled="!canEditConfig"
+                        :model-value="hostListText('remoteProfileAllowlist')"
+                        @change="(value) => setHostListText('remoteProfileAllowlist', value)"
+                    />
+                    <mt-textarea
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.embeddedAllowedOriginsLabel')"
+                        :disabled="!canEditConfig"
+                        :model-value="hostListText('embeddedAllowedOrigins')"
+                        @change="(value) => setHostListText('embeddedAllowedOrigins', value)"
+                    />
+                    <mt-textarea
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.embeddedFrameAncestorsLabel')"
+                        :disabled="!canEditConfig"
+                        :model-value="hostListText('embeddedFrameAncestors')"
+                        @change="(value) => setHostListText('embeddedFrameAncestors', value)"
+                    />
+                </div>
 
-                <p class="sw-sales-channel-detail-agentic-commerce__section-label">
-                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
-                </p>
-                <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group sw-sales-channel-detail-agentic-commerce__checkbox-group--inline">
-                    <mt-checkbox
-                        v-for="transport in transportItems"
-                        :key="transport.value"
-                        :label="transport.label"
-                        :help-text="$t(transport.description)"
-                        :disabled="!canEditConfig || !isActive"
-                        :checked="isTransportEnabled(transport.value)"
-                        @update:checked="(checked) => updateTransport(transport.value, checked)"
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.advancedDeliveryLabel') }}
+                    </p>
+                    <mt-text-field
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.webhookUrlOverrideLabel')"
+                        :disabled="!canEditConfig"
+                        :model-value="form.webhookUrlOverride"
+                        @change="(value) => setValue('webhookUrlOverride', value || null)"
+                    />
+                    <mt-text-field
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.continueUrlLabel')"
+                        :disabled="!canEditConfig"
+                        :model-value="form.continueUrlTemplate"
+                        @change="(value) => setValue('continueUrlTemplate', value || null)"
+                    />
+                    <mt-switch
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.idempotencyLabel')"
+                        :disabled="!canEditConfig"
+                        :checked="form.idempotencyRequired"
+                        @change="(value) => setValue('idempotencyRequired', Boolean(value))"
                     />
                 </div>
 
                 {% block sw_sales_channel_detail_agentic_commerce_ucp_not_available %}
-                <mt-banner variant="info" :closable="false">
-                    <strong>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.notYetAvailableTitle') }}</strong>
-                    <ul>
-                        <li v-for="capability in notReadyCapabilities" :key="capability.value">
-                            {{ $t(capability.label) }} — {{ $t(capability.reason) }}
-                            <mt-link :href="capability.docsUrl" target="_blank" rel="noopener">
-                                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.docsLink') }}
-                            </mt-link>
-                        </li>
-                        <li v-for="transport in notYetAvailableTransports" :key="transport.value">
-                            {{ transport.label }} — {{ $t(transport.reason) }}
-                            <mt-link :href="transport.docsUrl" target="_blank" rel="noopener">
-                                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.docsLink') }}
-                            </mt-link>
-                        </li>
-                    </ul>
-                </mt-banner>
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <mt-banner variant="info" :closable="false">
+                        <strong>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.notYetAvailableTitle') }}</strong>
+                        <ul>
+                            <li v-for="capability in notReadyCapabilities" :key="capability.value">
+                                {{ $t(capability.label) }}: {{ $t(capability.reason) }}
+                                <mt-link :href="capability.docsUrl" target="_blank" rel="noopener">
+                                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.docsLink') }}
+                                </mt-link>
+                            </li>
+                            <li v-for="transport in notYetAvailableTransports" :key="transport.value">
+                                {{ transport.label }}: {{ $t(transport.reason) }}
+                                <mt-link :href="transport.docsUrl" target="_blank" rel="noopener">
+                                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.docsLink') }}
+                                </mt-link>
+                            </li>
+                        </ul>
+                    </mt-banner>
+                </div>
                 {% endblock %}
+            </template>
+            {% endblock %}
 
-                {% block sw_sales_channel_detail_agentic_commerce_ucp_preview %}
-                <p class="sw-sales-channel-detail-agentic-commerce__section-label">
-                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.previewLabel') }}
-                    ({{ previewCapabilityCount }} / {{ previewEndpointCount }})
-                </p>
-                <mt-banner v-if="isDirty" variant="attention" :closable="false">
-                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.previewUnsaved') }}
-                </mt-banner>
-                <pre class="sw-sales-channel-detail-agentic-commerce__preview">{{ previewJson }}</pre>
-                {% endblock %}
+            {# ---- Preview ---- #}
+            {% block sw_sales_channel_detail_agentic_commerce_ucp_preview %}
+            <template v-if="resolvedSubTab === 'preview'">
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.previewLabel') }}
+                        ({{ previewCapabilityCount }} / {{ previewEndpointCount }})
+                    </p>
+                    <pre class="sw-sales-channel-detail-agentic-commerce__preview">{{ previewJson }}</pre>
+                </div>
             </template>
             {% endblock %}
         </mt-card>
@@ -292,6 +335,6 @@
             </p>
         </mt-card>
         {% endblock %}
-    </sw-card-view>
+    </template>
 </div>
 {% endblock %}

@@ -154,6 +154,13 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         hasMultipleDomains() {
             return this.profileDomainOptions.length > 1;
         },
+        // profileDomain is null until the merchant pins one; the profile is then
+        // served from the channel's default (first) domain. Surface that effective
+        // default in the select instead of an empty "Select…" — without writing it
+        // to the form, so an unpinned config stays unpinned on save.
+        selectedProfileDomain() {
+            return this.form?.profileDomain || this.profileDomainOptions[0]?.value || '';
+        },
         previewJson() {
             return this.preview ? JSON.stringify(this.preview, null, 2) : '';
         },
