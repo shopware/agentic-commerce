@@ -63,6 +63,7 @@ function buildContext({ saveSalesChannel, isSaveSuccessful = true } = {}) {
         isAgenticCommerce: true,
         systemConfigApiService: { batchSave: jest.fn(() => Promise.resolve()) },
         validateAgenticCommerceExportConfig: jest.fn(() => true),
+        saveUcpState: jest.fn(() => Promise.resolve(true)),
         loadEntityData: jest.fn(),
         $super: jest.fn(),
         $t: jest.fn(),

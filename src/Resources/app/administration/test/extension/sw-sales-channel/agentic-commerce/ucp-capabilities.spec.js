@@ -4,7 +4,7 @@ import {
     readyCapabilityValues,
     notReadyCapabilityValues,
     isReadyCapability,
-} from '../../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-capabilities';
+} from '../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-capabilities';
 
 describe('agentic-commerce/ucp-capabilities', () => {
     it('lists the 5 production-ready capabilities', () => {

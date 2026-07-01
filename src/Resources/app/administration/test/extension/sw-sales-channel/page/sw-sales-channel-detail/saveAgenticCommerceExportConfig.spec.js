@@ -50,6 +50,9 @@ function buildContext({ liveAgentic = true, liveChannel = { id: 'live-id', typeI
     return {
         salesChannel: liveChannel,
         agenticCommerceExportConfig: [makeEntry({ live: 'live-value' })],
+        // Provider resolution falls back to defaultAgenticCommerceExportConfig[0]
+        // when no override / productExport provider is present (index.js).
+        defaultAgenticCommerceExportConfig: [{ provider: 'open-ai' }],
         isAgenticCommerce: liveAgentic,
         systemConfigApiService: { batchSave: jest.fn(() => Promise.resolve()) },
         $t: jest.fn(),

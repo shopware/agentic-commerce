@@ -3,7 +3,7 @@ import {
     isVersionAtLeast,
     currentAdminVersion,
     useMtComponents,
-} from '../../../../../src/extension/sw-sales-channel/agentic-commerce/admin-version';
+} from '../../../../src/extension/sw-sales-channel/agentic-commerce/admin-version';
 
 describe('agentic-commerce/admin-version', () => {
     describe('parseMajorMinor', () => {

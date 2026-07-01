@@ -4,8 +4,8 @@ import {
     extractProfileMetadata,
     profileCapabilityNames,
     serviceEndpointCount,
-} from '../../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-profile-preview';
-import { defaultForm } from '../../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-form-state';
+} from '../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-profile-preview';
+import { defaultForm } from '../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-form-state';
 
 describe('agentic-commerce/ucp-profile-preview', () => {
     describe('buildPreviewPayload', () => {

@@ -3,7 +3,7 @@ import {
     normalizeConfig,
     buildConfigPayload,
     toggleArrayValue,
-} from '../../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-form-state';
+} from '../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-form-state';
 
 describe('agentic-commerce/ucp-form-state', () => {
     describe('defaultForm', () => {
