@@ -153,7 +153,10 @@ describe('sw-sales-channel-detail onSave — 6.7.0–6.7.8.x legacy path', () =>
 
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
-        expect(ctx.saveAgenticCommerceExportConfig).toHaveBeenCalledWith('channel-id', originalConfig);
+        // provider is snapshotted from this.productExport?.provider — undefined here
+        // (no productExport in the mock), so saveAgenticCommerceExportConfig falls
+        // back to the default provider.
+        expect(ctx.saveAgenticCommerceExportConfig).toHaveBeenCalledWith('channel-id', originalConfig, undefined);
     });
 });
 
