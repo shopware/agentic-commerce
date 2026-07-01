@@ -18,14 +18,16 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class UcpKeyRetireCommand extends Command
 {
-    public function __construct(private readonly UcpSigningKeyService $signingKeyService)
-    {
+    public function __construct(
+        private readonly UcpSigningKeyService $signingKeyService,
+        private readonly SalesChannelResolver $salesChannelResolver,
+    ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addOption('sales-channel-id', null, InputOption::VALUE_REQUIRED, 'Sales channel id (omit for the global/default scope).');
+        $this->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (omit to pick interactively / use the global scope).');
         $this->addOption('kid', null, InputOption::VALUE_REQUIRED, 'Key id to retire.');
     }
 
@@ -40,7 +42,12 @@ final class UcpKeyRetireCommand extends Command
             return self::INVALID;
         }
 
-        if (!$this->signingKeyService->retire($this->nullableOption($input->getOption('sales-channel-id')), $kid)) {
+        $salesChannelId = $this->salesChannelResolver->resolve($input, $io, $input->getOption('sales-channel'), true);
+        if (false === $salesChannelId) {
+            return self::INVALID;
+        }
+
+        if (!$this->signingKeyService->retire($salesChannelId, $kid)) {
             $io->error(\sprintf('Signing key "%s" not found.', $kid));
 
             return self::FAILURE;
@@ -49,10 +56,5 @@ final class UcpKeyRetireCommand extends Command
         $io->success(\sprintf('Retired signing key "%s".', $kid));
 
         return self::SUCCESS;
-    }
-
-    private function nullableOption(mixed $value): ?string
-    {
-        return \is_string($value) && '' !== $value ? $value : null;
     }
 }

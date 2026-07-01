@@ -18,20 +18,26 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class UcpKeyListCommand extends Command
 {
-    public function __construct(private readonly UcpSigningKeyService $signingKeyService)
-    {
+    public function __construct(
+        private readonly UcpSigningKeyService $signingKeyService,
+        private readonly SalesChannelResolver $salesChannelResolver,
+    ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addOption('sales-channel-id', null, InputOption::VALUE_REQUIRED, 'Sales channel id (omit for the global/default scope).');
+        $this->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (omit to pick interactively / use the global scope).');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $salesChannelId = $this->nullableOption($input->getOption('sales-channel-id'));
+
+        $salesChannelId = $this->salesChannelResolver->resolve($input, $io, $input->getOption('sales-channel'), true);
+        if (false === $salesChannelId) {
+            return self::INVALID;
+        }
 
         $keys = $this->signingKeyService->all($salesChannelId);
         if ([] === $keys) {
@@ -54,10 +60,5 @@ final class UcpKeyListCommand extends Command
         );
 
         return self::SUCCESS;
-    }
-
-    private function nullableOption(mixed $value): ?string
-    {
-        return \is_string($value) && '' !== $value ? $value : null;
     }
 }

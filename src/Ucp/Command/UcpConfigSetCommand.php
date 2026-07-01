@@ -38,14 +38,16 @@ final class UcpConfigSetCommand extends Command
         'continue-url-template' => 'continueUrlTemplate',
     ];
 
-    public function __construct(private readonly UcpConfigService $configService)
-    {
+    public function __construct(
+        private readonly UcpConfigService $configService,
+        private readonly SalesChannelResolver $salesChannelResolver,
+    ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addOption('sales-channel-id', null, InputOption::VALUE_REQUIRED, 'Sales channel id (required).');
+        $this->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (required; omit to pick interactively).');
         $this->addOption('signature-policy', null, InputOption::VALUE_REQUIRED, 'Signature policy: strict, log or off.');
         $this->addOption('idempotency', null, InputOption::VALUE_REQUIRED, 'Require idempotency keys for write requests (true/false).');
 
@@ -62,10 +64,8 @@ final class UcpConfigSetCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $salesChannelId = $input->getOption('sales-channel-id');
-        if (!\is_string($salesChannelId) || '' === $salesChannelId) {
-            $io->error('The --sales-channel-id option is required.');
-
+        $salesChannelId = $this->salesChannelResolver->resolve($input, $io, $input->getOption('sales-channel'), false);
+        if (false === $salesChannelId || null === $salesChannelId) {
             return self::INVALID;
         }
 

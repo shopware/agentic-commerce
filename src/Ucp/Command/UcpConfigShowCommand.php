@@ -18,21 +18,26 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class UcpConfigShowCommand extends Command
 {
-    public function __construct(private readonly UcpConfigService $configService)
-    {
+    public function __construct(
+        private readonly UcpConfigService $configService,
+        private readonly SalesChannelResolver $salesChannelResolver,
+    ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addOption('sales-channel-id', null, InputOption::VALUE_REQUIRED, 'Sales channel id (omit for the global/default scope).');
+        $this->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (omit to pick interactively / use the global scope).');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $salesChannelId = $input->getOption('sales-channel-id');
-        $salesChannelId = \is_string($salesChannelId) && '' !== $salesChannelId ? $salesChannelId : null;
+
+        $salesChannelId = $this->salesChannelResolver->resolve($input, $io, $input->getOption('sales-channel'), true);
+        if (false === $salesChannelId) {
+            return self::INVALID;
+        }
 
         $config = $this->configService->getConfig($salesChannelId)->toArray();
 
