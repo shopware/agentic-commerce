@@ -32,28 +32,8 @@ class UcpAdminApiService extends ApiService {
         return this.httpClient.post(this.basePath(salesChannelId, '/profile-preview'), payload, this.options());
     }
 
-    getKeys(salesChannelId) {
-        return this.httpClient.get(this.basePath(salesChannelId, '/keys'), this.options());
-    }
-
-    createKey(salesChannelId, payload = {}) {
-        return this.httpClient.post(this.basePath(salesChannelId, '/keys'), payload, this.options());
-    }
-
-    retireKey(salesChannelId, kid) {
-        return this.httpClient.post(this.keyPath(salesChannelId, kid, '/retire'), {}, this.options());
-    }
-
-    deleteKey(salesChannelId, kid) {
-        return this.httpClient.delete(this.keyPath(salesChannelId, kid), this.options());
-    }
-
     basePath(salesChannelId, suffix = '') {
         return `/_admin/ucp/sales-channels/${encodeURIComponent(salesChannelId)}${suffix}`;
-    }
-
-    keyPath(salesChannelId, kid, suffix = '') {
-        return this.basePath(salesChannelId, `/keys/${encodeURIComponent(kid)}${suffix}`);
     }
 
     options() {

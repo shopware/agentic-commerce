@@ -12,7 +12,7 @@ describe('agentic-commerce/ucp-profile-preview', () => {
         it('wraps the config payload and selected profile domain', () => {
             const payload = buildPreviewPayload(defaultForm(), { profileDomain: 'https://shop.example' });
             expect(payload.profileDomain).toBe('https://shop.example');
-            expect(payload.config.signaturePolicy).toBe('strict');
+            expect(payload.config.enabledTransports).toEqual(['rest']);
         });
         it('defaults the profile domain to null', () => {
             expect(buildPreviewPayload(defaultForm()).profileDomain).toBeNull();

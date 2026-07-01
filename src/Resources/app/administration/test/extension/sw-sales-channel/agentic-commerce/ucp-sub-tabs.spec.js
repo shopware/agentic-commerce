@@ -6,11 +6,10 @@ import {
 } from '../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-sub-tabs';
 
 describe('agentic-commerce/ucp-sub-tabs', () => {
-    it('defines exactly four sub-tabs with Exposure first and Preview last', () => {
-        expect(UCP_SUB_TABS).toHaveLength(4);
+    it('defines exactly two sub-tabs — Exposure then Preview', () => {
+        expect(UCP_SUB_TABS).toHaveLength(2);
         expect(DEFAULT_SUB_TAB).toBe('exposure');
-        expect(UCP_SUB_TABS[0].name).toBe('exposure');
-        expect(UCP_SUB_TABS.map((tab) => tab.name)).toEqual(['exposure', 'security', 'advanced', 'preview']);
+        expect(UCP_SUB_TABS.map((tab) => tab.name)).toEqual(['exposure', 'preview']);
     });
 
     describe('buildSubTabItems', () => {
@@ -22,8 +21,6 @@ describe('agentic-commerce/ucp-sub-tabs', () => {
         it('disables everything but Exposure when UCP is off', () => {
             const items = buildSubTabItems((key) => key, { active: false });
             expect(items.find((i) => i.name === 'exposure').disabled).toBe(false);
-            expect(items.find((i) => i.name === 'security').disabled).toBe(true);
-            expect(items.find((i) => i.name === 'advanced').disabled).toBe(true);
             expect(items.find((i) => i.name === 'preview').disabled).toBe(true);
         });
 
@@ -35,10 +32,10 @@ describe('agentic-commerce/ucp-sub-tabs', () => {
 
     describe('resolveActiveSubTab', () => {
         it('keeps a valid, enabled tab', () => {
-            expect(resolveActiveSubTab('security', { active: true })).toBe('security');
+            expect(resolveActiveSubTab('preview', { active: true })).toBe('preview');
         });
         it('falls back to Exposure for a disabled tab when UCP is off', () => {
-            expect(resolveActiveSubTab('advanced', { active: false })).toBe('exposure');
+            expect(resolveActiveSubTab('preview', { active: false })).toBe('exposure');
         });
         it('falls back to default for an unknown tab', () => {
             expect(resolveActiveSubTab('bogus')).toBe('exposure');

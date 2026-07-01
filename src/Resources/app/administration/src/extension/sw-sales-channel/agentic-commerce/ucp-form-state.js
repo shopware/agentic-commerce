@@ -1,13 +1,15 @@
 import { UCP_VERSION } from './ucp-protocol.js';
 
 /**
- * Default UCP config form state.
+ * Default UCP config form state — the Exposure-tab surface only.
  *
- * Note: `profileUriStrategy` / `customProfileUri` were removed (redesign §10.5).
- * The profile is always served from a configured sales-channel domain, so the
- * UI exposes a domain selector instead of a free-text URI. The selected domain
- * is not part of the persisted config payload; it only drives the live preview
- * base URI (see ucp-profile-preview.js).
+ * Signature policy, signing keys and the advanced host/delivery settings are no
+ * longer edited in the admin (they are managed via console commands:
+ * `ucp:config:*` / `ucp:key:*`). Those fields still live in the persisted
+ * `UcpConfig`; the admin save merges this Exposure-only payload over the stored
+ * config server-side, so console-set values are preserved (see
+ * UcpConfigService::saveConfig). The profile is served from a configured
+ * sales-channel domain, so the UI exposes a domain selector.
  */
 export function defaultForm() {
     return {
@@ -16,33 +18,16 @@ export function defaultForm() {
         profileDomain: null,
         enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
         enabledTransports: ['rest'],
-        continueUrlTemplate: null,
-        platformAllowlist: [],
-        remoteProfileAllowlist: [],
-        agentAllowlist: [],
-        embeddedAllowedOrigins: [],
-        embeddedFrameAncestors: [],
-        discoveryBudget: 10,
-        webhookUrlOverride: null,
-        signaturePolicy: 'strict',
-        idempotencyRequired: true,
     };
 }
 
 const ARRAY_FIELDS = [
     'enabledCapabilities',
     'enabledTransports',
-    'platformAllowlist',
-    'remoteProfileAllowlist',
-    'agentAllowlist',
-    'embeddedAllowedOrigins',
-    'embeddedFrameAncestors',
 ];
 
 const NULLABLE_STRING_FIELDS = [
     'profileDomain',
-    'continueUrlTemplate',
-    'webhookUrlOverride',
 ];
 
 /**

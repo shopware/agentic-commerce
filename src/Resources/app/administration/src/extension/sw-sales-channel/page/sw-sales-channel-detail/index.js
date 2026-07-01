@@ -41,7 +41,6 @@ export const swSalesChannelDetailOverride = {
                 form: ucpDefaultForm(),
                 savedForm: ucpDefaultForm(),
                 meta: {},
-                keys: [],
                 preview: null,
             },
         };
@@ -180,11 +179,10 @@ export const swSalesChannelDetailOverride = {
             this.ucpState.isLoading = true;
 
             try {
-                const [salesChannelResponse, configResponse, previewResponse, keysResponse] = await Promise.all([
+                const [salesChannelResponse, configResponse, previewResponse] = await Promise.all([
                     this.ucpAdminApiService.getSalesChannel(salesChannelId),
                     this.ucpAdminApiService.getConfig(salesChannelId),
                     this.ucpAdminApiService.getProfilePreview(salesChannelId),
-                    this.ucpAdminApiService.getKeys(salesChannelId),
                 ]);
 
                 const form = ucpNormalizeConfig(configResponse.data.data || {});
@@ -193,7 +191,6 @@ export const swSalesChannelDetailOverride = {
                 this.ucpState.form = form;
                 this.ucpState.savedForm = ucpNormalizeConfig(form);
                 this.ucpState.preview = previewResponse.data.data || null;
-                this.ucpState.keys = keysResponse.data.data || [];
                 this.ucpState.loaded = true;
             } catch (error) {
                 this.createNotificationError({ message: extractApiErrorMessage(error) });

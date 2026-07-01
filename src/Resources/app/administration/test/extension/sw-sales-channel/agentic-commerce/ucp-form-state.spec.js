@@ -13,31 +13,32 @@ describe('agentic-commerce/ucp-form-state', () => {
             expect('customProfileUri' in form).toBe(false);
         });
 
-        it('defaults to a secure, ready configuration', () => {
+        it('defaults to the Exposure-tab surface only', () => {
             const form = defaultForm();
-            expect(form.signaturePolicy).toBe('strict');
-            expect(form.idempotencyRequired).toBe(true);
             expect(form.enabledCapabilities).toEqual(['catalog', 'cart', 'discount', 'checkout', 'order']);
             expect(form.enabledTransports).toEqual(['rest']);
             expect(form.active).toBe(false);
+            // Security/Advanced fields are managed via console commands, not the form.
+            expect('signaturePolicy' in form).toBe(false);
+            expect('agentAllowlist' in form).toBe(false);
         });
     });
 
     describe('normalizeConfig', () => {
-        it('drops unknown/legacy keys', () => {
-            const result = normalizeConfig({ profileUriStrategy: 'config', customProfileUri: 'https://x' });
-            expect('profileUriStrategy' in result).toBe(false);
-            expect('customProfileUri' in result).toBe(false);
+        it('drops unknown / non-Exposure keys (managed via console)', () => {
+            const result = normalizeConfig({ signaturePolicy: 'log', agentAllowlist: ['x'] });
+            expect('signaturePolicy' in result).toBe(false);
+            expect('agentAllowlist' in result).toBe(false);
         });
 
         it('keeps known values and coerces bad arrays back to defaults', () => {
-            const result = normalizeConfig({ signaturePolicy: 'log', enabledTransports: 'nope' });
-            expect(result.signaturePolicy).toBe('log');
+            const result = normalizeConfig({ profileDomain: 'https://shop.example', enabledTransports: 'nope' });
+            expect(result.profileDomain).toBe('https://shop.example');
             expect(result.enabledTransports).toEqual(['rest']);
         });
 
         it('coerces empty nullable strings to null', () => {
-            expect(normalizeConfig({ continueUrlTemplate: '' }).continueUrlTemplate).toBeNull();
+            expect(normalizeConfig({ profileDomain: '' }).profileDomain).toBeNull();
         });
     });
 
