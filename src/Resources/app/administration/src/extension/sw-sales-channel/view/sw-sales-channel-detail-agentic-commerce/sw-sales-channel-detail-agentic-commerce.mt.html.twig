@@ -80,40 +80,46 @@
                 </div>
 
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
-                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
-                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.capabilitiesLabel') }}
-                    </p>
-                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group">
-                        <mt-checkbox
-                            v-for="capability in readyCapabilities"
-                            :key="capability.value"
-                            :label="$t(capability.label)"
-                            :help-text="$t(capability.tooltip)"
-                            :disabled="!canEditConfig || !isActive"
-                            :checked="isCapabilityEnabled(capability.value)"
-                            @update:checked="(checked) => updateCapability(capability.value, checked)"
-                        />
-                    </div>
-                </div>
+                    <div class="sw-sales-channel-detail-agentic-commerce__option-grid">
+                        <div class="sw-sales-channel-detail-agentic-commerce__option-column">
+                            <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.capabilitiesLabel') }}
+                            </p>
+                            <div class="sw-sales-channel-detail-agentic-commerce__option-list">
+                                <mt-checkbox
+                                    v-for="capability in readyCapabilities"
+                                    :key="capability.value"
+                                    class="sw-sales-channel-detail-agentic-commerce__option-item"
+                                    :label="$t(capability.label)"
+                                    :help-text="$t(capability.tooltip)"
+                                    :disabled="!canEditConfig || !isActive"
+                                    :checked="isCapabilityEnabled(capability.value)"
+                                    @update:checked="(checked) => updateCapability(capability.value, checked)"
+                                />
+                            </div>
+                        </div>
 
-                {% block sw_sales_channel_detail_agentic_commerce_ucp_transports %}
-                <div class="sw-sales-channel-detail-agentic-commerce__section">
-                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
-                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
-                    </p>
-                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group">
-                        <mt-checkbox
-                            v-for="transport in transportItems"
-                            :key="transport.value"
-                            :label="transport.label"
-                            :help-text="$t(transport.description)"
-                            :disabled="!canEditConfig || !isActive"
-                            :checked="isTransportEnabled(transport.value)"
-                            @update:checked="(checked) => updateTransport(transport.value, checked)"
-                        />
+                        {% block sw_sales_channel_detail_agentic_commerce_ucp_transports %}
+                        <div class="sw-sales-channel-detail-agentic-commerce__option-column">
+                            <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
+                            </p>
+                            <div class="sw-sales-channel-detail-agentic-commerce__option-list">
+                                <mt-checkbox
+                                    v-for="transport in transportItems"
+                                    :key="transport.value"
+                                    class="sw-sales-channel-detail-agentic-commerce__option-item"
+                                    :label="transport.label"
+                                    :help-text="$t(transport.description)"
+                                    :disabled="!canEditConfig || !isActive"
+                                    :checked="isTransportEnabled(transport.value)"
+                                    @update:checked="(checked) => updateTransport(transport.value, checked)"
+                                />
+                            </div>
+                        </div>
+                        {% endblock %}
                     </div>
                 </div>
-                {% endblock %}
             </template>
             {% endblock %}
 

@@ -39,6 +39,7 @@ test.describe('UCP sales-channel admin tab', () => {
             await expect(tabRoot.getByText('Browse catalog', { exact: true })).toBeVisible();
             await expect(tabRoot.getByText('Cart', { exact: true })).toBeVisible();
             await expect(tabRoot.getByText('Checkout', { exact: true })).toBeVisible();
+            await expectAlignedOptionGrid(tabRoot, expectedTransports.length);
 
             for (const transport of expectedTransports) {
                 await expect(tabRoot.getByText(transport, { exact: true })).toBeVisible();
@@ -66,3 +67,40 @@ test.describe('UCP sales-channel admin tab', () => {
         await adminApi.dispose();
     });
 });
+
+async function expectAlignedOptionGrid(tabRoot, expectedTransportCount) {
+    const optionGrid = tabRoot.locator('.sw-sales-channel-detail-agentic-commerce__option-grid').first();
+    await expect(optionGrid).toBeVisible();
+    await expect(optionGrid.locator('.sw-sales-channel-detail-agentic-commerce__option-column')).toHaveCount(2);
+
+    const optionLists = optionGrid.locator('.sw-sales-channel-detail-agentic-commerce__option-list');
+    const capabilityRows = optionLists.nth(0).locator('.sw-sales-channel-detail-agentic-commerce__option-item');
+    const transportRows = optionLists.nth(1).locator('.sw-sales-channel-detail-agentic-commerce__option-item');
+
+    await expect(capabilityRows).toHaveCount(5);
+    await expect(transportRows).toHaveCount(expectedTransportCount);
+
+    const [capabilityBoxes, transportBoxes] = await Promise.all([
+        rowBoxes(capabilityRows),
+        rowBoxes(transportRows),
+    ]);
+
+    expect(transportBoxes[0].x).toBeGreaterThan(capabilityBoxes[0].x + capabilityBoxes[0].width);
+
+    for (let index = 0; index < Math.min(capabilityBoxes.length, transportBoxes.length); index += 1) {
+        expect(Math.abs(capabilityBoxes[index].y - transportBoxes[index].y)).toBeLessThanOrEqual(2);
+    }
+}
+
+async function rowBoxes(locator) {
+    return locator.evaluateAll((items) => items.map((item) => {
+        const rect = item.getBoundingClientRect();
+
+        return {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+        };
+    }));
+}
