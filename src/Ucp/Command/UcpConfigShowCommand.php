@@ -13,7 +13,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:config:show',
+    name: 'ucp:config:show',
     description: 'Prints the resolved UCP config for a sales channel.',
 )]
 final class UcpConfigShowCommand extends Command

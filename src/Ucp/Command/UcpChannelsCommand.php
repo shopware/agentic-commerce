@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:channels',
+    name: 'ucp:channels',
     description: 'Lists the sales channels and their ids (use with the other ucp:* commands).',
 )]
 final class UcpChannelsCommand extends Command

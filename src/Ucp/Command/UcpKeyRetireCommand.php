@@ -13,7 +13,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:key:retire',
+    name: 'ucp:key:retire',
     description: 'Retires a UCP signing key (keeps it for verification, stops signing with it).',
 )]
 final class UcpKeyRetireCommand extends Command

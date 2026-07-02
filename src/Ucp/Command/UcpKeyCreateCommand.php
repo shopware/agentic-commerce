@@ -14,7 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:key:create',
+    name: 'ucp:key:create',
     description: 'Creates a UCP signing key for a sales channel.',
 )]
 final class UcpKeyCreateCommand extends Command

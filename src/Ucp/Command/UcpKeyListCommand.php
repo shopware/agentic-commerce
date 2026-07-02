@@ -13,7 +13,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:key:list',
+    name: 'ucp:key:list',
     description: 'Lists the UCP signing keys for a sales channel.',
 )]
 final class UcpKeyListCommand extends Command

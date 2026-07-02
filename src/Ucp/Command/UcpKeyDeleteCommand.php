@@ -13,7 +13,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:key:delete',
+    name: 'ucp:key:delete',
     description: 'Permanently deletes a UCP signing key.',
 )]
 final class UcpKeyDeleteCommand extends Command

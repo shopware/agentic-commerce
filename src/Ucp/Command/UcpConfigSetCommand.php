@@ -14,7 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'swag-agentic-commerce:ucp:config:set',
+    name: 'ucp:config:set',
     description: 'Sets the non-UI UCP config fields (signature policy, allowlists, delivery) for a sales channel.',
 )]
 final class UcpConfigSetCommand extends Command
