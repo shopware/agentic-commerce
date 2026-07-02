@@ -4,14 +4,16 @@ const { Component } = Shopware;
 
 /**
  * Adds a "UCP" column to the Sales Channels list so merchants can see which
- * channels are exposed to agents at a glance. UCP config lives in system_config
- * (not on the sales_channel entity), so we can't join it into the list query —
+ * channels are exposed to agents at a glance. UCP config lives in the plugin config
+ * table (not on the sales_channel entity), so we can't join it into the list query —
  * instead we fetch the per-channel active state via the existing
  * `ucpAdminApiService.getSalesChannels()` endpoint and look it up by id in the
  * `#column-ucpActive` slot.
  */
-Component.override('sw-sales-channel-list', {
+export const swSalesChannelListOverride = {
     template,
+
+    inject: ['acl'],
 
     data() {
         return {
@@ -20,8 +22,16 @@ Component.override('sw-sales-channel-list', {
     },
 
     computed: {
+        canViewUcpStatus() {
+            return this.acl?.can?.('ucp.viewer') === true;
+        },
+
         salesChannelColumns() {
             const columns = this.$super('salesChannelColumns');
+            if (!this.canViewUcpStatus || columns.some((column) => column.property === 'ucpActive')) {
+                return columns;
+            }
+
             const ucpColumn = {
                 property: 'ucpActive',
                 label: 'swagAgenticCommerce.salesChannelList.columnUcp',
@@ -42,13 +52,19 @@ Component.override('sw-sales-channel-list', {
     },
 
     created() {
+        if (!this.canViewUcpStatus) {
+            return;
+        }
+
         this.loadUcpActiveStates();
     },
 
     methods: {
-        // Best-effort: on failure (e.g. missing ucp.viewer ACL) the map stays
-        // empty and the column shows "Off" rather than breaking the list.
         loadUcpActiveStates() {
+            if (!this.canViewUcpStatus) {
+                return;
+            }
+
             const service = Shopware.Service('ucpAdminApiService');
             if (!service?.getSalesChannels) {
                 return;
@@ -66,4 +82,6 @@ Component.override('sw-sales-channel-list', {
                 .catch(() => {});
         },
     },
-});
+};
+
+Component.override('sw-sales-channel-list', swSalesChannelListOverride);

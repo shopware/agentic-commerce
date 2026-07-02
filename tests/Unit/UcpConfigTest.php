@@ -188,6 +188,17 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
+    public function testItAllowsHttpWebhookCaptureOnlyWhenExplicitlyEnabled(): void
+    {
+        $config = UcpConfig::fromArray([
+            'agentAllowlist' => ['merchant.example'],
+            'webhookUrlOverride' => 'http://merchant.example/_action/swag-agentic-commerce/test/webhooks',
+        ], true);
+
+        self::assertSame('http://merchant.example/_action/swag-agentic-commerce/test/webhooks', $config->webhookUrlOverride);
+    }
+
+    #[Test]
     public function testItSplitsRuntimeAllowlistsButKeepsLegacyFallback(): void
     {
         $splitConfig = UcpConfig::fromArray([
@@ -471,6 +482,14 @@ final class UcpConfigTest extends TestCase
                 'webhookUrlOverride' => 'https://evil.example/webhook',
             ],
             'exception' => UcpConfigException::invalidValue('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist'),
+        ];
+
+        yield 'webhook override must use https' => [
+            'payload' => [
+                'agentAllowlist' => ['agent.example'],
+                'webhookUrlOverride' => 'http://agent.example/webhook',
+            ],
+            'exception' => UcpConfigException::invalidValue('$.webhookUrlOverride', 'must use https'),
         ];
 
         yield 'unknown signature policy' => [

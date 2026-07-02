@@ -42,13 +42,40 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
     public function testItRejectsWebhookUrlsWithoutHttpHost(): void
     {
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('Webhook override URLs must use http or https and include a host.');
+        $this->expectExceptionMessage('Webhook override URLs must use https and include a host.');
 
         $this->guard->assertAllowed(
             'file:///etc/passwd',
             new UcpConfig(agentAllowlist: ['agent.example']),
             'sales-channel-id',
         );
+    }
+
+    #[Test]
+    public function testItRejectsHttpWebhookUrls(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Webhook override URLs must use https and include a host.');
+
+        $this->guard->assertAllowed(
+            'http://agent.example/webhook',
+            new UcpConfig(agentAllowlist: ['agent.example']),
+            'sales-channel-id',
+        );
+    }
+
+    #[Test]
+    public function testItAllowsHttpTestCaptureWebhookWhenExplicitlyEnabled(): void
+    {
+        $guard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class), true);
+
+        $guard->assertAllowed(
+            'http://agent.example/_action/swag-agentic-commerce/test/webhooks',
+            new UcpConfig(agentAllowlist: ['agent.example']),
+            'sales-channel-id',
+        );
+
+        self::addToAssertionCount(1);
     }
 
     #[Test]
