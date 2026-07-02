@@ -74,9 +74,11 @@ async function expectAlignedOptionGrid(tabRoot, expectedTransportCount) {
     await expect(optionGrid.locator('.sw-sales-channel-detail-agentic-commerce__option-column')).toHaveCount(2);
 
     const optionLists = optionGrid.locator('.sw-sales-channel-detail-agentic-commerce__option-list');
+    const optionLabels = optionGrid.locator('.sw-sales-channel-detail-agentic-commerce__section-label');
     const capabilityRows = optionLists.nth(0).locator('.sw-sales-channel-detail-agentic-commerce__option-item');
     const transportRows = optionLists.nth(1).locator('.sw-sales-channel-detail-agentic-commerce__option-item');
 
+    await expect(optionLabels).toHaveCount(2);
     await expect(capabilityRows).toHaveCount(5);
     await expect(transportRows).toHaveCount(expectedTransportCount);
 
@@ -84,8 +86,12 @@ async function expectAlignedOptionGrid(tabRoot, expectedTransportCount) {
         rowBoxes(capabilityRows),
         rowBoxes(transportRows),
     ]);
+    const optionLabelBoxes = await rowBoxes(optionLabels);
 
     expect(transportBoxes[0].x).toBeGreaterThan(capabilityBoxes[0].x + capabilityBoxes[0].width);
+    expect(capabilityBoxes[0].y - (optionLabelBoxes[0].y + optionLabelBoxes[0].height)).toBeGreaterThan(
+        capabilityBoxes[1].y - (capabilityBoxes[0].y + capabilityBoxes[0].height),
+    );
 
     for (let index = 0; index < Math.min(capabilityBoxes.length, transportBoxes.length); index += 1) {
         expect(Math.abs(capabilityBoxes[index].y - transportBoxes[index].y)).toBeLessThanOrEqual(2);

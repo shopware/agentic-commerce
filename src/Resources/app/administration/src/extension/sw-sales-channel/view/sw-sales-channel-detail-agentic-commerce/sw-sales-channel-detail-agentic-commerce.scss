@@ -70,10 +70,14 @@
         min-width: 0;
     }
 
+    &__option-column > &__section-label {
+        margin-bottom: var(--scale-size-16, 16px);
+    }
+
     &__option-list {
         display: grid;
         grid-auto-rows: minmax(36px, auto);
-        row-gap: var(--scale-size-8, 8px);
+        row-gap: var(--scale-size-4, 4px);
     }
 
     &__option-item {
