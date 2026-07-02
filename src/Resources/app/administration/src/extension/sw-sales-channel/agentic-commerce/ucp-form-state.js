@@ -5,7 +5,7 @@ import { UCP_VERSION } from './ucp-protocol.js';
  *
  * Signature policy, signing keys and the advanced host/delivery settings are no
  * longer edited in the admin (they are managed via console commands:
- * `ucp:config:*` / `ucp:key:*`). Those fields still live in the persisted
+ * `ucp:config:*` / `ucp:signing-keys:*`). Those fields still live in the persisted
  * `UcpConfig`; the admin save merges this Exposure-only payload over the stored
  * config server-side, so console-set values are preserved (see
  * UcpConfigService::saveConfig). The profile is served from a configured

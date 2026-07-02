@@ -25,7 +25,7 @@ const { Mixin, Defaults } = Shopware;
  * `swSalesChannelGetUcpState`) so edits survive tab switches and persist through
  * the page's global Save. Signature policy, signing keys and the advanced
  * host/delivery settings are managed via console commands (ucp:config:* /
- * ucp:key:*), not this UI. This component is the thin view layer over the pure
+ * ucp:signing-keys:*), not this UI. This component is the thin view layer over the pure
  * helpers in ../../agentic-commerce/*.
  */
 registerOrOverride('sw-sales-channel-detail-agentic-commerce', {

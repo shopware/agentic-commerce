@@ -102,7 +102,7 @@ final class UcpConfigService
      * fields do not reset the rest: the admin UI saves the Exposure subset
      * (active / profileDomain / capabilities / transports) while signature
      * policy, signing keys and the advanced host/delivery settings are managed
-     * via console commands (ucp:config:* / ucp:key:*). Whichever writes last
+     * via console commands (ucp:config:* / ucp:signing-keys:*). Whichever writes last
      * preserves the other's fields.
      *
      * @param array<string, mixed> $payload
