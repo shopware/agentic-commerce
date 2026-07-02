@@ -56,20 +56,13 @@
         cursor: help;
     }
 
-    // Give stacked Meteor checkboxes room to breathe (they render edge-to-edge
-    // by default), regardless of the component's internal class names.
+    // Give stacked checkboxes room to breathe (they render edge-to-edge by
+    // default), regardless of the component's internal class names.
     &__checkbox-group {
         display: flex;
         flex-direction: column;
         gap: var(--scale-size-10, 10px);
         margin-bottom: var(--scale-size-12, 12px);
-
-        // Transports sit on one row (short labels); capabilities stay stacked.
-        &--inline {
-            flex-direction: row;
-            flex-wrap: wrap;
-            gap: var(--scale-size-24, 24px);
-        }
     }
 
     // Signing keys rendered as a lightweight table: aligned columns (key id /

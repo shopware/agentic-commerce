@@ -28,7 +28,7 @@
           "subTabPreview": "Preview",
           "profileDomainLabel": "Profile domain",
           "profileDomainSingle": "The channel's single domain is used automatically.",
-          "capabilitiesLabel": "What agents can do on this channel",
+          "capabilitiesLabel": "Capabilities exposed to agents",
           "capabilityCatalogLabel": "Browse catalog",
           "capabilityCatalogTooltip": "Agents can read products, listings and prices.",
           "capabilityCartLabel": "Cart",

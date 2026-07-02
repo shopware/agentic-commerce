@@ -83,7 +83,7 @@
                     <p class="sw-sales-channel-detail-agentic-commerce__section-label">
                         {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.capabilitiesLabel') }}
                     </p>
-                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group sw-sales-channel-detail-agentic-commerce__checkbox-group--inline">
+                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group">
                         <mt-checkbox
                             v-for="capability in readyCapabilities"
                             :key="capability.value"
@@ -101,7 +101,7 @@
                     <p class="sw-sales-channel-detail-agentic-commerce__section-label">
                         {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
                     </p>
-                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group sw-sales-channel-detail-agentic-commerce__checkbox-group--inline">
+                    <div class="sw-sales-channel-detail-agentic-commerce__checkbox-group">
                         <mt-checkbox
                             v-for="transport in transportItems"
                             :key="transport.value"

@@ -28,7 +28,7 @@
           "subTabPreview": "Vorschau",
           "profileDomainLabel": "Profil-Domain",
           "profileDomainSingle": "Die einzige Domain des Kanals wird automatisch verwendet.",
-          "capabilitiesLabel": "Was Agenten auf diesem Kanal tun dürfen",
+          "capabilitiesLabel": "Für Agenten freigegebene Funktionen",
           "capabilityCatalogLabel": "Katalog durchsuchen",
           "capabilityCatalogTooltip": "Agenten können Produkte, Listings und Preise lesen.",
           "capabilityCartLabel": "Warenkorb",
