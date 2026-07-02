@@ -23,6 +23,8 @@ use Ucp\Sdk\Service\IdempotencyServiceInterface;
  * @phpstan-type UcpMcpNestedJsonObject array<string, UcpMcpJsonLevel2>
  * @phpstan-type UcpMcpJsonObject array<string, UcpMcpJsonValue>
  * @phpstan-type UcpMcpOperationResult UcpMcpJsonObject|UcpOperationResponse
+ *
+ * @internal
  */
 #[Package('checkout')]
 final class UcpMcpToolContext

@@ -11,6 +11,7 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
+/** @internal */
 final class PaymentTokenizationCapability implements TokenizationCapabilityInterface
 {
     public function __construct(

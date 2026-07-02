@@ -15,6 +15,7 @@ use Ucp\Sdk\Model\Identity\OAuthTokenRequest;
 use Ucp\Sdk\Model\Identity\OAuthTokenResponse;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
 {
     /**
@@ -202,7 +203,9 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
 
     private function baseUri(RequestContext $context): string
     {
-        return rtrim($context->runtimeConfiguration?->baseUri ?? ('https://'.$context->host), '/');
+        $baseUri = null !== $context->runtimeConfiguration ? $context->runtimeConfiguration->baseUri : 'https://'.$context->host;
+
+        return rtrim($baseUri, '/');
     }
 
     private function normalizeScope(string $scope): string

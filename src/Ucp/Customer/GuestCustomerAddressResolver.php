@@ -12,6 +12,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ValidationException;
 
+/** @internal */
 final class GuestCustomerAddressResolver
 {
     public function __construct(

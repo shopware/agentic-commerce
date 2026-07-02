@@ -8,6 +8,7 @@ use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 
+/** @internal */
 #[Package('framework')]
 final class UcpConfigService
 {

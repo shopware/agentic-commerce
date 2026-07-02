@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\AgenticFiles\Fallback;
 
 use Shopware\Core\Framework\Log\Package;
 
+/** @internal */
 #[Package('discovery')]
 final class FallbackSalesChannelFile
 {

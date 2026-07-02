@@ -6,12 +6,10 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
   exit 1
 fi
 
-for dependency in jq; do
-  if ! command -v "${dependency}" >/dev/null 2>&1; then
-    echo "Required dependency '${dependency}' is not available." >&2
-    exit 1
-  fi
-done
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Required dependency 'jq' is not available." >&2
+  exit 1
+fi
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
@@ -39,14 +37,13 @@ if [[ "${CORE_ONLY}" != "0" && "${CORE_ONLY}" != "1" ]]; then
   exit 1
 fi
 
-if command -v docker >/dev/null 2>&1; then
-  compose_cmd=(docker compose)
-elif command -v podman >/dev/null 2>&1; then
-  compose_cmd=(podman compose)
-else
-  echo "Neither docker nor podman is available." >&2
-  exit 1
-fi
+# Shared container/lane helpers (web, detect_base_url, detect_shopware_lane,
+# lane_detect_compose_cmd). web_container_id stays local below (this script wants
+# only the running container, ps -q, not ps -a -q).
+# shellcheck source=bin/lib/lane.sh
+source "${PLUGIN_ROOT}/bin/lib/lane.sh"
+
+read -ra compose_cmd <<< "$(lane_detect_compose_cmd)"
 
 if [[ ! -f "${SHOPWARE_DIR}/compose.yaml" ]]; then
   echo "Missing ${SHOPWARE_DIR}/compose.yaml. In CI, run bin/ci-write-compose.sh before bin/ci-admin-smoke.sh." >&2
@@ -58,36 +55,6 @@ if [[ -f "${SHOPWARE_DIR}/compose.override.yaml" ]]; then
   compose_files+=("${SHOPWARE_DIR}/compose.override.yaml")
 fi
 
-detect_base_url() {
-  local detected
-  detected="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' "${SHOPWARE_DIR}/compose.yaml" | head -n 1)"
-  if [[ -n "${detected}" ]]; then
-    printf '%s\n' "${detected}"
-    return 0
-  fi
-
-  printf 'http://localhost:8000\n'
-}
-
-detect_shopware_lane() {
-  if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
-    printf '%s\n' "${SHOPWARE_REF}"
-    return 0
-  fi
-
-  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
-    printf 'trunk\n'
-    return 0
-  fi
-
-  if grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
-    printf '6.6.x\n'
-    return 0
-  fi
-
-  printf '6.5.x\n'
-}
-
 BASE_URL="${BASE_URL:-$(detect_base_url)}"
 
 compose=("${compose_cmd[@]}")
@@ -95,10 +62,8 @@ for compose_file in "${compose_files[@]}"; do
   compose+=(-f "${compose_file}")
 done
 
-web() {
-  "${compose[@]}" exec -T web "$@"
-}
-
+# web() comes from bin/lib/lane.sh. web_container_id is kept local: this script
+# resolves only the running container (ps -q), unlike lane.sh's ps -a -q.
 web_container_id() {
   "${compose[@]}" ps -q web
 }

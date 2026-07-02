@@ -8,6 +8,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Order\OrderView;
 
+/** @internal */
 interface ShopwareDataMapperInterface
 {
     public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout;

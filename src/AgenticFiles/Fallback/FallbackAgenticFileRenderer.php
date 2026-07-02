@@ -16,6 +16,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Symfony\Component\Routing\RouterInterface;
 use Twig\Environment;
 
+/** @internal */
 #[Package('discovery')]
 final class FallbackAgenticFileRenderer
 {

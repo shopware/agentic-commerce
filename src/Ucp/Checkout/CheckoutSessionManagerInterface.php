@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Common\Buyer;
 
+/** @internal */
 interface CheckoutSessionManagerInterface
 {
     /**

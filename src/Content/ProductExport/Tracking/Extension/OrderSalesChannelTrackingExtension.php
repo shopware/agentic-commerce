@@ -18,6 +18,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrde
 /**
  * Adds the `salesChannelTracking` association on the `order` entity so the admin
  * order list can read `extensions.salesChannelTracking.salesChannel.name`.
+ *
+ * @internal
  */
 class OrderSalesChannelTrackingExtension extends EntityExtension
 {

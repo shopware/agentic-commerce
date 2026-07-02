@@ -11,6 +11,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-checkout-complete', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpCheckoutCompleteTool
 {

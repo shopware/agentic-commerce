@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Swag\AgenticCommerce\Tests\Integration;
+namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -33,6 +33,13 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
 
     protected function setUp(): void
     {
+        // The UCP SDK cart/checkout models are declared as PHP 8.2 `readonly class`es, so this
+        // test cannot even parse them on the PHP 8.1 unit lane (6.5/phpunit-9). The plugin's own
+        // code stays 8.1-safe; this is a pure test-fixture constraint of the bundled SDK.
+        if (\PHP_VERSION_ID < 80200) {
+            self::markTestSkipped('Exercises UCP SDK models declared as PHP 8.2 readonly classes.');
+        }
+
         $this->cart = new Cart('cart-id', [], 'EUR');
         $this->checkout = new Checkout(
             'checkout-id',

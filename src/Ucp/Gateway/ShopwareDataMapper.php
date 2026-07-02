@@ -22,6 +22,7 @@ use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\OrderView;
 
+/** @internal */
 final class ShopwareDataMapper implements ShopwareDataMapperInterface
 {
     public function toProduct(ProductEntity $product, ?string $lookupInputId = null): Product
