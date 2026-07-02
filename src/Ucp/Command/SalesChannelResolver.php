@@ -33,7 +33,7 @@ final class SalesChannelResolver
                 'id' => (string) ($channel['id'] ?? ''),
                 'name' => (string) ($channel['name'] ?? ''),
             ],
-            $this->salesChannelViewProvider->all(Context::createCLIContext()),
+            $this->salesChannelViewProvider->all(Context::createDefaultContext()),
         );
     }
 

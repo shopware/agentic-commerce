@@ -55,7 +55,7 @@ final class UcpConfigValidateCommand extends Command
             return self::INVALID;
         }
 
-        $channels = $this->salesChannelViewProvider->all(Context::createCLIContext());
+        $channels = $this->salesChannelViewProvider->all(Context::createDefaultContext());
 
         $selected = $input->getOption('sales-channel');
         if (\is_string($selected) && '' !== $selected) {
