@@ -18,8 +18,6 @@
         "tabIntegration": "Integration",
         "tabAgenticCommerce": "Agentic Commerce",
         "exportCardTitle": "Produktfeed-Export",
-        "filesCardTitle": "Agentic-Dateien",
-        "filesCardHint": "KI-lesbare Dateien (llms.txt, agents.md, ai-catalog.json) werden im Core-Tab \"Agentic-Dateien\" verwaltet.",
         "ucp": {
           "cardTitle": "UCP",
           "cardIntro": "Lege fest, wie dieser Verkaufskanal KI-Agenten über das Universal Commerce Protocol (UCP) bereitgestellt wird: welche Fähigkeiten Agenten nutzen dürfen, wie Anfragen abgesichert werden und welches Profil sie finden.",

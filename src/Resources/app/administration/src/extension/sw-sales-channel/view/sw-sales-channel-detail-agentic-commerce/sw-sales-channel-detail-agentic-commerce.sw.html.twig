@@ -71,15 +71,6 @@
             v-if="coreAgenticFilesAvailable"
             :sales-channel="salesChannel"
         />
-        <sw-card
-            v-else
-            position-identifier="sw-sales-channel-detail-agentic-commerce-files"
-            :title="$t('sw-sales-channel.detail.agenticCommerce.filesCardTitle')"
-        >
-            <p class="sw-sales-channel-detail-agentic-commerce__hint">
-                {{ $t('sw-sales-channel.detail.agenticCommerce.filesCardHint') }}
-            </p>
-        </sw-card>
     </template>
 </div>
 {% endblock %}

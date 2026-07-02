@@ -149,21 +149,12 @@
 
         {% block sw_sales_channel_detail_agentic_commerce_files_card %}
         {# Reuse the core Agentic files management component (it ships its own
-           card + File/Status/Description table + pagination). Falls back to a
-           pointer when core does not provide it (older lanes). #}
+           card + File/Status/Description table + pagination) when core
+           provides it. Older lanes have no useful Agentic files surface here. #}
         <sw-sales-channel-detail-agentic-files
             v-if="coreAgenticFilesAvailable"
             :sales-channel="salesChannel"
         />
-        <mt-card
-            v-else
-            position-identifier="sw-sales-channel-detail-agentic-commerce-files"
-            :title="$t('sw-sales-channel.detail.agenticCommerce.filesCardTitle')"
-        >
-            <p class="sw-sales-channel-detail-agentic-commerce__hint">
-                {{ $t('sw-sales-channel.detail.agenticCommerce.filesCardHint') }}
-            </p>
-        </mt-card>
         {% endblock %}
     </template>
 </div>

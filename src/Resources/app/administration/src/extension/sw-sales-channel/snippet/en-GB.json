@@ -18,8 +18,6 @@
         "tabIntegration": "Integration",
         "tabAgenticCommerce": "Agentic Commerce",
         "exportCardTitle": "Product feed export",
-        "filesCardTitle": "Agentic files",
-        "filesCardHint": "AI-readable files (llms.txt, agents.md, ai-catalog.json) are managed in the core \"Agentic files\" tab.",
         "ucp": {
           "cardTitle": "UCP",
           "cardIntro": "Configure how this sales channel is exposed to AI agents over the Universal Commerce Protocol (UCP): which capabilities agents may use, how requests are secured, and which profile they discover.",

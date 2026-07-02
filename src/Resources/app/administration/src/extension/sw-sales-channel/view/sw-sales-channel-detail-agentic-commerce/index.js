@@ -110,7 +110,7 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         },
 
         // Core ships the Agentic files management view from 6.7; embed it when
-        // present, otherwise fall back to a pointer (see template).
+        // present. Older lanes do not have a useful Agentic files surface here.
         coreAgenticFilesAvailable() {
             return Boolean(
                 Shopware?.Component?.getComponentRegistry?.().has('sw-sales-channel-detail-agentic-files'),

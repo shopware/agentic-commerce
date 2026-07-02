@@ -9,7 +9,7 @@ import {
 } from '../fixtures/shopware.js';
 
 test.describe('UCP sales-channel admin tab', () => {
-    test('renders controls, preview, and Agentic files surface', async ({ page }) => {
+    test('renders controls, preview, and available Agentic files surface', async ({ page }) => {
         const config = laneConfig();
         const adminApi = await createAdminApiContext(config);
         const { salesChannel, payload } = await firstSalesChannel(adminApi);
@@ -53,8 +53,12 @@ test.describe('UCP sales-channel admin tab', () => {
             await expect(preview).toBeVisible();
             await expect(preview).toContainText('"ucp"');
 
-            await expect(tabRoot.getByText('Agentic files', { exact: true })).toBeVisible();
-            await expect(tabRoot.getByText(/AI-readable files|llms\.txt/).first()).toBeVisible();
+            if (config.lane === 'trunk') {
+                await expect(tabRoot.getByText('Agentic files', { exact: true })).toBeVisible();
+                await expect(tabRoot.getByText(/AI-readable files|llms\.txt/).first()).toBeVisible();
+            } else {
+                await expect(tabRoot.getByText(/AI-readable files|llms\.txt/).first()).toBeHidden();
+            }
 
             browserFailures.assertClean();
         });
