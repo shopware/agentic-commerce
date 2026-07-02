@@ -47,6 +47,37 @@ Current responsibilities:
 - Require explicit embedded origin and frame-ancestor configuration before embedded pages render cross-origin; disallowed or missing origins return controlled UCP errors.
 - Hide unsupported capabilities instead of advertising placeholders.
 
+### Console commands
+
+UCP is administered from the CLI for everything except the per-channel Exposure settings (active, profile domain, capabilities, transports), which live in the Administration. Every command takes `--sales-channel` (id **or** name; omit it to pick interactively). Run `bin/console ucp:channels` first to see channel ids and which channels currently expose UCP.
+
+| Command | Purpose |
+| --- | --- |
+| `ucp:channels` | List sales channels, their ids and UCP exposure (`exposed` / `off`). |
+| `ucp:config:show --sales-channel=…` | Print the resolved UCP config for a channel. |
+| `ucp:config:set --sales-channel=… …` | Set the non-UI config fields (below). Only the options you pass change; the rest is preserved by a merge, so admin-managed Exposure fields are never reset. |
+| `ucp:signing-keys:{generate,list,show-public,retire,delete} --sales-channel=…` | Manage a channel's signing keys — thin subclasses of the SDK commands that map `--sales-channel` to the SDK tenant. |
+
+`ucp:config:set` fields (run it with `--help` for per-option examples):
+
+- `--signature-policy=strict|log|off`
+- `--idempotency=true|false`
+- `--agent-allowlist`, `--remote-profile-allowlist`, `--platform-allowlist` — bare hosts, no scheme (repeatable)
+- `--embedded-allowed-origins`, `--embedded-frame-ancestors` — origins, scheme + host (repeatable)
+- `--webhook-url-override` — absolute https URL whose host is in an allowlist (pass an empty value to clear)
+- `--continue-url-template` — absolute URL supporting `{checkoutId}`, `{cartId}`, `{salesChannelId}` (pass an empty value to clear)
+
+Options are omit-to-leave-unchanged; passing none is an error rather than a silent no-op. Example — allow an embedded checkout to be framed by ChatGPT and require idempotency:
+
+```bash
+bin/console ucp:config:set --sales-channel=Storefront \
+    --embedded-allowed-origins=https://chatgpt.com \
+    --embedded-frame-ancestors=https://chatgpt.com \
+    --idempotency=true
+```
+
+The SDK bundle also ships storage-maintenance commands (not sales-channel scoped): `ucp:storage:cleanup` purges all expired SDK records (OAuth state, idempotency, negotiation sessions, profile cache, replay nonces, retired keys) using the configured retention windows, while `ucp:storage:cleanup-signature-nonces` purges only replay nonces with a tunable `--older-than-seconds`. Schedule the former periodically; reach for the latter only to prune nonces on a tighter cadence.
+
 Developer placeholders:
 
 - Add protocol-specific setup examples once the public SDK contracts are tagged.

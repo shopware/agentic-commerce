@@ -47,17 +47,47 @@ final class UcpConfigSetCommand extends Command
 
     protected function configure(): void
     {
-        $this->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (required; omit to pick interactively).');
-        $this->addOption('signature-policy', null, InputOption::VALUE_REQUIRED, 'Signature policy: strict, log or off.');
-        $this->addOption('idempotency', null, InputOption::VALUE_REQUIRED, 'Require idempotency keys for write requests (true/false).');
+        $this
+            ->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (required; omit to pick interactively).')
+            ->addOption('signature-policy', null, InputOption::VALUE_REQUIRED, 'Inbound signature policy: strict, log or off. Example: --signature-policy=strict')
+            ->addOption('idempotency', null, InputOption::VALUE_REQUIRED, 'Require idempotency keys on write requests: true or false. Example: --idempotency=true')
+            ->addOption('agent-allowlist', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Host allowed to act as a UCP agent — bare host, no scheme (repeatable). Omit to leave unchanged. Example: --agent-allowlist=agent.example.com')
+            ->addOption('remote-profile-allowlist', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Host the SDK may fetch remote agent profiles from — bare host (repeatable). Omit to leave unchanged. Example: --remote-profile-allowlist=profiles.example.com')
+            ->addOption('platform-allowlist', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Platform host allowed to integrate — bare host (repeatable). Omit to leave unchanged. Example: --platform-allowlist=chatgpt.com')
+            ->addOption('embedded-allowed-origins', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Origin (scheme + host) allowed to embed the UCP checkout (repeatable). Omit to leave unchanged. Example: --embedded-allowed-origins=https://chatgpt.com')
+            ->addOption('embedded-frame-ancestors', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'CSP frame-ancestors source allowed to iframe the embedded page (repeatable). Omit to leave unchanged. Example: --embedded-frame-ancestors=https://chatgpt.com')
+            ->addOption('webhook-url-override', null, InputOption::VALUE_REQUIRED, 'Absolute https URL for outbound webhooks; its host must be in an allowlist. Pass an empty value to clear. Example: --webhook-url-override=https://hooks.example.com/ucp')
+            ->addOption('continue-url-template', null, InputOption::VALUE_REQUIRED, 'Absolute URL the shopper returns to after checkout; supports {checkoutId}, {cartId}, {salesChannelId}. Pass an empty value to clear. Example: --continue-url-template="https://shop.example.com/return?id={checkoutId}"');
 
-        foreach (array_keys(self::LIST_OPTIONS) as $option) {
-            $this->addOption($option, null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, \sprintf('%s host/origin (repeatable). Omit to leave unchanged.', $option));
-        }
+        $this->setHelp($this->helpText());
+    }
 
-        foreach (array_keys(self::NULLABLE_OPTIONS) as $option) {
-            $this->addOption($option, null, InputOption::VALUE_REQUIRED, \sprintf('%s (pass an empty value to clear).', $option));
-        }
+    private function helpText(): string
+    {
+        return <<<'HELP'
+            Updates only the options you pass; every other field — including the Exposure
+            settings managed in the Administration — is left untouched.
+
+            Examples:
+
+              # Relax signature checking to log-only while testing an integration
+              <info>bin/console ucp:config:set --sales-channel="Storefront" --signature-policy=log</info>
+
+              # Allow one agent host and require idempotency on writes
+              <info>bin/console ucp:config:set --sales-channel=Storefront --agent-allowlist=agent.example.com --idempotency=true</info>
+
+              # Allow an embedded checkout to be framed by ChatGPT
+              <info>bin/console ucp:config:set --sales-channel=Storefront --embedded-allowed-origins=https://chatgpt.com --embedded-frame-ancestors=https://chatgpt.com</info>
+
+              # Set a post-checkout return URL with a placeholder
+              <info>bin/console ucp:config:set --sales-channel=Storefront --continue-url-template="https://shop.example.com/checkout/done?id={checkoutId}"</info>
+
+              # Clear the webhook override (empty value)
+              <info>bin/console ucp:config:set --sales-channel=Storefront --webhook-url-override=</info>
+
+            Run <info>ucp:channels</info> to list sales-channel ids and their UCP exposure, and
+            <info>ucp:config:show --sales-channel=...</info> to inspect the current values.
+            HELP;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -71,7 +101,7 @@ final class UcpConfigSetCommand extends Command
 
         $payload = $this->collectPayload($input);
         if ([] === $payload) {
-            $io->warning('No fields to update — pass at least one option (e.g. --signature-policy=strict).');
+            $io->error('Nothing to set — pass at least one field option, e.g. --signature-policy=strict. Run the command with --help for all options and examples.');
 
             return self::INVALID;
         }
