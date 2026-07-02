@@ -188,14 +188,25 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
-    public function testItAllowsHttpWebhookCaptureOnlyWhenExplicitlyEnabled(): void
+    public function testItAllowsLocalHttpWebhookOverrideOnlyWhenExplicitlyEnabled(): void
     {
         $config = UcpConfig::fromArray([
-            'agentAllowlist' => ['merchant.example'],
-            'webhookUrlOverride' => 'http://merchant.example/_action/swag-agentic-commerce/test/webhooks',
+            'agentAllowlist' => ['sw66.localhost'],
+            'webhookUrlOverride' => 'http://sw66.localhost:8088/ucp/webhook',
         ], true);
 
-        self::assertSame('http://merchant.example/_action/swag-agentic-commerce/test/webhooks', $config->webhookUrlOverride);
+        self::assertSame('http://sw66.localhost:8088/ucp/webhook', $config->webhookUrlOverride);
+    }
+
+    #[Test]
+    public function testItRejectsNonLocalHttpWebhookOverrideEvenWhenLocalHttpIsAllowed(): void
+    {
+        $this->expectExceptionObject(UcpConfigException::invalidValue('$.webhookUrlOverride', 'must use https'));
+
+        UcpConfig::fromArray([
+            'agentAllowlist' => ['agent.example'],
+            'webhookUrlOverride' => 'http://agent.example/webhook',
+        ], true);
     }
 
     #[Test]

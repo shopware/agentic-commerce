@@ -33,6 +33,7 @@ final class UcpAdminController
         private readonly ProfilePreviewBuilder $profilePreviewBuilder,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
+        private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
     }
 
@@ -114,7 +115,7 @@ final class UcpAdminController
                 throw UcpConfigException::invalidJsonPayload();
             }
 
-            $config = UcpConfig::fromArray($payload);
+            $config = UcpConfig::fromArray($payload, $this->allowHttpLocalWebhookOverride);
         } else {
             $config = $this->configService->getConfig($salesChannelId);
         }

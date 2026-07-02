@@ -11,11 +11,9 @@ use Ucp\Sdk\Exception\ValidationException;
 /** @internal */
 final class CheckoutWebhookUrlGuard
 {
-    private const TEST_WEBHOOK_CAPTURE_PATH = '/_action/swag-agentic-commerce/test/webhooks';
-
     public function __construct(
         private readonly SalesChannelViewProvider $salesChannelViewProvider,
-        private readonly bool $allowHttpTestWebhookCapture = false,
+        private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
     }
 
@@ -50,7 +48,12 @@ final class CheckoutWebhookUrlGuard
 
     private function normalizeHost(string $host): string
     {
-        return rtrim(strtolower(trim($host)), '.');
+        $host = rtrim(strtolower(trim($host)), '.');
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+        }
+
+        return $host;
     }
 
     private function isAllowedScheme(string $scheme, string $webhookUrl): bool
@@ -59,8 +62,23 @@ final class CheckoutWebhookUrlGuard
             return true;
         }
 
-        return $this->allowHttpTestWebhookCapture
+        return $this->allowHttpLocalWebhookOverride
             && 'http' === $scheme
-            && self::TEST_WEBHOOK_CAPTURE_PATH === parse_url($webhookUrl, \PHP_URL_PATH);
+            && $this->isLocalWebhookHost($webhookUrl);
+    }
+
+    private function isLocalWebhookHost(string $webhookUrl): bool
+    {
+        $host = parse_url($webhookUrl, \PHP_URL_HOST);
+        if (!\is_string($host) || '' === $host) {
+            return false;
+        }
+
+        $host = $this->normalizeHost($host);
+
+        return 'localhost' === $host
+            || str_ends_with($host, '.localhost')
+            || '127.0.0.1' === $host
+            || '::1' === $host;
     }
 }

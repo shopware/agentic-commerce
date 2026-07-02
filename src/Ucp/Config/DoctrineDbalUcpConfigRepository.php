@@ -19,7 +19,7 @@ final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterf
 
     public function __construct(
         private readonly Connection $connection,
-        private readonly bool $allowHttpTestWebhookCapture = false,
+        private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
     }
 
@@ -95,7 +95,7 @@ final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterf
      */
     private function hydrate(array $row): UcpConfig
     {
-        return UcpConfig::fromJson((string) ($row['config_json'] ?? '{}'), $this->allowHttpTestWebhookCapture);
+        return UcpConfig::fromJson((string) ($row['config_json'] ?? '{}'), $this->allowHttpLocalWebhookOverride);
     }
 
     private function encode(UcpConfig $config): string

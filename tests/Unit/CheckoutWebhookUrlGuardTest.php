@@ -65,17 +65,32 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
     }
 
     #[Test]
-    public function testItAllowsHttpTestCaptureWebhookWhenExplicitlyEnabled(): void
+    public function testItAllowsLocalHttpWebhookWhenExplicitlyEnabled(): void
     {
         $guard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class), true);
 
         $guard->assertAllowed(
-            'http://agent.example/_action/swag-agentic-commerce/test/webhooks',
-            new UcpConfig(agentAllowlist: ['agent.example']),
+            'http://sw66.localhost:8088/ucp/webhook',
+            new UcpConfig(agentAllowlist: ['sw66.localhost']),
             'sales-channel-id',
         );
 
         self::addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function testItRejectsNonLocalHttpWebhookEvenWhenLocalHttpIsAllowed(): void
+    {
+        $guard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class), true);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Webhook override URLs must use https and include a host.');
+
+        $guard->assertAllowed(
+            'http://agent.example/webhook',
+            new UcpConfig(agentAllowlist: ['agent.example']),
+            'sales-channel-id',
+        );
     }
 
     #[Test]

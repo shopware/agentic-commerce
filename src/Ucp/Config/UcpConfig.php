@@ -47,8 +47,6 @@ final class UcpConfig
      */
     private const URL_SCHEMES = ['http', 'https'];
 
-    private const TEST_WEBHOOK_CAPTURE_PATH = '/_action/swag-agentic-commerce/test/webhooks';
-
     /**
      * @var list<string>
      */
@@ -86,7 +84,7 @@ final class UcpConfig
     /**
      * @param array<array-key, mixed> $payload
      */
-    public static function fromArray(array $payload, bool $allowHttpTestWebhookCapture = false): self
+    public static function fromArray(array $payload, bool $allowHttpLocalWebhookOverride = false): self
     {
         self::assertSupportedKeys($payload);
 
@@ -100,7 +98,7 @@ final class UcpConfig
         $agentAllowlist = self::hostList($payload['agentAllowlist'] ?? null, '$.agentAllowlist');
         $webhookUrlOverride = self::nullableHttpUrlValue($payload['webhookUrlOverride'] ?? null, '$.webhookUrlOverride');
         if (null !== $webhookUrlOverride) {
-            self::assertWebhookUrlScheme($webhookUrlOverride, $allowHttpTestWebhookCapture);
+            self::assertWebhookUrlScheme($webhookUrlOverride, $allowHttpLocalWebhookOverride);
             self::assertWebhookHostAllowed($webhookUrlOverride, $agentAllowlist, $platformAllowlist);
         }
 
@@ -124,7 +122,7 @@ final class UcpConfig
         );
     }
 
-    public static function fromJson(string $json, bool $allowHttpTestWebhookCapture = false): self
+    public static function fromJson(string $json, bool $allowHttpLocalWebhookOverride = false): self
     {
         try {
             $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
@@ -136,7 +134,7 @@ final class UcpConfig
             throw self::invalid('$', 'must be a JSON object');
         }
 
-        return self::fromArray($decoded, $allowHttpTestWebhookCapture);
+        return self::fromArray($decoded, $allowHttpLocalWebhookOverride);
     }
 
     /**
@@ -694,18 +692,33 @@ final class UcpConfig
         }
     }
 
-    private static function assertWebhookUrlScheme(string $webhookUrl, bool $allowHttpTestWebhookCapture): void
+    private static function assertWebhookUrlScheme(string $webhookUrl, bool $allowHttpLocalWebhookOverride): void
     {
         $scheme = parse_url($webhookUrl, \PHP_URL_SCHEME);
         if ('https' === $scheme) {
             return;
         }
 
-        if ($allowHttpTestWebhookCapture && 'http' === $scheme && self::TEST_WEBHOOK_CAPTURE_PATH === parse_url($webhookUrl, \PHP_URL_PATH)) {
+        if ($allowHttpLocalWebhookOverride && 'http' === $scheme && self::isLocalWebhookHost($webhookUrl)) {
             return;
         }
 
         throw self::invalid('$.webhookUrlOverride', 'must use https');
+    }
+
+    private static function isLocalWebhookHost(string $webhookUrl): bool
+    {
+        $host = parse_url($webhookUrl, \PHP_URL_HOST);
+        if (!\is_string($host) || '' === $host) {
+            return false;
+        }
+
+        $host = self::normalizeHost($host, '$.webhookUrlOverride');
+
+        return 'localhost' === $host
+            || str_ends_with($host, '.localhost')
+            || '127.0.0.1' === $host
+            || '::1' === $host;
     }
 
     private static function invalid(string $path, string $message): UcpConfigException

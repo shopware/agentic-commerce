@@ -41,13 +41,14 @@ final class UcpConfigService
         private readonly LegacyConfigStoreInterface $legacyConfigStore,
         private readonly ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
         private readonly ?UcpSigningKeyService $signingKeyService = null,
+        private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
     }
 
     public function getConfig(?string $salesChannelId = null): UcpConfig
     {
         if (null === $salesChannelId) {
-            return UcpConfig::fromArray($this->legacyPayload(null));
+            return UcpConfig::fromArray($this->legacyPayload(null), $this->allowHttpLocalWebhookOverride);
         }
 
         $config = $this->repository->find($salesChannelId);
@@ -56,7 +57,7 @@ final class UcpConfigService
         }
 
         $legacyPayload = $this->legacyPayload($salesChannelId);
-        $config = UcpConfig::fromArray($legacyPayload);
+        $config = UcpConfig::fromArray($legacyPayload, $this->allowHttpLocalWebhookOverride);
 
         if ($this->hasLegacyValues($legacyPayload)) {
             // Compatibility bridge for legacy SystemConfig-backed setups,
@@ -111,7 +112,7 @@ final class UcpConfigService
     public function saveConfig(array $payload, ?string $salesChannelId = null): UcpConfig
     {
         if (null === $salesChannelId) {
-            $config = UcpConfig::fromArray($payload);
+            $config = UcpConfig::fromArray($payload, $this->allowHttpLocalWebhookOverride);
             foreach ($config->toArray() as $key => $value) {
                 $this->legacyConfigStore->set(self::DOMAIN.$key, $value, null);
             }
@@ -120,7 +121,7 @@ final class UcpConfigService
         }
 
         $merged = array_merge($this->getConfig($salesChannelId)->toArray(), $payload);
-        $config = UcpConfig::fromArray($merged);
+        $config = UcpConfig::fromArray($merged, $this->allowHttpLocalWebhookOverride);
 
         $this->repository->save($salesChannelId, $config);
 

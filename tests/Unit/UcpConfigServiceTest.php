@@ -192,6 +192,20 @@ final class UcpConfigServiceTest extends TestCase
         static::assertSame('log', $stored->signaturePolicy);
         static::assertSame(['agent.example'], $stored->agentAllowlist);
     }
+
+    public function testSaveConfigAcceptsLocalHttpWebhookOverridesWhenExplicitlyAllowed(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $service = new UcpConfigService($repository, $legacyStore, null, null, true);
+
+        $config = $service->saveConfig([
+            'agentAllowlist' => ['sw66.localhost'],
+            'webhookUrlOverride' => 'http://sw66.localhost:8088/ucp/webhook',
+        ], 'sales-channel-a');
+
+        static::assertSame('http://sw66.localhost:8088/ucp/webhook', $config->webhookUrlOverride);
+    }
 }
 
 /** @internal */
