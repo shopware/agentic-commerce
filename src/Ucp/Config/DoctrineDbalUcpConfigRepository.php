@@ -94,9 +94,7 @@ final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterf
      */
     private function hydrate(array $row): UcpConfig
     {
-        $decoded = json_decode((string) ($row['config_json'] ?? '{}'), true);
-
-        return UcpConfig::fromArray(\is_array($decoded) ? $decoded : []);
+        return UcpConfig::fromJson((string) ($row['config_json'] ?? '{}'));
     }
 
     private function encode(UcpConfig $config): string

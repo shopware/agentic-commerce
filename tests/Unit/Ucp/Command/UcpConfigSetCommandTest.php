@@ -18,6 +18,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\Ucp\Command\SalesChannelResolver;
 use Swag\AgenticCommerce\Ucp\Command\UcpConfigSetCommand;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -45,6 +46,76 @@ class UcpConfigSetCommandTest extends TestCase
 
         static::assertSame(Command::INVALID, $status);
         static::assertStringContainsString('Nothing to set', $tester->getDisplay());
+    }
+
+    public function testItRejectsInvalidSignaturePolicyWithoutPersisting(): void
+    {
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->expects(static::never())->method('save');
+
+        $tester = new CommandTester($this->command($configRepository));
+        $status = $tester->execute([
+            '--sales-channel' => 'Storefront',
+            '--signature-policy' => 'warn',
+        ], ['interactive' => false]);
+
+        static::assertSame(Command::INVALID, $status);
+        static::assertStringContainsString('Invalid --signature-policy value "warn"', $tester->getDisplay());
+        static::assertStringContainsString('strict', $tester->getDisplay());
+        static::assertStringContainsString('log', $tester->getDisplay());
+        static::assertStringContainsString('off', $tester->getDisplay());
+    }
+
+    public function testItRejectsInvalidIdempotencyWithoutPersisting(): void
+    {
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->expects(static::never())->method('save');
+
+        $tester = new CommandTester($this->command($configRepository));
+        $status = $tester->execute([
+            '--sales-channel' => 'Storefront',
+            '--idempotency' => 'banana',
+        ], ['interactive' => false]);
+
+        static::assertSame(Command::INVALID, $status);
+        static::assertStringContainsString('Invalid --idempotency value "banana"', $tester->getDisplay());
+        static::assertStringContainsString('true', $tester->getDisplay());
+        static::assertStringContainsString('false', $tester->getDisplay());
+        static::assertStringContainsString('yes', $tester->getDisplay());
+        static::assertStringContainsString('no', $tester->getDisplay());
+    }
+
+    public function testItPersistsValidIdempotencyValue(): void
+    {
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->method('find')->with(self::STORE_ID)->willReturn(null);
+        $configRepository->expects(static::once())
+            ->method('save')
+            ->with(
+                self::STORE_ID,
+                static::callback(static function (mixed $config): bool {
+                    static::assertInstanceOf(UcpConfig::class, $config);
+                    static::assertFalse($config->idempotencyRequired);
+
+                    return true;
+                }),
+            );
+
+        $tester = new CommandTester($this->command($configRepository));
+        $status = $tester->execute([
+            '--sales-channel' => 'Storefront',
+            '--idempotency' => 'false',
+        ], ['interactive' => false]);
+
+        static::assertSame(Command::SUCCESS, $status);
+        static::assertStringContainsString('"idempotencyRequired": false', $tester->getDisplay());
+    }
+
+    private function command(UcpConfigRepositoryInterface $configRepository): UcpConfigSetCommand
+    {
+        $configService = new UcpConfigService($configRepository, $this->createMock(LegacyConfigStoreInterface::class));
+
+        return new UcpConfigSetCommand($configService, $this->resolver());
     }
 
     private function resolver(): SalesChannelResolver

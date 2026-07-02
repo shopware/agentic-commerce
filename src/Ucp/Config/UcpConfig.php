@@ -18,6 +18,33 @@ final class UcpConfig
     /**
      * @var list<string>
      */
+    private const CONFIG_KEYS = [
+        'active',
+        'ucpVersion',
+        'profileDomain',
+        'enabledCapabilities',
+        'enabledTransports',
+        'continueUrlTemplate',
+        'platformAllowlist',
+        'remoteProfileAllowlist',
+        'agentAllowlist',
+        'embeddedAllowedOrigins',
+        'embeddedFrameAncestors',
+        'discoveryBudget',
+        'catalogResultLimit',
+        'webhookUrlOverride',
+        'signaturePolicy',
+        'idempotencyRequired',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    private const IGNORED_LEGACY_KEYS = ['profileUriStrategy', 'customProfileUri'];
+
+    /**
+     * @var list<string>
+     */
     private const URL_SCHEMES = ['http', 'https'];
 
     /**
@@ -55,10 +82,12 @@ final class UcpConfig
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      */
     public static function fromArray(array $payload): self
     {
+        self::assertSupportedKeys($payload);
+
         // Legacy keys profileUriStrategy/customProfileUri are intentionally ignored
         // (redesign §10.5): the profile is always served from a configured channel
         // domain, optionally pinned via profileDomain.
@@ -90,6 +119,21 @@ final class UcpConfig
             self::signaturePolicyValue($payload['signaturePolicy'] ?? 'strict'),
             self::boolValue($payload['idempotencyRequired'] ?? null, true, '$.idempotencyRequired'),
         );
+    }
+
+    public static function fromJson(string $json): self
+    {
+        try {
+            $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw UcpConfigException::invalidJsonPayload();
+        }
+
+        if (!\is_array($decoded) || array_is_list($decoded)) {
+            throw self::invalid('$', 'must be a JSON object');
+        }
+
+        return self::fromArray($decoded);
     }
 
     /**
@@ -225,6 +269,24 @@ final class UcpConfig
         }
 
         throw self::invalid($path, 'must be a boolean');
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     */
+    private static function assertSupportedKeys(array $payload): void
+    {
+        foreach (array_keys($payload) as $key) {
+            if (!\is_string($key)) {
+                throw self::invalid(\sprintf('$[%d]', $key), 'must be a supported config field');
+            }
+
+            if (\in_array($key, self::CONFIG_KEYS, true) || \in_array($key, self::IGNORED_LEGACY_KEYS, true)) {
+                continue;
+            }
+
+            throw self::invalid('$.'.$key, 'must be a supported config field');
+        }
     }
 
     private static function intValue(mixed $value, int $default, string $path): int

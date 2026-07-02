@@ -172,6 +172,22 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
+    public function testItRejectsBrokenJsonConfig(): void
+    {
+        $this->expectExceptionObject(UcpConfigException::invalidJsonPayload());
+
+        UcpConfig::fromJson('{"active": true');
+    }
+
+    #[Test]
+    public function testItRejectsJsonConfigThatIsNotAnObject(): void
+    {
+        $this->expectExceptionObject(UcpConfigException::invalidValue('$', 'must be a JSON object'));
+
+        UcpConfig::fromJson('[]');
+    }
+
+    #[Test]
     public function testItSplitsRuntimeAllowlistsButKeepsLegacyFallback(): void
     {
         $splitConfig = UcpConfig::fromArray([
@@ -485,6 +501,11 @@ final class UcpConfigTest extends TestCase
         yield 'catalog result limit must be positive' => [
             'payload' => ['catalogResultLimit' => 0],
             'exception' => UcpConfigException::invalidValue('$.catalogResultLimit', 'must be a positive integer'),
+        ];
+
+        yield 'unknown config keys are rejected' => [
+            'payload' => ['active' => true, 'unexpected' => true],
+            'exception' => UcpConfigException::invalidValue('$.unexpected', 'must be a supported config field'),
         ];
     }
 

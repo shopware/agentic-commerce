@@ -20,6 +20,16 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class UcpConfigSetCommand extends Command
 {
     /**
+     * @var list<string>
+     */
+    private const SIGNATURE_POLICIES = ['strict', 'log', 'off'];
+
+    /**
+     * @var list<string>
+     */
+    private const BOOLEAN_LITERALS = ['true', '1', 'yes', 'false', '0', 'no'];
+
+    /**
      * Array option name => UcpConfig payload key.
      */
     private const LIST_OPTIONS = [
@@ -99,7 +109,14 @@ final class UcpConfigSetCommand extends Command
             return self::INVALID;
         }
 
-        $payload = $this->collectPayload($input);
+        try {
+            $payload = $this->collectPayload($input);
+        } catch (\InvalidArgumentException $exception) {
+            $io->error($exception->getMessage());
+
+            return self::INVALID;
+        }
+
         if ([] === $payload) {
             $io->error('Nothing to set — pass at least one field option, e.g. --signature-policy=strict. Run the command with --help for all options and examples.');
 
@@ -130,13 +147,13 @@ final class UcpConfigSetCommand extends Command
         $payload = [];
 
         $signaturePolicy = $input->getOption('signature-policy');
-        if (\is_string($signaturePolicy) && '' !== $signaturePolicy) {
-            $payload['signaturePolicy'] = $signaturePolicy;
+        if (\is_string($signaturePolicy)) {
+            $payload['signaturePolicy'] = $this->signaturePolicyValue($signaturePolicy);
         }
 
         $idempotency = $input->getOption('idempotency');
-        if (\is_string($idempotency) && '' !== $idempotency) {
-            $payload['idempotencyRequired'] = filter_var($idempotency, \FILTER_VALIDATE_BOOLEAN);
+        if (\is_string($idempotency)) {
+            $payload['idempotencyRequired'] = $this->booleanOptionValue('idempotency', $idempotency);
         }
 
         foreach (self::LIST_OPTIONS as $option => $key) {
@@ -154,5 +171,31 @@ final class UcpConfigSetCommand extends Command
         }
 
         return $payload;
+    }
+
+    private function signaturePolicyValue(string $value): string
+    {
+        $normalized = strtolower(trim($value));
+        if (\in_array($normalized, self::SIGNATURE_POLICIES, true)) {
+            return $normalized;
+        }
+
+        throw new \InvalidArgumentException(\sprintf('Invalid --signature-policy value "%s"; expected one of: %s.', $value, implode(', ', self::SIGNATURE_POLICIES)));
+    }
+
+    private function booleanOptionValue(string $option, string $value): bool
+    {
+        $normalized = strtolower(trim($value));
+        $parsed = match ($normalized) {
+            'true', '1', 'yes' => true,
+            'false', '0', 'no' => false,
+            default => null,
+        };
+
+        if (null !== $parsed) {
+            return $parsed;
+        }
+
+        throw new \InvalidArgumentException(\sprintf('Invalid --%s value "%s"; expected one of: %s.', $option, $value, implode(', ', self::BOOLEAN_LITERALS)));
     }
 }

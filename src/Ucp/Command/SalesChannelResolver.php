@@ -33,7 +33,7 @@ final class SalesChannelResolver
                 'id' => (string) ($channel['id'] ?? ''),
                 'name' => (string) ($channel['name'] ?? ''),
             ],
-            $this->salesChannelViewProvider->all(Context::createDefaultContext()),
+            $this->salesChannelViewProvider->all(Context::createCLIContext()),
         );
     }
 
@@ -55,10 +55,8 @@ final class SalesChannelResolver
      * Returns null for the global/default scope. Returns false (and prints the
      * reason plus the available channels) when the value cannot be resolved, so
      * the caller can abort with a non-zero exit code.
-     *
-     * @return string|false|null
      */
-    public function resolve(InputInterface $input, SymfonyStyle $io, ?string $value, bool $allowGlobal)
+    public function resolve(InputInterface $input, SymfonyStyle $io, ?string $value, bool $allowGlobal): string|false|null
     {
         $channels = $this->all();
 
@@ -100,10 +98,8 @@ final class SalesChannelResolver
 
     /**
      * @param list<array{id: string, name: string}> $channels
-     *
-     * @return string|null
      */
-    private function askForSalesChannel(SymfonyStyle $io, array $channels, bool $allowGlobal)
+    private function askForSalesChannel(SymfonyStyle $io, array $channels, bool $allowGlobal): ?string
     {
         $labelToId = [];
         $labels = [];
