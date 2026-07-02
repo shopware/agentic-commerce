@@ -19,7 +19,7 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService', 'ucpAdminApiService'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
 
     provide() {
         return {
@@ -89,7 +89,7 @@ export const swSalesChannelDetailOverride = {
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
-            return Boolean(typeId) && typeId !== Defaults.productComparisonTypeId;
+            return this.acl.can('ucp.viewer') && Boolean(typeId) && typeId !== Defaults.productComparisonTypeId;
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.

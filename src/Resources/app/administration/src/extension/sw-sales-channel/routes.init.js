@@ -19,7 +19,7 @@ const childRoutes = [
         isChildren: true,
         meta: {
             parentPath: 'sw.sales.channel.list',
-            privilege: 'sales_channel.viewer',
+            privilege: 'ucp.viewer',
         },
     },
     {
@@ -29,7 +29,7 @@ const childRoutes = [
         isChildren: true,
         meta: {
             parentPath: 'sw.sales.channel.list',
-            privilege: 'sales_channel.viewer',
+            privilege: 'ucp.viewer',
         },
     },
 ];

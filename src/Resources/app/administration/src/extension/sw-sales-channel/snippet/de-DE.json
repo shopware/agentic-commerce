@@ -41,7 +41,7 @@
           "capabilityCheckoutTooltip": "Agenten können einen Checkout für den Kunden abschließen.",
           "capabilityOrderLabel": "Bestellungen",
           "capabilityOrderTooltip": "Agenten können den Bestellstatus nach dem Kauf lesen.",
-          "transportsLabel": "Transports",
+          "transportsLabel": "Transportwege",
           "transportRestDescription": "REST – Standard-HTTP-API.",
           "transportA2aDescription": "A2A – Agent-zu-Agent-Protokoll.",
           "transportEmbeddedDescription": "Embedded – eingebettete In-Context-Oberfläche.",
