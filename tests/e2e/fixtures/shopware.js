@@ -116,7 +116,7 @@ export async function firstSalesChannel(adminApi) {
 export async function withRestoredUcpConfig(adminApi, salesChannelId, callback) {
     const configResponse = await adminApi.get(`/api/_admin/ucp/sales-channels/${salesChannelId}/config`);
     await expect(configResponse, await configResponse.text()).toBeOK();
-    const originalConfig = (await configResponse.json()).data;
+    const originalConfig = adminApiWritableConfig((await configResponse.json()).data);
     const createdKids = [];
 
     try {
@@ -127,6 +127,17 @@ export async function withRestoredUcpConfig(adminApi, salesChannelId, callback) 
         )));
         await adminApi.put(`/api/_admin/ucp/sales-channels/${salesChannelId}/config`, { data: originalConfig }).catch(() => {});
     }
+}
+
+function adminApiWritableConfig(config) {
+    if (typeof config?.webhookUrlOverride !== 'string' || !config.webhookUrlOverride.startsWith('http://')) {
+        return config;
+    }
+
+    return {
+        ...config,
+        webhookUrlOverride: null,
+    };
 }
 
 export async function assertProfileTransports(profile, expectedTransports) {
