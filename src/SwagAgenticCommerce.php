@@ -15,6 +15,7 @@ use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
+use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -45,6 +46,14 @@ final class SwagAgenticCommerce extends Plugin
 
         $container->addCompilerPass(
             new AgenticCommerceCoexistenceCompilerPass(),
+            PassConfig::TYPE_BEFORE_OPTIMIZATION,
+            1000,
+        );
+
+        // In the test environment, swap the SDK's HTTP agent-profile fetcher for a fixed,
+        // test-supplied one so the functional suite can negotiate the UCP handshake offline.
+        $container->addCompilerPass(
+            new TestAgentProfileFetcherCompilerPass(),
             PassConfig::TYPE_BEFORE_OPTIMIZATION,
             1000,
         );

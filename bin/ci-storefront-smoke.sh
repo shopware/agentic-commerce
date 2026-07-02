@@ -6,12 +6,10 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-for dependency in curl; do
-  if ! command -v "${dependency}" >/dev/null 2>&1; then
-    echo "Required dependency '${dependency}' is not available." >&2
-    exit 1
-  fi
-done
+if ! command -v curl >/dev/null 2>&1; then
+  echo "Required dependency 'curl' is not available." >&2
+  exit 1
+fi
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
@@ -23,14 +21,11 @@ if [[ ! -d "${SHOPWARE_DIR}" ]]; then
   exit 1
 fi
 
-if command -v docker >/dev/null 2>&1; then
-  compose_cmd=(docker compose)
-elif command -v podman >/dev/null 2>&1; then
-  compose_cmd=(podman compose)
-else
-  echo "Neither docker nor podman is available." >&2
-  exit 1
-fi
+# Shared container/lane helpers (web, detect_base_url, lane_detect_compose_cmd).
+# shellcheck source=bin/lib/lane.sh
+source "${PLUGIN_ROOT}/bin/lib/lane.sh"
+
+read -ra compose_cmd <<< "$(lane_detect_compose_cmd)"
 
 if [[ ! -f "${SHOPWARE_DIR}/compose.yaml" ]]; then
   echo "Missing ${SHOPWARE_DIR}/compose.yaml. In CI, run bin/ci-write-compose.sh before bin/ci-storefront-smoke.sh." >&2
@@ -42,17 +37,6 @@ if [[ -f "${SHOPWARE_DIR}/compose.override.yaml" ]]; then
   compose_files+=("${SHOPWARE_DIR}/compose.override.yaml")
 fi
 
-detect_base_url() {
-  local detected
-  detected="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' "${SHOPWARE_DIR}/compose.yaml" | head -n 1)"
-  if [[ -n "${detected}" ]]; then
-    printf '%s\n' "${detected}"
-    return 0
-  fi
-
-  printf 'http://localhost:8000\n'
-}
-
 BASE_URL="${BASE_URL:-$(detect_base_url)}"
 
 compose=("${compose_cmd[@]}")
@@ -60,10 +44,7 @@ for compose_file in "${compose_files[@]}"; do
   compose+=(-f "${compose_file}")
 done
 
-web() {
-  "${compose[@]}" exec -T web "$@"
-}
-
+# web() comes from bin/lib/lane.sh.
 storefront_sh() {
   local command="$1"
 
