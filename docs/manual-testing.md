@@ -151,9 +151,9 @@ Use the matching lane version when requiring the plugin manually:
 `6.5.9999999-dev` for 6.5, `6.6.9999999-dev` for 6.6, and
 `6.7.9999999-dev` for trunk/current 6.7.
 
-The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is
-resolved transitively by that bundle. The local path repositories above are
-only needed while the SDK packages are private/local.
+The plugin directly requires `shopware/core` and `ucp-php-sdk/symfony-bundle`;
+SDK core is resolved transitively by that bundle. The local SDK path
+repositories above are only needed while the SDK packages are private/local.
 Use stable `0.0.1` path aliases for both SDK packages. Composer does not
 propagate alpha stability flags from the SDK bundle to the root Shopware
 project, so alpha path aliases can make the transitive core package

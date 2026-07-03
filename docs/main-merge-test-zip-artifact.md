@@ -151,7 +151,7 @@ Important inputs:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `SDK_ROOT` | `../ucp-php-sdk` | SDK checkout used as Composer path repositories. |
+| `SDK_ROOT` | `../ucp-php-sdk` | SDK checkout used only by the temporary packaging install Composer file. |
 | `ADMIN_PUBLIC_SOURCE` | `var/package-admin-public` | Vite-built plugin public assets. |
 | `PACKAGE_VERSION` | `0.0.1+<short-sha>` | Version written into the packaged `composer.json`. |
 | `UCP_SDK_REF` | empty | Recorded in metadata. |
@@ -189,7 +189,10 @@ legacy bootstrap into `src/Resources/public/administration/js/`, and writes:
 ## Bundled SDK
 
 The staged package installs runtime dependencies into plugin-local `vendor/`,
-not `.tools/vendor`.
+not `.tools/vendor`. The repository `composer.json` remains the public package
+metadata; the path repositories below exist only in the temporary Composer file
+used to populate the staged `vendor/` directory while the SDK packages are
+private.
 
 The temporary Composer file requires only PHP and:
 
@@ -213,8 +216,12 @@ vendor/autoload.php
 ```
 
 The temporary Composer file removes dev requirements and replaces
-Shopware-provided Symfony/Doctrine packages so the packaged `vendor/` contains
-the SDK only, not framework packages already provided by Shopware.
+Shopware-provided Shopware/Symfony/Doctrine packages so the packaged `vendor/`
+contains the SDK only, not framework packages already provided by Shopware.
+
+After `composer install`, the package script restores the staged `composer.json`
+from repository metadata, changes only the artifact version and package
+`vendor-dir`, and keeps SDK path repositories out of the final ZIP metadata.
 
 ## Runtime Switch
 

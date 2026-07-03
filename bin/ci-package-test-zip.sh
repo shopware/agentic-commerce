@@ -127,6 +127,7 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
       ]
       | .replace = {
         "doctrine/dbal": "*",
+        "shopware/core": "*",
         "symfony/config": "*",
         "symfony/dependency-injection": "*",
         "symfony/event-dispatcher-contracts": "*",
@@ -142,9 +143,7 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
   jq \
     --arg packageVersion "${package_version}" \
     '.version = $packageVersion
-     | .require["shopware/core"] = ">=6.5.8.0 <7.0.0.0"
-     | .config["vendor-dir"] = "vendor"
-     | del(.repositories)' \
+     | .config["vendor-dir"] = "vendor"' \
     composer.json.release-source >composer.json
   rm -f composer.json.release-source
 )

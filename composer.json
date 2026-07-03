@@ -5,13 +5,8 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "ucp-php-sdk/symfony-bundle": "^0.0.1@alpha",
-        "symfony/config": "^6.4 || ^7.0",
-        "symfony/dependency-injection": "^6.4 || ^7.0",
-        "symfony/http-foundation": "^6.4 || ^7.0",
-        "symfony/http-kernel": "^6.4 || ^7.0",
-        "symfony/lock": "^6.4 || ^7.0",
-        "symfony/routing": "^6.4 || ^7.0"
+        "shopware/core": ">=6.5.8.0 <7.0.0.0",
+        "ucp-php-sdk/symfony-bundle": "^0.0.1"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.88",
@@ -20,28 +15,6 @@
         "rector/rector": "^1.1",
         "roave/backward-compatibility-check": "^8.6"
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../ucp-php-sdk/packages/core",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "shopware/ucp-php-sdk-core": "0.0.1"
-                }
-            }
-        },
-        {
-            "type": "path",
-            "url": "../ucp-php-sdk/packages/symfony-bundle",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "ucp-php-sdk/symfony-bundle": "0.0.1"
-                }
-            }
-        }
-    ],
     "autoload": {
         "psr-4": {
             "Swag\\AgenticCommerce\\": "src/"
@@ -94,7 +67,5 @@
         "platform": {
             "php": "8.1.0"
         }
-    },
-    "minimum-stability": "alpha",
-    "prefer-stable": true
+    }
 }
