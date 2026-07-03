@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
+use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 
 /** @internal */
 #[Package('framework')]
@@ -19,8 +20,7 @@ final class UcpConfigService
     private const KEYS = [
         'active',
         'ucpVersion',
-        'profileUriStrategy',
-        'customProfileUri',
+        'profileDomain',
         'enabledCapabilities',
         'enabledTransports',
         'continueUrlTemplate',
@@ -40,13 +40,15 @@ final class UcpConfigService
         private readonly UcpConfigRepositoryInterface $repository,
         private readonly LegacyConfigStoreInterface $legacyConfigStore,
         private readonly ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
+        private readonly ?UcpSigningKeyService $signingKeyService = null,
+        private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
     }
 
     public function getConfig(?string $salesChannelId = null): UcpConfig
     {
         if (null === $salesChannelId) {
-            return UcpConfig::fromArray($this->legacyPayload(null));
+            return UcpConfig::fromArray($this->legacyPayload(null), $this->allowHttpLocalWebhookOverride);
         }
 
         $config = $this->repository->find($salesChannelId);
@@ -55,7 +57,7 @@ final class UcpConfigService
         }
 
         $legacyPayload = $this->legacyPayload($salesChannelId);
-        $config = UcpConfig::fromArray($legacyPayload);
+        $config = UcpConfig::fromArray($legacyPayload, $this->allowHttpLocalWebhookOverride);
 
         if ($this->hasLegacyValues($legacyPayload)) {
             // Compatibility bridge for legacy SystemConfig-backed setups,
@@ -97,13 +99,20 @@ final class UcpConfigService
     }
 
     /**
+     * Persist a (possibly partial) config payload. The incoming keys are merged
+     * over the currently stored config, so callers that only own a subset of the
+     * fields do not reset the rest: the admin UI saves the Exposure subset
+     * (active / profileDomain / capabilities / transports) while signature
+     * policy, signing keys and the advanced host/delivery settings are managed
+     * via console commands (ucp:config:* / ucp:signing-keys:*). Whichever writes last
+     * preserves the other's fields.
+     *
      * @param array<string, mixed> $payload
      */
     public function saveConfig(array $payload, ?string $salesChannelId = null): UcpConfig
     {
-        $config = UcpConfig::fromArray($payload);
-
         if (null === $salesChannelId) {
+            $config = UcpConfig::fromArray($payload, $this->allowHttpLocalWebhookOverride);
             foreach ($config->toArray() as $key => $value) {
                 $this->legacyConfigStore->set(self::DOMAIN.$key, $value, null);
             }
@@ -111,13 +120,38 @@ final class UcpConfigService
             return $config;
         }
 
+        $merged = array_merge($this->getConfig($salesChannelId)->toArray(), $payload);
+        $config = UcpConfig::fromArray($merged, $this->allowHttpLocalWebhookOverride);
+
         $this->repository->save($salesChannelId, $config);
 
         if ($config->active) {
             $this->agenticFilesCoreBridge?->enableForSalesChannel($salesChannelId);
+            $this->ensureSigningKey($salesChannelId);
         }
 
         return $config;
+    }
+
+    /**
+     * Auto-provision a signing key so that an activated sales channel is usable
+     * under the default "strict" signature policy without a manual key-creation
+     * step (redesign §10.1). Idempotent: a no-op when a non-retired key already
+     * exists, and self-healing if the only key was deleted.
+     */
+    private function ensureSigningKey(string $salesChannelId): void
+    {
+        if (null === $this->signingKeyService) {
+            return;
+        }
+
+        foreach ($this->signingKeyService->all($salesChannelId) as $key) {
+            if ('retired' !== ($key['status'] ?? null)) {
+                return;
+            }
+        }
+
+        $this->signingKeyService->create($salesChannelId, null, 'ES256');
     }
 
     /**

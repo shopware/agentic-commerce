@@ -75,6 +75,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
@@ -82,6 +83,7 @@ use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
@@ -138,6 +140,14 @@ use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
 return static function (ContainerConfigurator $container): void {
+    $appUrlHost = parse_url((string) EnvironmentHelper::getVariable('APP_URL', ''), \PHP_URL_HOST);
+    $appUrlHost = \is_string($appUrlHost) ? rtrim(strtolower($appUrlHost), '.') : '';
+    $allowHttpLocalWebhookOverride = 'prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')
+        || 'localhost' === $appUrlHost
+        || str_ends_with($appUrlHost, '.localhost')
+        || '127.0.0.1' === $appUrlHost
+        || '::1' === $appUrlHost;
+
     $container->extension('ucp_sdk', [
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
@@ -220,6 +230,9 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
     $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
 
+    $services->set(CheckoutWebhookUrlGuard::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
     $services->alias(CheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
@@ -285,6 +298,7 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments');
 
     $services->set(UcpAdminController::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
         ->tag('controller.service_arguments');
 
     $services->set(FallbackAgenticFileController::class)
@@ -312,6 +326,12 @@ return static function (ContainerConfigurator $container): void {
     }
 
     // Config layer.
+
+    $services->set(DoctrineDbalUcpConfigRepository::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+
+    $services->set(UcpConfigService::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);

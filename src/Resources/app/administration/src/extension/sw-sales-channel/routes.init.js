@@ -1,23 +1,27 @@
-// Component names used for route resolution.
-const COMPONENT_INTEGRATION = 'sw-sales-channel-detail-agentic-commerce-integration';
-const COMPONENT_STATISTICS   = 'sw-sales-channel-detail-agentic-commerce-statistics';
+// Component names used for route resolution. The product-export "Integration"
+// surface no longer has its own tab/route — it is embedded as a card inside the
+// consolidated Agentic Commerce tab (redesign Decision A).
+const COMPONENT_AGENTIC    = 'sw-sales-channel-detail-agentic-commerce';
+const COMPONENT_STATISTICS = 'sw-sales-channel-detail-agentic-commerce-statistics';
 
 // Returns an async component factory compatible with both Vue Router 3 and 4.
 // Component.build() builds from Shopware's component registry, which is
 // populated before routes are resolved.
 function makeComponentFactory(componentName) {
-    return () => Shopware.Component.build(componentName);
+    return async () => {
+        return await Shopware.Component.build(componentName);
+    };
 }
 
 const childRoutes = [
     {
-        name: 'sw.sales.channel.detail.agenticCommerceIntegration',
-        path: 'agentic-commerce-integration',
-        component: makeComponentFactory(COMPONENT_INTEGRATION),
+        name: 'sw.sales.channel.detail.agenticCommerce',
+        path: 'agentic-commerce',
+        component: makeComponentFactory(COMPONENT_AGENTIC),
         isChildren: true,
         meta: {
             parentPath: 'sw.sales.channel.list',
-            privilege: 'sales_channel.viewer',
+            privilege: 'ucp.viewer',
         },
     },
     {
@@ -27,7 +31,7 @@ const childRoutes = [
         isChildren: true,
         meta: {
             parentPath: 'sw.sales.channel.list',
-            privilege: 'sales_channel.viewer',
+            privilege: 'ucp.viewer',
         },
     },
 ];

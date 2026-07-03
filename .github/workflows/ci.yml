@@ -321,7 +321,19 @@ jobs:
           token: ${{ secrets.PLUGINS_PAT }}
       - run: npm ci --no-audit --no-fund
         working-directory: agentic-commerce
-      - run: npx playwright install chromium --with-deps
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('agentic-commerce/package-lock.json') }}
+      - name: Install Playwright browser + system deps (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - name: Install Playwright system deps (cached browser)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
@@ -368,7 +380,19 @@ jobs:
           cache-dependency-path: agentic-commerce/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: agentic-commerce
-      - run: npx playwright install chromium --with-deps
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('agentic-commerce/package-lock.json') }}
+      - name: Install Playwright browser + system deps (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - name: Install Playwright system deps (cached browser)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-storefront-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
@@ -500,7 +524,19 @@ jobs:
           cache-dependency-path: agentic-commerce/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: agentic-commerce
-      - run: npx playwright install chromium --with-deps
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('agentic-commerce/package-lock.json') }}
+      - name: Install Playwright browser + system deps (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - name: Install Playwright system deps (cached browser)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"

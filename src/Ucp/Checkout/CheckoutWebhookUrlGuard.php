@@ -13,6 +13,7 @@ final class CheckoutWebhookUrlGuard
 {
     public function __construct(
         private readonly SalesChannelViewProvider $salesChannelViewProvider,
+        private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
     }
 
@@ -21,8 +22,8 @@ final class CheckoutWebhookUrlGuard
         $scheme = parse_url($webhookUrl, \PHP_URL_SCHEME);
         $host = parse_url($webhookUrl, \PHP_URL_HOST);
 
-        if (!\is_string($scheme) || !\in_array(strtolower($scheme), ['http', 'https'], true) || !\is_string($host) || '' === $host) {
-            throw new ValidationException('Webhook override URLs must use http or https and include a host.', ['$.webhookUrlOverride must be an absolute http(s) URL']);
+        if (!\is_string($scheme) || !$this->isAllowedScheme(strtolower($scheme), $webhookUrl) || !\is_string($host) || '' === $host) {
+            throw new ValidationException('Webhook override URLs must use https and include a host.', ['$.webhookUrlOverride must be an absolute https URL']);
         }
 
         $host = $this->normalizeHost($host);
@@ -47,6 +48,37 @@ final class CheckoutWebhookUrlGuard
 
     private function normalizeHost(string $host): string
     {
-        return rtrim(strtolower(trim($host)), '.');
+        $host = rtrim(strtolower(trim($host)), '.');
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+        }
+
+        return $host;
+    }
+
+    private function isAllowedScheme(string $scheme, string $webhookUrl): bool
+    {
+        if ('https' === $scheme) {
+            return true;
+        }
+
+        return $this->allowHttpLocalWebhookOverride
+            && 'http' === $scheme
+            && $this->isLocalWebhookHost($webhookUrl);
+    }
+
+    private function isLocalWebhookHost(string $webhookUrl): bool
+    {
+        $host = parse_url($webhookUrl, \PHP_URL_HOST);
+        if (!\is_string($host) || '' === $host) {
+            return false;
+        }
+
+        $host = $this->normalizeHost($host);
+
+        return 'localhost' === $host
+            || str_ends_with($host, '.localhost')
+            || '127.0.0.1' === $host
+            || '::1' === $host;
     }
 }

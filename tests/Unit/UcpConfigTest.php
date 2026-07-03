@@ -58,8 +58,7 @@ final class UcpConfigTest extends TestCase
     {
         $config = UcpConfig::fromArray([
             'active' => true,
-            'customProfileUri' => ' HTTPS://Merchant.Example./ucp/ ',
-            'profileUriStrategy' => 'config',
+            'profileDomain' => ' HTTPS://Merchant.Example./ucp/ ',
             'enabledTransports' => ['rest', 'rest'],
             'platformAllowlist' => ['Merchant.Example.', 'merchant.example'],
             'remoteProfileAllowlist' => ['Platform.Example', 'platform.example.'],
@@ -73,7 +72,7 @@ final class UcpConfigTest extends TestCase
 
         self::assertTrue($config->active);
         self::assertSame('https://merchant.example/ucp', $config->resolveBaseUri('https://fallback.example'));
-        self::assertSame('https://merchant.example/ucp/', $config->customProfileUri);
+        self::assertSame('https://merchant.example/ucp/', $config->profileDomain);
         self::assertSame(['rest'], $config->enabledTransports);
         self::assertSame(['rest'], array_map(static fn ($transport): string => $transport->value, $config->runtimeTransports()));
         self::assertSame(['merchant.example'], $config->platformAllowlist);
@@ -173,6 +172,44 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
+    public function testItRejectsBrokenJsonConfig(): void
+    {
+        $this->expectExceptionObject(UcpConfigException::invalidJsonPayload());
+
+        UcpConfig::fromJson('{"active": true');
+    }
+
+    #[Test]
+    public function testItRejectsJsonConfigThatIsNotAnObject(): void
+    {
+        $this->expectExceptionObject(UcpConfigException::invalidValue('$', 'must be a JSON object'));
+
+        UcpConfig::fromJson('[]');
+    }
+
+    #[Test]
+    public function testItAllowsLocalHttpWebhookOverrideOnlyWhenExplicitlyEnabled(): void
+    {
+        $config = UcpConfig::fromArray([
+            'agentAllowlist' => ['sw66.localhost'],
+            'webhookUrlOverride' => 'http://sw66.localhost:8088/ucp/webhook',
+        ], true);
+
+        self::assertSame('http://sw66.localhost:8088/ucp/webhook', $config->webhookUrlOverride);
+    }
+
+    #[Test]
+    public function testItRejectsNonLocalHttpWebhookOverrideEvenWhenLocalHttpIsAllowed(): void
+    {
+        $this->expectExceptionObject(UcpConfigException::invalidValue('$.webhookUrlOverride', 'must use https'));
+
+        UcpConfig::fromArray([
+            'agentAllowlist' => ['agent.example'],
+            'webhookUrlOverride' => 'http://agent.example/webhook',
+        ], true);
+    }
+
+    #[Test]
     public function testItSplitsRuntimeAllowlistsButKeepsLegacyFallback(): void
     {
         $splitConfig = UcpConfig::fromArray([
@@ -221,7 +258,7 @@ final class UcpConfigTest extends TestCase
                 'enabledTransports' => ['rest'],
                 'signaturePolicy' => 'strict',
                 'idempotencyRequired' => true,
-                'customProfileUri' => null,
+                'profileDomain' => null,
             ],
             'expectedRuntime' => [
                 'baseUri' => 'https://merchant.example/shop',
@@ -291,19 +328,16 @@ final class UcpConfigTest extends TestCase
             ],
         ];
 
-        yield 'domain strategy ignores stale custom profile URI for runtime base' => [
+        yield 'no profile domain falls back to the channel base uri' => [
             'payload' => [
                 'active' => true,
-                'profileUriStrategy' => 'domain',
-                'customProfileUri' => 'https://stale.example',
                 'enabledCapabilities' => $defaultCapabilities,
                 'enabledTransports' => ['rest'],
             ],
             'storeApiMcpAvailable' => false,
             'fallbackBaseUri' => 'https://merchant.example/domain',
             'expectedConfig' => [
-                'profileUriStrategy' => 'domain',
-                'customProfileUri' => 'https://stale.example',
+                'profileDomain' => null,
             ],
             'expectedRuntime' => [
                 'baseUri' => 'https://merchant.example/domain',
@@ -317,19 +351,17 @@ final class UcpConfigTest extends TestCase
             ],
         ];
 
-        yield 'custom profile URI and MCP endpoint are used when available' => [
+        yield 'profile domain and MCP endpoint are used when available' => [
             'payload' => [
                 'active' => true,
-                'profileUriStrategy' => 'config',
-                'customProfileUri' => 'https://custom.example/',
+                'profileDomain' => 'https://custom.example/',
                 'enabledTransports' => ['rest', 'mcp'],
                 'signaturePolicy' => 'log',
             ],
             'storeApiMcpAvailable' => true,
             'fallbackBaseUri' => 'https://merchant.example',
             'expectedConfig' => [
-                'profileUriStrategy' => 'config',
-                'customProfileUri' => 'https://custom.example/',
+                'profileDomain' => 'https://custom.example/',
                 'enabledTransports' => ['rest', 'mcp'],
                 'signaturePolicy' => 'log',
             ],
@@ -415,19 +447,9 @@ final class UcpConfigTest extends TestCase
      */
     public static function invalidConfigProvider(): iterable
     {
-        yield 'unknown profile URI strategy' => [
-            'payload' => ['profileUriStrategy' => 'custom'],
-            'exception' => UcpConfigException::invalidValue('$.profileUriStrategy', 'must be one of "domain", "config"'),
-        ];
-
-        yield 'config profile URI strategy requires URI' => [
-            'payload' => ['profileUriStrategy' => 'config'],
-            'exception' => UcpConfigException::invalidValue('$.customProfileUri', 'must be set when profileUriStrategy is "config"'),
-        ];
-
-        yield 'custom profile URI must be absolute URL' => [
-            'payload' => ['customProfileUri' => '/profile'],
-            'exception' => UcpConfigException::invalidValue('$.customProfileUri', 'must be an absolute http(s) URL'),
+        yield 'profile domain must be absolute URL' => [
+            'payload' => ['profileDomain' => '/profile'],
+            'exception' => UcpConfigException::invalidValue('$.profileDomain', 'must be an absolute http(s) URL'),
         ];
 
         yield 'unsupported UCP version' => [
@@ -473,6 +495,14 @@ final class UcpConfigTest extends TestCase
             'exception' => UcpConfigException::invalidValue('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist'),
         ];
 
+        yield 'webhook override must use https' => [
+            'payload' => [
+                'agentAllowlist' => ['agent.example'],
+                'webhookUrlOverride' => 'http://agent.example/webhook',
+            ],
+            'exception' => UcpConfigException::invalidValue('$.webhookUrlOverride', 'must use https'),
+        ];
+
         yield 'unknown signature policy' => [
             'payload' => ['signaturePolicy' => 'invalid'],
             'exception' => UcpConfigException::invalidValue('$.signaturePolicy', 'must be a supported signature policy'),
@@ -502,6 +532,11 @@ final class UcpConfigTest extends TestCase
             'payload' => ['catalogResultLimit' => 0],
             'exception' => UcpConfigException::invalidValue('$.catalogResultLimit', 'must be a positive integer'),
         ];
+
+        yield 'unknown config keys are rejected' => [
+            'payload' => ['active' => true, 'unexpected' => true],
+            'exception' => UcpConfigException::invalidValue('$.unexpected', 'must be a supported config field'),
+        ];
     }
 
     private static function configProperty(UcpConfig $config, string $property): mixed
@@ -512,8 +547,7 @@ final class UcpConfigTest extends TestCase
             'enabledTransports' => $config->enabledTransports,
             'signaturePolicy' => $config->signaturePolicy,
             'idempotencyRequired' => $config->idempotencyRequired,
-            'customProfileUri' => $config->customProfileUri,
-            'profileUriStrategy' => $config->profileUriStrategy,
+            'profileDomain' => $config->profileDomain,
             'platformAllowlist' => $config->platformAllowlist,
             'remoteProfileAllowlist' => $config->remoteProfileAllowlist,
             'agentAllowlist' => $config->agentAllowlist,

@@ -1,5 +1,12 @@
 import template from './sw-sales-channel-detail.html.twig';
+import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import {
+    defaultForm as ucpDefaultForm,
+    normalizeConfig as ucpNormalizeConfig,
+    buildConfigPayload as ucpBuildConfigPayload,
+} from '../../agentic-commerce/ucp-form-state';
+import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -12,11 +19,15 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
 
     provide() {
         return {
             swSalesChannelDetailGetAgenticCommerceExportConfig: () => this.agenticCommerceExportConfig,
+            // The UCP form state is owned by the page (not the tab view) so edits
+            // survive tab switches and persist through the page's global Save —
+            // mirroring how agenticCommerceExportConfig is handled.
+            swSalesChannelGetUcpState: () => this.ucpState,
         };
     },
 
@@ -24,6 +35,14 @@ export const swSalesChannelDetailOverride = {
         return {
             agenticCommerceExportConfig: [],
             previousTemplateName: null,
+            ucpState: {
+                loaded: false,
+                isLoading: false,
+                form: ucpDefaultForm(),
+                savedForm: ucpDefaultForm(),
+                meta: {},
+                preview: null,
+            },
         };
     },
 
@@ -55,6 +74,22 @@ export const swSalesChannelDetailOverride = {
 
         shouldRenderAgenticUi() {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
+        },
+
+        // The consolidated "Agentic Commerce" tab (UCP card + feature cards) is
+        // broader than the product-export surface: UCP config is the plugin's own
+        // feature and applies to any exposable channel (Storefront / Headless /
+        // Agentic Commerce), but not the native Product Comparison type.
+        //
+        // It is intentionally NOT gated on `coreShipsAgenticCommerce`: that guard
+        // suppresses the plugin's duplicate product-export integration when core
+        // ships its own, but UCP configuration is unique to this plugin and must
+        // stay reachable regardless. The embedded Product Feed export card keeps
+        // its own `isAgenticCommerce` gate.
+        shouldRenderAgenticCommerceTab() {
+            const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
+
+            return this.acl.can('ucp.viewer') && Boolean(typeId) && typeId !== Defaults.productComparisonTypeId;
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -129,9 +164,57 @@ export const swSalesChannelDetailOverride = {
 
                     this.generateAccessUrl();
                     this.loadAgenticCommerceExportConfig();
+                    this.loadUcpState();
 
                     this.isLoading = false;
                 });
+        },
+
+        async loadUcpState() {
+            if (!this.shouldRenderAgenticCommerceTab || !this.salesChannel?.id) {
+                return;
+            }
+
+            const salesChannelId = this.salesChannel.id;
+            this.ucpState.isLoading = true;
+
+            try {
+                const [salesChannelResponse, configResponse, previewResponse] = await Promise.all([
+                    this.ucpAdminApiService.getSalesChannel(salesChannelId),
+                    this.ucpAdminApiService.getConfig(salesChannelId),
+                    this.ucpAdminApiService.getProfilePreview(salesChannelId),
+                ]);
+
+                const form = ucpNormalizeConfig(configResponse.data.data || {});
+
+                this.ucpState.meta = salesChannelResponse.data.meta || {};
+                this.ucpState.form = form;
+                this.ucpState.savedForm = ucpNormalizeConfig(form);
+                this.ucpState.preview = previewResponse.data.data || null;
+                this.ucpState.loaded = true;
+            } catch (error) {
+                this.createNotificationError({ message: extractApiErrorMessage(error) });
+            } finally {
+                this.ucpState.isLoading = false;
+            }
+        },
+
+        // Persist the UCP config as part of the page's global Save. Returns false
+        // to abort the save flow (and the post-save reload) on error so the user
+        // can fix and retry. No-op for channels that never loaded UCP state.
+        async saveUcpState(salesChannelId) {
+            if (!this.ucpState.loaded || !salesChannelId) {
+                return true;
+            }
+
+            try {
+                await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(this.ucpState.form));
+                this.ucpState.savedForm = ucpNormalizeConfig(this.ucpState.form);
+                return true;
+            } catch (error) {
+                this.createNotificationError({ message: extractApiErrorMessage(error) });
+                return false;
+            }
         },
 
         onTemplateSelected(templateName) {
@@ -216,6 +299,12 @@ export const swSalesChannelDetailOverride = {
             );
 
             if (!configSaveSuccessful) {
+                return;
+            }
+
+            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave);
+
+            if (!ucpSaveSuccessful) {
                 return;
             }
 
