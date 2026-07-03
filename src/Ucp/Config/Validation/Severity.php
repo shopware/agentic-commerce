@@ -12,23 +12,14 @@ use Shopware\Core\Framework\Log\Package;
  * @internal
  */
 #[Package('framework')]
-enum Severity: string
+enum Severity: int
 {
-    case Info = 'info';
-    case Warning = 'warning';
-    case Error = 'error';
-
-    public function rank(): int
-    {
-        return match ($this) {
-            self::Info => 0,
-            self::Warning => 1,
-            self::Error => 2,
-        };
-    }
+    case Info = 0;
+    case Warning = 1;
+    case Error = 2;
 
     public function label(): string
     {
-        return strtoupper($this->value);
+        return strtoupper($this->name);
     }
 }

@@ -16,7 +16,7 @@ final class Finding
 {
     public function __construct(
         public readonly string $salesChannelId,
-        public readonly string $channelName,
+        public readonly string $salesChannelName,
         public readonly Severity $severity,
         public readonly string $code,
         public readonly string $message,
@@ -30,12 +30,8 @@ final class Finding
     public function toArray(): array
     {
         return [
-            'salesChannelId' => $this->salesChannelId,
-            'salesChannelName' => $this->channelName,
-            'severity' => $this->severity->value,
-            'code' => $this->code,
-            'message' => $this->message,
-            'remediation' => $this->remediation,
+            ...get_object_vars($this),
+            'severity' => strtolower($this->severity->name),
         ];
     }
 }

@@ -43,6 +43,27 @@ class UcpConfigValidatorTest extends TestCase
         static::assertSame(Severity::Info, $findings[0]->severity);
     }
 
+    public function testFindingArrayKeepsPublicJsonShape(): void
+    {
+        $finding = new Finding(
+            self::CHANNEL_ID,
+            'Storefront',
+            Severity::Warning,
+            'signature_policy_log',
+            'Signature policy is set to log mode.',
+            'Switch the signature policy to strict before production use.',
+        );
+
+        static::assertSame([
+            'salesChannelId' => self::CHANNEL_ID,
+            'salesChannelName' => 'Storefront',
+            'severity' => 'warning',
+            'code' => 'signature_policy_log',
+            'message' => 'Signature policy is set to log mode.',
+            'remediation' => 'Switch the signature policy to strict before production use.',
+        ], $finding->toArray());
+    }
+
     public function testSignaturePolicyOffIsAnError(): void
     {
         $findings = $this->validate($this->config(signaturePolicy: 'off'), [$this->activeKey()], self::DOMAINS);
