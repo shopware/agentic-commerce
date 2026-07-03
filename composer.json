@@ -5,7 +5,6 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "shopware/core": ">=6.5.8.0 <7.0.0.0",
         "ucp-php-sdk/symfony-bundle": "^0.0.1"
     },
     "require-dev": {
