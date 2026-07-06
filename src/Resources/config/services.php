@@ -42,7 +42,10 @@ use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportHydrator;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\AgenticCommerceProductExportProviderRegistry;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\GoogleProductExportProvider;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\OpenAiProductExportProvider;
+use Swag\AgenticCommerce\Content\ProductExport\Service\EssentialCharacteristicsResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Service\JsonlAwareProductExportRenderer;
+use Swag\AgenticCommerce\Content\ProductExport\Service\ProductMeasurementsResolver;
+use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportCriteriaSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportProviderContextSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\JsonlContentTypeSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\CustomerSalesChannelTrackingExtension;
@@ -51,6 +54,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\SalesChannelPr
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingListener;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderDefinition;
+use Swag\AgenticCommerce\Content\ProductExport\Twig\AgenticProductExportExtension;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\GoogleProductExportValidator;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
@@ -347,6 +351,15 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
         ->tag('swag_agentic_commerce.product_export.provider');
 
+    // ── Product export: essential characteristics & measurements ─────────────
+
+    $services->set(EssentialCharacteristicsResolver::class)
+        ->arg('$customFieldRepository', service('custom_field.repository'));
+
+    $services->set(ProductMeasurementsResolver::class);
+
+    $services->set(AgenticProductExportExtension::class);
+
     // ── Product export: renderer decorator ───────────────────────────────────
 
     $services->set(JsonlAwareProductExportRenderer::class)
@@ -354,6 +367,8 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$inner', service('.inner'));
 
     // ── Product export: subscribers ───────────────────────────────────────────
+
+    $services->set(AgenticCommerceProductExportCriteriaSubscriber::class);
 
     $services->set(AgenticCommerceProductExportProviderContextSubscriber::class);
 

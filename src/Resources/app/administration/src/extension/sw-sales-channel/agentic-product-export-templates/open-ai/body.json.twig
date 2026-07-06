@@ -239,6 +239,31 @@
     {% endif %}
 {% endif %}
 
+{# Product measurements: OpenAI ACP uses separate value + unit fields (no product_detail equivalent). #}
+{% set measurements = agentic_product_measurements(product) %}
+{% if measurements.weight %}
+    {% set feedRow = feedRow|merge({
+        'weight': measurements.weight.value,
+        'item_weight_unit': measurements.weight.unit
+    }) %}
+{% endif %}
+{% set dimensionsUnit = null %}
+{% if measurements.length %}
+    {% set feedRow = feedRow|merge({'length': measurements.length.value}) %}
+    {% set dimensionsUnit = measurements.length.unit %}
+{% endif %}
+{% if measurements.width %}
+    {% set feedRow = feedRow|merge({'width': measurements.width.value}) %}
+    {% set dimensionsUnit = measurements.width.unit %}
+{% endif %}
+{% if measurements.height %}
+    {% set feedRow = feedRow|merge({'height': measurements.height.value}) %}
+    {% set dimensionsUnit = measurements.height.unit %}
+{% endif %}
+{% if dimensionsUnit %}
+    {% set feedRow = feedRow|merge({'dimensions_unit': dimensionsUnit}) %}
+{% endif %}
+
 {# Skip rows that are missing core required feed data and would be invalid for OpenAI. #}
 {% if title and imageUrl and price %}
     {{ feedRow|json_encode(constant('JSON_UNESCAPED_SLASHES'))|raw }}
