@@ -45,25 +45,25 @@ describe('ucpAdminApiService URL encoding', () => {
         return { service: new UcpAdminApiService(httpClient, {}), httpClient };
     }
 
-    it('encodes kid and salesChannelId when retiring a key', () => {
+    it('encodes salesChannelId when fetching the config', () => {
         const { service, httpClient } = createService();
 
-        service.retireKey('sc/../id', 'kid with space/slash');
+        service.getConfig('sc/../id');
 
-        expect(httpClient.post).toHaveBeenCalledWith(
-            '/_admin/ucp/sales-channels/sc%2F..%2Fid/keys/kid%20with%20space%2Fslash/retire',
-            {},
+        expect(httpClient.get).toHaveBeenCalledWith(
+            '/_admin/ucp/sales-channels/sc%2F..%2Fid/config',
             expect.any(Object),
         );
     });
 
-    it('encodes kid and salesChannelId when deleting a key', () => {
+    it('encodes salesChannelId when POSTing a live preview', () => {
         const { service, httpClient } = createService();
 
-        service.deleteKey('sc-id', '../etc/passwd');
+        service.previewConfig('sc with space', { active: true });
 
-        expect(httpClient.delete).toHaveBeenCalledWith(
-            '/_admin/ucp/sales-channels/sc-id/keys/..%2Fetc%2Fpasswd',
+        expect(httpClient.post).toHaveBeenCalledWith(
+            '/_admin/ucp/sales-channels/sc%20with%20space/profile-preview',
+            { active: true },
             expect.any(Object),
         );
     });

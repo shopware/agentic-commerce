@@ -30,11 +30,11 @@
 
 {% block sw_sales_channel_detail_content_tab_product_comparison %}
 <sw-tabs-item
-    v-if="shouldRenderAgenticUi && !isLoading"
-    :route="{ name: 'sw.sales.channel.detail.agenticCommerceIntegration', params: { id: $route.params.id } }"
-    :title="$t('sw-sales-channel.detail.agenticCommerce.tabIntegration')"
+    v-if="shouldRenderAgenticCommerceTab && !isLoading"
+    :route="{ name: 'sw.sales.channel.detail.agenticCommerce', params: { id: $route.params.id } }"
+    :title="$t('sw-sales-channel.detail.agenticCommerce.tabAgenticCommerce')"
 >
-    {{ $t('sw-sales-channel.detail.agenticCommerce.tabIntegration') }}
+    {{ $t('sw-sales-channel.detail.agenticCommerce.tabAgenticCommerce') }}
 </sw-tabs-item>
 
 <sw-tabs-item

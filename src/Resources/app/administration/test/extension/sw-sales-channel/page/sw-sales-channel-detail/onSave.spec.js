@@ -63,6 +63,7 @@ function buildContext({ saveSalesChannel, isSaveSuccessful = true } = {}) {
         isAgenticCommerce: true,
         systemConfigApiService: { batchSave: jest.fn(() => Promise.resolve()) },
         validateAgenticCommerceExportConfig: jest.fn(() => true),
+        saveUcpState: jest.fn(() => Promise.resolve(true)),
         loadEntityData: jest.fn(),
         $super: jest.fn(),
         $t: jest.fn(),
@@ -152,7 +153,10 @@ describe('sw-sales-channel-detail onSave — 6.7.0–6.7.8.x legacy path', () =>
 
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
-        expect(ctx.saveAgenticCommerceExportConfig).toHaveBeenCalledWith('channel-id', originalConfig);
+        // provider is snapshotted from this.productExport?.provider — undefined here
+        // (no productExport in the mock), so saveAgenticCommerceExportConfig falls
+        // back to the default provider.
+        expect(ctx.saveAgenticCommerceExportConfig).toHaveBeenCalledWith('channel-id', originalConfig, undefined);
     });
 });
 

@@ -16,35 +16,24 @@ parameters:
     tmpDir: __PHPSTAN_TMP_DIR__
     excludePaths:
         - src/Resources/app
+        # Functional tests rely on core's test-dev classes (IntegrationTestBehaviour,
+        # KernelLifecycleManager, ProductBuilder) that aren't on the php-quality job's autoload.
+        # They are validated by running against a booted kernel in a lane, not by static analysis.
+        - tests/Functional
     bootstrapFiles:
         - tests/bootstrap.php
     stubFiles:
         - tests/phpstan/Package.php
         - tests/phpstan/Generator.php
         - tests/phpstan/EntityWriteResult.php
+__SHOPWARE_PHPSTAN_PARAMETERS__
     ignoreErrors:
-        -
-            identifier: shopware.namespace
-            message: '#.+#'
-        -
-            identifier: shopware.missingPackageAttribute
-            message: '#.+#'
-        -
-            identifier: shopware.domainException
-            message: '#.+#'
         # addFlags is deprecated in trunk (v6.8.0 return-type-change only); cross-version code must keep using it.
         -
             identifier: method.deprecated
             message: '#.+#'
             path: src/Content/ProductExport/Tracking
-        # MigrationStep::addColumn() is trunk-only; migrations run on 6.5/6.6 too.
-        -
-            identifier: shopware.addColumn
-            message: '#.+#'
-        # CoversClass on unit tests in subdirs — rule incorrectly rejects sub-paths under tests/Unit/.
-        -
-            identifier: shopware.unexpectedTestCovers
-            message: '#.+#'
+__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__
         # DBAL fetchAllKeyValue() declares array<int|string, mixed>; the actual keys/values are strings.
         -
             identifier: return.type

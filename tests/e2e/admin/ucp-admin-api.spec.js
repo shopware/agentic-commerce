@@ -8,7 +8,7 @@ import {
 } from '../fixtures/shopware.js';
 
 test.describe('UCP admin API', () => {
-    test('returns list, detail, config, preview, and signing-key lifecycle', async () => {
+    test('returns list, detail, config, and preview', async () => {
         const config = laneConfig();
         const adminApi = await createAdminApiContext(config);
         const { salesChannel, payload } = await firstSalesChannel(adminApi);
@@ -24,7 +24,7 @@ test.describe('UCP admin API', () => {
         await expect(detailResponse, await detailResponse.text()).toBeOK();
         expect((await detailResponse.json()).data.id).toBe(salesChannel.id);
 
-        await withRestoredUcpConfig(adminApi, salesChannel.id, async (originalConfig, createdKids) => {
+        await withRestoredUcpConfig(adminApi, salesChannel.id, async (originalConfig) => {
             const expectedTransports = payload.meta?.supportsStoreApiMcp === true
                 ? ['rest', 'a2a', 'embedded', 'mcp']
                 : ['rest', 'a2a', 'embedded'];
@@ -45,25 +45,6 @@ test.describe('UCP admin API', () => {
             const previewResponse = await adminApi.get(`/api/_admin/ucp/sales-channels/${salesChannel.id}/profile-preview`);
             await expect(previewResponse, await previewResponse.text()).toBeOK();
             await assertProfileTransports((await previewResponse.json()).data, expectedTransports);
-
-            const kid = `playwright-${Date.now()}`;
-            createdKids.push(kid);
-
-            const createKeyResponse = await adminApi.post(`/api/_admin/ucp/sales-channels/${salesChannel.id}/keys`, {
-                data: { kid, algorithm: 'ES256' },
-            });
-            await expect(createKeyResponse, await createKeyResponse.text()).toBeOK();
-
-            const keysResponse = await adminApi.get(`/api/_admin/ucp/sales-channels/${salesChannel.id}/keys`);
-            await expect(keysResponse, await keysResponse.text()).toBeOK();
-            expect((await keysResponse.json()).data.some((key) => key.kid === kid)).toBe(true);
-
-            const retireResponse = await adminApi.post(`/api/_admin/ucp/sales-channels/${salesChannel.id}/keys/${encodeURIComponent(kid)}/retire`);
-            await expect(retireResponse, await retireResponse.text()).toBeOK();
-
-            const deleteResponse = await adminApi.delete(`/api/_admin/ucp/sales-channels/${salesChannel.id}/keys/${encodeURIComponent(kid)}`);
-            await expect(deleteResponse, await deleteResponse.text()).toBeOK();
-            createdKids.pop();
         });
 
         await adminApi.dispose();

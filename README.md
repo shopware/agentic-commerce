@@ -47,6 +47,37 @@ Current responsibilities:
 - Require explicit embedded origin and frame-ancestor configuration before embedded pages render cross-origin; disallowed or missing origins return controlled UCP errors.
 - Hide unsupported capabilities instead of advertising placeholders.
 
+### Console commands
+
+UCP is administered from the CLI for everything except the per-channel Exposure settings (active, profile domain, capabilities, transports), which live in the Administration. Every command takes `--sales-channel` (id **or** name; omit it to pick interactively). Run `bin/console ucp:channels` first to see channel ids and which channels currently expose UCP.
+
+| Command | Purpose |
+| --- | --- |
+| `ucp:channels` | List sales channels, their ids and UCP exposure (`exposed` / `off`). |
+| `ucp:config:show --sales-channel=…` | Print the resolved UCP config for a channel. |
+| `ucp:config:set --sales-channel=… …` | Set the non-UI config fields (below). Only the options you pass change; the rest is preserved by a merge, so admin-managed Exposure fields are never reset. |
+| `ucp:signing-keys:{generate,list,show-public,retire,delete} --sales-channel=…` | Manage a channel's signing keys — thin subclasses of the SDK commands that map `--sales-channel` to the SDK tenant. |
+
+`ucp:config:set` fields (run it with `--help` for per-option examples):
+
+- `--signature-policy=strict|log|off`
+- `--idempotency=true|false`
+- `--agent-allowlist`, `--remote-profile-allowlist`, `--platform-allowlist` — bare hosts, no scheme (repeatable)
+- `--embedded-allowed-origins`, `--embedded-frame-ancestors` — origins, scheme + host (repeatable)
+- `--webhook-url-override` — absolute https URL whose host is in an allowlist (pass an empty value to clear)
+- `--continue-url-template` — absolute URL supporting `{checkoutId}`, `{cartId}`, `{salesChannelId}` (pass an empty value to clear)
+
+Options are omit-to-leave-unchanged; passing none is an error rather than a silent no-op. Example — allow an embedded checkout to be framed by ChatGPT and require idempotency:
+
+```bash
+bin/console ucp:config:set --sales-channel=Storefront \
+    --embedded-allowed-origins=https://chatgpt.com \
+    --embedded-frame-ancestors=https://chatgpt.com \
+    --idempotency=true
+```
+
+The SDK bundle also ships storage-maintenance commands (not sales-channel scoped): `ucp:storage:cleanup` purges all expired SDK records (OAuth state, idempotency, negotiation sessions, profile cache, replay nonces, retired keys) using the configured retention windows, while `ucp:storage:cleanup-signature-nonces` purges only replay nonces with a tunable `--older-than-seconds`. Schedule the former periodically; reach for the latter only to prune nonces on a tighter cadence.
+
 Developer placeholders:
 
 - Add protocol-specific setup examples once the public SDK contracts are tagged.
@@ -132,12 +163,56 @@ Adjust the paths to match your local checkout layout.
 
 ```bash
 composer ci
-composer test
-composer test:integration
+composer test              # unit suite (mocks, no kernel)
+composer test:integration  # DB-backed integration suite (real connection, e.g. migrations)
+composer test:functional   # functional suite (boots a real test kernel + Symfony browser)
 bin/ci-smoke.sh /path/to/shopware-checkout
 bin/ci-admin-smoke.sh /path/to/shopware-checkout auto
 bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 ```
+
+### Prefer functional tests over shell smoke
+
+Cover behavior at the lowest layer that can express it, and reach for a PHP test
+before a shell smoke check. The `functional` suite (`tests/Functional`,
+`composer test:functional`) boots a real Shopware test kernel and drives UCP runtime
+routes end-to-end through a real Symfony browser (against `APP_URL`, as Shopware's
+own functional tests do), so it is the preferred home for route, request-context, and
+capability behavior — it is readable and debuggable without a deployed HTTP
+stack. It covers the request-context guards and the **catalog/cart/checkout
+capability flows**, including completing a checkout into a **real Shopware order**
+and reading it back via its context token (via the shared `UcpFlowTestBehaviour`).
+It requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`) and,
+like core, assumes a booted kernel — run it against a configured lane with
+`composer test:functional`. In CI it gates on **every** `shopware-matrix` lane
+(`CI_SMOKE_RUN_FUNCTIONAL=1`).
+
+It runs on the **lane's own** phpunit: Shopware core's test base classes are
+coupled to each lane's phpunit major (6.5→9.x, 6.6→10.x, trunk→11.x), so a single
+pinned phpunit can't span lanes. `bin/run.php` prefers the platform phpunit inside
+a lane and `tests/bootstrap.php` registers the plugin on the platform autoloader;
+ci-smoke installs Shopware's dev deps so that binary is present. The unit/mock
+suites stay on the plugin's pinned `.tools` phpunit (fast, lane-independent).
+
+Shell smoke (`bin/ci-smoke.sh`) is reserved for what the functional suite is the wrong
+layer for — genuine deployed-stack / on-the-wire concerns. After the capability flows
+moved to the functional suite, what stays in smoke and why:
+
+- the **outbound signed order webhook** — actually delivered to an external
+  endpoint with `signature`/`signature-input`/`content-digest` headers (on-the-wire);
+- **tokenize 501** — the payment endpoint needs a *signed* request;
+- **profile/discovery** — lane-aware MCP transport detection + storefront-rendered
+  `/llms.txt` and `/agents.md`;
+- **admin/storefront** builds + UI shells (`bin/ci-admin-smoke.sh`,
+  `bin/ci-storefront-smoke.sh`) — closer to a browser-e2e concern;
+- **signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
+
+The former `catalog` and `cart` smoke stages have been removed — that capability coverage now
+lives entirely in the functional suite. The `checkout` stage resolves the seeded product itself
+(one `catalog.lookup` as data setup) and stays in smoke only to drive the signed order webhook.
+Almost any smoke assertion can become a functional test — when one can, move it and drop the
+redundant smoke check once the functional suite gates in CI. See [AGENTS.md](AGENTS.md) for the
+full layering rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](docs/manual-testing.md).
 
