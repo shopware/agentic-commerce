@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Service;
 
+use League\Uri\Contracts\UriException;
+use League\Uri\Uri;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Content\ProductExport\Service\ProductExportRendererInterface;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -70,11 +72,11 @@ class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
             $decoded = json_decode($trimmed, true, 512, \JSON_THROW_ON_ERROR);
 
             if (\is_array($decoded)) {
-                // URLs from media filenames may contain unescaped spaces; encode them so
-                // the row passes downstream RFC 3986 validation (FILTER_VALIDATE_URL).
-                array_walk_recursive($decoded, static function (mixed &$value): void {
+                // URLs built from media filenames may contain characters that are not RFC 3986
+                // valid (unescaped spaces, or non-ASCII from a filesystem that preserves umlauts
+                array_walk_recursive($decoded, function (mixed &$value): void {
                     if (\is_string($value) && 1 === preg_match('#^https?://#i', $value)) {
-                        $value = str_replace(' ', '%20', $value);
+                        $value = $this->normalizeUrl($value);
                     }
                 });
 
@@ -85,5 +87,14 @@ class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
         }
 
         return $trimmed.\PHP_EOL;
+    }
+
+    private function normalizeUrl(string $value): string
+    {
+        try {
+            return Uri::new($value)->toString();
+        } catch (UriException) {
+            return $value;
+        }
     }
 }

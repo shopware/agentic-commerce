@@ -162,6 +162,94 @@ class JsonlAwareProductExportRendererTest extends TestCase
         );
     }
 
+    public function testRenderBodyEncodesDecomposedUmlautCoverImageUrl(): void
+    {
+        $context = $this->createSalesChannelContext();
+        $entity = $this->createJsonlEntity();
+
+        // Regression: a cover image whose filename contains non-ASCII characters kept by the
+        // filesystem. macOS/APFS stores "Übergröße.png" in decomposed (NFD) form — base letters
+        // plus combining diaeresis (U+0308) and "ß" (U+00DF) — which FILTER_VALIDATE_URL rejects,
+        // so the product errored out of the feed on "image_url".
+        $inner = $this->createMock(ProductExportRendererInterface::class);
+        $inner->expects(static::once())
+            ->method('renderBody')
+            ->willReturn("{\"image_url\":\"http://localhost:8000/media/21/a4/d4/1/U\u{0308}bergro\u{0308}\u{00df}e.png?ts=1\"}");
+
+        $decorator = new JsonlAwareProductExportRenderer($inner);
+
+        $rendered = $decorator->renderBody($entity, $context, []);
+
+        static::assertSame(
+            '{"image_url":"http://localhost:8000/media/21/a4/d4/1/U%CC%88bergro%CC%88%C3%9Fe.png?ts=1"}'.\PHP_EOL,
+            $rendered
+        );
+
+        $decoded = json_decode(trim($rendered), true, 512, \JSON_THROW_ON_ERROR);
+        static::assertNotFalse(filter_var($decoded['image_url'], \FILTER_VALIDATE_URL));
+    }
+
+    public function testRenderBodyEncodesNonAsciiWithinCommaSeparatedAdditionalImageUrls(): void
+    {
+        $context = $this->createSalesChannelContext();
+        $entity = $this->createJsonlEntity();
+
+        // additional_image_urls is a single comma-joined string of URLs; normalization must
+        // encode non-ASCII inside each entry without breaking the comma-separated structure.
+        $inner = $this->createMock(ProductExportRendererInterface::class);
+        $inner->expects(static::once())
+            ->method('renderBody')
+            ->willReturn("{\"additional_image_urls\":\"http://localhost:8000/media/a.jpg?ts=1,http://localhost:8000/media/U\u{0308}bergro\u{0308}\u{00df}e.png?ts=2\"}");
+
+        $decorator = new JsonlAwareProductExportRenderer($inner);
+
+        static::assertSame(
+            '{"additional_image_urls":"http://localhost:8000/media/a.jpg?ts=1,http://localhost:8000/media/U%CC%88bergro%CC%88%C3%9Fe.png?ts=2"}'.\PHP_EOL,
+            $decorator->renderBody($entity, $context, [])
+        );
+    }
+
+    public function testRenderBodyPunycodeEncodesNonAsciiHost(): void
+    {
+        $context = $this->createSalesChannelContext();
+        $entity = $this->createJsonlEntity();
+
+        $inner = $this->createMock(ProductExportRendererInterface::class);
+        $inner->expects(static::once())
+            ->method('renderBody')
+            ->willReturn('{"image_url":"https://möbel.example.com/item"}');
+
+        $decorator = new JsonlAwareProductExportRenderer($inner);
+
+        $rendered = $decorator->renderBody($entity, $context, []);
+
+        static::assertSame(
+            '{"image_url":"https://xn--mbel-5qa.example.com/item"}'.\PHP_EOL,
+            $rendered
+        );
+
+        $decoded = json_decode(trim($rendered), true, 512, \JSON_THROW_ON_ERROR);
+        static::assertNotFalse(filter_var($decoded['image_url'], \FILTER_VALIDATE_URL));
+    }
+
+    public function testRenderBodyDoesNotDoubleEncodeExistingPercentEscapes(): void
+    {
+        $context = $this->createSalesChannelContext();
+        $entity = $this->createJsonlEntity();
+
+        $inner = $this->createMock(ProductExportRendererInterface::class);
+        $inner->expects(static::once())
+            ->method('renderBody')
+            ->willReturn('{"image_url":"https://example.com/media/already%20encoded.jpg"}');
+
+        $decorator = new JsonlAwareProductExportRenderer($inner);
+
+        static::assertSame(
+            '{"image_url":"https://example.com/media/already%20encoded.jpg"}'.\PHP_EOL,
+            $decorator->renderBody($entity, $context, [])
+        );
+    }
+
     private function createJsonlEntity(): ProductExportEntity
     {
         $entity = new ProductExportEntity();
