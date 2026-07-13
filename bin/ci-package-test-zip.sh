@@ -110,7 +110,7 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
           "options": {
             "symlink": false,
             "versions": {
-              "shopware/ucp-php-sdk-core": "0.0.1"
+              "ucp-php-sdk/core": "0.0.1"
             }
           }
         },
@@ -150,7 +150,7 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
 
 rm -f "${stage_dir}/composer.lock"
 rm -rf \
-  "${stage_dir}/vendor/shopware/ucp-php-sdk-core/tests" \
+  "${stage_dir}/vendor/ucp-php-sdk/core/tests" \
   "${stage_dir}/vendor/ucp-php-sdk/symfony-bundle/tests"
 find "${stage_dir}" \( -name '.DS_Store' -o -name '._*' \) -delete
 
@@ -160,7 +160,7 @@ if find "${stage_dir}/vendor" -mindepth 1 -maxdepth 1 -type d \( -name doctrine 
 fi
 
 for required_path in \
-  "${stage_dir}/vendor/shopware/ucp-php-sdk-core/src" \
+  "${stage_dir}/vendor/ucp-php-sdk/core/src" \
   "${stage_dir}/vendor/ucp-php-sdk/symfony-bundle/src" \
   "${stage_dir}/vendor/autoload.php" \
   "${stage_dir}/.swag-agentic-commerce-bundled-sdk" \
@@ -184,7 +184,7 @@ shopware-cli extension zip "${stage_dir}" "main-${short_sha}" \
 zip_path="${OUTPUT_DIR}/${zip_name}"
 zip_listing="$(unzip -l "${zip_path}")"
 
-if ! grep -Eq 'SwagAgenticCommerce/vendor/shopware/ucp-php-sdk-core/src/.+\.php' <<<"${zip_listing}"; then
+if ! grep -Eq 'SwagAgenticCommerce/vendor/ucp-php-sdk/core/src/.+\.php' <<<"${zip_listing}"; then
   echo "Artifact is missing SDK core sources." >&2
   exit 1
 fi
@@ -204,7 +204,7 @@ if ! grep -q 'SwagAgenticCommerce/src/Resources/public/administration/js/swag-ag
   exit 1
 fi
 
-if grep -Eq 'SwagAgenticCommerce/(\.git|\.github|\.claude|\.tools|\.phpunit\.cache|coverage|node_modules|tests|var)/|SwagAgenticCommerce/(\.DS_Store|._[^/]*|\.eslintcache|\.phpunit\.result\.cache|composer\.lock)|SwagAgenticCommerce/vendor/(shopware/ucp-php-sdk-core|ucp-php-sdk/symfony-bundle)/tests/|SwagAgenticCommerce/vendor/(doctrine|symfony)/' <<<"${zip_listing}"; then
+if grep -Eq 'SwagAgenticCommerce/(\.git|\.github|\.claude|\.tools|\.phpunit\.cache|coverage|node_modules|tests|var)/|SwagAgenticCommerce/(\.DS_Store|._[^/]*|\.eslintcache|\.phpunit\.result\.cache|composer\.lock)|SwagAgenticCommerce/vendor/(ucp-php-sdk/core|ucp-php-sdk/symfony-bundle)/tests/|SwagAgenticCommerce/vendor/(doctrine|symfony)/' <<<"${zip_listing}"; then
   echo "Artifact contains excluded development files." >&2
   exit 1
 fi

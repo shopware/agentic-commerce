@@ -140,7 +140,7 @@ repositories against the synced container paths and require only the plugin:
 
 ```bash
 composer config repositories.swag-agentic-commerce '{"type":"path","url":"custom/plugins/SwagAgenticCommerce","options":{"symlink":true}}'
-composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"shopware/ucp-php-sdk-core":"0.0.1"}}}'
+composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"ucp-php-sdk/core":"0.0.1"}}}'
 composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.1"}}}'
 composer require shopware/agentic-commerce:6.6.9999999-dev --with-all-dependencies
 bin/console plugin:refresh

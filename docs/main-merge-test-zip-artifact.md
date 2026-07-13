@@ -125,7 +125,7 @@ The job:
 
 1. Checks out the plugin into `agentic-commerce`.
 2. Checks out `shopware/shopware` trunk/current 6.7 into `shopware`.
-3. Checks out `shopware/ucp-php-sdk` into `ucp-php-sdk`.
+3. Checks out `agentic-commerce-alliance/ucp-php-sdk` into `ucp-php-sdk`.
 4. Installs PHP and Shopware CLI.
 5. Writes the CI Compose file for trunk.
 6. Runs trunk Vite admin smoke with `CI_ADMIN_EXPORT_PLUGIN_PUBLIC`.
@@ -210,7 +210,7 @@ It configures path repositories to:
 with `symlink: false`, so the ZIP contains real package files:
 
 ```text
-vendor/shopware/ucp-php-sdk-core
+vendor/ucp-php-sdk/core
 vendor/ucp-php-sdk/symfony-bundle
 vendor/autoload.php
 ```

@@ -326,7 +326,7 @@ if [[ "${SKIP_PLUGIN}" == "1" || -n "${PLUGIN_ZIP}" ]]; then
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 fi
 
 if [[ ! -f "${SHOPWARE_DIR}/composer.lock" && "${SHOPWARE_BRANCH}" == "6.5.x" ]]; then
@@ -344,19 +344,19 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 elif [[ -n "${PLUGIN_ZIP}" ]]; then
   web sh -lc 'cd /var/www/html \
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 else
   web sh -lc "cd /var/www/html \
     && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
-    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1\"}}}' \
+    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.1\"}}}' \
     && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1\"}}}' \
-    && { composer remove --no-update --no-interaction shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
+    && { composer remove --no-update --no-interaction ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
     && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 fi
 

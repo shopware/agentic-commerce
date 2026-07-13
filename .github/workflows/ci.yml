@@ -198,10 +198,9 @@ jobs:
           coverage: none
       - uses: actions/checkout@v6
         with:
-          repository: shopware/ucp-php-sdk
+          repository: agentic-commerce-alliance/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
-          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
@@ -211,7 +210,7 @@ jobs:
         working-directory: shopware
       - name: Configure private SDK path repositories
         run: |
-          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"shopware/ucp-php-sdk-core":"0.0.1"}}}'
+          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.1"}}}'
           composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.1"}}}'
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
@@ -272,10 +271,9 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: shopware/ucp-php-sdk
+          repository: agentic-commerce-alliance/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
-          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -329,10 +327,9 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: shopware/ucp-php-sdk
+          repository: agentic-commerce-alliance/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
-          token: ${{ secrets.PLUGINS_PAT }}
       - run: npm ci --no-audit --no-fund
         working-directory: agentic-commerce
       - name: Cache Playwright browsers
@@ -383,10 +380,9 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: shopware/ucp-php-sdk
+          repository: agentic-commerce-alliance/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
-          token: ${{ secrets.PLUGINS_PAT }}
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -432,10 +428,9 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: shopware/ucp-php-sdk
+          repository: agentic-commerce-alliance/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
-          token: ${{ secrets.PLUGINS_PAT }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
