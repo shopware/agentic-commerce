@@ -13,6 +13,7 @@
 /src/Resources/public/
 /src/Resources/app/administration/coverage/
 /src/Resources/app/administration/node_modules/
+/src/Resources/app/administration/.tmp/
 .claude
 .mcp-php-tooling.json
 .mcp-js-tooling.json
