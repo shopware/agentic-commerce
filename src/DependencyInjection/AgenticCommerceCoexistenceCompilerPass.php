@@ -45,7 +45,6 @@ class AgenticCommerceCoexistenceCompilerPass implements CompilerPassInterface
         'Swag\\AgenticCommerce\\Content\\ProductExport\\Tracking\\Extension\\CustomerSalesChannelTrackingExtension',
         'Swag\\AgenticCommerce\\Content\\ProductExport\\Tracking\\Extension\\SalesChannelProductExportTrackingExtension',
         'Swag\\AgenticCommerce\\System\\SalesChannel\\Subscriber\\AgenticCommerceSalesChannelTypeProtectionSubscriber',
-        'Swag\\AgenticCommerce\\Content\\ProductExport\\Service\\JsonlAwareProductExportRenderer',
         'Swag\\AgenticCommerce\\Content\\ProductExport\\Subscriber\\JsonlContentTypeSubscriber',
     ];
 
