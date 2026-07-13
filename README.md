@@ -11,8 +11,8 @@ The plugin groups three related but separate Agentic Commerce surfaces:
 | Feature | Purpose | Primary audience | Status |
 | --- | --- | --- | --- |
 | Universal Commerce Protocol (UCP) | Transactional protocol surface for catalog, cart, checkout, order, identity, and payment-capability flows. | Agent platforms, protocol clients, merchants configuring sales-channel exposure. | Implemented in this plugin with SDK integration and lane-aware capability exposure. |
-| Native agentic discovery | Storefront discovery documents that explain how agents should interact with a shop before transactional calls happen. | Crawlers, LLM shopping agents, custom agent clients, merchants defining operating rules. | Trunk / 6.7-oriented bridge work is prepared; core reference is [shopware/shopware#17033](https://github.com/shopware/shopware/pull/17033). |
-| Product feed | Outbound product feed surface for agentic/catalog consumers. | Feed consumers, marketplaces, AI catalog ingestion, merchants managing feed availability. | Planned/owned by the Agentic Commerce plugin line; details should be filled in when the feed feature lands. |
+| Native agentic discovery | Storefront discovery documents that explain how agents should interact with a shop before transactional calls happen. | Crawlers, LLM shopping agents, custom agent clients, merchants defining operating rules. | Implemented through the core bridge on lanes with sales-channel file support and through plugin fallback routes on older lanes. |
+| Product feed | Outbound product feed surface for agentic/catalog consumers. | Feed consumers, marketplaces, AI catalog ingestion, merchants managing feed availability. | Implemented with Shopware product exports for OpenAI JSONL and Google Shopping XML feeds. |
 
 These features should share sales-channel awareness, admin UX patterns, compatibility handling, and test infrastructure where possible. They should not duplicate Store API or UCP gateway logic just because they expose different agent-facing entry points.
 
@@ -78,58 +78,46 @@ bin/console ucp:config:set --sales-channel=Storefront \
 
 The SDK bundle also ships storage-maintenance commands (not sales-channel scoped): `ucp:storage:cleanup` purges all expired SDK records (OAuth state, idempotency, negotiation sessions, profile cache, replay nonces, retired keys) using the configured retention windows, while `ucp:storage:cleanup-signature-nonces` purges only replay nonces with a tunable `--older-than-seconds`. Schedule the former periodically; reach for the latter only to prune nonces on a tighter cadence.
 
-Developer placeholders:
+### Compatibility and transport security
 
-- Add protocol-specific setup examples once the public SDK contracts are tagged.
-- Add a compatibility table when the supported Shopware versions are finalized for release.
-- Link the final UCP public documentation and conformance suite once available.
+The plugin supports Shopware `6.5.x`, `6.6.x`, and trunk/current `6.7+` from one codebase. Capability exposure is feature-detected at runtime: unsupported transports are removed from the UCP profile instead of returning dead links. MCP is only advertised when the current lane has the required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK capability layer.
+
+Every UCP sales channel has its own tenant configuration. The default setup is intentionally closed: profile exposure must be enabled for the channel, remote platform/profile hosts must be allowlisted where configured, and embedded pages require both `embeddedAllowedOrigins` and `embeddedFrameAncestors`. Embedded requests without an `Origin` header, or with a non-allowlisted origin, return a controlled `403` UCP response. Successful embedded responses set `Content-Security-Policy: frame-ancestors ...`, remove `X-Frame-Options`, and vary by `Origin`.
+
+Signed-request handling, idempotency, replay nonce storage, profile cache storage, OAuth state, and retired signing keys are owned by the SDK bundle. The plugin maps those contracts to Shopware sales channels and keeps buyer-facing work inside Store API route boundaries. Run `bin/validate-ucp-store.sh <base-url> conformance` against a live lane for signed-request conformance when transport behavior changes.
 
 ## Native Agentic Discovery
 
 Native agentic discovery is the storefront-facing operating manual for agents. It complements UCP: discovery tells an agent how the merchant wants the shop to be used, while UCP tells the agent which transactional capabilities are technically available.
 
-The core reference in [shopware/shopware#17033](https://github.com/shopware/shopware/pull/17033) introduces these storefront documents:
+The core reference in [shopware/shopware#17033](https://github.com/shopware/shopware/pull/17033) introduces the sales-channel file primitives used by trunk/current `6.7+`.
 
 - `/agents.md`
 - `/llms.txt`
-- `/llms-full.txt`
-- `/sitemap_agentic_discovery.xml`
+- `/.well-known/ai-catalog.json`
 
-Expected plugin responsibilities:
+On lanes with `SalesChannelFileDiscovery`, `SalesChannelFileRenderer`, and the `sales_channel_file` table, the plugin enables the `agentic` file family for active UCP sales channels and lets core render the files. On older lanes, the fallback bundle provides storefront routes for the same files. Fallback discovery is only rendered when UCP is active for the current sales channel; inactive channels receive `404`.
 
-- Bridge to Shopware core discovery primitives when the current lane supports them.
-- Keep discovery disabled or hidden on lanes where the core primitives do not exist.
-- Surface a simple merchant/admin configuration instead of exposing raw implementation details.
-- Contribute Agentic Commerce specific sections where useful, for example UCP profile location, supported shopping operations, product-feed location, rate limits, and merchant rules.
-
-Developer placeholders:
-
-- Document the exact admin placement once the plugin UX is finalized.
-- Document which discovery sections are generated by core and which are contributed by this plugin.
-- Add examples for merchant-provided rules, custom sections, cache behavior, and preview links.
-- Add manual validation steps for all four discovery documents per Shopware lane.
+The generated documents are sales-channel scoped. They point agents at the UCP profile when UCP is active and describe safe shopping behavior for public storefront resources. Validate discovery after admin or route changes with a storefront browser check and direct `GET` requests for `/llms.txt`, `/agents.md`, and `/.well-known/ai-catalog.json` on each supported lane.
 
 ## Product Feed
 
 The product-feed feature is the outbound catalog surface for agentic commerce consumers. It is separate from UCP catalog operations: UCP handles transactional runtime calls, while product feeds support catalog ingestion, indexing, and marketplace-style discovery.
 
-Reference: [shopware/SwagAgenticCommerce](https://github.com/shopware/SwagAgenticCommerce). Fill in the concrete implementation details here when the product-feed feature branch lands in this repository.
+Product feeds reuse Shopware's product export infrastructure on Agentic Commerce sales channels. The Administration registers two templates:
 
-Expected plugin responsibilities:
+| Provider | Format | File format | Template source |
+| --- | --- | --- | --- |
+| `open-ai` | OpenAI product feed | JSONL, one JSON object per valid product row | `agentic-product-export-templates/open-ai/body.json.twig` |
+| `google` | Google Merchant Center feed | XML RSS item feed | `agentic-product-export-templates/google/*.xml.twig` |
 
-- Expose product-feed configuration in the same Agentic Commerce admin area.
-- Keep feed availability sales-channel aware.
-- Reuse existing Shopware product export/feed infrastructure where possible.
-- Make feed URLs discoverable from native agentic discovery documents where appropriate.
-- Avoid coupling feed generation to UCP transports.
+The feed URL is the Shopware product export URL shown in the Agentic Commerce sales-channel detail. It must be publicly reachable by the feed consumer and is not signed by UCP. Product links in both feeds include `referringSalesChannel` and preserve configured affiliate/campaign codes so downstream orders and customers can be attributed to the Agentic Commerce channel.
 
-Developer placeholders:
+OpenAI JSONL rows include search eligibility, checkout eligibility, item and offer identifiers, title, description, URL, image URLs, price, availability, brand/seller data, return policy URL, store/target countries, GTIN/MPN, digital-product signal, and variant data when variants are included. The JSONL renderer trims blank rows, skips empty product renders, re-encodes each row as one JSON object per line, and URL-encodes spaces in media URLs.
 
-- Fill in supported feed formats.
-- Fill in feed endpoint paths and authentication/signing behavior.
-- Fill in scheduling, cache, and invalidation behavior.
-- Fill in interaction with native discovery documents and UCP profile metadata.
-- Add QA steps for feed generation, product visibility, and multi-sales-channel domain behavior.
+Google XML rows include the required Merchant Center fields, canonical and tracked product links, image URLs, availability, price/sale price, condition, brand, GTIN/MPN or `identifier_exists`, category path, item group, variant attributes, custom labels, and shipping data derived from the sales-channel context.
+
+Feed generation, scheduling, caching, and invalidation are owned by Shopware's product export subsystem. The plugin supplies provider-specific templates, provider context, JSONL normalization, and validation. Template defaults set `generateByCronjob: false` and `interval: 86400`; merchants can adjust export behavior through the normal Shopware product export configuration.
 
 ## Local Development
 
@@ -228,11 +216,13 @@ Administration build compatibility is intentionally validated as a matrix:
 
 The plugin handles this with one administration implementation and lane-aware build/test scripts, not by copying admin modules per Shopware line.
 
-GitHub Actions checks out public `shopware/shopware` directly and private `shopware/ucp-php-sdk` with a repository secret named `PLUGINS_PAT`. Configure that token with read-only `contents` access to `shopware/ucp-php-sdk`. This matches the MCP eval workflow pattern.
+GitHub Actions checks out public `shopware/shopware` and public `agentic-commerce-alliance/ucp-php-sdk` directly. Both repositories are public, so no repository secret or access token is required for the SDK checkout.
 
 The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane-local Composer installs do not collide with the Shopware runtime dependency graph.
 
-Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin directly requires only `ucp-php-sdk/symfony-bundle`; SDK core is resolved transitively by that bundle. Local and CI runs configure path repositories for both SDK packages only because the SDK is currently private/local. Those path repositories use stable `0.0.1` aliases so Composer can resolve the transitive SDK core package from the Shopware root project. The plugin path repository must expose the matching Shopware lane version (`6.5.9999999-dev`, `6.6.9999999-dev`, or `6.7.9999999-dev`) so Shopware's plugin lifecycle does not run a second incompatible Composer require during `plugin:install`. The plugin repo still keeps its own Composer file for repo-local tooling and standalone QA.
+Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin's source `composer.json` is the public metadata source of truth for plugin-owned dependencies: it requires `ucp-php-sdk/symfony-bundle`, and SDK core is resolved transitively by that bundle. Shopware packages are provided by the active lane. The source metadata intentionally does not contain local SDK path repositories or alpha stability flags.
+
+While the SDK packages are not yet published to Packagist, local lanes and CI configure path repositories in the Shopware root project for runtime installs, and the repo-local CI quality job injects the same SDK path repositories before `composer install`. Those path repositories use stable `0.0.1` aliases so Composer can resolve the transitive SDK core package. The plugin path repository must expose the matching Shopware lane version (`6.5.9999999-dev`, `6.6.9999999-dev`, or `6.7.9999999-dev`) so Shopware's plugin lifecycle does not run a second incompatible Composer require during `plugin:install`. The release-candidate ZIP workflow uses the same private SDK checkout only as a staging input, vendors the SDK into plugin-local `vendor/`, writes `.swag-agentic-commerce-bundled-sdk`, and disables Shopware plugin Composer commands for that artifact. Testers of the ZIP do not need SDK path repositories or SDK Composer credentials.
 
 `bin/ci-smoke.sh` supports two execution modes:
 
