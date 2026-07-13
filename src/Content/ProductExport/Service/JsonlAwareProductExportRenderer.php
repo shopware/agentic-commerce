@@ -9,8 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Service;
 
-use League\Uri\Contracts\UriException;
-use League\Uri\Uri;
+use GuzzleHttp\Psr7\Uri;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Content\ProductExport\Service\ProductExportRendererInterface;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -72,11 +71,10 @@ class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
             $decoded = json_decode($trimmed, true, 512, \JSON_THROW_ON_ERROR);
 
             if (\is_array($decoded)) {
-                // URLs built from media filenames may contain characters that are not RFC 3986
-                // valid (unescaped spaces, or non-ASCII from a filesystem that preserves umlauts
+                // Encode URLs so non-ASCII media filenames / spaces pass FILTER_VALIDATE_URL.
                 array_walk_recursive($decoded, function (mixed &$value): void {
                     if (\is_string($value) && 1 === preg_match('#^https?://#i', $value)) {
-                        $value = $this->normalizeUrl($value);
+                        $value = $this->normalizeUrls($value);
                     }
                 });
 
@@ -89,11 +87,20 @@ class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
         return $trimmed.\PHP_EOL;
     }
 
-    private function normalizeUrl(string $value): string
+    /** Normalizes each URL in a possibly comma-joined value (e.g. additional_image_urls) individually. */
+    private function normalizeUrls(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $url): string => $this->normalizeSingleUrl($url),
+            explode(',', $value),
+        ));
+    }
+
+    private function normalizeSingleUrl(string $value): string
     {
         try {
-            return Uri::new($value)->toString();
-        } catch (UriException) {
+            return (string) new Uri($value);
+        } catch (\InvalidArgumentException) {
             return $value;
         }
     }

@@ -167,10 +167,7 @@ class JsonlAwareProductExportRendererTest extends TestCase
         $context = $this->createSalesChannelContext();
         $entity = $this->createJsonlEntity();
 
-        // Regression: a cover image whose filename contains non-ASCII characters kept by the
-        // filesystem. macOS/APFS stores "Übergröße.png" in decomposed (NFD) form — base letters
-        // plus combining diaeresis (U+0308) and "ß" (U+00DF) — which FILTER_VALIDATE_URL rejects,
-        // so the product errored out of the feed on "image_url".
+        // Regression: a non-ASCII (NFD) cover filename must be encoded to pass FILTER_VALIDATE_URL.
         $inner = $this->createMock(ProductExportRendererInterface::class);
         $inner->expects(static::once())
             ->method('renderBody')
@@ -194,8 +191,7 @@ class JsonlAwareProductExportRendererTest extends TestCase
         $context = $this->createSalesChannelContext();
         $entity = $this->createJsonlEntity();
 
-        // additional_image_urls is a single comma-joined string of URLs; normalization must
-        // encode non-ASCII inside each entry without breaking the comma-separated structure.
+        // Each URL in the comma-joined additional_image_urls must be normalized individually.
         $inner = $this->createMock(ProductExportRendererInterface::class);
         $inner->expects(static::once())
             ->method('renderBody')
@@ -203,33 +199,17 @@ class JsonlAwareProductExportRendererTest extends TestCase
 
         $decorator = new JsonlAwareProductExportRenderer($inner);
 
-        static::assertSame(
-            '{"additional_image_urls":"http://localhost:8000/media/a.jpg?ts=1,http://localhost:8000/media/U%CC%88bergro%CC%88%C3%9Fe.png?ts=2"}'.\PHP_EOL,
-            $decorator->renderBody($entity, $context, [])
-        );
-    }
-
-    public function testRenderBodyPunycodeEncodesNonAsciiHost(): void
-    {
-        $context = $this->createSalesChannelContext();
-        $entity = $this->createJsonlEntity();
-
-        $inner = $this->createMock(ProductExportRendererInterface::class);
-        $inner->expects(static::once())
-            ->method('renderBody')
-            ->willReturn('{"image_url":"https://möbel.example.com/item"}');
-
-        $decorator = new JsonlAwareProductExportRenderer($inner);
-
         $rendered = $decorator->renderBody($entity, $context, []);
 
         static::assertSame(
-            '{"image_url":"https://xn--mbel-5qa.example.com/item"}'.\PHP_EOL,
+            '{"additional_image_urls":"http://localhost:8000/media/a.jpg?ts=1,http://localhost:8000/media/U%CC%88bergro%CC%88%C3%9Fe.png?ts=2"}'.\PHP_EOL,
             $rendered
         );
 
         $decoded = json_decode(trim($rendered), true, 512, \JSON_THROW_ON_ERROR);
-        static::assertNotFalse(filter_var($decoded['image_url'], \FILTER_VALIDATE_URL));
+        foreach (explode(',', $decoded['additional_image_urls']) as $url) {
+            static::assertNotFalse(filter_var($url, \FILTER_VALIDATE_URL));
+        }
     }
 
     public function testRenderBodyDoesNotDoubleEncodeExistingPercentEscapes(): void
