@@ -124,6 +124,15 @@ class GoogleProductExportFeedRenderTest extends TestCase
             'seoUrl',
             static fn (string $route, array $params = []): string => 'https://shop.test/detail/'.($params['productId'] ?? '')
         ));
+        $twig->addFunction(new TwigFunction('agentic_essential_characteristics', static fn (mixed $product, mixed $context): array => []));
+        $twig->addFunction(new TwigFunction('agentic_product_measurements', static fn (mixed $product): array => [
+            'weight' => null,
+            'length' => null,
+            'width' => null,
+            'height' => null,
+            'unitPricingMeasure' => null,
+            'unitPricingBaseMeasure' => null,
+        ]));
 
         $data = [
             'productExport' => ['includeVariants' => false],
