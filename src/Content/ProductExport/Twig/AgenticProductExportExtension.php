@@ -23,7 +23,7 @@ use Twig\TwigFunction;
  *
  * @internal
  */
-class AgenticProductExportExtension extends AbstractExtension
+final class AgenticProductExportExtension extends AbstractExtension
 {
     public function __construct(
         private readonly EssentialCharacteristicsResolver $essentialCharacteristicsResolver,

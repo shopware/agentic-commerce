@@ -88,6 +88,58 @@ class ProductMeasurementsResolverTest extends TestCase
         static::assertNull($result['unitPricingBaseMeasure']);
     }
 
+    public function testOmitsUnitPricingWhenShortCodeIsNotGoogleSupported(): void
+    {
+        $product = $this->createProduct();
+        $product->setPurchaseUnit(1.5);
+        $product->setReferenceUnit(100.0);
+        $product->setUnit($this->createUnit('st')); // Shopware default piece unit, not a Google measure
+
+        $result = $this->resolve($product);
+
+        static::assertNull($result['unitPricingMeasure']);
+        static::assertNull($result['unitPricingBaseMeasure']);
+    }
+
+    public function testOmitsUnitPricingWhenUnitHasNoShortCode(): void
+    {
+        $product = $this->createProduct();
+        $product->setPurchaseUnit(1.5);
+        $product->setReferenceUnit(100.0);
+        $product->setUnit(new UnitEntity());
+
+        $result = $this->resolve($product);
+
+        static::assertNull($result['unitPricingMeasure']);
+        static::assertNull($result['unitPricingBaseMeasure']);
+    }
+
+    public function testNormalisesShortCodeCaseAndWhitespace(): void
+    {
+        $product = $this->createProduct();
+        $product->setPurchaseUnit(2.0);
+        $product->setReferenceUnit(1.0);
+        $product->setUnit($this->createUnit(' KG '));
+
+        $result = $this->resolve($product);
+
+        static::assertSame('2 kg', $result['unitPricingMeasure']);
+        static::assertSame('1 kg', $result['unitPricingBaseMeasure']);
+    }
+
+    public function testCapsUnitPricingQuantityToTwoDecimals(): void
+    {
+        $product = $this->createProduct();
+        $product->setPurchaseUnit(1.125);
+        $product->setReferenceUnit(100.0);
+        $product->setUnit($this->createUnit('ml'));
+
+        $result = $this->resolve($product);
+
+        static::assertSame('1.13 ml', $result['unitPricingMeasure']);
+        static::assertSame('100 ml', $result['unitPricingBaseMeasure']);
+    }
+
     public function testTrimsTrailingZeros(): void
     {
         $product = $this->createProduct();
@@ -117,11 +169,11 @@ class ProductMeasurementsResolverTest extends TestCase
         return $product;
     }
 
-    private function createUnit(string $name): UnitEntity
+    private function createUnit(string $shortCode): UnitEntity
     {
         $unit = new UnitEntity();
         $unit->setId(Uuid::randomHex());
-        $unit->setTranslated(['name' => $name]);
+        $unit->setTranslated(['shortCode' => $shortCode]);
 
         return $unit;
     }

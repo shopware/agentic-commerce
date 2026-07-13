@@ -144,6 +144,18 @@ class EssentialCharacteristicsResolverTest extends TestCase
         static::assertStringContainsString('ml', $result[0]['value']);
     }
 
+    public function testReferencePriceIsSkippedWhenCalculatedPriceIsUninitialised(): void
+    {
+        // A product loaded without price calculation leaves the non-nullable
+        // `calculatedPrice` typed property uninitialised; resolution must skip the
+        // characteristic instead of throwing and interrupting the whole feed.
+        $product = $this->createProduct($this->createFeatureSet([
+            $this->feature(ProductFeatureSetDefinition::TYPE_PRODUCT_REFERENCE_PRICE),
+        ]));
+
+        static::assertSame([], $this->createResolver()->resolve($product, $this->createContext()));
+    }
+
     public function testOrdersCharacteristicsByPosition(): void
     {
         $product = $this->createProduct($this->createFeatureSet([

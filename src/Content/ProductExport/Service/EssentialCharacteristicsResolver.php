@@ -33,7 +33,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
  *
  * @internal
  */
-class EssentialCharacteristicsResolver
+final class EssentialCharacteristicsResolver
 {
     /**
      * @var array<string, CustomFieldEntity|null>
@@ -185,7 +185,15 @@ class EssentialCharacteristicsResolver
      */
     private function resolveReferencePrice(SalesChannelProductEntity $product, SalesChannelContext $context): ?array
     {
-        $referencePrice = $product->getCalculatedPrice()->getReferencePrice();
+        try {
+            $calculatedPrice = $product->getCalculatedPrice();
+        } catch (\Error) {
+            // Uninitialised calculated price (product loaded without price calculation)
+            // must not interrupt the feed; skip the characteristic instead.
+            return null;
+        }
+
+        $referencePrice = $calculatedPrice->getReferencePrice();
 
         if (null === $referencePrice) {
             return null;

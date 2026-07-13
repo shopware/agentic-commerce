@@ -14,20 +14,31 @@ use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 /**
  * Resolves a product's "Measurements & packaging" fields into feed-ready values.
  *
- * Shopware stores dimensions in millimetres and weight in kilograms; both Google
- * and OpenAI feeds accept `cm`/`in` for dimensions, so millimetres are converted to
- * centimetres. Each measurement is returned as `{value, unit, display}` so Google
- * can emit the combined `"64.2 cm"` form while OpenAI emits the value and unit in
- * separate fields. Unit-pricing measures (Google only) are only produced when a
- * product unit is assigned.
+ * Dimensions are converted from Shopware's millimetres to centimetres. Each value is
+ * returned as `{value, unit, display}` so Google can emit the combined `"64.2 cm"`
+ * form while OpenAI emits value and unit separately. Unit pricing is Google-only and
+ * emitted only for units Google accepts, so free-text units never break the feed.
  *
  * @phpstan-type Measurement array{value: string, unit: string, display: string}
  *
  * @internal
  */
-class ProductMeasurementsResolver
+final class ProductMeasurementsResolver
 {
     private const MM_PER_CM = 10.0;
+
+    /**
+     * @see https://support.google.com/merchants/answer/6324455
+     *
+     * @var list<string>
+     */
+    private const GOOGLE_UNIT_PRICING_UNITS = [
+        'oz', 'lb', 'mg', 'g', 'kg',
+        'floz', 'pt', 'qt', 'gal', 'ml', 'cl', 'l', 'cbm',
+        'in', 'ft', 'yd', 'cm', 'm',
+        'sqft', 'sqm',
+        'ct', 'sheet', 'item',
+    ];
 
     /**
      * @return array{
@@ -91,13 +102,21 @@ class ProductMeasurementsResolver
             return null;
         }
 
-        $unitName = $unit->getTranslation('name');
+        $shortCode = $unit->getTranslation('shortCode');
 
-        if (!\is_string($unitName) || '' === trim($unitName)) {
+        if (!\is_string($shortCode)) {
             return null;
         }
 
-        return $this->format($quantity).' '.trim($unitName);
+        $code = strtolower(trim($shortCode));
+
+        if (!\in_array($code, self::GOOGLE_UNIT_PRICING_UNITS, true)) {
+            // Omit rather than emit a free-text unit that would invalidate the feed.
+            return null;
+        }
+
+        // Google allows at most 2 decimals here.
+        return $this->format(round($quantity, 2)).' '.$code;
     }
 
     private function format(float $value): string

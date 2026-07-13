@@ -10,13 +10,17 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit\Content\ProductExport\Twig;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Content\Product\Aggregate\ProductFeatureSet\ProductFeatureSetDefinition;
+use Shopware\Core\Content\Product\Aggregate\ProductFeatureSet\ProductFeatureSetEntity;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Uuid\Uuid;
+use Shopware\Core\System\CustomField\CustomFieldCollection;
+use Shopware\Core\System\Locale\LanguageLocaleCodeProvider;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
 use Swag\AgenticCommerce\Content\ProductExport\Service\EssentialCharacteristicsResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Service\ProductMeasurementsResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Twig\AgenticProductExportExtension;
@@ -28,17 +32,19 @@ use Swag\AgenticCommerce\Tests\TestGenerator as Generator;
 #[CoversClass(AgenticProductExportExtension::class)]
 class AgenticProductExportExtensionTest extends TestCase
 {
-    private EssentialCharacteristicsResolver&MockObject $characteristicsResolver;
-
-    private ProductMeasurementsResolver&MockObject $measurementsResolver;
-
     private AgenticProductExportExtension $extension;
 
     protected function setUp(): void
     {
-        $this->characteristicsResolver = $this->createMock(EssentialCharacteristicsResolver::class);
-        $this->measurementsResolver = $this->createMock(ProductMeasurementsResolver::class);
-        $this->extension = new AgenticProductExportExtension($this->characteristicsResolver, $this->measurementsResolver);
+        /** @var StaticEntityRepository<CustomFieldCollection> $customFieldRepository */
+        $customFieldRepository = new StaticEntityRepository([]);
+
+        $characteristicsResolver = new EssentialCharacteristicsResolver(
+            $customFieldRepository,
+            $this->createMock(LanguageLocaleCodeProvider::class),
+        );
+
+        $this->extension = new AgenticProductExportExtension($characteristicsResolver, new ProductMeasurementsResolver());
     }
 
     public function testRegistersBothFunctions(): void
@@ -51,22 +57,25 @@ class AgenticProductExportExtensionTest extends TestCase
 
     public function testDelegatesCharacteristicsToResolver(): void
     {
+        $featureSet = new ProductFeatureSetEntity();
+        $featureSet->setId(Uuid::randomHex());
+        $featureSet->setTranslated(['name' => 'Specifications']);
+        $featureSet->setFeatures([
+            ['id' => '', 'name' => 'ean', 'type' => ProductFeatureSetDefinition::TYPE_PRODUCT_ATTRIBUTE, 'position' => 1],
+        ]);
+
         $product = $this->createProduct();
-        $context = $this->createContext();
-        $expected = [['section' => 'Specifications', 'name' => 'ean', 'value' => '123']];
+        $product->setFeatureSet($featureSet);
+        $product->setTranslated(['ean' => '123']);
 
-        $this->characteristicsResolver->expects(static::once())
-            ->method('resolve')
-            ->with($product, $context)
-            ->willReturn($expected);
-
-        static::assertSame($expected, $this->extension->getEssentialCharacteristics($product, $context));
+        static::assertSame(
+            [['section' => 'Specifications', 'name' => 'ean', 'value' => '123']],
+            $this->extension->getEssentialCharacteristics($product, $this->createContext())
+        );
     }
 
     public function testCharacteristicsReturnEmptyForUnexpectedArguments(): void
     {
-        $this->characteristicsResolver->expects(static::never())->method('resolve');
-
         static::assertSame([], $this->extension->getEssentialCharacteristics(null, null));
         static::assertSame([], $this->extension->getEssentialCharacteristics($this->createProduct(), 'not-a-context'));
     }
@@ -74,27 +83,15 @@ class AgenticProductExportExtensionTest extends TestCase
     public function testDelegatesMeasurementsToResolver(): void
     {
         $product = $this->createProduct();
-        $expected = [
-            'weight' => ['value' => '1000', 'unit' => 'kg', 'display' => '1000 kg'],
-            'length' => ['value' => '10', 'unit' => 'cm', 'display' => '10 cm'],
-            'width' => ['value' => '64.2', 'unit' => 'cm', 'display' => '64.2 cm'],
-            'height' => ['value' => '82.5', 'unit' => 'cm', 'display' => '82.5 cm'],
-            'unitPricingMeasure' => null,
-            'unitPricingBaseMeasure' => null,
-        ];
+        $product->setWeight(1000.0);
 
-        $this->measurementsResolver->expects(static::once())
-            ->method('resolve')
-            ->with($product)
-            ->willReturn($expected);
+        $measurements = $this->extension->getProductMeasurements($product);
 
-        static::assertSame($expected, $this->extension->getProductMeasurements($product));
+        static::assertSame(['value' => '1000', 'unit' => 'kg', 'display' => '1000 kg'], $measurements['weight']);
     }
 
     public function testMeasurementsReturnEmptyStructForUnexpectedArgument(): void
     {
-        $this->measurementsResolver->expects(static::never())->method('resolve');
-
         static::assertSame([
             'weight' => null,
             'length' => null,

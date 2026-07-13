@@ -23,7 +23,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  *
  * @internal
  */
-class AgenticCommerceProductExportCriteriaSubscriber implements EventSubscriberInterface
+final class AgenticCommerceProductExportCriteriaSubscriber implements EventSubscriberInterface
 {
     private const AGENTIC_PROVIDERS = ['open-ai', 'google'];
 
@@ -44,15 +44,8 @@ class AgenticCommerceProductExportCriteriaSubscriber implements EventSubscriberI
         }
 
         $criteria = $event->getCriteria();
-
-        // Essential characteristics (core ProductFeatureSet) plus the data their
-        // resolution reads: the feature-set definition and property groups/options.
-        // Custom-field values live on the product `customFields` JSON field and the
-        // reference price carries its own unit name, so neither needs an association.
         $criteria->addAssociation('featureSet');
         $criteria->addAssociation('properties.group');
-
-        // Unit-pricing measures (measurements export) need the product's unit entity.
         $criteria->addAssociation('unit');
     }
 }
