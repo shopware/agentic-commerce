@@ -132,7 +132,8 @@ jobs:
             "admin-static"
             "php-quality (php-8.1)"
             "php-quality (php-8.2)"
-            "php-quality (native)"
+            "php-quality (6.7.11)"
+            "php-quality (6.7.12)"
             "shopware-matrix (6.5.x)"
             "shopware-matrix (6.6.x)"
             "shopware-matrix (trunk)"
@@ -163,6 +164,7 @@ jobs:
 
   php-quality:
     runs-on: ubuntu-latest
+    name: php-quality (${{ matrix.lane }})
     needs:
       - verify-main-validation
     if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
@@ -174,11 +176,18 @@ jobs:
             php-version: '8.1'
           - lane: 'php-8.2'
             php-version: '8.2'
-          # 6.7.11.0: last minor before core deprecates these classes; not trunk so
-          # the "core present" path keeps being tested even if trunk drops them.
-          - lane: 'native'
+          # 6.7.11.x: core still ships Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE here
+          # (present only in 6.7.10-6.7.11), so this lane keeps exercising the "core owns the
+          # feature" coexistence path. Moving branch ref -> always the latest 6.7.11 patch.
+          - lane: '6.7.11'
             php-version: '8.2'
-            shopware-ref: 'v6.7.11.0'
+            shopware-ref: '6.7.11.x'
+          # 6.7.12.x: core removed that constant and handed the feature back to the plugin, so
+          # this lane proves the "plugin re-owns the feature" path on the 6.7 framework. Moving
+          # branch ref -> always the latest 6.7.12 patch.
+          - lane: '6.7.12'
+            php-version: '8.2'
+            shopware-ref: '6.7.12.x'
     steps:
       - uses: actions/checkout@v6
         with:
