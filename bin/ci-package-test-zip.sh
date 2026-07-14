@@ -140,6 +140,29 @@ printf 'bundled-sdk\n' >"${stage_dir}/.swag-agentic-commerce-bundled-sdk"
       | del(."require-dev", ."autoload-dev", .scripts)
     ' composer.json.release-source >composer.json
   composer install --no-dev --no-scripts --no-interaction --no-progress --prefer-dist --optimize-autoloader
+  # Shopware loads this bundled vendor/ via SwagAgenticCommerce::getAdditionalBundles(), which
+  # registers its vendor/composer/installed.php as an additional Composer runtime dataset. The
+  # .replace map above records the platform packages (symfony/*, shopware/core, doctrine/dbal) as
+  # "replaced" with no version. Composer's InstalledVersions::getPrettyVersion() returns null for
+  # the first registered dataset that mentions a package, so once this dataset is active
+  # getPrettyVersion('symfony/http-kernel') resolves to null; Symfony 6.6/6.7's profiler
+  # ConfigDataCollector then falls back to the absent 'symfony/symfony' and throws, turning every
+  # profiled UCP request (e.g. /.well-known/ucp) into a 500. Drop the replaced-only entries so the
+  # bundled dataset defers to Shopware's root registry for those packages.
+  php -r '
+    $file = "vendor/composer/installed.php";
+    $data = require $file;
+    foreach ($data["versions"] as $name => $info) {
+      if (array_key_exists("replaced", $info) && !array_key_exists("version", $info)) {
+        unset($data["versions"][$name]);
+      }
+    }
+    file_put_contents($file, "<?php return " . var_export($data, true) . ";" . PHP_EOL);
+  '
+  if grep -q 'symfony/http-kernel' vendor/composer/installed.php; then
+    echo "Bundled vendor/composer/installed.php still lists replaced platform packages; the profiler InstalledVersions guard failed." >&2
+    exit 1
+  fi
   jq \
     --arg packageVersion "${package_version}" \
     '.version = $packageVersion
