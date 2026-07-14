@@ -8,6 +8,7 @@ use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Content\Product\ProductEntity;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -115,7 +116,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->mapOrderLineItems($order),
             $this->orderMoneySummary($order),
-            [],
+            $this->mapOrderMessages($order),
             null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
             $order->getCreatedAt()?->format(\DATE_ATOM),
@@ -123,6 +124,23 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             permalinkUrl: $permalinkUrl,
             fulfillment: ['expectations' => [], 'events' => []],
         );
+    }
+
+    /**
+     * @return list<Message>
+     */
+    private function mapOrderMessages(OrderEntity $order): array
+    {
+        if (OrderStates::STATE_CANCELLED !== $order->getStateMachineState()?->getTechnicalName()) {
+            return [];
+        }
+
+        return [new Message(
+            'error',
+            'The merchant cancelled this order.',
+            'unrecoverable',
+            'order_cancelled',
+        )];
     }
 
     /**

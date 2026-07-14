@@ -6,6 +6,10 @@ namespace Swag\AgenticCommerce\Tests\Functional\Ucp;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Context;
+use Shopware\Core\System\StateMachine\Aggregation\StateMachineTransition\StateMachineTransitionActions;
+use Shopware\Core\System\StateMachine\StateMachineRegistry;
+use Shopware\Core\System\StateMachine\Transition;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -65,5 +69,16 @@ final class UcpCheckoutFlowTest extends TestCase
         ]);
         self::assertSame(Response::HTTP_OK, $order->getStatusCode());
         self::assertSame($orderId, $this->decode($order)['id'], 'Expected the secured order read to return the created order.');
+
+        static::getContainer()->get(StateMachineRegistry::class)->transition(
+            new Transition('order', $orderId, StateMachineTransitionActions::ACTION_CANCEL, 'stateId'),
+            Context::createDefaultContext(),
+        );
+
+        $cancelledOrder = $this->ucpRequest('GET', '/ucp/v1/orders/'.$orderId, null, [
+            'HTTP_SW_CONTEXT_TOKEN' => $this->completedCheckoutContextToken($checkoutId),
+        ]);
+        self::assertSame(Response::HTTP_OK, $cancelledOrder->getStatusCode());
+        self::assertSame('order_cancelled', $this->decode($cancelledOrder)['messages'][0]['code'] ?? null, 'Expected order.read to reflect the merchant cancellation.');
     }
 }
