@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Ucp\Capability\Ap2MandateCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 
@@ -55,6 +56,29 @@ final class UcpCapabilityCatalogTest extends TestCase
             UcpCapabilityCatalog::DESCRIPTOR_CART,
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
         ], $discount->extends);
+    }
+
+    #[Test]
+    public function testAp2MandateCapabilityAdvertisesTheCatalogDescriptor(): void
+    {
+        // Without a registered CapabilityInterface service the descriptor never
+        // reaches the profile, so config opt-in alone could not advertise AP2.
+        self::assertEquals(
+            UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_AP2_MANDATE),
+            (new Ap2MandateCapability())->describe(),
+        );
+    }
+
+    #[Test]
+    public function testItBuildsAp2MandateDescriptor(): void
+    {
+        $descriptor = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_AP2_MANDATE);
+
+        self::assertSame('dev.ucp.shopping.ap2_mandate', $descriptor->name);
+        self::assertSame([UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT], $descriptor->extends);
+        self::assertSame('https://ucp.dev/latest/specification/ap2-mandates/', $descriptor->specUrl);
+        self::assertNotContains(UcpCapabilityCatalog::CONFIG_AP2_MANDATE, UcpCapabilityCatalog::defaultConfigKeys());
+        self::assertContains(UcpCapabilityCatalog::CONFIG_AP2_MANDATE, UcpCapabilityCatalog::allConfigKeys());
     }
 
     #[Test]

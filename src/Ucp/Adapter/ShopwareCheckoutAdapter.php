@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Adapter;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
@@ -22,6 +23,7 @@ use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
@@ -58,6 +60,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $request->buyer,
             $discountCodes,
             guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment),
+            ap2Locked: $this->ap2Negotiated($context),
         );
 
         return $this->mapper->toCheckout(
@@ -148,12 +151,25 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $buyer = $request->buyer ?? $this->sessionStore->buyer($metadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
 
+        $selectedPayment = null;
+        if (null !== $request->payment) {
+            $selectedPayment = [
+                'instruments' => [[
+                    'type' => $request->payment->type,
+                    'handler_id' => $request->payment->handlerId,
+                    'credential' => $request->payment->credential,
+                ]],
+            ];
+        }
+
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $buyer,
             $discountCodes,
             guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment, $metadata),
+            selectedPayment: $selectedPayment ?? $this->sessionStore->selectedPayment($metadata),
+            ap2Locked: $this->sessionStore->ap2Locked($metadata) || $this->ap2Negotiated($context),
         );
 
         return $this->mapper->toCheckout(
@@ -165,8 +181,9 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         );
     }
 
-    public function completeCheckout(string $id, RequestContext $context): Checkout
+    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context): Checkout
     {
+        $id = $request->id;
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
 
@@ -181,7 +198,12 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
+        return $this->checkoutCompleter->complete($request, $metadata, $cart, $salesChannelContext, $context);
+    }
+
+    private function ap2Negotiated(RequestContext $context): bool
+    {
+        return \in_array(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE, $context->negotiation?->capabilityNames() ?? [], true);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateClaimsVerifierInterface;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
@@ -14,11 +15,13 @@ final class UcpExtensionAvailability
     private ?array $identityLinkingAdapters = null;
 
     /**
-     * @param iterable<IdentityLinkingAdapterInterface> $identityLinkingAdapterIterable
+     * @param iterable<IdentityLinkingAdapterInterface>   $identityLinkingAdapterIterable
+     * @param iterable<Ap2MandateClaimsVerifierInterface> $ap2CheckoutMandateVerifierIterable
      */
     public function __construct(
         private readonly iterable $identityLinkingAdapterIterable,
         private readonly PaymentHandlerRegistryInterface $paymentHandlerRegistry,
+        private readonly iterable $ap2CheckoutMandateVerifierIterable = [],
     ) {
     }
 
@@ -33,6 +36,15 @@ final class UcpExtensionAvailability
             if ($handler->supportsTokenization()) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    public function supportsAp2Mandates(): bool
+    {
+        foreach ($this->ap2CheckoutMandateVerifierIterable as $_verifier) {
+            return true;
         }
 
         return false;

@@ -25,10 +25,18 @@ use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
+use Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizationResult;
+use Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizerInterface;
+use Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizerRegistry;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
+use Ucp\Sdk\Exception\Ap2Exception;
 use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Ap2\Ap2CheckoutData;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
+use Ucp\Sdk\Model\Checkout\PaymentSelection;
 use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
@@ -106,7 +114,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->createMock(OrderWebhookPublisherInterface::class),
         );
 
-        $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+        $result = $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
 
         static::assertSame($expectedCheckout, $result);
 
@@ -149,7 +157,7 @@ final class CheckoutCompleterTest extends TestCase
 
         $this->expectExceptionObject(new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.'));
 
-        $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+        $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
     }
 
     #[Test]
@@ -189,11 +197,11 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $selectedPayment = null, bool $ap2Locked = false): void
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $selectedPayment = null, bool $ap2Locked = false): void
             {
                 ++$this->saveCalled;
             }
@@ -259,7 +267,7 @@ final class CheckoutCompleterTest extends TestCase
             $orderWebhookPublisher,
         );
 
-        $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+        $result = $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
 
         static::assertSame($expectedCheckout, $result);
         static::assertSame(1, $saveCalled, 'sessionManager->saveForCheckoutId() must be called exactly once');
@@ -313,7 +321,7 @@ final class CheckoutCompleterTest extends TestCase
         );
 
         try {
-            $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+            $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
             static::fail('Expected RuntimeException was not thrown.');
         } catch (\RuntimeException $e) {
             static::assertSame('Order placement failed.', $e->getMessage());
@@ -321,6 +329,194 @@ final class CheckoutCompleterTest extends TestCase
 
         // Lock released via finally — a new acquire must succeed
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after order placement failure');
+    }
+
+    #[Test]
+    public function testItAuthorizesSelectedPaymentBeforePlacingOrder(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
+        $currency = new CurrencyEntity();
+        $currency->setIsoCode('EUR');
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $customerContext->method('getCurrency')->willReturn($currency);
+
+        $order = new OrderEntity();
+        $order->setId(self::ORDER_ID);
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::once())->method('placeOrder')->willReturn($order);
+
+        $authorizer = new RecordingPaymentAuthorizer('com.example.psp', PaymentAuthorizationResult::authorized('auth-1'));
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $this->passthroughMapper(),
+            $this->fixedProvisioner($customerContext),
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $this->fixedContinueUrlBuilder(),
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new PaymentAuthorizerRegistry([$authorizer]),
+        );
+
+        $request = new CheckoutCompleteRequest(
+            self::CHECKOUT_ID,
+            new PaymentSelection([
+                new PaymentInstrument('tokenized', 'com.example.psp', ['token' => 'payment_mandate']),
+            ]),
+            new Ap2CheckoutData('checkout_mandate'),
+        );
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        $completer->complete($request, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+
+        static::assertSame(self::CHECKOUT_ID, $authorizer->checkoutId);
+        static::assertSame('payment_mandate', $authorizer->instrument?->credential['token']);
+    }
+
+    #[Test]
+    public function testItRejectsCompletionWhenPaymentAuthorizationFails(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+        $completionStore->expects(static::never())->method('complete');
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::never())->method('placeOrder');
+
+        $authorizer = new RecordingPaymentAuthorizer(
+            'com.example.psp',
+            PaymentAuthorizationResult::failed('payment_declined', 'Payment mandate was declined.'),
+        );
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $this->uninitialized(ShopwareDataMapper::class),
+            $this->fixedProvisioner($customerContext),
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $this->uninitialized(CheckoutContinueUrlBuilder::class),
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new PaymentAuthorizerRegistry([$authorizer]),
+        );
+
+        $request = new CheckoutCompleteRequest(
+            self::CHECKOUT_ID,
+            new PaymentSelection([
+                new PaymentInstrument('tokenized', 'com.example.psp', ['token' => 'payment_mandate']),
+            ]),
+        );
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        try {
+            $completer->complete($request, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+            static::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception $exception) {
+            static::assertSame('payment_declined', $exception->errorCode);
+        }
+    }
+
+    #[Test]
+    public function testItRejectsPaymentInstrumentsWithoutASupportingAuthorizer(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::never())->method('placeOrder');
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $this->uninitialized(ShopwareDataMapper::class),
+            $this->fixedProvisioner($customerContext),
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $this->uninitialized(CheckoutContinueUrlBuilder::class),
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+        );
+
+        $request = new CheckoutCompleteRequest(
+            self::CHECKOUT_ID,
+            new PaymentSelection([
+                new PaymentInstrument('tokenized', 'com.example.psp', ['token' => 'payment_mandate']),
+            ]),
+        );
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        try {
+            $completer->complete($request, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+            static::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception $exception) {
+            static::assertSame('payment_handler_unsupported', $exception->errorCode);
+        }
+    }
+
+    private function fixedProvisioner(SalesChannelContext $customerContext): GuestCustomerContextProvisionerInterface
+    {
+        return new class($customerContext) implements GuestCustomerContextProvisionerInterface {
+            public function __construct(private readonly SalesChannelContext $customerContext)
+            {
+            }
+
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            {
+                return $this->customerContext;
+            }
+        };
+    }
+
+    private function passthroughMapper(): ShopwareDataMapperInterface
+    {
+        return new class($this->uninitialized(Checkout::class)) implements ShopwareDataMapperInterface {
+            public function __construct(private readonly Checkout $checkout)
+            {
+            }
+
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+            {
+                return $this->checkout;
+            }
+
+            public function toOrderView(OrderEntity $order, ?string $checkoutId = null, ?string $permalinkUrl = null): OrderView
+            {
+                throw new \BadMethodCallException('Not called in this test.');
+            }
+        };
+    }
+
+    private function fixedContinueUrlBuilder(): CheckoutContinueUrlBuilderInterface
+    {
+        return new class implements CheckoutContinueUrlBuilderInterface {
+            public function build(string $checkoutId, string $salesChannelId): ?string
+            {
+                return 'https://example.com/continue';
+            }
+        };
     }
 
     private function nullProvisioner(): GuestCustomerContextProvisionerInterface
@@ -346,11 +542,11 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $selectedPayment = null, bool $ap2Locked = false): void
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $selectedPayment = null, bool $ap2Locked = false): void
             {
             }
         };
@@ -397,5 +593,31 @@ final class CheckoutCompleterTest extends TestCase
     private function uninitialized(string $class): object
     {
         return (new \ReflectionClass($class))->newInstanceWithoutConstructor();
+    }
+}
+
+final class RecordingPaymentAuthorizer implements PaymentAuthorizerInterface
+{
+    public ?string $checkoutId = null;
+
+    public ?PaymentInstrument $instrument = null;
+
+    public function __construct(
+        private readonly string $handlerId,
+        private readonly PaymentAuthorizationResult $result,
+    ) {
+    }
+
+    public function supports(string $handlerId): bool
+    {
+        return $handlerId === $this->handlerId;
+    }
+
+    public function authorize(CheckoutCompleteRequest $request, PaymentInstrument $instrument, Cart $cart, SalesChannelContext $context, RequestContext $requestContext): PaymentAuthorizationResult
+    {
+        $this->checkoutId = $request->id;
+        $this->instrument = $instrument;
+
+        return $this->result;
     }
 }

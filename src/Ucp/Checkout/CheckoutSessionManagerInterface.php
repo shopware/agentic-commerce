@@ -25,6 +25,7 @@ interface CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array<string, mixed>|null                                                                           $selectedPayment
      */
     public function save(
         SalesChannelContext $salesChannelContext,
@@ -34,11 +35,14 @@ interface CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?array $selectedPayment = null,
+        bool $ap2Locked = false,
     ): void;
 
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array<string, mixed>|null                                                                           $selectedPayment
      */
     public function saveForCheckoutId(
         string $checkoutId,
@@ -49,5 +53,7 @@ interface CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?array $selectedPayment = null,
+        bool $ap2Locked = false,
     ): void;
 }

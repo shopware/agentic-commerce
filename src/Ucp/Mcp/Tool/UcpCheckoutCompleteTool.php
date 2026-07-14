@@ -21,15 +21,18 @@ final class UcpCheckoutCompleteTool
     ) {
     }
 
-    public function __invoke(string $id): string
+    /**
+     * @param array<string, mixed> $payload Optional checkout.complete payload, for example payment instruments and ap2.checkout_mandate.
+     */
+    public function __invoke(string $id, array $payload = []): string
     {
         try {
             return $this->toolContext->executeMutating(
                 'checkout.complete',
-                ['id' => $id],
+                ['id' => $id, 'payload' => $payload],
                 fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.complete',
-                    [],
+                    $payload,
                     $context,
                     $id,
                 )),

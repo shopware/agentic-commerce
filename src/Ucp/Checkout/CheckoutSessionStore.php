@@ -77,6 +77,24 @@ final class CheckoutSessionStore
 
     /**
      * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>|null
+     */
+    public function selectedPayment(array $metadata): ?array
+    {
+        return isset($metadata['selectedPayment']) && \is_array($metadata['selectedPayment']) ? $metadata['selectedPayment'] : null;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function ap2Locked(array $metadata): bool
+    {
+        return true === ($metadata['ap2Locked'] ?? false);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
      */
     public function buyer(array $metadata): ?Buyer
     {

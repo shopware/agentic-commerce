@@ -30,6 +30,12 @@ export const NOT_READY_CAPABILITIES = [
         reason: `${SNIPPET_ROOT}.capabilityPaymentTokenizationReason`,
         docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
     },
+    {
+        value: 'ap2_mandate',
+        label: `${SNIPPET_ROOT}.capabilityAp2MandateLabel`,
+        reason: `${SNIPPET_ROOT}.capabilityAp2MandateReason`,
+        docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
+    },
 ];
 
 export function readyCapabilityValues() {

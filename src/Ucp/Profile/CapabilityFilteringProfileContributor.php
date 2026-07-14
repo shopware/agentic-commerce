@@ -40,6 +40,10 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
             $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION]));
         }
 
+        if (!$this->extensionAvailability->supportsAp2Mandates()) {
+            $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE]));
+        }
+
         $enabledTransports = array_map(
             static fn (Transport $transport): string => $transport->value,
             $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()),

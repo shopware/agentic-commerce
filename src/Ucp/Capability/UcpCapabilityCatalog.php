@@ -18,6 +18,7 @@ final class UcpCapabilityCatalog
     public const CONFIG_ORDER = 'order';
     public const CONFIG_IDENTITY_LINKING = 'identity_linking';
     public const CONFIG_PAYMENT_TOKENIZATION = 'payment_tokenization';
+    public const CONFIG_AP2_MANDATE = 'ap2_mandate';
 
     public const DESCRIPTOR_CATALOG = 'dev.ucp.shopping.catalog';
     public const DESCRIPTOR_CART = 'dev.ucp.shopping.cart';
@@ -26,6 +27,7 @@ final class UcpCapabilityCatalog
     public const DESCRIPTOR_ORDER = 'dev.ucp.shopping.order';
     public const DESCRIPTOR_IDENTITY_LINKING = 'dev.ucp.common.identity_linking';
     public const DESCRIPTOR_PAYMENT_TOKENIZATION = 'dev.ucp.shopping.payment_tokenization';
+    public const DESCRIPTOR_AP2_MANDATE = 'dev.ucp.shopping.ap2_mandate';
 
     /**
      * @return array<string, array{descriptor: string, path: string, specUrl?: string, schemaUrl?: string, extends?: list<string>}>
@@ -56,6 +58,13 @@ final class UcpCapabilityCatalog
                 'path' => 'payment-tokenization',
                 'specUrl' => 'https://ucp.dev/specification/payment-token-exchange/',
                 'schemaUrl' => 'https://ucp.dev/schemas/shopping/payment-tokenization.json',
+            ],
+            self::CONFIG_AP2_MANDATE => [
+                'descriptor' => self::DESCRIPTOR_AP2_MANDATE,
+                'path' => 'ap2-mandates',
+                'specUrl' => 'https://ucp.dev/latest/specification/ap2-mandates/',
+                'schemaUrl' => 'https://ucp.dev/schemas/shopping/ap2-mandates.json',
+                'extends' => [self::DESCRIPTOR_CHECKOUT],
             ],
         ];
     }

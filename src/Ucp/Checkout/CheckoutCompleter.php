@@ -10,10 +10,13 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
+use Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizerRegistry;
 use Symfony\Component\Lock\LockFactory;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Exception\Ap2Exception;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
@@ -32,6 +35,7 @@ final class CheckoutCompleter
         private readonly CheckoutContinueUrlBuilderInterface $continueUrlBuilder,
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
+        private readonly PaymentAuthorizerRegistry $paymentAuthorizerRegistry = new PaymentAuthorizerRegistry(),
     ) {
     }
 
@@ -39,12 +43,13 @@ final class CheckoutCompleter
      * @param array<string, mixed> $metadata
      */
     public function complete(
-        string $checkoutId,
+        CheckoutCompleteRequest $request,
         array $metadata,
         Cart $cart,
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
     ): Checkout {
+        $checkoutId = $request->id;
         $salesChannelId = $salesChannelContext->getSalesChannelId();
 
         $orderId = $this->completionStore->completedOrderId($checkoutId);
@@ -78,6 +83,14 @@ final class CheckoutCompleter
             $config = $this->configService->getConfig($customerContext->getSalesChannelId());
             if (null !== $config->webhookUrlOverride) {
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
+            }
+
+            $paymentInstrument = $request->payment?->instruments[0] ?? null;
+            if (null !== $paymentInstrument) {
+                $result = $this->paymentAuthorizerRegistry->authorize($request, $paymentInstrument, $cart, $customerContext, $requestContext);
+                if (!$result->authorized) {
+                    throw new Ap2Exception($result->failureCode ?? 'payment_authorization_failed', $result->failureMessage ?? 'Payment authorization failed.');
+                }
             }
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);

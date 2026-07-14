@@ -6,7 +6,14 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityCollection;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
+use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -104,6 +111,55 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
             new UcpConfig(agentAllowlist: ['agent.example']),
             'sales-channel-id',
         );
+    }
+
+    #[Test]
+    public function testItFallsBackToAnySalesChannelDomainHostWithoutAllowlists(): void
+    {
+        $guard = new CheckoutWebhookUrlGuard($this->viewProviderWithDomains([
+            'https://shop-a.example',
+            'https://shop-b.example',
+        ]));
+
+        $guard->assertAllowed(
+            'https://shop-b.example/_action/webhooks',
+            new UcpConfig(),
+            'sales-channel-id',
+        );
+
+        self::addToAssertionCount(1);
+    }
+
+    /**
+     * @param list<string> $domainUrls
+     */
+    private function viewProviderWithDomains(array $domainUrls): SalesChannelViewProvider
+    {
+        $domains = new SalesChannelDomainCollection();
+        foreach ($domainUrls as $index => $url) {
+            $domain = new SalesChannelDomainEntity();
+            $domain->setId(str_pad((string) ($index + 1), 32, '0', \STR_PAD_LEFT));
+            $domain->setUrl($url);
+            $domains->add($domain);
+        }
+
+        $salesChannel = new SalesChannelEntity();
+        $salesChannel->setId(str_pad('f', 32, 'f'));
+        $salesChannel->setDomains($domains);
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->method('search')->willReturnCallback(
+            static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
+                'sales_channel',
+                1,
+                new EntityCollection([$salesChannel]),
+                null,
+                $criteria,
+                $context,
+            ),
+        );
+
+        return new SalesChannelViewProvider($repository);
     }
 
     /**

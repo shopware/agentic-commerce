@@ -12,6 +12,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateClaimsVerifierInterface;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -63,17 +64,47 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT, $result);
     }
 
+    #[Test]
+    public function testItFiltersAp2WhenVerifierSupportIsUnavailable(): void
+    {
+        $result = $this->contribute([
+            UcpCapabilityCatalog::CONFIG_CHECKOUT,
+            UcpCapabilityCatalog::CONFIG_AP2_MANDATE,
+        ], [
+            UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT => [$this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT)],
+            UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE => [$this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE)],
+        ]);
+
+        self::assertArrayHasKey(UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT, $result);
+        self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE, $result);
+    }
+
+    #[Test]
+    public function testItAdvertisesAp2WhenAVerifierIsRegistered(): void
+    {
+        $result = $this->contribute([
+            UcpCapabilityCatalog::CONFIG_CHECKOUT,
+            UcpCapabilityCatalog::CONFIG_AP2_MANDATE,
+        ], [
+            UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT => [$this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT)],
+            UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE => [$this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE)],
+        ], [$this->createMock(Ap2MandateClaimsVerifierInterface::class)]);
+
+        self::assertArrayHasKey(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE, $result);
+    }
+
     /**
      * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
+     * @param list<Ap2MandateClaimsVerifierInterface>   $ap2Verifiers
      *
      * @return array<string, list<CapabilityDescriptor>>
      */
-    private function contribute(array $enabledCapabilities, array $profileCapabilities): array
+    private function contribute(array $enabledCapabilities, array $profileCapabilities, array $ap2Verifiers = []): array
     {
         $profile = new PlatformProfile(UcpProtocol::VERSION, [], $profileCapabilities, []);
 
-        return $this->contributor($enabledCapabilities)->contribute(
+        return $this->contributor($enabledCapabilities, $ap2Verifiers)->contribute(
             $profile,
             new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
         )->capabilities;
@@ -94,9 +125,10 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     }
 
     /**
-     * @param list<string> $enabledCapabilities
+     * @param list<string>                            $enabledCapabilities
+     * @param list<Ap2MandateClaimsVerifierInterface> $ap2Verifiers
      */
-    private function contributor(array $enabledCapabilities): CapabilityFilteringProfileContributor
+    private function contributor(array $enabledCapabilities, array $ap2Verifiers = []): CapabilityFilteringProfileContributor
     {
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
@@ -124,7 +156,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             new SalesChannelDomainResolver($domainRepository),
             new UcpConfigService($this->createMock(UcpConfigRepositoryInterface::class), $legacyStore),
             new ShopwareVersionDetector('6.7.0.0'),
-            new UcpExtensionAvailability([], $paymentHandlerRegistry),
+            new UcpExtensionAvailability([], $paymentHandlerRegistry, $ap2Verifiers),
         );
     }
 }
