@@ -40,7 +40,7 @@ final class EmbeddedResponseListener
             return;
         }
 
-        if (!\is_string($origin) || '' === $origin || !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
+        if (\is_string($origin) && '' !== $origin && !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
             $event->setResponse($this->forbidden('Embedded origin is not allowlisted for this sales channel.'));
 
             return;

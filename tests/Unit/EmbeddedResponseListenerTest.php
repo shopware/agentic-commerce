@@ -97,6 +97,22 @@ final class EmbeddedResponseListenerTest extends TestCase
     }
 
     #[Test]
+    public function testItAllowsSameOriginRequestsWithNoOriginHeader(): void
+    {
+        $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example']);
+
+        $event = new RequestEvent(
+            $this->kernel,
+            Request::create('https://shop.example/ucp/embedded/cart/cart-id'),
+            HttpKernelInterface::MAIN_REQUEST,
+        );
+
+        $this->listener->onKernelRequest($event);
+
+        self::assertFalse($event->hasResponse());
+    }
+
+    #[Test]
     public function testItHandlesEmbeddedPreflightRequestsBeforeShopwareCorsFallbacks(): void
     {
         $this->config = new UcpConfig(
