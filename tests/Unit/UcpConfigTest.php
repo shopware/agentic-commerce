@@ -95,6 +95,7 @@ final class UcpConfigTest extends TestCase
 
         self::assertSame(UcpCapabilityCatalog::defaultConfigKeys(), $config->enabledCapabilities);
         self::assertTrue($config->idempotencyRequired);
+        self::assertFalse($config->advertiseDelegatedPaymentHandlers);
         self::assertSame('strict', $config->signaturePolicy);
         self::assertSame(50, $config->catalogResultLimit);
         self::assertSame([
@@ -104,6 +105,19 @@ final class UcpConfigTest extends TestCase
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
             UcpCapabilityCatalog::DESCRIPTOR_ORDER,
         ], $config->runtimeEnabledCapabilityDescriptors());
+    }
+
+    #[Test]
+    public function testItParsesAndRoundTripsAdvertiseDelegatedPaymentHandlers(): void
+    {
+        $config = UcpConfig::fromArray([
+            'active' => true,
+            'advertiseDelegatedPaymentHandlers' => true,
+        ]);
+
+        self::assertTrue($config->advertiseDelegatedPaymentHandlers);
+        self::assertTrue($config->toArray()['advertiseDelegatedPaymentHandlers']);
+        self::assertTrue(UcpConfig::fromArray($config->toArray())->advertiseDelegatedPaymentHandlers);
     }
 
     #[Test]

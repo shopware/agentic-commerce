@@ -35,6 +35,7 @@ final class UcpConfig
         'webhookUrlOverride',
         'signaturePolicy',
         'idempotencyRequired',
+        'advertiseDelegatedPaymentHandlers',
     ];
 
     /**
@@ -78,6 +79,7 @@ final class UcpConfig
         public readonly ?string $webhookUrlOverride = null,
         public readonly string $signaturePolicy = 'strict',
         public readonly bool $idempotencyRequired = true,
+        public readonly bool $advertiseDelegatedPaymentHandlers = false,
     ) {
     }
 
@@ -119,6 +121,7 @@ final class UcpConfig
             $webhookUrlOverride,
             self::signaturePolicyValue($payload['signaturePolicy'] ?? 'strict'),
             self::boolValue($payload['idempotencyRequired'] ?? null, true, '$.idempotencyRequired'),
+            self::boolValue($payload['advertiseDelegatedPaymentHandlers'] ?? null, false, '$.advertiseDelegatedPaymentHandlers'),
         );
     }
 
@@ -159,6 +162,7 @@ final class UcpConfig
             'webhookUrlOverride' => $this->webhookUrlOverride,
             'signaturePolicy' => $this->signaturePolicy,
             'idempotencyRequired' => $this->idempotencyRequired,
+            'advertiseDelegatedPaymentHandlers' => $this->advertiseDelegatedPaymentHandlers,
         ];
     }
 

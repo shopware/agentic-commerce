@@ -7,11 +7,13 @@ namespace Swag\AgenticCommerce\Ucp\Profile;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Contract\ProfileContributorInterface;
 use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
+use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Model\Profile\ServiceEndpoint;
@@ -68,10 +70,47 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
             $profile->version,
             $services,
             $capabilities,
-            \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
+            $this->filteredPaymentHandlers($profile->paymentHandlers, $enabledDescriptors, $config),
             $profile->signingKeys,
             $profile->supportedVersions,
         );
+    }
+
+    /**
+     * Per-handler advertising policy: tokenizing handlers are advertised when the
+     * payment_tokenization capability is enabled; non-tokenizing (delegated)
+     * handlers only when the sales channel opts in via
+     * `advertiseDelegatedPaymentHandlers` (default off, preserving the previous
+     * empty-map behaviour).
+     *
+     * @param array<string, list<PaymentHandlerDescriptor>> $paymentHandlers
+     * @param list<string>                                  $enabledDescriptors
+     *
+     * @return array<string, list<PaymentHandlerDescriptor>>
+     */
+    private function filteredPaymentHandlers(array $paymentHandlers, array $enabledDescriptors, UcpConfig $config): array
+    {
+        if (!$config->active) {
+            return [];
+        }
+
+        $tokenizationEnabled = \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true);
+
+        $filtered = [];
+        foreach ($paymentHandlers as $name => $descriptors) {
+            $kept = array_values(array_filter(
+                $descriptors,
+                fn (PaymentHandlerDescriptor $descriptor): bool => $this->extensionAvailability->paymentHandlerSupportsTokenization($descriptor->id)
+                    ? $tokenizationEnabled
+                    : $config->advertiseDelegatedPaymentHandlers,
+            ));
+
+            if ([] !== $kept) {
+                $filtered[$name] = $kept;
+            }
+        }
+
+        return $filtered;
     }
 
     /**

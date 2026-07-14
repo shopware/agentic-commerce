@@ -34,6 +34,7 @@ final class UcpConfigService
         'webhookUrlOverride',
         'signaturePolicy',
         'idempotencyRequired',
+        'advertiseDelegatedPaymentHandlers',
     ];
 
     public function __construct(

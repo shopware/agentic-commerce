@@ -41,6 +41,11 @@ final class UcpExtensionAvailability
         return false;
     }
 
+    public function paymentHandlerSupportsTokenization(string $handlerId): bool
+    {
+        return $this->paymentHandlerRegistry->find($handlerId)?->supportsTokenization() ?? false;
+    }
+
     public function supportsAp2Mandates(): bool
     {
         foreach ($this->ap2CheckoutMandateVerifierIterable as $_verifier) {
