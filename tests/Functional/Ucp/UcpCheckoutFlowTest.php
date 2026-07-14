@@ -79,6 +79,6 @@ final class UcpCheckoutFlowTest extends TestCase
             'HTTP_SW_CONTEXT_TOKEN' => $this->completedCheckoutContextToken($checkoutId),
         ]);
         self::assertSame(Response::HTTP_OK, $cancelledOrder->getStatusCode());
-        self::assertSame('order_cancelled', $this->decode($cancelledOrder)['messages'][0]['code'] ?? null, 'Expected order.read to reflect the merchant cancellation.');
+        self::assertSame('cancellation', $this->decode($cancelledOrder)['adjustments'][0]['type'] ?? null, 'Expected order.read to reflect the merchant cancellation.');
     }
 }

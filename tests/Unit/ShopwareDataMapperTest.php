@@ -47,6 +47,27 @@ final class ShopwareDataMapperTest extends TestCase
         self::assertSame([], (new ShopwareDataMapper())->toOrderView($order)->messages);
     }
 
+    #[Test]
+    public function testCancelledOrderIncludesCancellationAdjustment(): void
+    {
+        $order = $this->order();
+        $order->setUpdatedAt(new \DateTimeImmutable('2026-07-14T10:30:00+00:00'));
+        $state = new StateMachineStateEntity();
+        $state->setTechnicalName(OrderStates::STATE_CANCELLED);
+        $order->setStateMachineState($state);
+
+        $view = (new ShopwareDataMapper())->toOrderView($order);
+
+        self::assertSame([], $view->messages);
+        self::assertSame([[
+            'id' => '99999999999999999999999999999999-cancellation',
+            'type' => 'cancellation',
+            'occurred_at' => '2026-07-14T10:30:00+00:00',
+            'status' => 'completed',
+            'description' => 'The merchant cancelled this order.',
+        ]], $view->extra['adjustments']);
+    }
+
     /**
      * @return iterable<string, array{string, array<string, string>}>
      */
@@ -68,13 +89,6 @@ final class ShopwareDataMapperTest extends TestCase
             'type' => 'info',
             'content' => 'The merchant completed this order.',
             'code' => 'order_completed',
-        ]];
-
-        yield 'cancelled' => [OrderStates::STATE_CANCELLED, [
-            'type' => 'error',
-            'content' => 'The merchant cancelled this order.',
-            'severity' => 'unrecoverable',
-            'code' => 'order_cancelled',
         ]];
     }
 

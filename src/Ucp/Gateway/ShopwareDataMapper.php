@@ -120,6 +120,8 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
             $order->getCreatedAt()?->format(\DATE_ATOM),
+            // @phpstan-ignore-next-line argument.type -- The SDK has no typed Adjustment model yet; OrderView::$extra is intentionally merged into the payload.
+            extra: $this->mapOrderExtra($order),
             checkoutId: $checkoutId,
             permalinkUrl: $permalinkUrl,
             fulfillment: ['expectations' => [], 'events' => []],
@@ -129,9 +131,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     /**
      * @return list<Message>
      *
-     * @see https://ucp.dev/schemas/shopping/order.json
-     * @see https://ucp.dev/schemas/shopping/types/message_info.json
-     * @see https://ucp.dev/schemas/shopping/types/message_error.json
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/message_info.json
      */
     private function mapOrderMessages(OrderEntity $order): array
     {
@@ -139,9 +139,34 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             OrderStates::STATE_OPEN => [new Message('info', 'The order is open.', code: 'order_open')],
             OrderStates::STATE_IN_PROGRESS => [new Message('info', 'The merchant is processing this order.', code: 'order_in_progress')],
             OrderStates::STATE_COMPLETED => [new Message('info', 'The merchant completed this order.', code: 'order_completed')],
-            OrderStates::STATE_CANCELLED => [new Message('error', 'The merchant cancelled this order.', 'unrecoverable', 'order_cancelled')],
             default => [],
         };
+    }
+
+    /**
+     * @return array{adjustments?: list<array{id: string, type: string, occurred_at: string, status: string, description: string}>}
+     *
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/order.json
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/adjustment.json
+     */
+    private function mapOrderExtra(OrderEntity $order): array
+    {
+        if (OrderStates::STATE_CANCELLED !== $order->getStateMachineState()?->getTechnicalName()) {
+            return [];
+        }
+
+        $occurredAt = $order->getUpdatedAt() ?? $order->getCreatedAt();
+        if (null === $occurredAt) {
+            return [];
+        }
+
+        return ['adjustments' => [[
+            'id' => $order->getId().'-cancellation',
+            'type' => 'cancellation',
+            'occurred_at' => $occurredAt->format(\DATE_ATOM),
+            'status' => 'completed',
+            'description' => 'The merchant cancelled this order.',
+        ]]];
     }
 
     /**
