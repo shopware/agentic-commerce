@@ -21,6 +21,28 @@
         "rector/rector": "^1.1",
         "roave/backward-compatibility-check": "^8.6"
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../ucp-php-sdk/packages/core",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "ucp-php-sdk/core": "0.0.1"
+                }
+            }
+        },
+        {
+            "type": "path",
+            "url": "../ucp-php-sdk/packages/symfony-bundle",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "ucp-php-sdk/symfony-bundle": "0.0.1"
+                }
+            }
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Swag\\AgenticCommerce\\": "src/"

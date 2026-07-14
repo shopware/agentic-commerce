@@ -10,11 +10,16 @@ use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpMcpToolContext;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Ucp\Sdk\Enum\UcpCapability;
+use Ucp\Sdk\Enum\UcpResponseStatus;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
 use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Catalog\CatalogSearchResponse;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\IdempotencyRecord;
+use Ucp\Sdk\Model\Protocol\UcpEnvelope;
+use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
@@ -148,6 +153,50 @@ final class UcpMcpToolContextTest extends TestCase
         );
 
         self::assertSame(['success' => true, 'data' => ['cancelled' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testExecuteMutatingStoresSdkOperationResponsesAsProtocolPayloads(): void
+    {
+        if (\PHP_VERSION_ID < 80200) {
+            self::markTestSkipped('The current SDK UcpOperationResponse class uses PHP 8.2 readonly class syntax.');
+        }
+
+        $operationResponse = new UcpOperationResponse(
+            new CatalogSearchResponse([]),
+            UcpEnvelope::response('2026-04-08', UcpResponseStatus::Success, UcpCapability::CatalogSearch),
+        );
+        // The context normalizes empty maps to objects so they serialize as {}.
+        $expectedData = $operationResponse->toArray();
+        $expectedData['ucp']['services'] = new \stdClass();
+        $expectedData['ucp']['payment_handlers'] = new \stdClass();
+
+        $record = new IdempotencyRecord('idem-key', 'fingerprint');
+
+        $idempotencyService = $this->createMock(IdempotencyServiceInterface::class);
+        $idempotencyService->expects(self::once())
+            ->method('claim')
+            ->willReturn($record);
+        $idempotencyService->expects(self::once())
+            ->method('complete')
+            ->with($record, $expectedData, 200);
+        $idempotencyService->expects(self::never())->method('abort');
+
+        $context = $this->toolContext(
+            $this->requestContext(idempotencyRequired: true, idempotencyKey: 'idem-key'),
+            idempotencyService: $idempotencyService,
+        );
+
+        $result = $context->executeMutating(
+            'catalog.search',
+            [],
+            static fn (): UcpOperationResponse => $operationResponse,
+        );
+
+        self::assertEquals(
+            json_decode(json_encode(['success' => true, 'data' => $expectedData], \JSON_THROW_ON_ERROR), true, flags: \JSON_THROW_ON_ERROR),
+            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
+        );
     }
 
     #[Test]
