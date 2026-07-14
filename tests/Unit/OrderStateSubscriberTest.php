@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Order\Event\OrderStateMachineStateChangeEvent;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Framework\Context;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
@@ -17,7 +18,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
-use Swag\AgenticCommerce\Ucp\Order\OrderCancellationSubscriber;
+use Swag\AgenticCommerce\Ucp\Order\OrderStateSubscriber;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
@@ -25,15 +26,26 @@ use Ucp\Sdk\Model\Webhook\WebhookDispatchResult;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
 /** @internal */
-#[CoversClass(OrderCancellationSubscriber::class)]
-final class OrderCancellationSubscriberTest extends TestCase
+#[CoversClass(OrderStateSubscriber::class)]
+final class OrderStateSubscriberTest extends TestCase
 {
     private const ORDER_ID = '99999999999999999999999999999999';
     private const SALES_CHANNEL_ID = '22222222222222222222222222222222';
     private const CHECKOUT_ID = 'checkout-id';
 
     #[Test]
-    public function testCancellationPublishesUpdatedUcpOrder(): void
+    public function testSubscribesToAllOrderStates(): void
+    {
+        self::assertSame([
+            'state_enter.order.state.open' => 'onOrderStateChanged',
+            'state_enter.order.state.in_progress' => 'onOrderStateChanged',
+            'state_enter.order.state.completed' => 'onOrderStateChanged',
+            'state_enter.order.state.cancelled' => 'onOrderStateChanged',
+        ], OrderStateSubscriber::getSubscribedEvents());
+    }
+
+    #[Test]
+    public function testOrderStateChangePublishesUpdatedUcpOrder(): void
     {
         $order = new OrderEntity();
         $order->setId(self::ORDER_ID);
@@ -70,7 +82,7 @@ final class OrderCancellationSubscriberTest extends TestCase
             )
             ->willReturn(new WebhookDispatchResult('https://agent.example/webhook', 200, true));
 
-        $subscriber = new OrderCancellationSubscriber(
+        $subscriber = new OrderStateSubscriber(
             $completionStore,
             $continueUrlBuilder,
             $this->configService(new UcpConfig(
@@ -81,15 +93,15 @@ final class OrderCancellationSubscriberTest extends TestCase
             $publisher,
         );
 
-        $subscriber->onOrderCancelled(new OrderStateMachineStateChangeEvent(
-            'state_enter.order.state.cancelled',
+        $subscriber->onOrderStateChanged(new OrderStateMachineStateChangeEvent(
+            'state_enter.'.OrderStates::STATE_MACHINE.'.'.OrderStates::STATE_IN_PROGRESS,
             $order,
             Context::createDefaultContext(),
         ));
     }
 
     #[Test]
-    public function testCancellationOfNonUcpOrderDoesNotPublishWebhook(): void
+    public function testStateChangeOfNonUcpOrderDoesNotPublishWebhook(): void
     {
         $order = new OrderEntity();
         $order->setId(self::ORDER_ID);
@@ -99,7 +111,7 @@ final class OrderCancellationSubscriberTest extends TestCase
         $publisher = $this->createMock(OrderWebhookPublisherInterface::class);
         $publisher->expects(static::never())->method('publish');
 
-        $subscriber = new OrderCancellationSubscriber(
+        $subscriber = new OrderStateSubscriber(
             $completionStore,
             $this->createMock(CheckoutContinueUrlBuilderInterface::class),
             $this->configService(new UcpConfig()),
@@ -107,8 +119,8 @@ final class OrderCancellationSubscriberTest extends TestCase
             $publisher,
         );
 
-        $subscriber->onOrderCancelled(new OrderStateMachineStateChangeEvent(
-            'state_enter.order.state.cancelled',
+        $subscriber->onOrderStateChanged(new OrderStateMachineStateChangeEvent(
+            'state_enter.'.OrderStates::STATE_MACHINE.'.'.OrderStates::STATE_CANCELLED,
             $order,
             Context::createDefaultContext(),
         ));

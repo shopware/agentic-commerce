@@ -128,19 +128,20 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
     /**
      * @return list<Message>
+     *
+     * @see https://ucp.dev/schemas/shopping/order.json
+     * @see https://ucp.dev/schemas/shopping/types/message_info.json
+     * @see https://ucp.dev/schemas/shopping/types/message_error.json
      */
     private function mapOrderMessages(OrderEntity $order): array
     {
-        if (OrderStates::STATE_CANCELLED !== $order->getStateMachineState()?->getTechnicalName()) {
-            return [];
-        }
-
-        return [new Message(
-            'error',
-            'The merchant cancelled this order.',
-            'unrecoverable',
-            'order_cancelled',
-        )];
+        return match ($order->getStateMachineState()?->getTechnicalName()) {
+            OrderStates::STATE_OPEN => [new Message('info', 'The order is open.', code: 'order_open')],
+            OrderStates::STATE_IN_PROGRESS => [new Message('info', 'The merchant is processing this order.', code: 'order_in_progress')],
+            OrderStates::STATE_COMPLETED => [new Message('info', 'The merchant completed this order.', code: 'order_completed')],
+            OrderStates::STATE_CANCELLED => [new Message('error', 'The merchant cancelled this order.', 'unrecoverable', 'order_cancelled')],
+            default => [],
+        };
     }
 
     /**
