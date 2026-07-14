@@ -33,9 +33,10 @@ final class ShopwareDataMapperTest extends TestCase
         $state->setTechnicalName($stateName);
         $order->setStateMachineState($state);
 
-        $view = (new ShopwareDataMapper())->toOrderView($order)->toArray();
+        $view = (new ShopwareDataMapper())->toOrderView($order);
 
-        self::assertSame([$expectedMessage], $view['messages']);
+        self::assertCount(1, $view->messages);
+        self::assertSame($expectedMessage, $view->messages[0]->toArray());
     }
 
     #[Test]
