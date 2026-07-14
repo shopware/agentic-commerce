@@ -11,7 +11,7 @@ on:
     inputs:
       sdk_ref:
         description: 'ucp-php-sdk ref to test against'
-        default: 'main'
+        default: 'codex/model-order-adjustments'
         required: true
       shopware_65_ref:
         description: 'Shopware 6.5 ref'
@@ -32,7 +32,9 @@ on:
         type: boolean
 
 env:
-  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
+  # Temporary development dependency for https://github.com/agentic-commerce-alliance/ucp-php-sdk/pull/89.
+  UCP_SDK_REPOSITORY: 'keulinho/ucp-php-sdk'
+  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || 'codex/model-order-adjustments' }}
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
@@ -198,7 +200,7 @@ jobs:
           coverage: none
       - uses: actions/checkout@v6
         with:
-          repository: agentic-commerce-alliance/ucp-php-sdk
+          repository: ${{ env.UCP_SDK_REPOSITORY }}
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
       - uses: actions/checkout@v6
@@ -271,7 +273,7 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: agentic-commerce-alliance/ucp-php-sdk
+          repository: ${{ env.UCP_SDK_REPOSITORY }}
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
       - uses: actions/setup-node@v6
@@ -327,7 +329,7 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: agentic-commerce-alliance/ucp-php-sdk
+          repository: ${{ env.UCP_SDK_REPOSITORY }}
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
       - run: npm ci --no-audit --no-fund
@@ -380,7 +382,7 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: agentic-commerce-alliance/ucp-php-sdk
+          repository: ${{ env.UCP_SDK_REPOSITORY }}
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
       - uses: actions/setup-node@v6
@@ -428,7 +430,7 @@ jobs:
           path: shopware
       - uses: actions/checkout@v6
         with:
-          repository: agentic-commerce-alliance/ucp-php-sdk
+          repository: ${{ env.UCP_SDK_REPOSITORY }}
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
       - uses: shivammathur/setup-php@v2

@@ -16,6 +16,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Ucp\Sdk\Model\Order\Adjustment;
 
 /** @internal */
 #[CoversClass(ShopwareDataMapper::class)]
@@ -65,7 +66,8 @@ final class ShopwareDataMapperTest extends TestCase
             'occurred_at' => '2026-07-14T10:30:00+00:00',
             'status' => 'completed',
             'description' => 'The merchant cancelled this order.',
-        ]], $view->extra['adjustments']);
+        ]], array_map(static fn (Adjustment $adjustment): array => $adjustment->toArray(), $view->adjustments));
+        self::assertArrayNotHasKey('adjustments', $view->extra);
     }
 
     /**

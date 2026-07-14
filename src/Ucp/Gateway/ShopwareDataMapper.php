@@ -12,6 +12,7 @@ use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Content\Product\ProductEntity;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Ucp\Sdk\Enum\AdjustmentStatus;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\Checkout\Checkout;
@@ -21,6 +22,7 @@ use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Common\Money;
+use Ucp\Sdk\Model\Order\Adjustment;
 use Ucp\Sdk\Model\Order\OrderView;
 
 /** @internal */
@@ -120,11 +122,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
             $order->getCreatedAt()?->format(\DATE_ATOM),
-            // @phpstan-ignore-next-line argument.type -- The SDK has no typed Adjustment model yet; OrderView::$extra is intentionally merged into the payload.
-            extra: $this->mapOrderExtra($order),
             checkoutId: $checkoutId,
             permalinkUrl: $permalinkUrl,
             fulfillment: ['expectations' => [], 'events' => []],
+            adjustments: $this->mapOrderAdjustments($order),
         );
     }
 
@@ -144,12 +145,12 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
-     * @return array{adjustments?: list<array{id: string, type: string, occurred_at: string, status: string, description: string}>}
+     * @return list<Adjustment>
      *
      * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/order.json
      * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/adjustment.json
      */
-    private function mapOrderExtra(OrderEntity $order): array
+    private function mapOrderAdjustments(OrderEntity $order): array
     {
         if (OrderStates::STATE_CANCELLED !== $order->getStateMachineState()?->getTechnicalName()) {
             return [];
@@ -160,13 +161,13 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             return [];
         }
 
-        return ['adjustments' => [[
-            'id' => $order->getId().'-cancellation',
-            'type' => 'cancellation',
-            'occurred_at' => $occurredAt->format(\DATE_ATOM),
-            'status' => 'completed',
-            'description' => 'The merchant cancelled this order.',
-        ]]];
+        return [new Adjustment(
+            $order->getId().'-cancellation',
+            'cancellation',
+            $occurredAt->format(\DATE_ATOM),
+            AdjustmentStatus::Completed,
+            description: 'The merchant cancelled this order.',
+        )];
     }
 
     /**
