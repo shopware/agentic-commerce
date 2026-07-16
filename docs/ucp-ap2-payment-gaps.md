@@ -20,10 +20,10 @@ verification and payment processing remain PSP plugin responsibilities.
 | --- | --- |
 | AP2 capability advertisement | `UcpCapabilityCatalog::CONFIG_AP2_MANDATE` (`dev.ucp.shopping.ap2_mandate`, extends checkout). Opt-in via admin config and only advertised when an AP2 mandate claims verifier is registered (`CapabilityFilteringProfileContributor` + `UcpExtensionAvailability::supportsAp2Mandates()`). |
 | Complete request payload | SDK `CheckoutCompleteRequest` (`payment.instruments`, `ap2.checkout_mandate`) parsed by `HttpPayloadMapper::toCheckoutCompleteRequest()` and passed through `CheckoutCapabilityInterface`/`CheckoutAdapterInterface::completeCheckout()`. MCP `shopware-ucp-checkout-complete` accepts the same payload. |
-| AP2 session locking | Checkouts created/updated under negotiated AP2 persist `ap2Locked` in checkout session metadata (`CheckoutSessionManager`). Locked checkouts reject completion without `ap2.checkout_mandate` (`mandate_required`). |
+| AP2 session locking | Checkouts created/updated under negotiated AP2 persist `ap2Locked` in checkout session metadata (`CheckoutSessionManager`); cancel preserves the lock. Locked checkouts reject completion without `ap2.checkout_mandate` (`mandate_required`). Negotiation itself is gated on verifier availability (`ShopwareRuntimeConfigurationResolver` filters unsupported descriptors), so agents can never negotiate AP2 against a shop that cannot verify mandates. |
 | Merchant checkout signature | `Ap2MerchantAuthorizationResponseAugmenter` adds `ap2.merchant_authorization` — an ES256 detached JWS (RFC 7797, `b64:false`) over the RFC 8785-canonicalized checkout payload excluding `ap2` — signed with the active managed key (SDK `DetachedJwsService` + `DefaultCheckoutMerchantAuthorizationSigner`). |
-| Checkout mandate verification | `ShopwareAp2CheckoutMandateVerifier` (tagged `ucp_sdk.ap2_checkout_mandate_verifier`, invoked by the SDK executor before adapter completion) checks expiry and compares verified claims against `ShopwareCheckoutTermsFactory` terms (integer minor units) — `mandate_scope_mismatch` / `mandate_expired` on failure. |
-| Payment authorization gate | `CheckoutCompleter` authorizes the selected instrument through `PaymentAuthorizerRegistry` before `placeOrder()`; failures surface as AP2 protocol errors instead of placing the order. |
+| Checkout mandate verification | `ShopwareAp2CheckoutMandateVerifier` (tagged `ucp_sdk.ap2_checkout_mandate_verifier`, invoked by the SDK executor before adapter completion) checks expiry and compares verified claims against `ShopwareCheckoutTermsFactory` terms (integer minor units, ISO 4217 exponent per currency) — `mandate_scope_mismatch` / `mandate_expired` on failure. A mandate must pin the authorized `total` and its currency (top-level `currency` or `total.currency`), otherwise it is rejected as `mandate_invalid`. All registered claims verifiers are consulted; the first verified result wins. |
+| Payment authorization gate | `CheckoutCompleter` authorizes the selected instrument through `PaymentAuthorizerRegistry` before `placeOrder()`; failures surface as AP2 protocol errors instead of placing the order. The instrument comes from the complete request or, when omitted there, from the `selectedPayment` persisted during `checkout.update`. |
 | AP2 error mapping | SDK `Ap2Exception` maps to HTTP 422 with a stable `messages[0].code` (`mandate_required`, `mandate_scope_mismatch`, `mandate_expired`, `mandate_invalid`, `mandate_unsupported`, `payment_declined`, `payment_handler_unsupported`, ...). |
 | Deterministic verification boundary | Mandate parsing, term comparison, signing, and payment authorization live in PHP services with unit coverage — never in agent prompts or MCP tool descriptions. |
 | Test coverage | Unit suites in both repos plus `tests/e2e/ucp/ap2-checkout.spec.js` (profile gating, `mandate_required`, `mandate_scope_mismatch`, declined payment, successful fixture completion). Smoke lanes register deterministic fixtures via `SWAG_AGENTIC_COMMERCE_TEST_AP2=1`. |
@@ -53,16 +53,22 @@ verbatim as the HTTP 422 `messages[0].code`; use stable codes such as
 is what allows the `dev.ucp.shopping.ap2_mandate` capability to be advertised.
 
 `ShopwareAp2CheckoutMandateVerifier` then compares the returned claims against
-the current checkout terms. Supported claim keys:
+the current checkout terms. Minor units follow the ISO 4217 exponent of the
+checkout currency (JPY 1000 → `1000`, EUR 10.00 → `1000`, KWD 1.234 → `1234`).
+Supported claim keys:
 
 | Claim | Comparison |
 | --- | --- |
 | `checkout_id` | Required; must equal the checkout id, otherwise `mandate_scope_mismatch`. |
-| `currency` | Optional; must equal the checkout currency (ISO code). |
-| `total` | Optional; `{amount, currency}` or bare number — `amount` in integer **minor units**, compared against the current total. |
-| `line_items` | Optional; list of `{id, quantity}` — must match the current line items exactly (set comparison). |
+| `currency` | Must equal the checkout currency (ISO code). Required unless `total.currency` pins the currency. |
+| `total` | **Required**; `{amount, currency}` or bare number — `amount` in integer **minor units**, compared against the current total. A mandate without a total (or without any currency pin) is rejected as `mandate_invalid`. |
+| `line_items` | Optional; list of `{id, quantity, unit_price?}` — must match the current line items as a set (order-insensitive). When a row claims `unit_price` (minor units, `{amount}` or bare number), it must match the current unit price. |
 | `fulfillment_total` | Optional; `{amount}` or bare number in minor units, compared against fulfillment cost. |
 | `exp` | Optional; unix timestamp — past values are rejected as `mandate_expired`. |
+
+When several claims verifiers are registered, each is tried in service order;
+the first verified result wins and the first failure is reported only if none
+verifies.
 
 ### 2. Payment authorizer (gates order placement)
 
@@ -75,7 +81,13 @@ public function authorize(CheckoutCompleteRequest $request, PaymentInstrument $i
 ```
 
 `CheckoutCompleter` invokes the first authorizer whose `supports()` matches
-`payment.instruments[0].handler_id` **before** `placeOrder()`. Return
+the selected instrument's `handler_id` **before** `placeOrder()` — the
+instrument is taken from `payment.instruments[0]` of the complete request, or
+from the `selectedPayment` persisted during `checkout.update` when the request
+omits it. Registering an authorizer is also what allows a delegated
+(non-tokenizing) handler to be advertised when
+`advertiseDelegatedPaymentHandlers` is enabled — handlers no authorizer
+supports stay out of the profile. Return
 `PaymentAuthorizationResult::authorized($authorizationId)` to proceed, or
 `PaymentAuthorizationResult::failed($code, $message)` to abort — the code
 surfaces as the 422 error code (e.g. `payment_declined`). If no authorizer

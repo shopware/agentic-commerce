@@ -114,6 +114,155 @@ final class ShopwareAp2CheckoutMandateVerifierTest extends TestCase
     }
 
     #[Test]
+    public function testItRejectsMandatesThatPinNoTotal(): void
+    {
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
+            'checkout_id' => 'checkout-1',
+        ]);
+
+        try {
+            $verifier->verify(
+                new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+                $this->checkout('checkout-1', 1299.0),
+                new RequestContext('shop.example'),
+            );
+            self::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception $exception) {
+            self::assertSame('mandate_invalid', $exception->errorCode);
+        }
+    }
+
+    #[Test]
+    public function testItRejectsBareTotalsWithoutACurrencyPin(): void
+    {
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
+            'checkout_id' => 'checkout-1',
+            'total' => 129900,
+        ]);
+
+        try {
+            $verifier->verify(
+                new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+                $this->checkout('checkout-1', 1299.0),
+                new RequestContext('shop.example'),
+            );
+            self::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception $exception) {
+            self::assertSame('mandate_invalid', $exception->errorCode);
+        }
+    }
+
+    #[Test]
+    public function testItAcceptsLineItemsInAnyOrder(): void
+    {
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
+            'checkout_id' => 'checkout-1',
+            'total' => ['amount' => 259900, 'currency' => 'EUR'],
+            'line_items' => [
+                ['id' => 'sku-2', 'quantity' => 1],
+                ['id' => 'sku-1', 'quantity' => 1],
+            ],
+        ]);
+
+        $verifier->verify(
+            new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+            $this->twoItemCheckout('checkout-1'),
+            new RequestContext('shop.example'),
+        );
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
+    public function testItRejectsClaimedUnitPricesThatDoNotMatchTheCheckout(): void
+    {
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
+            'checkout_id' => 'checkout-1',
+            'total' => ['amount' => 129900, 'currency' => 'EUR'],
+            'line_items' => [['id' => 'sku-1', 'quantity' => 1, 'unit_price' => 99900]],
+        ]);
+
+        try {
+            $verifier->verify(
+                new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+                $this->checkout('checkout-1', 1299.0),
+                new RequestContext('shop.example'),
+            );
+            self::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception $exception) {
+            self::assertSame('mandate_scope_mismatch', $exception->errorCode);
+        }
+    }
+
+    #[Test]
+    public function testItConsultsAllRegisteredClaimsVerifiers(): void
+    {
+        $failing = new class implements Ap2MandateClaimsVerifierInterface {
+            public function verify(string $checkoutMandate, RequestContext $context): Ap2VerificationResult
+            {
+                return Ap2VerificationResult::failed('mandate_invalid', 'Unknown mandate format.');
+            }
+        };
+
+        $succeeding = new class implements Ap2MandateClaimsVerifierInterface {
+            public function verify(string $checkoutMandate, RequestContext $context): Ap2VerificationResult
+            {
+                return Ap2VerificationResult::verified([
+                    'checkout_id' => 'checkout-1',
+                    'total' => ['amount' => 129900, 'currency' => 'EUR'],
+                ]);
+            }
+        };
+
+        $lockReader = new class implements Ap2CheckoutLockReaderInterface {
+            public function isLocked(string $checkoutId, RequestContext $context): bool
+            {
+                return true;
+            }
+        };
+
+        $verifier = new ShopwareAp2CheckoutMandateVerifier($lockReader, new ShopwareCheckoutTermsFactory(), [$failing, $succeeding]);
+
+        $verifier->verify(
+            new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+            $this->checkout('checkout-1', 1299.0),
+            new RequestContext('shop.example'),
+        );
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
+    public function testItComparesZeroDecimalCurrenciesInIsoMinorUnits(): void
+    {
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
+            'checkout_id' => 'checkout-1',
+            'total' => ['amount' => 1000, 'currency' => 'JPY'],
+        ]);
+
+        $checkout = new Checkout(
+            'checkout-1',
+            CheckoutStatus::ReadyForComplete,
+            'JPY',
+            [new LineItem('sku-1', 'Product', 1000.0, 1, currency: 'JPY')],
+            [
+                new Money('subtotal', 1000.0, null, 'JPY'),
+                new Money('fulfillment', 0.0, null, 'JPY'),
+                new Money('total', 1000.0, null, 'JPY'),
+                new Money('tax', 0.0, null, 'JPY'),
+            ],
+        );
+
+        $verifier->verify(
+            new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+            $checkout,
+            new RequestContext('shop.example'),
+        );
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
     public function testItRejectsExpiredMandates(): void
     {
         $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
@@ -216,6 +365,25 @@ final class ShopwareAp2CheckoutMandateVerifierTest extends TestCase
                 new Money('subtotal', $total),
                 new Money('fulfillment', 0.0),
                 new Money('total', $total),
+                new Money('tax', 0.0),
+            ],
+        );
+    }
+
+    private function twoItemCheckout(string $id): Checkout
+    {
+        return new Checkout(
+            $id,
+            CheckoutStatus::ReadyForComplete,
+            'EUR',
+            [
+                new LineItem('sku-1', 'Product 1', 1299.0, 1),
+                new LineItem('sku-2', 'Product 2', 1300.0, 1),
+            ],
+            [
+                new Money('subtotal', 2599.0),
+                new Money('fulfillment', 0.0),
+                new Money('total', 2599.0),
                 new Money('tax', 0.0),
             ],
         );

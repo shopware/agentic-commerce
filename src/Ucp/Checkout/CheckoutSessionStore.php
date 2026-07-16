@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
@@ -83,6 +84,27 @@ final class CheckoutSessionStore
     public function selectedPayment(array $metadata): ?array
     {
         return isset($metadata['selectedPayment']) && \is_array($metadata['selectedPayment']) ? $metadata['selectedPayment'] : null;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function selectedPaymentInstrument(array $metadata): ?PaymentInstrument
+    {
+        $instrument = $this->selectedPayment($metadata)['instruments'][0] ?? null;
+        if (!\is_array($instrument)) {
+            return null;
+        }
+
+        $type = $instrument['type'] ?? null;
+        $handlerId = $instrument['handler_id'] ?? null;
+        if (!\is_string($type) || !\is_string($handlerId)) {
+            return null;
+        }
+
+        $credential = \is_array($instrument['credential'] ?? null) ? $instrument['credential'] : [];
+
+        return new PaymentInstrument($type, $handlerId, $credential);
     }
 
     /**

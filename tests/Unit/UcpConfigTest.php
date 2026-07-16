@@ -242,6 +242,26 @@ final class UcpConfigTest extends TestCase
         self::assertSame(['legacy.example'], $legacyConfig->allowedAgentDomains);
     }
 
+    #[Test]
+    public function testItAcceptsAnEnabledCapabilityDescriptorOverride(): void
+    {
+        $config = UcpConfig::fromArray([
+            'active' => true,
+            'enabledCapabilities' => [UcpCapabilityCatalog::CONFIG_CHECKOUT, UcpCapabilityCatalog::CONFIG_AP2_MANDATE],
+        ]);
+
+        $unfiltered = $config->toRuntimeConfiguration('https://merchant.example');
+        self::assertContains(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE, $unfiltered->enabledCapabilities);
+
+        $filtered = $config->toRuntimeConfiguration(
+            'https://merchant.example',
+            null,
+            false,
+            [UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT],
+        );
+        self::assertSame([UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT], $filtered->enabledCapabilities);
+    }
+
     /**
      * @return iterable<string, array{
      *     payload: array<string, mixed>,

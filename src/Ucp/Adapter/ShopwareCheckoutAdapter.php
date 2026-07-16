@@ -234,7 +234,13 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($id, $context);
         $cart = $this->cartGateway->cancelCart($id, $context);
 
-        $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
+        $this->sessionManager->save(
+            $salesChannelContext,
+            CheckoutStatus::Canceled->value,
+            $buyer,
+            selectedPayment: $this->sessionStore->selectedPayment($metadata),
+            ap2Locked: $this->sessionStore->ap2Locked($metadata),
+        );
 
         return $this->mapper->toCheckout(
             new Cart($cart->id),

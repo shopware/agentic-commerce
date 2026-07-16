@@ -274,7 +274,8 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(UcpExtensionAvailability::class)
         ->arg('$identityLinkingAdapterIterable', tagged_iterator('ucp_sdk.adapter.identity_linking'))
-        ->arg('$ap2CheckoutMandateVerifierIterable', tagged_iterator('swag_agentic_commerce.ucp.ap2_mandate_claims_verifier'));
+        ->arg('$ap2CheckoutMandateVerifierIterable', tagged_iterator('swag_agentic_commerce.ucp.ap2_mandate_claims_verifier'))
+        ->arg('$paymentAuthorizerIterable', tagged_iterator('swag_agentic_commerce.ucp.payment_authorizer'));
 
     // Tagged service registrations.
 

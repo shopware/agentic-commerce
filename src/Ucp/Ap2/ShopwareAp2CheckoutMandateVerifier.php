@@ -47,6 +47,15 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
             throw new Ap2Exception('mandate_expired', 'AP2 checkout mandate is expired.');
         }
 
+        // A mandate that pins no amount authorizes nothing: the total claim is
+        // mandatory, and its currency must be pinned either top-level or inside
+        // the total claim.
+        $total = $claims['total'] ?? null;
+        $pinsCurrency = isset($claims['currency']) || (\is_array($total) && isset($total['currency']));
+        if (null === $total || !$pinsCurrency) {
+            throw new Ap2Exception('mandate_invalid', 'AP2 checkout mandate must claim the authorized total and currency.');
+        }
+
         if (!$this->coversCurrentTerms($claims, $this->termsFactory->terms($currentCheckout))) {
             throw new Ap2Exception('mandate_scope_mismatch', 'AP2 checkout mandate does not match current checkout terms.');
         }
@@ -57,21 +66,21 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
      */
     private function verifiedClaims(string $mandate, RequestContext $context): array
     {
-        $result = null;
+        $failure = null;
         foreach ($this->claimsVerifiers as $claimsVerifier) {
             $result = $claimsVerifier->verify($mandate, $context);
-            break;
+            if ($result->verified) {
+                return $result->claims;
+            }
+
+            $failure ??= $result;
         }
 
-        if (!$result instanceof Ap2VerificationResult) {
+        if (!$failure instanceof Ap2VerificationResult) {
             throw new Ap2Exception('mandate_unsupported', 'No AP2 mandate verifier is available for this shop.');
         }
 
-        if (!$result->verified) {
-            throw new Ap2Exception($result->errorCode ?? 'mandate_verification_failed', $result->failureReason ?? 'AP2 checkout mandate could not be verified.');
-        }
-
-        return $result->claims;
+        throw new Ap2Exception($failure->errorCode ?? 'mandate_verification_failed', $failure->failureReason ?? 'AP2 checkout mandate could not be verified.');
     }
 
     /**
@@ -106,8 +115,10 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
             }
 
             $currentItems = [];
+            $currentUnitPrices = [];
             foreach ($terms['line_items'] as $item) {
                 $currentItems[$item['id']] = $item['quantity'];
+                $currentUnitPrices[$item['id']] = $item['unit_price'];
             }
 
             $claimedItems = [];
@@ -116,8 +127,20 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
                     return false;
                 }
 
-                $claimedItems[(string) $row['id']] = (int) ($row['quantity'] ?? 1);
+                $id = (string) $row['id'];
+                $claimedItems[$id] = (int) ($row['quantity'] ?? 1);
+
+                if (isset($row['unit_price'])) {
+                    $unitPrice = $row['unit_price'];
+                    $amount = \is_array($unitPrice) ? ($unitPrice['amount'] ?? null) : $unitPrice;
+                    if (!is_numeric($amount) || !isset($currentUnitPrices[$id]) || (int) $amount !== $currentUnitPrices[$id]) {
+                        return false;
+                    }
+                }
             }
+
+            ksort($currentItems);
+            ksort($claimedItems);
 
             if ($claimedItems !== $currentItems) {
                 return false;

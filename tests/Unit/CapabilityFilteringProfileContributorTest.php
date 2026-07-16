@@ -18,6 +18,7 @@ use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizerInterface;
 use Swag\AgenticCommerce\Ucp\Profile\CapabilityFilteringProfileContributor;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
@@ -115,9 +116,23 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             ['com.shopware.x402' => [$this->paymentHandlerDescriptor('com.shopware.x402')]],
             [$this->paymentHandler('com.shopware.x402', false)],
             advertiseDelegatedPaymentHandlers: true,
+            paymentAuthorizers: [$this->paymentAuthorizer('com.shopware.x402')],
         );
 
         self::assertArrayHasKey('com.shopware.x402', $result);
+    }
+
+    #[Test]
+    public function testItDropsDelegatedHandlersWithoutAPaymentAuthorizer(): void
+    {
+        $result = $this->contributePaymentHandlers(
+            [UcpCapabilityCatalog::CONFIG_CHECKOUT],
+            ['com.shopware.x402' => [$this->paymentHandlerDescriptor('com.shopware.x402')]],
+            [$this->paymentHandler('com.shopware.x402', false)],
+            advertiseDelegatedPaymentHandlers: true,
+        );
+
+        self::assertSame([], $result, 'A delegated handler no authorizer can complete must not be advertised.');
     }
 
     #[Test]
@@ -149,6 +164,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
      * @param list<string>                                  $enabledCapabilities
      * @param array<string, list<PaymentHandlerDescriptor>> $paymentHandlers
      * @param list<PaymentHandlerInterface>                 $registeredHandlers
+     * @param list<PaymentAuthorizerInterface>              $paymentAuthorizers
      *
      * @return array<string, list<PaymentHandlerDescriptor>>
      */
@@ -157,6 +173,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         array $paymentHandlers,
         array $registeredHandlers,
         bool $advertiseDelegatedPaymentHandlers = false,
+        array $paymentAuthorizers = [],
     ): array {
         $profile = new PlatformProfile(UcpProtocol::VERSION, [], [], $paymentHandlers);
 
@@ -165,10 +182,21 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             [],
             $registeredHandlers,
             $advertiseDelegatedPaymentHandlers,
+            $paymentAuthorizers,
         )->contribute(
             $profile,
             new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
         )->paymentHandlers;
+    }
+
+    private function paymentAuthorizer(string $handlerId): PaymentAuthorizerInterface
+    {
+        $authorizer = $this->createMock(PaymentAuthorizerInterface::class);
+        $authorizer->method('supports')->willReturnCallback(
+            static fn (string $id): bool => $id === $handlerId,
+        );
+
+        return $authorizer;
     }
 
     private function paymentHandler(string $id, bool $supportsTokenization): PaymentHandlerInterface
@@ -227,12 +255,14 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
      * @param list<string>                            $enabledCapabilities
      * @param list<Ap2MandateClaimsVerifierInterface> $ap2Verifiers
      * @param list<PaymentHandlerInterface>           $registeredHandlers
+     * @param list<PaymentAuthorizerInterface>        $paymentAuthorizers
      */
     private function contributor(
         array $enabledCapabilities,
         array $ap2Verifiers = [],
         array $registeredHandlers = [],
         bool $advertiseDelegatedPaymentHandlers = false,
+        array $paymentAuthorizers = [],
     ): CapabilityFilteringProfileContributor {
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
@@ -269,7 +299,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             new SalesChannelDomainResolver($domainRepository),
             new UcpConfigService($this->createMock(UcpConfigRepositoryInterface::class), $legacyStore),
             new ShopwareVersionDetector('6.7.0.0'),
-            new UcpExtensionAvailability([], $paymentHandlerRegistry, $ap2Verifiers),
+            new UcpExtensionAvailability([], $paymentHandlerRegistry, $ap2Verifiers, $paymentAuthorizers),
         );
     }
 }

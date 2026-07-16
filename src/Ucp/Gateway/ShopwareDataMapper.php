@@ -21,6 +21,7 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
+use Ucp\Sdk\Model\Common\MonetaryAmount;
 use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\Adjustment;
 use Ucp\Sdk\Model\Order\OrderView;
@@ -46,7 +47,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
                 'id' => $product->getId(),
                 'title' => $name,
                 'description' => ['plain' => $name],
-                'price' => ['amount' => (int) round($price * 100), 'currency' => $currency],
+                'price' => MonetaryAmount::fromMajorUnits($price, $currency)->toPriceArray(),
                 'inputs' => [['id' => $lookupInputId, 'match' => 'exact']],
             ]];
         }
@@ -64,11 +65,13 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
     public function toCart(Cart $cart, SalesChannelContext $context): \Ucp\Sdk\Model\Cart\Cart
     {
+        $currency = $context->getCurrency()->getIsoCode();
+
         return new \Ucp\Sdk\Model\Cart\Cart(
             $cart->getToken() ?: $context->getToken(),
-            $this->mapShopwareLineItems($cart->getLineItems()),
-            $context->getCurrency()->getIsoCode(),
-            $this->cartMoneySummary($cart),
+            $this->mapShopwareLineItems($cart->getLineItems(), $currency),
+            $currency,
+            $this->cartMoneySummary($cart, $currency),
             $this->mapCartMessages($cart),
         );
     }
@@ -81,12 +84,14 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         ?string $continueUrl = null,
         ?OrderEntity $order = null,
     ): Checkout {
+        $currency = $context->getCurrency()->getIsoCode();
+
         return new Checkout(
             $cart->getToken() ?: $context->getToken(),
             $status,
-            $context->getCurrency()->getIsoCode(),
-            $this->mapShopwareLineItems($cart->getLineItems()),
-            $this->cartMoneySummary($cart),
+            $currency,
+            $this->mapShopwareLineItems($cart->getLineItems(), $currency),
+            $this->cartMoneySummary($cart, $currency),
             $this->mapCartMessages($cart),
             null !== $continueUrl ? [new Link('continue', $continueUrl, 'Continue checkout')] : [],
             $buyer,
@@ -102,8 +107,8 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $checkoutId,
             CheckoutStatus::Completed,
             $currencyCode,
-            $this->mapOrderLineItems($order),
-            $this->orderMoneySummary($order),
+            $this->mapOrderLineItems($order, $currencyCode),
+            $this->orderMoneySummary($order, $currencyCode),
             [],
             null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
@@ -115,11 +120,13 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
     public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
     {
+        $currency = $order->getCurrency()?->getIsoCode() ?? 'EUR';
+
         return new OrderView(
             $order->getId(),
-            $order->getCurrency()?->getIsoCode() ?? 'EUR',
-            $this->mapOrderLineItems($order),
-            $this->orderMoneySummary($order),
+            $currency,
+            $this->mapOrderLineItems($order, $currency),
+            $this->orderMoneySummary($order, $currency),
             $this->mapOrderMessages($order),
             null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
@@ -175,7 +182,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     /**
      * @return list<LineItem>
      */
-    private function mapShopwareLineItems(LineItemCollection $lineItems): array
+    private function mapShopwareLineItems(LineItemCollection $lineItems, string $currency): array
     {
         $payload = [];
 
@@ -191,6 +198,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
                     'type' => $lineItem->getType(),
                     'line_item_id' => $lineItem->getId(),
                 ],
+                $currency,
             );
         }
 
@@ -200,7 +208,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     /**
      * @return list<LineItem>
      */
-    private function mapOrderLineItems(OrderEntity $order): array
+    private function mapOrderLineItems(OrderEntity $order, string $currency): array
     {
         $payload = [];
 
@@ -215,6 +223,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
                     'type' => $lineItem->getType(),
                     'line_item_id' => $lineItem->getId(),
                 ],
+                $currency,
             );
         }
 
@@ -258,26 +267,28 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     /**
      * @return list<Money>
      */
-    private function cartMoneySummary(Cart $cart): array
+    private function cartMoneySummary(Cart $cart, string $currency): array
     {
         return $this->moneySummary(
             $cart->getPrice()->getPositionPrice(),
             $cart->getShippingCosts()->getTotalPrice(),
             $cart->getPrice()->getTotalPrice(),
             $cart->getPrice()->getCalculatedTaxes(),
+            $currency,
         );
     }
 
     /**
      * @return list<Money>
      */
-    private function orderMoneySummary(OrderEntity $order): array
+    private function orderMoneySummary(OrderEntity $order, string $currency): array
     {
         return $this->moneySummary(
             $order->getPrice()->getPositionPrice(),
             $order->getShippingCosts()->getTotalPrice(),
             $order->getPrice()->getTotalPrice(),
             $order->getPrice()->getCalculatedTaxes(),
+            $currency,
         );
     }
 
@@ -291,12 +302,13 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         float $shipping,
         float $total,
         iterable $taxes,
+        string $currency,
     ): array {
         return [
-            new Money('subtotal', $subtotal),
-            new Money('fulfillment', $shipping),
-            new Money('total', $total),
-            new Money('tax', $this->totalTax($taxes)),
+            new Money('subtotal', $subtotal, null, $currency),
+            new Money('fulfillment', $shipping, null, $currency),
+            new Money('total', $total, null, $currency),
+            new Money('tax', $this->totalTax($taxes), null, $currency),
         ];
     }
 
@@ -310,6 +322,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         int $quantity,
         ?string $coverUrl,
         array $metadata,
+        string $currency,
     ): LineItem {
         return new LineItem(
             $id,
@@ -318,6 +331,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $quantity,
             \is_string($coverUrl) && '' !== $coverUrl ? $coverUrl : null,
             $metadata,
+            $currency,
         );
     }
 

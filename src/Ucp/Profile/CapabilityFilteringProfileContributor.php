@@ -33,18 +33,7 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
     {
         $resolution = $this->domainResolver->resolveByBaseUri($input->baseUri);
         $config = $this->configService->getConfig($resolution?->salesChannelId);
-        $enabledDescriptors = $config->runtimeEnabledCapabilityDescriptors();
-        if (!$this->extensionAvailability->supportsIdentityLinking()) {
-            $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING]));
-        }
-
-        if (!$this->extensionAvailability->supportsPaymentTokenization()) {
-            $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION]));
-        }
-
-        if (!$this->extensionAvailability->supportsAp2Mandates()) {
-            $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE]));
-        }
+        $enabledDescriptors = $this->extensionAvailability->filterSupportedDescriptors($config->runtimeEnabledCapabilityDescriptors());
 
         $enabledTransports = array_map(
             static fn (Transport $transport): string => $transport->value,
@@ -81,7 +70,7 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
      * payment_tokenization capability is enabled; non-tokenizing (delegated)
      * handlers only when the sales channel opts in via
      * `advertiseDelegatedPaymentHandlers` (default off, preserving the previous
-     * empty-map behaviour).
+     * empty-map behaviour) AND a payment authorizer can actually complete them.
      *
      * @param array<string, list<PaymentHandlerDescriptor>> $paymentHandlers
      * @param list<string>                                  $enabledDescriptors
@@ -102,7 +91,7 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
                 $descriptors,
                 fn (PaymentHandlerDescriptor $descriptor): bool => $this->extensionAvailability->paymentHandlerSupportsTokenization($descriptor->id)
                     ? $tokenizationEnabled
-                    : $config->advertiseDelegatedPaymentHandlers,
+                    : $config->advertiseDelegatedPaymentHandlers && $this->extensionAvailability->hasPaymentAuthorizerFor($descriptor->id),
             ));
 
             if ([] !== $kept) {

@@ -168,8 +168,11 @@ final class UcpMcpToolContextTest extends TestCase
         );
         // The context normalizes empty maps to objects so they serialize as {}.
         $expectedData = $operationResponse->toArray();
-        $expectedData['ucp']['services'] = new \stdClass();
-        $expectedData['ucp']['payment_handlers'] = new \stdClass();
+        $envelope = $expectedData['ucp'];
+        \assert(\is_array($envelope));
+        $envelope['services'] = new \stdClass();
+        $envelope['payment_handlers'] = new \stdClass();
+        $expectedData['ucp'] = $envelope;
 
         $record = new IdempotencyRecord('idem-key', 'fingerprint');
 

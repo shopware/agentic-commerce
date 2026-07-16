@@ -225,7 +225,12 @@ final class UcpConfig
         ];
     }
 
-    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false): RuntimeConfiguration
+    /**
+     * @param list<string>|null $enabledCapabilityDescriptors overrides the config-derived
+     *                                                        descriptors so callers can drop capabilities the installation
+     *                                                        cannot serve (see UcpExtensionAvailability::filterSupportedDescriptors())
+     */
+    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false, ?array $enabledCapabilityDescriptors = null): RuntimeConfiguration
     {
         $baseUri = $this->resolveBaseUri($fallbackBaseUri);
         $host = parse_url($baseUri, \PHP_URL_HOST);
@@ -242,7 +247,7 @@ final class UcpConfig
             $allowedAgentDomains,
             [],
             $this->runtimeTransports($storeApiMcpAvailable),
-            $this->runtimeEnabledCapabilityDescriptors(),
+            $enabledCapabilityDescriptors ?? $this->runtimeEnabledCapabilityDescriptors(),
             $tenantIdentifier,
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
         );

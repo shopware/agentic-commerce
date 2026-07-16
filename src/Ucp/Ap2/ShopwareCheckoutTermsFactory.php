@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Ap2;
 
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Common\LineItem;
+use Ucp\Sdk\Model\Common\MonetaryAmount;
 use Ucp\Sdk\Model\Common\Money;
 
 /**
@@ -31,7 +32,7 @@ final class ShopwareCheckoutTermsFactory
                 fn (LineItem $item): array => [
                     'id' => $item->id,
                     'quantity' => $item->quantity,
-                    'unit_price' => $this->minorUnits($item->price),
+                    'unit_price' => $this->minorUnits($item->price, $checkout->currency),
                 ],
                 $checkout->lineItems,
             ),
@@ -47,15 +48,15 @@ final class ShopwareCheckoutTermsFactory
     {
         foreach ($checkout->totals as $money) {
             if ($money instanceof Money && $money->type === $type) {
-                return $this->minorUnits($money->amount);
+                return $this->minorUnits($money->amount, $checkout->currency);
             }
         }
 
         return 0;
     }
 
-    private function minorUnits(float $amount): int
+    private function minorUnits(float $amount, string $currency): int
     {
-        return (int) round($amount * 100);
+        return MonetaryAmount::fromMajorUnits($amount, $currency)->minorUnits;
     }
 }

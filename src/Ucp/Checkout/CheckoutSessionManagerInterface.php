@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
@@ -14,6 +15,11 @@ interface CheckoutSessionManagerInterface
      * @param array<string, mixed> $metadata
      */
     public function buyer(array $metadata): ?Buyer;
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function selectedPaymentInstrument(array $metadata): ?PaymentInstrument;
 
     /**
      * @param array<string, mixed> $metadata

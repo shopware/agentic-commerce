@@ -85,7 +85,10 @@ final class CheckoutCompleter
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
             }
 
-            $paymentInstrument = $request->payment?->instruments[0] ?? null;
+            // Fall back to the instrument selected during checkout.update so an
+            // instrument-less complete request cannot skip PSP authorization.
+            $paymentInstrument = $request->payment?->instruments[0]
+                ?? $this->sessionManager->selectedPaymentInstrument($metadata);
             if (null !== $paymentInstrument) {
                 $result = $this->paymentAuthorizerRegistry->authorize($request, $paymentInstrument, $cart, $customerContext, $requestContext);
                 if (!$result->authorized) {

@@ -192,6 +192,11 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
+            public function selectedPaymentInstrument(array $metadata): ?PaymentInstrument
+            {
+                return null;
+            }
+
             public function guestAddress(array $metadata): ?array
             {
                 return null;
@@ -384,6 +389,113 @@ final class CheckoutCompleterTest extends TestCase
     }
 
     #[Test]
+    public function testItAuthorizesTheStoredSelectedPaymentWhenTheRequestOmitsInstruments(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
+        $currency = new CurrencyEntity();
+        $currency->setIsoCode('EUR');
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $customerContext->method('getCurrency')->willReturn($currency);
+
+        $order = new OrderEntity();
+        $order->setId(self::ORDER_ID);
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::once())->method('placeOrder')->willReturn($order);
+
+        $authorizer = new RecordingPaymentAuthorizer('com.example.psp', PaymentAuthorizationResult::authorized('auth-1'));
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $this->passthroughMapper(),
+            $this->fixedProvisioner($customerContext),
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $this->fixedContinueUrlBuilder(),
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new PaymentAuthorizerRegistry([$authorizer]),
+        );
+
+        $metadata = [
+            'selectedPayment' => [
+                'instruments' => [[
+                    'type' => 'tokenized',
+                    'handler_id' => 'com.example.psp',
+                    'credential' => ['token' => 'stored_mandate'],
+                ]],
+            ],
+        ];
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), $metadata, new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+
+        static::assertSame(self::CHECKOUT_ID, $authorizer->checkoutId, 'The stored instrument must be authorized even when the complete request omits payment.');
+        static::assertSame('stored_mandate', $authorizer->instrument?->credential['token']);
+    }
+
+    #[Test]
+    public function testItRejectsCompletionWhenStoredSelectedPaymentIsDeclined(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+        $completionStore->expects(static::never())->method('complete');
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::never())->method('placeOrder');
+
+        $authorizer = new RecordingPaymentAuthorizer(
+            'com.example.psp',
+            PaymentAuthorizationResult::failed('payment_declined', 'Payment mandate was declined.'),
+        );
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $this->uninitialized(ShopwareDataMapper::class),
+            $this->fixedProvisioner($customerContext),
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $this->uninitialized(CheckoutContinueUrlBuilder::class),
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new PaymentAuthorizerRegistry([$authorizer]),
+        );
+
+        $metadata = [
+            'selectedPayment' => [
+                'instruments' => [[
+                    'type' => 'tokenized',
+                    'handler_id' => 'com.example.psp',
+                    'credential' => ['token' => 'stored_mandate'],
+                ]],
+            ],
+        ];
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        try {
+            $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), $metadata, new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+            static::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception $exception) {
+            static::assertSame('payment_declined', $exception->errorCode);
+        }
+    }
+
+    #[Test]
     public function testItRejectsCompletionWhenPaymentAuthorizationFails(): void
     {
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
@@ -535,6 +647,20 @@ final class CheckoutCompleterTest extends TestCase
             public function buyer(array $metadata): ?Buyer
             {
                 return null;
+            }
+
+            public function selectedPaymentInstrument(array $metadata): ?PaymentInstrument
+            {
+                $instrument = $metadata['selectedPayment']['instruments'][0] ?? null;
+                if (!\is_array($instrument)) {
+                    return null;
+                }
+
+                return new PaymentInstrument(
+                    $instrument['type'],
+                    $instrument['handler_id'],
+                    $instrument['credential'] ?? [],
+                );
             }
 
             public function guestAddress(array $metadata): ?array
