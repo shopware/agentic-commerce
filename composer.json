@@ -1,10 +1,18 @@
 {
     "name": "shopware/agentic-commerce",
-    "description": "Shopware plugin for UCP and agentic commerce discovery",
+    "description": "Shopware plugin for agentic commerce discovery, product feeds, and Universal Commerce Protocol shopping flows",
+    "version": "1.1.0",
     "type": "shopware-platform-plugin",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "shopware AG"
+        }
+    ],
     "require": {
         "php": "^8.1",
+        "shopware/core": ">=6.5.0 <6.8.0",
+        "shopware/storefront": ">=6.5.0 <6.8.0",
         "ucp-php-sdk/symfony-bundle": "^0.0.1"
     },
     "require-dev": {
@@ -48,13 +56,17 @@
             "en-GB": "Agentic Commerce"
         },
         "description": {
-            "de-DE": "UCP- und Agentic-Commerce-Plugin fuer Shopware",
-            "en-GB": "UCP and agentic commerce plugin for Shopware"
+            "de-DE": "Erweitert Shopware um Agentic Commerce mit KI-Produktfeeds, Discovery-Dokumenten, Analysen und Einkaufsabläufen auf Basis des Universal Commerce Protocol für KI-Agenten.",
+            "en-GB": "Adds Agentic Commerce capabilities to Shopware, including AI product feeds, merchant discovery documents, analytics, and Universal Commerce Protocol shopping flows for AI agents."
+        },
+        "manufacturerLink": {
+            "de-DE": "https://store.shopware.com/shopware-ag.html",
+            "en-GB": "https://store.shopware.com/en/shopware-ag.html"
+        },
+        "supportLink": {
+            "de-DE": "https://issues.shopware.com/",
+            "en-GB": "https://issues.shopware.com/"
         }
-    },
-    "suggest": {
-        "shopware/core": "Provided by the active Shopware lane during plugin runtime and integration testing.",
-        "shopware/storefront": "Provided by the active Shopware lane during plugin runtime and integration testing."
     },
     "config": {
         "sort-packages": true,

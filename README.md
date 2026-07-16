@@ -30,7 +30,7 @@ Default rule: if multiple merchants/frameworks could reuse it, start in the SDK.
 
 Customer-facing runtime flows must enter Shopware through Store API boundaries wherever such a boundary exists. This is a hard architecture rule for UCP adapters, gateways, and shopping flows such as catalog, cart, checkout, customer, identity, and order reads. Prefer injecting the relevant Store API route abstraction, for example `Abstract*Route`, so Shopware decorators, sales-channel visibility, validation, customer ownership checks, context-token handling, and route events stay in effect. Do not implement buyer-facing behavior with direct DAL repository reads/writes, manual customer creation, or hand-rolled context mutation. Repository access is acceptable for plugin-owned configuration, admin/runtime metadata, compatibility discovery, or a documented exception where no Store API route exists.
 
-The SDK is a required runtime dependency for this plugin line. Shopware installs it through plugin Composer commands, so `SwagAgenticCommerce::executeComposerCommands()` must stay enabled. If a future release should boot with UCP disabled when the SDK is missing, implement that as an explicit conditional service-loading mode in the plugin. Do not only suppress `getAdditionalBundles()` errors; the plugin service graph contains SDK interfaces and transport contracts.
+The SDK is a required runtime dependency for this plugin line. Shopware installs the public Packagist packages through plugin Composer commands, so `SwagAgenticCommerce::executeComposerCommands()` stays enabled. If a future release should boot with UCP disabled when the SDK is missing, implement that as an explicit conditional service-loading mode in the plugin. Do not only suppress `getAdditionalBundles()` errors; the plugin service graph contains SDK interfaces and transport contracts.
 
 ## UCP
 
@@ -206,7 +206,19 @@ Manual human test steps are documented in [docs/manual-testing.md](docs/manual-t
 
 Lane-specific administration, build, and local-runtime differences are documented in [docs/shopware-version-differences.md](docs/shopware-version-differences.md). Short-form guidance for future coding agents is kept in [AGENTS.md](AGENTS.md).
 
-The main-merge tester zip workflow is documented in [docs/main-merge-test-zip-artifact.md](docs/main-merge-test-zip-artifact.md).
+## Release
+
+Store releases use `.github/workflows/store-release.yml`. Manual dispatch is safe by default: with `publish` disabled, the workflow builds and validates the same Shopware CLI package without uploading it. With `publish` enabled, it only releases the current `main` HEAD after that exact commit has a successful `validation-gate` check.
+
+Prepare a release in a pull request by updating:
+
+- `composer.json` (`version`), which is the Store release source of truth;
+- `src/Resources/app/administration/package.json` and its lock file to the same version;
+- `CHANGELOG.md` and `CHANGELOG_de-DE.md` with a matching `# <version>` section.
+
+After merging and waiting for the `main` CI run, dispatch a packaging-only run first. Enable `publish` only after that succeeds. Publishing uploads the ZIP to the Shopware Store and creates the version tag and GitHub release. It does not update the Store listing metadata or remove the Beta label.
+
+Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
 
 Administration build compatibility is intentionally validated as a matrix:
 
@@ -220,9 +232,9 @@ GitHub Actions checks out public `shopware/shopware` and public `agentic-commerc
 
 The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane-local Composer installs do not collide with the Shopware runtime dependency graph.
 
-Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin's source `composer.json` is the public metadata source of truth for plugin-owned dependencies: it requires `ucp-php-sdk/symfony-bundle`, and SDK core is resolved transitively by that bundle. Shopware packages are provided by the active lane. The source metadata intentionally does not contain local SDK path repositories or alpha stability flags.
+Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin's source `composer.json` is the public metadata source of truth for plugin-owned dependencies: it requires the public `ucp-php-sdk/symfony-bundle` Packagist package, and SDK core is resolved transitively by that bundle. Shopware packages are provided by the active lane. Release packages therefore do not embed a plugin-local vendor tree.
 
-While the SDK packages are not yet published to Packagist, local lanes and CI configure path repositories in the Shopware root project for runtime installs, and the repo-local CI quality job injects the same SDK path repositories before `composer install`. Those path repositories use stable `0.0.1` aliases so Composer can resolve the transitive SDK core package. The plugin path repository must expose the matching Shopware lane version (`6.5.9999999-dev`, `6.6.9999999-dev`, or `6.7.9999999-dev`) so Shopware's plugin lifecycle does not run a second incompatible Composer require during `plugin:install`. The release-candidate ZIP workflow uses the same private SDK checkout only as a staging input, vendors the SDK into plugin-local `vendor/`, writes `.swag-agentic-commerce-bundled-sdk`, and disables Shopware plugin Composer commands for that artifact. Testers of the ZIP do not need SDK path repositories or SDK Composer credentials.
+Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories use stable `0.0.1` aliases, and the plugin path repository exposes the matching Shopware lane version (`6.5.9999999-dev`, `6.6.9999999-dev`, or `6.7.9999999-dev`) so Shopware's plugin lifecycle does not run a second incompatible Composer require during `plugin:install`.
 
 `bin/ci-smoke.sh` supports two execution modes:
 
