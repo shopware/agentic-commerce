@@ -34,8 +34,9 @@ final class Migration1781274920CreateUcpCheckoutCompletionTableTest extends Test
                 static::assertStringNotContainsString('`sales_channel_id`', $sql);
                 static::assertStringNotContainsString('`status`', $sql);
                 static::assertStringContainsString('`order_id` BINARY(16) NOT NULL', $sql);
+                static::assertStringContainsString('`order_version_id` BINARY(16) NOT NULL', $sql);
                 static::assertStringContainsString('CONSTRAINT `fk.sac_ucp_checkout_completion.order_id`', $sql);
-                static::assertStringContainsString('REFERENCES `order` (`id`)', $sql);
+                static::assertStringContainsString('FOREIGN KEY (`order_id`, `order_version_id`) REFERENCES `order` (`id`, `version_id`)', $sql);
 
                 return true;
             }));

@@ -92,9 +92,23 @@ web_root_mount_type() {
     "${web_id}"
 }
 
+# The MariaDB image ships the `mariadb` client; the MySQL image ships `mysql`.
+# Pick the matching client so db helpers work on whichever flavor the lane
+# provisioned (see CI_DB_FLAVOR in bin/ci-write-compose.sh).
+db_client() {
+  case "${CI_DB_FLAVOR:-mariadb}" in
+    mysql*)
+      echo mysql
+      ;;
+    *)
+      echo mariadb
+      ;;
+  esac
+}
+
 db_query() {
   # shellcheck disable=SC2154
-  "${compose[@]}" exec -T database mariadb -N -uroot -proot shopware -e "$1"
+  "${compose[@]}" exec -T database "$(db_client)" -N -uroot -proot shopware -e "$1"
 }
 
 db_table_exists() {
@@ -102,7 +116,7 @@ db_table_exists() {
   local result
 
   # shellcheck disable=SC2154
-  result="$("${compose[@]}" exec -T database mariadb -N -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'shopware' AND table_name = '${table_name}';")"
+  result="$("${compose[@]}" exec -T database "$(db_client)" -N -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'shopware' AND table_name = '${table_name}';")"
 
   [[ "${result}" == "1" ]]
 }
