@@ -26,25 +26,7 @@ SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 source "${PLUGIN_ROOT}/bin/lib/lane.sh"
 
 SHOPWARE_BRANCH="$(detect_shopware_lane)"
-
-plugin_composer_version() {
-  case "${SHOPWARE_BRANCH}" in
-    6.5.x)
-      printf '6.5.9999999-dev\n'
-      ;;
-    6.6.x)
-      printf '6.6.9999999-dev\n'
-      ;;
-    trunk)
-      printf '6.7.9999999-dev\n'
-      ;;
-    *)
-      printf 'dev-main\n'
-      ;;
-  esac
-}
-
-PLUGIN_COMPOSER_VERSION="$(plugin_composer_version)"
+PLUGIN_COMPOSER_VERSION="$(jq -er '.version' "${PLUGIN_ROOT}/composer.json")"
 
 if [[ -z "${SMOKE_MODE}" ]]; then
   if [[ -n "${CI:-}" ]]; then

@@ -234,7 +234,7 @@ The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane
 
 Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin's source `composer.json` is the public metadata source of truth for plugin-owned dependencies: it requires the public `ucp-php-sdk/symfony-bundle` Packagist package, and SDK core is resolved transitively by that bundle. Shopware packages are provided by the active lane. Release packages therefore do not embed a plugin-local vendor tree.
 
-Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories use stable `0.0.1` aliases, and the plugin path repository exposes the matching Shopware lane version (`6.5.9999999-dev`, `6.6.9999999-dev`, or `6.7.9999999-dev`) so Shopware's plugin lifecycle does not run a second incompatible Composer require during `plugin:install`.
+Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories use stable `0.0.1` aliases, and the plugin path repository exposes the release version from `composer.json` so Shopware's plugin lifecycle resolves the same package version during `plugin:install`.
 
 `bin/ci-smoke.sh` supports two execution modes:
 
