@@ -21,6 +21,7 @@ use Swag\AgenticCommerce\Ucp\Profile\CapabilityFilteringProfileContributor;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
+use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
@@ -63,6 +64,36 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT, $result);
     }
 
+    #[Test]
+    public function testActiveChannelAdvertisesRegisteredPaymentHandlersWithoutTokenization(): void
+    {
+        // registry->all() is empty in the harness, so supportsPaymentTokenization()
+        // is false. A delegated handler like x402 must still be advertised.
+        $handlers = ['com.shopware.x402' => [$this->paymentHandlerDescriptor()]];
+        $profile = new PlatformProfile(UcpProtocol::VERSION, [], [], $handlers);
+
+        $result = $this->contributor([])->contribute(
+            $profile,
+            new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
+        );
+
+        self::assertSame($handlers, $result->paymentHandlers);
+    }
+
+    #[Test]
+    public function testInactiveChannelAdvertisesNoPaymentHandlers(): void
+    {
+        $handlers = ['com.shopware.x402' => [$this->paymentHandlerDescriptor()]];
+        $profile = new PlatformProfile(UcpProtocol::VERSION, [], [], $handlers);
+
+        $result = $this->contributor([], active: false)->contribute(
+            $profile,
+            new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
+        );
+
+        self::assertSame([], $result->paymentHandlers);
+    }
+
     /**
      * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
@@ -77,6 +108,18 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             $profile,
             new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
         )->capabilities;
+    }
+
+    private function paymentHandlerDescriptor(): PaymentHandlerDescriptor
+    {
+        return new PaymentHandlerDescriptor(
+            'com.shopware.x402',
+            'x402',
+            UcpProtocol::VERSION,
+            'https://ucp.dev/specification/payment/',
+            'https://ucp.dev/schemas/x402-config.json',
+            ['https://ucp.dev/schemas/x402-instrument.json'],
+        );
     }
 
     private function descriptor(string $name): CapabilityDescriptor
@@ -96,11 +139,11 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     /**
      * @param list<string> $enabledCapabilities
      */
-    private function contributor(array $enabledCapabilities): CapabilityFilteringProfileContributor
+    private function contributor(array $enabledCapabilities, bool $active = true): CapabilityFilteringProfileContributor
     {
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
-            'SwagAgenticCommerce.config.active' => true,
+            'SwagAgenticCommerce.config.active' => $active,
             'SwagAgenticCommerce.config.enabledCapabilities' => $enabledCapabilities,
             default => null,
         });
