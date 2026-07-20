@@ -28,7 +28,7 @@ final class GuestCustomerAddressResolver
     public function resolve(SalesChannelContext $context, ?array $guestAddress): array
     {
         if (null === $guestAddress) {
-            throw new ValidationException('Checkout session is missing fulfillment.shipping_address; set it on checkout create or update before completion.', ['$.checkout_session.fulfillment.shipping_address is required']);
+            throw new ValidationException('Checkout requires a billing/fulfillment address. Provide fulfillment.extra.shipping_address (or billing_address) with street (or line1), zipcode (or postal_code), city (or locality) and country_code (or country) at checkout create or update.', ['$.checkout_session.fulfillment.shipping_address is required']);
         }
 
         $missingFields = [];
