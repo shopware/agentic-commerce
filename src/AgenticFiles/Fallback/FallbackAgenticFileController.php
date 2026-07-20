@@ -30,6 +30,7 @@ final class FallbackAgenticFileController
         return $this->render('llms.txt', $context);
     }
 
+    #[Route(path: '/AGENTS.md', name: 'swag_agentic_commerce.agents_md_canonical', methods: ['GET'])]
     #[Route(path: '/agents.md', name: 'swag_agentic_commerce.agents_md', methods: ['GET'])]
     public function agents(SalesChannelContext $context): Response
     {
