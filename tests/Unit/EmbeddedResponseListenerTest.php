@@ -140,4 +140,25 @@ final class EmbeddedResponseListenerTest extends TestCase
         self::assertSame('Content-Type, Accept', $event->getResponse()->headers->get('Access-Control-Allow-Headers'));
         self::assertSame('frame-ancestors https://assistant.example', $event->getResponse()->headers->get('Content-Security-Policy'));
     }
+
+    #[Test]
+    public function testItAnswersOriginLessPreflightsWithoutACorsGrant(): void
+    {
+        $this->config = new UcpConfig(
+            active: true,
+            embeddedAllowedOrigins: ['https://assistant.example'],
+        );
+
+        $event = new RequestEvent(
+            $this->kernel,
+            Request::create('https://shop.example/ucp/embedded/cart/cart-id', Request::METHOD_OPTIONS),
+            HttpKernelInterface::MAIN_REQUEST,
+        );
+
+        $this->listener->onKernelRequest($event);
+
+        self::assertTrue($event->hasResponse());
+        self::assertSame(Response::HTTP_NO_CONTENT, $event->getResponse()->getStatusCode());
+        self::assertFalse($event->getResponse()->headers->has('Access-Control-Allow-Origin'));
+    }
 }
