@@ -10,6 +10,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -89,6 +90,9 @@ final class ShopwareOrderGateway implements OrderGatewayInterface
         $criteria->addAssociation('billingAddress');
         $criteria->addAssociation('lineItems.cover');
         $criteria->addAssociation('stateMachineState');
+        $criteria->addAssociation('transactions.stateMachineState');
+        // Oldest-first so OrderPaymentState reads the most recent transaction via ->last().
+        $criteria->getAssociation('transactions')->addSorting(new FieldSorting('createdAt', FieldSorting::ASCENDING));
 
         return $criteria;
     }
