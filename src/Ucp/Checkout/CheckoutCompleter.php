@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateOrderPersister;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -36,6 +37,7 @@ final class CheckoutCompleter
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly PaymentAuthorizerRegistry $paymentAuthorizerRegistry = new PaymentAuthorizerRegistry(),
+        private readonly ?Ap2MandateOrderPersister $mandateOrderPersister = null,
     ) {
     }
 
@@ -99,6 +101,9 @@ final class CheckoutCompleter
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
             $this->completionStore->complete($checkoutId, $order->getId());
+
+            // Store the verified AP2 mandate as dispute evidence on the order.
+            $this->mandateOrderPersister?->persist($checkoutId, $order->getId(), $customerContext->getContext());
 
             $this->sessionManager->saveForCheckoutId(
                 $checkoutId,

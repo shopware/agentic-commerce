@@ -67,6 +67,7 @@ use Swag\AgenticCommerce\Ucp\Adapter\ShopwareDiscountAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareOrderAdapter;
 use Swag\AgenticCommerce\Ucp\Admin\Api\UcpAdminController;
 use Swag\AgenticCommerce\Ucp\Ap2\Ap2CheckoutLockReaderInterface;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateOrderPersister;
 use Swag\AgenticCommerce\Ucp\Ap2\SessionAp2CheckoutLockReader;
 use Swag\AgenticCommerce\Ucp\Ap2\ShopwareAp2CheckoutMandateVerifier;
 use Swag\AgenticCommerce\Ucp\Capability\CartCapability;
@@ -163,6 +164,12 @@ return static function (ContainerConfigurator $container): void {
         'signature_policy' => 'strict',
         'idempotency_required' => true,
         'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
+        // Wires the SDK's merchant-authorization signer so AP2-negotiated checkout
+        // responses carry ap2.merchant_authorization. Per-sales-channel advertisement
+        // stays behind the admin capability toggle and verifier availability.
+        'ap2' => [
+            'enabled' => true,
+        ],
         'signing_keys' => [
             'auto_generate' => true,
             'default_kid' => 'default',
@@ -268,6 +275,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ShopwareAp2CheckoutMandateVerifier::class)
         ->arg('$claimsVerifiers', tagged_iterator('swag_agentic_commerce.ucp.ap2_mandate_claims_verifier'))
         ->tag('ucp_sdk.ap2_checkout_mandate_verifier');
+
+    $services->set(Ap2MandateOrderPersister::class)
+        ->arg('$orderRepository', service('order.repository'));
 
     $services->set(PaymentAuthorizerRegistry::class)
         ->arg('$authorizers', tagged_iterator('swag_agentic_commerce.ucp.payment_authorizer'));

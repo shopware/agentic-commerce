@@ -8,12 +8,13 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Ap2\Ap2CheckoutLockReaderInterface;
 use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateClaimsVerifierInterface;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2VerificationResult;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2VerifiedMandateRegistry;
 use Swag\AgenticCommerce\Ucp\Ap2\ShopwareAp2CheckoutMandateVerifier;
 use Swag\AgenticCommerce\Ucp\Ap2\ShopwareCheckoutTermsFactory;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\Ap2Exception;
 use Ucp\Sdk\Model\Ap2\Ap2CheckoutData;
-use Ucp\Sdk\Model\Ap2\Ap2VerificationResult;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Common\LineItem;
@@ -317,6 +318,50 @@ final class ShopwareAp2CheckoutMandateVerifierTest extends TestCase
         }
     }
 
+    #[Test]
+    public function testItRecordsVerifiedMandatesInTheRegistry(): void
+    {
+        $registry = new Ap2VerifiedMandateRegistry();
+        $claims = [
+            'checkout_id' => 'checkout-1',
+            'total' => ['amount' => 129900, 'currency' => 'EUR'],
+        ];
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: $claims, mandateRegistry: $registry);
+
+        $verifier->verify(
+            new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate-token')),
+            $this->checkout('checkout-1', 1299.0),
+            new RequestContext('shop.example'),
+        );
+
+        $verified = $registry->forCheckout('checkout-1');
+        self::assertNotNull($verified);
+        self::assertSame('mandate-token', $verified['checkoutMandate']);
+        self::assertSame($claims, $verified['claims']);
+    }
+
+    #[Test]
+    public function testItDoesNotRecordRejectedMandates(): void
+    {
+        $registry = new Ap2VerifiedMandateRegistry();
+        $verifier = $this->verifier(ap2Locked: true, verifiedClaims: [
+            'checkout_id' => 'checkout-1',
+            'total' => ['amount' => 999, 'currency' => 'EUR'],
+        ], mandateRegistry: $registry);
+
+        try {
+            $verifier->verify(
+                new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+                $this->checkout('checkout-1', 1299.0),
+                new RequestContext('shop.example'),
+            );
+            self::fail('Expected Ap2Exception was not thrown.');
+        } catch (Ap2Exception) {
+        }
+
+        self::assertNull($registry->forCheckout('checkout-1'));
+    }
+
     /**
      * @param array<string, mixed>|null $verifiedClaims
      */
@@ -324,6 +369,7 @@ final class ShopwareAp2CheckoutMandateVerifierTest extends TestCase
         bool $ap2Locked,
         ?array $verifiedClaims = null,
         ?Ap2VerificationResult $verificationResult = null,
+        ?Ap2VerifiedMandateRegistry $mandateRegistry = null,
     ): ShopwareAp2CheckoutMandateVerifier {
         $lockReader = new class($ap2Locked) implements Ap2CheckoutLockReaderInterface {
             public function __construct(private readonly bool $locked)
@@ -351,7 +397,7 @@ final class ShopwareAp2CheckoutMandateVerifierTest extends TestCase
             };
         }
 
-        return new ShopwareAp2CheckoutMandateVerifier($lockReader, new ShopwareCheckoutTermsFactory(), $claimsVerifiers);
+        return new ShopwareAp2CheckoutMandateVerifier($lockReader, new ShopwareCheckoutTermsFactory(), $claimsVerifiers, $mandateRegistry);
     }
 
     private function checkout(string $id, float $total): Checkout

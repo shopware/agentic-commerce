@@ -15,9 +15,10 @@ function base64Url(value) {
 }
 
 // Matches the deterministic fixture verifier registered in smoke/e2e lanes
-// (SWAG_AGENTIC_COMMERCE_TEST_AP2): `fixture.<base64url(json claims)>`.
+// (SWAG_AGENTIC_COMMERCE_TEST_AP2): `fixture.<base64url(json claims)>.fixture`.
+// Three dot-separated segments, so the SDK's SD-JWT payload pattern accepts it.
 function fixtureCheckoutMandate(claims) {
-    return `fixture.${base64Url(JSON.stringify(claims))}`;
+    return `fixture.${base64Url(JSON.stringify(claims))}.fixture`;
 }
 
 // UCP money amounts are integer minor units on the wire.

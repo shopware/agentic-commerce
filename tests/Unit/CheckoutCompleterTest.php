@@ -9,8 +9,12 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateOrderPersister;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2VerifiedMandateRegistry;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
@@ -386,6 +390,64 @@ final class CheckoutCompleterTest extends TestCase
 
         static::assertSame(self::CHECKOUT_ID, $authorizer->checkoutId);
         static::assertSame('payment_mandate', $authorizer->instrument?->credential['token']);
+    }
+
+    #[Test]
+    public function testItPersistsTheVerifiedMandateOnThePlacedOrder(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
+        $currency = new CurrencyEntity();
+        $currency->setIsoCode('EUR');
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $customerContext->method('getCurrency')->willReturn($currency);
+        $customerContext->method('getContext')->willReturn(Context::createDefaultContext());
+
+        $order = new OrderEntity();
+        $order->setId(self::ORDER_ID);
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::once())->method('placeOrder')->willReturn($order);
+
+        $registry = new Ap2VerifiedMandateRegistry();
+        $registry->record(self::CHECKOUT_ID, 'mandate-token', ['checkout_id' => self::CHECKOUT_ID]);
+
+        $written = null;
+        $orderRepository = $this->createMock(EntityRepository::class);
+        $orderRepository->expects(static::once())
+            ->method('update')
+            ->willReturnCallback(function (array $payload) use (&$written) {
+                $written = $payload;
+
+                return $this->createStub(\Shopware\Core\Framework\DataAbstractionLayer\Event\EntityWrittenContainerEvent::class);
+            });
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $this->passthroughMapper(),
+            $this->fixedProvisioner($customerContext),
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $this->fixedContinueUrlBuilder(),
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new PaymentAuthorizerRegistry(),
+            new Ap2MandateOrderPersister($registry, $orderRepository),
+        );
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+
+        $completer->complete(new CheckoutCompleteRequest(self::CHECKOUT_ID), [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+
+        static::assertNotNull($written, 'The verified mandate must be written to the placed order.');
+        static::assertSame(self::ORDER_ID, $written[0]['id']);
+        static::assertSame('mandate-token', $written[0]['customFields'][Ap2MandateOrderPersister::CUSTOM_FIELD_MANDATE]);
     }
 
     #[Test]

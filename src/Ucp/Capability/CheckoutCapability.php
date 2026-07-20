@@ -47,11 +47,11 @@ final class CheckoutCapability implements CheckoutCapabilityInterface
         return $this->adapter->updateCheckout($request, $context);
     }
 
-    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context): Checkout
+    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context, ?Checkout $verifiedCheckout = null): Checkout
     {
         CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT, 'Checkout capability is disabled for this sales channel.');
 
-        return $this->adapter->completeCheckout($request, $context);
+        return $this->adapter->completeCheckout($request, $context, $verifiedCheckout);
     }
 
     public function cancelCheckout(string $id, RequestContext $context): Checkout

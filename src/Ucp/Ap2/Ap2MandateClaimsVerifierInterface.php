@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Ap2;
 
-use Ucp\Sdk\Model\Ap2\Ap2VerificationResult;
 use Ucp\Sdk\Model\RequestContext;
 
 /**

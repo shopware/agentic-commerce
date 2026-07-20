@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Adapter;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Ap2\ShopwareCheckoutTermsFactory;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
@@ -21,6 +22,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Exception\Ap2Exception;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
@@ -43,6 +45,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         private readonly CheckoutCompleter $checkoutCompleter,
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly ContextTokenGenerator $contextTokenGenerator,
+        private readonly ShopwareCheckoutTermsFactory $termsFactory = new ShopwareCheckoutTermsFactory(),
     ) {
     }
 
@@ -181,7 +184,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         );
     }
 
-    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context): Checkout
+    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context, ?Checkout $verifiedCheckout = null): Checkout
     {
         $id = $request->id;
         $resolution = $this->contextResolver->resolveSalesChannel($context);
@@ -198,7 +201,41 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
+        $this->assertVerifiedTermsUnchanged($verifiedCheckout, $cart, $salesChannelContext, $metadata, $id);
+
         return $this->checkoutCompleter->complete($request, $metadata, $cart, $salesChannelContext, $context);
+    }
+
+    /**
+     * Refuses to complete terms the AP2 mandate verifiers never saw: the cart is
+     * shared server-side state and can be mutated between mandate verification and
+     * completion (TOCTOU).
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private function assertVerifiedTermsUnchanged(
+        ?Checkout $verifiedCheckout,
+        Cart $cart,
+        SalesChannelContext $salesChannelContext,
+        array $metadata,
+        string $checkoutId,
+    ): void {
+        if (null === $verifiedCheckout) {
+            return;
+        }
+
+        $buyer = $this->sessionStore->buyer($metadata);
+        $currentCheckout = $this->mapper->toCheckout(
+            $cart,
+            $salesChannelContext,
+            $this->statusFor($cart->getLineItems()->count(), null !== $buyer),
+            $buyer,
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
+        );
+
+        if ($this->termsFactory->terms($currentCheckout) !== $this->termsFactory->terms($verifiedCheckout)) {
+            throw new Ap2Exception('mandate_scope_mismatch', 'The checkout changed after the AP2 mandate was verified; request a fresh mandate for the current terms.');
+        }
     }
 
     private function ap2Negotiated(RequestContext $context): bool

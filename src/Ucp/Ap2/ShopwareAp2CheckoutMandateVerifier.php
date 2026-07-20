@@ -6,7 +6,6 @@ namespace Swag\AgenticCommerce\Ucp\Ap2;
 
 use Ucp\Sdk\Contract\Ap2CheckoutMandateVerifierInterface;
 use Ucp\Sdk\Exception\Ap2Exception;
-use Ucp\Sdk\Model\Ap2\Ap2VerificationResult;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\RequestContext;
@@ -25,6 +24,7 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
         private readonly Ap2CheckoutLockReaderInterface $lockReader,
         private readonly ShopwareCheckoutTermsFactory $termsFactory,
         private readonly iterable $claimsVerifiers = [],
+        private readonly ?Ap2VerifiedMandateRegistry $mandateRegistry = null,
     ) {
     }
 
@@ -59,6 +59,8 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
         if (!$this->coversCurrentTerms($claims, $this->termsFactory->terms($currentCheckout))) {
             throw new Ap2Exception('mandate_scope_mismatch', 'AP2 checkout mandate does not match current checkout terms.');
         }
+
+        $this->mandateRegistry?->record($request->id, $mandate, $claims);
     }
 
     /**
