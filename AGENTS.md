@@ -309,6 +309,11 @@ The script handles the important differences:
   follow-up commit unless the user explicitly asks for an amend or force-push.
 - PR descriptions should summarize what changed and why. Do not add validation
   sections; CI owns validation reporting.
+- Need an install-ready package for a reviewer? Add the `build:zip` label to the
+  PR. `.github/workflows/package-zip.yml` then builds, validates, and uploads a
+  `SwagAgenticCommerce.zip` run artifact, and rebuilds it on every push while the
+  label stays on. It is opt-in on purpose, so do not wire it into the default CI
+  matrix or the `validation-gate`. See the README `Release` section for details.
 
 ## Further References
 

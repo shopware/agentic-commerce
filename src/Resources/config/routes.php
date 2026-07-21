@@ -24,13 +24,10 @@ return static function (RoutingConfigurator $routes): void {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
     }
 
-    $bundledSdkPath = __DIR__.'/../../../vendor/ucp-php-sdk/symfony-bundle';
-    $sdkBundlePath = is_file(__DIR__.'/../../../.swag-agentic-commerce-bundled-sdk') && is_dir($bundledSdkPath)
-        ? $bundledSdkPath
-        : InstalledVersions::getInstallPath('ucp-php-sdk/symfony-bundle');
+    $sdkBundlePath = InstalledVersions::getInstallPath('ucp-php-sdk/symfony-bundle');
     $sdkRoutes = \is_string($sdkBundlePath) ? $sdkBundlePath.'/src/Resources/config/routes.php' : null;
     if (!\is_string($sdkRoutes) || !is_file($sdkRoutes)) {
-        throw new RouteRuntimeException('Unable to load UCP SDK routes from the Composer-installed or bundled Symfony bundle.');
+        throw new RouteRuntimeException('Unable to load UCP SDK routes from the Composer-installed Symfony bundle.');
     }
 
     $routes->import($sdkRoutes)->defaults([

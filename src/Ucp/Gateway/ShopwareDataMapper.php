@@ -28,7 +28,7 @@ use Ucp\Sdk\Model\Order\OrderView;
 /** @internal */
 final class ShopwareDataMapper implements ShopwareDataMapperInterface
 {
-    public function toProduct(ProductEntity $product, ?string $lookupInputId = null): Product
+    public function toProduct(ProductEntity $product, SalesChannelContext $context, ?string $lookupInputId = null): Product
     {
         $name = $product->getTranslation('name');
         if (!\is_string($name) || '' === $name) {
@@ -38,6 +38,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $cover = $product->getCover();
         $imageUrl = $cover?->getMedia()?->getUrl();
         $price = $product instanceof SalesChannelProductEntity ? $product->getCalculatedPrice()->getUnitPrice() : 0.0;
+        $currency = $context->getCurrency()->getIsoCode();
         $extra = [];
 
         if (null !== $lookupInputId) {
@@ -45,7 +46,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
                 'id' => $product->getId(),
                 'title' => $name,
                 'description' => ['plain' => $name],
-                'price' => ['amount' => (int) round($price * 100), 'currency' => 'EUR'],
+                'price' => ['amount' => (int) round($price * 100), 'currency' => $currency],
                 'inputs' => [['id' => $lookupInputId, 'match' => 'exact']],
             ]];
         }
@@ -57,6 +58,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
             // @phpstan-ignore-next-line argument.type -- SDK schema requires lookup inputs, but Product::$extra is typed too narrowly.
             $extra,
+            $currency,
         );
     }
 

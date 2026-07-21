@@ -21,13 +21,16 @@ smoke_discovery() {
 
   if [[ "${core_agentic_files_available}" == "0" ]]; then
     echo "Verifying fallback agentic discovery files."
-    local llms_headers_file agents_headers_file llms_body_file agents_body_file llms_txt agents_md localization_next_line
+    local llms_headers_file agents_headers_file agents_lowercase_headers_file llms_body_file agents_body_file agents_lowercase_body_file llms_txt agents_md agents_md_lowercase localization_next_line
     llms_headers_file="$(mktemp)"
     agents_headers_file="$(mktemp)"
+    agents_lowercase_headers_file="$(mktemp)"
     llms_body_file="$(mktemp)"
     agents_body_file="$(mktemp)"
+    agents_lowercase_body_file="$(mktemp)"
     llms_txt="$(fetch_required_url "${BASE_URL}/llms.txt" 'fallback /llms.txt' "${llms_headers_file}" "${llms_body_file}")"
-    agents_md="$(fetch_required_url "${BASE_URL}/agents.md" 'fallback /agents.md' "${agents_headers_file}" "${agents_body_file}")"
+    agents_md="$(fetch_required_url "${BASE_URL}/AGENTS.md" 'fallback /AGENTS.md' "${agents_headers_file}" "${agents_body_file}")"
+    agents_md_lowercase="$(fetch_required_url "${BASE_URL}/agents.md" 'fallback /agents.md' "${agents_lowercase_headers_file}" "${agents_lowercase_body_file}")"
 
     if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
       echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
@@ -36,14 +39,26 @@ smoke_discovery() {
     fi
 
     if ! grep -Eiq '^content-type:[[:space:]]*text/markdown; charset=utf-8' "${agents_headers_file}"; then
-      echo "Expected fallback /agents.md to use text/markdown; charset=utf-8." >&2
+      echo "Expected fallback /AGENTS.md to use text/markdown; charset=utf-8." >&2
       cat "${agents_headers_file}" >&2
+      exit 1
+    fi
+
+    if ! grep -Eiq '^content-type:[[:space:]]*text/markdown; charset=utf-8' "${agents_lowercase_headers_file}"; then
+      echo "Expected fallback /agents.md to use text/markdown; charset=utf-8." >&2
+      cat "${agents_lowercase_headers_file}" >&2
+      exit 1
+    fi
+
+    if [[ "${agents_md}" != "${agents_md_lowercase}" ]]; then
+      echo "Expected fallback /AGENTS.md and /agents.md to return identical content." >&2
       exit 1
     fi
 
     assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include localization guidance.' '## Localization'
     assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include the UCP profile link.' '- [UCP profile](/.well-known/ucp)'
-    assert_contains "${agents_md}" 'Expected fallback /agents.md to include UCP agent guidance.' '## Agentic commerce via UCP'
+    assert_contains "${llms_txt}" 'Expected fallback /llms.txt to use the primary agent instructions URL.' '- [Agent instructions](/AGENTS.md)'
+    assert_contains "${agents_md}" 'Expected fallback /AGENTS.md to include UCP agent guidance.' '## Agentic commerce via UCP'
 
     localization_next_line="$(printf '%s\n' "${llms_txt}" | awk '/^## Localization$/ {getline; print; exit}')"
     if [[ "${localization_next_line}" != "- Current language:"* ]]; then
@@ -52,6 +67,6 @@ smoke_discovery() {
       exit 1
     fi
 
-    rm -f "${llms_headers_file}" "${agents_headers_file}" "${llms_body_file}" "${agents_body_file}"
+    rm -f "${llms_headers_file}" "${agents_headers_file}" "${agents_lowercase_headers_file}" "${llms_body_file}" "${agents_body_file}" "${agents_lowercase_body_file}"
   fi
 }
