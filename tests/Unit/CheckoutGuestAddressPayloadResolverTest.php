@@ -45,6 +45,24 @@ final class CheckoutGuestAddressPayloadResolverTest extends TestCase
     }
 
     #[Test]
+    public function testAcceptsCanonicalUcpPostalAddressFieldNames(): void
+    {
+        $fulfillment = new FulfillmentSelection('shipping', null, [
+            'shipping_address' => [
+                'street_address' => 'Teststr. 1',
+                'postal_code' => '12345',
+                'address_locality' => 'Berlin',
+                'country_code' => 'de',
+            ],
+        ]);
+
+        self::assertSame(
+            ['street' => 'Teststr. 1', 'zipcode' => '12345', 'city' => 'Berlin', 'countryCode' => 'DE'],
+            $this->resolver()->resolve($fulfillment),
+        );
+    }
+
+    #[Test]
     public function testThrowsOnMalformedAddressNamingMissingFields(): void
     {
         $fulfillment = new FulfillmentSelection('shipping', null, [

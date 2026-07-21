@@ -64,9 +64,9 @@ final class CheckoutGuestAddressPayloadResolver
             throw new ValidationException('fulfillment address must be an object with street (or line1), zipcode (or postal_code), city (or locality) and country_code (or country).', ['$.checkout_session.fulfillment.extra.shipping_address must be an object']);
         }
 
-        $street = $this->stringValue($address['street'] ?? $address['line1'] ?? $address['line_1'] ?? null);
+        $street = $this->stringValue($address['street'] ?? $address['street_address'] ?? $address['line1'] ?? $address['line_1'] ?? null);
         $zipcode = $this->stringValue($address['zipcode'] ?? $address['postal_code'] ?? $address['postalCode'] ?? $address['zip'] ?? null);
-        $city = $this->stringValue($address['city'] ?? $address['locality'] ?? null);
+        $city = $this->stringValue($address['city'] ?? $address['locality'] ?? $address['address_locality'] ?? null);
 
         $missing = [];
         if (null === $street) {
@@ -80,7 +80,7 @@ final class CheckoutGuestAddressPayloadResolver
         }
 
         if ([] !== $missing) {
-            throw new ValidationException('fulfillment address is incomplete. Provide fulfillment.extra.shipping_address (or billing_address) with: street (or line1), zipcode (or postal_code), city (or locality), and country_code (or country).', $missing);
+            throw new ValidationException('fulfillment address is incomplete. Provide fulfillment.extra.shipping_address (or billing_address) with: street (or street_address / line1), zipcode (or postal_code), city (or address_locality / locality), and country_code (or country).', $missing);
         }
 
         $normalized = [
