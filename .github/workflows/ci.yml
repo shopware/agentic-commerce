@@ -137,6 +137,7 @@ jobs:
             "shopware-matrix (6.5.x)"
             "shopware-matrix (6.6.x)"
             "shopware-matrix (trunk)"
+            "mysql84-install"
             "admin-matrix (6.5.x, webpack)"
             "admin-matrix (6.6.x, webpack)"
             "admin-matrix (6.6.x, vite)"
@@ -297,6 +298,41 @@ jobs:
         env:
           BASE_URL: http://localhost:8000
           SHOPWARE_REF: ${{ matrix.lane }}
+
+  mysql84-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/checkout@v6
+        with:
+          repository: agentic-commerce-alliance/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
+      # Provision the stack on MySQL 8.4 (not the default MariaDB) and run the
+      # plugin install/migrations only. MySQL 8.4 rejects a foreign key that
+      # references a prefix of a composite key, so this lane catches migration
+      # regressions like the order (id, version_id) FK that MariaDB accepts.
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" trunk
+        env:
+          CI_DB_FLAVOR: mysql84
+      - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          SDK_ROOT: ${{ github.workspace }}/ucp-php-sdk
+          SHOPWARE_REF: trunk
+          CI_DB_FLAVOR: mysql84
+          CI_SMOKE_BOOTSTRAP_ONLY: '1'
 
   admin-matrix:
     runs-on: ubuntu-latest
@@ -626,6 +662,7 @@ jobs:
             needs.php-quality.result == 'success' &&
             needs.admin-static.result == 'success' &&
             needs.shopware-matrix.result == 'success' &&
+            needs.mysql84-install.result == 'success' &&
             needs.admin-matrix.result == 'success' &&
             needs.storefront-matrix.result == 'success'
           )
@@ -637,6 +674,7 @@ jobs:
       - php-quality
       - admin-static
       - shopware-matrix
+      - mysql84-install
       - admin-matrix
       - storefront-matrix
       - zip-install-smoke

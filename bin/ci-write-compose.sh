@@ -38,6 +38,76 @@ case "${LANE}" in
     ;;
 esac
 
+# The database flavor is decoupled from the Shopware lane so a single lane can be
+# re-run against a different engine. MySQL 8.4 enforces that a foreign key must
+# reference a full unique/primary key (MariaDB and MySQL 8.0 accept a prefix), so
+# a mysql84 lane catches install/migration regressions the default MariaDB misses.
+DB_FLAVOR="${CI_DB_FLAVOR:-mariadb}"
+
+case "${DB_FLAVOR}" in
+  mariadb)
+    database_service=$(cat <<'YAML'
+  database:
+    image: mariadb:latest
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: shopware
+    command:
+      - --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --log_bin_trust_function_creators=1
+      - --binlog_cache_size=16M
+      - --key_buffer_size=0
+      - --join_buffer_size=1024M
+      - --innodb_log_file_size=128M
+      - --innodb_buffer_pool_size=1024M
+      - --innodb_buffer_pool_instances=1
+      - --group_concat_max_len=320000
+      - --default-time-zone=+00:00
+      - --max_binlog_size=512M
+      - --binlog_expire_logs_seconds=86400
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-proot"]
+      start_interval: 3s
+      start_period: 10s
+      interval: 5s
+      timeout: 1s
+      retries: 10
+YAML
+)
+    ;;
+  mysql84)
+    database_service=$(cat <<'YAML'
+  database:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: shopware
+    command:
+      - --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --log_bin_trust_function_creators=1
+      - --group_concat_max_len=320000
+      - --default-time-zone=+00:00
+      - --innodb_buffer_pool_size=1024M
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      start_interval: 3s
+      start_period: 10s
+      interval: 5s
+      timeout: 1s
+      retries: 10
+YAML
+)
+    ;;
+  *)
+    echo "Unsupported CI_DB_FLAVOR '${DB_FLAVOR}'. Use 'mariadb' or 'mysql84'." >&2
+    exit 1
+    ;;
+esac
+
 cat >"${SHOPWARE_DIR}/compose.yaml" <<EOF
 services:
   web:
@@ -66,33 +136,7 @@ services:
       database:
         condition: service_healthy
 
-  database:
-    image: mariadb:latest
-    environment:
-      MARIADB_ROOT_PASSWORD: root
-      MARIADB_DATABASE: shopware
-    command:
-      - --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
-      - --log_bin_trust_function_creators=1
-      - --binlog_cache_size=16M
-      - --key_buffer_size=0
-      - --join_buffer_size=1024M
-      - --innodb_log_file_size=128M
-      - --innodb_buffer_pool_size=1024M
-      - --innodb_buffer_pool_instances=1
-      - --group_concat_max_len=320000
-      - --default-time-zone=+00:00
-      - --max_binlog_size=512M
-      - --binlog_expire_logs_seconds=86400
-    volumes:
-      - db-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-proot"]
-      start_interval: 3s
-      start_period: 10s
-      interval: 5s
-      timeout: 1s
-      retries: 10
+${database_service}
 
   mailer:
     image: axllent/mailpit
