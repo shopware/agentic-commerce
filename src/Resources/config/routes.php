@@ -13,6 +13,7 @@ use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 return static function (RoutingConfigurator $routes): void {
     $routes->import('../../Ucp/Admin/Api/', 'attribute');
     $routes->import('../../Ucp/Mcp/Api/', 'attribute');
+    $routes->import('../../StoreApi/', 'attribute');
 
     // Test-only webhook-capture routes (issue #53): never registered in prod, matching the
     // service-graph gate in services.php.

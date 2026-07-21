@@ -440,4 +440,16 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ConfigReader::class, CompatConfigReader::class)
         ->public();
+
+    // ── Agent-native fulfillment: deepLinkCode-authorized digital download ────
+
+    $services->set(Swag\AgenticCommerce\StoreApi\AgenticOrderDownloadRoute::class)
+        ->public()
+        ->arg('$orderRepository', service('order.repository'))
+        ->arg('$downloadRepository', service('order_line_item_download.repository'))
+        ->arg('$downloadResponseGenerator', service(Shopware\Core\Content\Media\File\DownloadResponseGenerator::class));
+
+    $services->set(Swag\AgenticCommerce\Ucp\Fulfillment\CheckoutDownloadAugmenter::class)
+        ->arg('$orderRepository', service('order.repository'))
+        ->tag('ucp_sdk.checkout_response_augmenter');
 };
