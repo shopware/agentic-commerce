@@ -220,6 +220,18 @@ After merging and waiting for the `main` CI run, dispatch a packaging-only run f
 
 Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
 
+### Test packages on pull requests
+
+Reviewers can get an install-ready ZIP for a pull request without a local build. `.github/workflows/package-zip.yml` builds and validates the extension with the same `shopware/github-actions/build-zip` action the release uses, then uploads it as a `SwagAgenticCommerce.zip` run artifact.
+
+The build is opt-in per PR to keep it off the default CI path:
+
+1. Add the `build:zip` label to the pull request. The label triggers a build right away, and every later push rebuilds the ZIP while the label stays on. Remove the label to stop rebuilding.
+2. Open the workflow run from the PR checks (or the Actions tab) and download `SwagAgenticCommerce.zip` from the run's **Artifacts**.
+3. Install it in a Shopware shop via **Extensions → My extensions → Upload extension**, or with `bin/console plugin:install --activate` after unzipping into `custom/plugins`.
+
+Create the `build:zip` label once under **Issues → Labels** (any color/description) if it does not exist yet; the workflow matches it by name.
+
 Administration build compatibility is intentionally validated as a matrix:
 
 - `6.5.x`: webpack only
