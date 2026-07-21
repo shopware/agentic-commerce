@@ -64,7 +64,8 @@ _ucp_agent_curl() {
   if [[ -n "${UCP_AGENT_HEADER}" ]]; then
     agent=(-H "${UCP_AGENT_HEADER}")
   fi
-  curl "${agent[@]}" "$@"
+  # ${arr[@]+...} keeps bash 3.2 (macOS) from treating the empty array as unbound under set -u.
+  curl ${agent[@]+"${agent[@]}"} "$@"
 }
 
 # ucp_status <curl-args>...   — print only the HTTP status code (for negative assertions).
