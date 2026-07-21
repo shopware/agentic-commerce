@@ -28,6 +28,17 @@ final class ShopwareAp2CheckoutMandateVerifier implements Ap2CheckoutMandateVeri
     ) {
     }
 
+    public function supports(CheckoutCompleteRequest $request, Checkout $currentCheckout, RequestContext $context): bool
+    {
+        // The shop's aggregating verifier handles any request that carries a checkout
+        // mandate, delegating format-specific validation to the registered claims
+        // verifiers. When none is registered, verify() fails closed with
+        // mandate_unsupported rather than completing an unverified mandate.
+        $mandate = $request->ap2?->checkoutMandate;
+
+        return \is_string($mandate) && '' !== $mandate;
+    }
+
     public function verify(CheckoutCompleteRequest $request, Checkout $currentCheckout, RequestContext $context): void
     {
         $mandate = $request->ap2?->checkoutMandate;

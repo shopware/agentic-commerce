@@ -319,6 +319,25 @@ final class ShopwareAp2CheckoutMandateVerifierTest extends TestCase
     }
 
     #[Test]
+    public function testItSupportsOnlyRequestsCarryingACheckoutMandate(): void
+    {
+        $verifier = $this->verifier(ap2Locked: true);
+        $checkout = $this->checkout('checkout-1', 1299.0);
+        $context = new RequestContext('shop.example');
+
+        self::assertTrue($verifier->supports(
+            new CheckoutCompleteRequest('checkout-1', ap2: new Ap2CheckoutData('mandate')),
+            $checkout,
+            $context,
+        ));
+        self::assertFalse($verifier->supports(
+            new CheckoutCompleteRequest('checkout-1'),
+            $checkout,
+            $context,
+        ));
+    }
+
+    #[Test]
     public function testItRecordsVerifiedMandatesInTheRegistry(): void
     {
         $registry = new Ap2VerifiedMandateRegistry();
