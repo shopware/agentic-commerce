@@ -152,10 +152,21 @@ return static function (ContainerConfigurator $container): void {
         || '127.0.0.1' === $appUrlHost
         || '::1' === $appUrlHost;
 
+    // Public-domain agent identity: the SDK's UrlSafetyValidator gates profile
+    // FETCHING against a compile-time allowlist that is empty by default (so on a
+    // public domain the shop-origin profile is rejected). Feed it from an env var
+    // (comma-separated hosts) so a deployed shop can admit its own domain. Empty in
+    // dev -> unchanged behaviour (localhost still handled by dev-mode).
+    $allowedProfileHosts = array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) EnvironmentHelper::getVariable('SWAG_AGENTIC_COMMERCE_ALLOWED_PROFILE_HOSTS', '')),
+    ), static fn (string $host): bool => '' !== $host));
+
     $container->extension('ucp_sdk', [
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
+        'allowed_profile_hosts' => $allowedProfileHosts,
         'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
         'signing_keys' => [
             'auto_generate' => true,
