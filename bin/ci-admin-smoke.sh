@@ -250,20 +250,6 @@ if ! grep -q 'Log in to Shopware' <<<"${admin_html}" && ! grep -q 'Administratio
   exit 1
 fi
 
-if [[ -n "${CI_ADMIN_EXPORT_PLUGIN_PUBLIC:-}" ]]; then
-  web_id="$(web_container_id)"
-  if [[ -z "${web_id}" ]]; then
-    echo "Unable to resolve the web container id for ${SHOPWARE_DIR}." >&2
-    exit 1
-  fi
-
-  export_dir="${CI_ADMIN_EXPORT_PLUGIN_PUBLIC}"
-  rm -rf "${export_dir}"
-  mkdir -p "${export_dir}"
-  "${compose_cmd[0]}" cp "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/public/." "${export_dir}/"
-  chmod -R a+rX "${export_dir}"
-fi
-
 if [[ "${CI_ADMIN_BROWSER_VALIDATE:-0}" == "1" ]]; then
   if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
     echo "Skipping browser validation for 6.6.x Vite compile-only mode. The 6.6 ADMIN_VITE feature is non-toggleable in this lane; browser/admin validation runs on webpack." >&2

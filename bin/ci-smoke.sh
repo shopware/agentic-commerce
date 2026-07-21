@@ -16,7 +16,6 @@ done
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
 SDK_ROOT="${SDK_ROOT:-${PLUGIN_ROOT}/../ucp-php-sdk}"
-PLUGIN_ZIP="${CI_SMOKE_PLUGIN_ZIP:-}"
 SMOKE_MODE="${CI_SMOKE_MODE:-}"
 SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 
@@ -27,25 +26,7 @@ SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 source "${PLUGIN_ROOT}/bin/lib/lane.sh"
 
 SHOPWARE_BRANCH="$(detect_shopware_lane)"
-
-plugin_composer_version() {
-  case "${SHOPWARE_BRANCH}" in
-    6.5.x)
-      printf '6.5.9999999-dev\n'
-      ;;
-    6.6.x)
-      printf '6.6.9999999-dev\n'
-      ;;
-    trunk)
-      printf '6.7.9999999-dev\n'
-      ;;
-    *)
-      printf 'dev-main\n'
-      ;;
-  esac
-}
-
-PLUGIN_COMPOSER_VERSION="$(plugin_composer_version)"
+PLUGIN_COMPOSER_VERSION="$(jq -er '.version' "${PLUGIN_ROOT}/composer.json")"
 
 if [[ -z "${SMOKE_MODE}" ]]; then
   if [[ -n "${CI:-}" ]]; then
@@ -84,11 +65,6 @@ if [[ "${SKIP_PLUGIN}" != "0" && "${SKIP_PLUGIN}" != "1" ]]; then
   exit 1
 fi
 
-if [[ "${SKIP_PLUGIN}" == "1" && -n "${PLUGIN_ZIP}" ]]; then
-  echo "CI_SMOKE_SKIP_PLUGIN cannot be combined with CI_SMOKE_PLUGIN_ZIP." >&2
-  exit 1
-fi
-
 if [[ "${SKIP_PLUGIN}" == "1" && "${BOOTSTRAP_ONLY}" != "1" ]]; then
   echo "CI_SMOKE_SKIP_PLUGIN requires CI_SMOKE_BOOTSTRAP_ONLY=1." >&2
   exit 1
@@ -103,19 +79,7 @@ if [[ ! -d "${SHOPWARE_DIR}" ]]; then
   exit 1
 fi
 
-if [[ -n "${PLUGIN_ZIP}" ]]; then
-  if ! command -v unzip >/dev/null 2>&1; then
-    echo "Required dependency 'unzip' is not available." >&2
-    exit 1
-  fi
-
-  if [[ ! -f "${PLUGIN_ZIP}" ]]; then
-    echo "Plugin zip not found at ${PLUGIN_ZIP}." >&2
-    exit 1
-  fi
-
-  PLUGIN_ZIP="$(cd "$(dirname "${PLUGIN_ZIP}")" && pwd)/$(basename "${PLUGIN_ZIP}")"
-elif [[ "${SKIP_PLUGIN}" != "1" && ! -d "${SDK_ROOT}" ]]; then
+if [[ "${SKIP_PLUGIN}" != "1" && ! -d "${SDK_ROOT}" ]]; then
   echo "SDK checkout not found at ${SDK_ROOT}." >&2
   exit 1
 fi
@@ -212,13 +176,6 @@ mkdir -p "${SHOPWARE_DIR}/custom/plugins"
 
 if [[ "${SKIP_PLUGIN}" == "1" ]]; then
   :
-elif [[ -n "${PLUGIN_ZIP}" ]]; then
-  unzip -q "${PLUGIN_ZIP}" -d "${SHOPWARE_DIR}/custom/plugins"
-  if [[ ! -d "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" ]]; then
-    echo "Plugin zip must contain a top-level SwagAgenticCommerce directory." >&2
-    exit 1
-  fi
-  chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce"
 else
   mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
   rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' --exclude='AGENTS.md' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
@@ -273,12 +230,10 @@ sync_custom_sources_into_web_volume() {
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce'
     "${container_runtime}" cp "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/." "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce"
   fi
-  if [[ "${SKIP_PLUGIN}" != "1" && -z "${PLUGIN_ZIP}" ]]; then
+  if [[ "${SKIP_PLUGIN}" != "1" ]]; then
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/ucp-php-sdk'
     "${container_runtime}" cp "${SHOPWARE_DIR}/custom/ucp-php-sdk/." "${web_id}:/var/www/html/custom/ucp-php-sdk"
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
-  elif [[ "${SKIP_PLUGIN}" != "1" ]]; then
-    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce'
   fi
 }
 
@@ -321,7 +276,7 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
-if [[ "${SKIP_PLUGIN}" == "1" || -n "${PLUGIN_ZIP}" ]]; then
+if [[ "${SKIP_PLUGIN}" == "1" ]]; then
   web sh -lc 'cd /var/www/html \
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
@@ -340,12 +295,6 @@ if ! db_table_exists plugin; then
 fi
 
 if [[ "${SKIP_PLUGIN}" == "1" ]]; then
-  web sh -lc 'cd /var/www/html \
-    && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
-    && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
-    && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
-elif [[ -n "${PLUGIN_ZIP}" ]]; then
   web sh -lc 'cd /var/www/html \
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
@@ -379,11 +328,6 @@ web php <<'PHP'
 declare(strict_types=1);
 
 require '/var/www/html/vendor/autoload.php';
-
-$pluginAutoload = '/var/www/html/custom/plugins/SwagAgenticCommerce/vendor/autoload.php';
-if (is_file($pluginAutoload)) {
-    require_once $pluginAutoload;
-}
 
 $configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
 if (is_file($configPath)) {
@@ -438,24 +382,6 @@ foreach ([
 echo "UCP SDK storage schema is available on Shopware database.\n";
 PHP
 
-if [[ -n "${PLUGIN_ZIP}" ]]; then
-  web sh -lc 'cd /var/www/html \
-    && php bin/console bundle:dump \
-    && php bin/console feature:dump \
-    && php bin/console assets:install \
-    && rm -f public/bundles/administration/administration/sw-plugin-dev.json'
-
-  if ! web sh -lc 'test -f /var/www/html/public/bundles/swagagenticcommerce/administration/.vite/entrypoints.json'; then
-    echo "Zip-installed administration Vite entrypoints were not published to public/bundles." >&2
-    exit 1
-  fi
-
-  if ! web sh -lc 'test -f /var/www/html/public/bundles/swagagenticcommerce/administration/js/swag-agentic-commerce.js'; then
-    echo "Zip-installed legacy administration bootstrap was not published to public/bundles." >&2
-    exit 1
-  fi
-fi
-
 sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://localhost:%' ORDER BY sales_channel_id LIMIT 1;")"
 if [[ -z "${sales_channel_id}" ]]; then
   sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://%' ORDER BY sales_channel_id LIMIT 1;")"
@@ -485,7 +411,7 @@ web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.w
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.continueUrlTemplate "${BASE_URL}/checkout/confirm?checkoutId={checkoutId}" --salesChannelId="${sales_channel_id}"
 
 store_api_mcp_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo class_exists("Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController") ? "1" : "0";')"
-core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; $pluginAutoload = "/var/www/html/custom/plugins/SwagAgenticCommerce/vendor/autoload.php"; if (is_file($pluginAutoload)) { require_once $pluginAutoload; } echo (class_exists("Swag\\AgenticCommerce\\AgenticFiles\\CoreSalesChannelFileFeature") && Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass()) ? "1" : "0";')"
+core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo (class_exists("Swag\\AgenticCommerce\\AgenticFiles\\CoreSalesChannelFileFeature") && Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass()) ? "1" : "0";')"
 
 enabled_transports='["rest","a2a","embedded"]'
 expected_transports_json='["a2a","embedded","rest"]'
