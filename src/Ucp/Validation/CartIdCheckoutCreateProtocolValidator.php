@@ -19,12 +19,13 @@ final class CartIdCheckoutCreateProtocolValidator implements ProtocolValidatorIn
 {
     public function __construct(
         private readonly ProtocolValidatorInterface $inner,
-    ) {}
+    ) {
+    }
 
     public function validateRequest(string $operation, array $payload, RequestContext $context): void
     {
         if (
-            $operation === 'checkout.create'
+            'checkout.create' === $operation
             && \array_key_exists('cart_id', $payload)
             && !\array_key_exists('line_items', $payload)
         ) {
