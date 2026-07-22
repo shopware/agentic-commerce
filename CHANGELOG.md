@@ -1,4 +1,4 @@
-# 1.1.1
+# 1.1.2
 
 - Fix the sales-channel Save button showing a raw snippet key on Shopware 6.7 by using the shared `global.default.save` label.
 
