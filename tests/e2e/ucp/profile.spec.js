@@ -70,7 +70,12 @@ test.describe('UCP public profile and transports', () => {
         // REST/A2A/embedded are advertised on every lane; MCP is optional.
         expect(transports).toEqual(expect.arrayContaining(ALWAYS_ON_TRANSPORTS));
         expect(transports.every((transport) => KNOWN_TRANSPORTS.includes(transport))).toBe(true);
-        expect(profileRoot.payment_handlers || {}).toEqual({});
+
+        // Payment handlers are advertised whenever the sales channel is active.
+        // The invoice handler is a delegated (non-tokenizing) handler.
+        const paymentHandlers = profileRoot.payment_handlers || {};
+        expect(Object.keys(paymentHandlers)).toContain('com.shopware.invoice');
+        expect(paymentHandlers['com.shopware.invoice'][0].config.tokenization).toBe(false);
 
         // When MCP is advertised it must resolve to the access-key-free proxy.
         const mcpEndpoints = services
