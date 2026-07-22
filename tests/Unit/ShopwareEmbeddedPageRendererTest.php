@@ -35,7 +35,7 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
     {
         // The UCP SDK cart/checkout models are declared as PHP 8.2 `readonly class`es, so this
         // test cannot even parse them on the PHP 8.1 unit lane (6.5/phpunit-9). The plugin's own
-        // code stays 8.1-safe; this is a pure test-fixture constraint of the bundled SDK.
+        // code stays 8.1-safe; this is a pure test-fixture constraint of the SDK dependency.
         if (\PHP_VERSION_ID < 80200) {
             self::markTestSkipped('Exercises UCP SDK models declared as PHP 8.2 readonly classes.');
         }
