@@ -1,3 +1,7 @@
+# 1.1.1
+
+- Der Speichern-Button im Verkaufskanal zeigte unter Shopware 6.7 einen rohen Snippet-Schlüssel an. Behoben durch Wechsel auf das gemeinsame Label `global.default.save`.
+
 # 1.1.0
 
 - Vollständige UCP-Unterstützung für Katalog, Warenkorb, Checkout, Bestellungen, Identität, eingebettete Seiten und MCP.
