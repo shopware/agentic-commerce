@@ -9,6 +9,8 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\ApiRouteScope;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
+use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -33,8 +35,26 @@ final class UcpAdminController
         private readonly ProfilePreviewBuilder $profilePreviewBuilder,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
+        private readonly UcpExtensionAvailability $extensionAvailability,
         private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
+    }
+
+    /**
+     * Which runtime-gated capabilities this installation can actually serve —
+     * the admin uses these flags to enable/disable the advanced capability
+     * toggles instead of letting merchants advertise dead-end capabilities.
+     *
+     * @return array<string, bool>
+     */
+    private function capabilityAvailability(): array
+    {
+        return [
+            UcpCapabilityCatalog::CONFIG_AP2_MANDATE => $this->extensionAvailability->supportsAp2Mandates(),
+            UcpCapabilityCatalog::CONFIG_PAYMENT_TOKENIZATION => $this->extensionAvailability->supportsPaymentTokenization(),
+            UcpCapabilityCatalog::CONFIG_IDENTITY_LINKING => $this->extensionAvailability->supportsIdentityLinking(),
+            'delegated_payment' => $this->extensionAvailability->hasAnyPaymentAuthorizer(),
+        ];
     }
 
     #[Route(path: '/api/_admin/ucp/sales-channels', name: 'api.action.swag_agentic_commerce.ucp.sales_channels', methods: ['GET'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]
@@ -56,6 +76,7 @@ final class UcpAdminController
             'meta' => [
                 'shopwareVersion' => $this->shopwareVersionLabel(),
                 'supportsStoreApiMcp' => $this->versionDetector->supportsStoreApiMcp(),
+                'capabilityAvailability' => $this->capabilityAvailability(),
             ],
         ]);
     }
@@ -76,6 +97,7 @@ final class UcpAdminController
             'meta' => [
                 'shopwareVersion' => $this->shopwareVersionLabel(),
                 'supportsStoreApiMcp' => $this->versionDetector->supportsStoreApiMcp(),
+                'capabilityAvailability' => $this->capabilityAvailability(),
             ],
         ]);
     }

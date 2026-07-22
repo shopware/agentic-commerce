@@ -18,6 +18,7 @@ export function defaultForm() {
         profileDomain: null,
         enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
         enabledTransports: ['rest'],
+        advertiseDelegatedPaymentHandlers: false,
     };
 }
 

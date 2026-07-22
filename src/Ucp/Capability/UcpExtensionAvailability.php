@@ -74,6 +74,20 @@ final class UcpExtensionAvailability
     }
 
     /**
+     * True when at least one payment authorizer is registered, so delegated
+     * (non-tokenizing) handlers such as x402 can actually complete a checkout.
+     * Gates the admin's "advertise delegated payment handlers" opt-in.
+     */
+    public function hasAnyPaymentAuthorizer(): bool
+    {
+        foreach ($this->paymentAuthorizerIterable as $_authorizer) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Removes capability descriptors this installation cannot serve at runtime
      * (no adapter, verifier, or handler registered). Profile advertisement and
      * capability negotiation must share this gate — otherwise agents negotiate

@@ -9,7 +9,7 @@ import {
     resolveActiveSubTab,
     DEFAULT_SUB_TAB,
 } from '../../agentic-commerce/ucp-sub-tabs';
-import { READY_CAPABILITIES } from '../../agentic-commerce/ucp-capabilities';
+import { READY_CAPABILITIES, NOT_READY_CAPABILITIES } from '../../agentic-commerce/ucp-capabilities';
 import { availableTransports } from '../../agentic-commerce/ucp-options';
 import { isPreviewDirty } from '../../agentic-commerce/ucp-profile-preview';
 
@@ -119,6 +119,30 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         readyCapabilities() {
             return READY_CAPABILITIES;
         },
+        // Runtime availability per capability, reported by the backend
+        // (UcpExtensionAvailability). Missing meta → treat as unavailable.
+        capabilityAvailability() {
+            return this.meta.capabilityAvailability ?? {};
+        },
+        // Advanced/runtime-gated capabilities (AP2 mandate, payment tokenization,
+        // identity linking). Each is only togglable once the backend reports the
+        // required verifier/handler/adapter is registered; otherwise it stays
+        // disabled with its reason shown.
+        advancedCapabilities() {
+            return NOT_READY_CAPABILITIES.map((capability) => ({
+                ...capability,
+                available: Boolean(this.capabilityAvailability[capability.value]),
+            }));
+        },
+        // x402 and other delegated (non-tokenizing) handlers are advertised via
+        // the advertiseDelegatedPaymentHandlers flag, gated on a registered
+        // payment authorizer.
+        isDelegatedPaymentAvailable() {
+            return Boolean(this.capabilityAvailability.delegated_payment);
+        },
+        isDelegatedPaymentEnabled() {
+            return Boolean(this.form?.advertiseDelegatedPaymentHandlers);
+        },
         transportItems() {
             return availableTransports(this.meta);
         },
@@ -195,6 +219,13 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
 
         isCapabilityEnabled(capability) {
             return this.form.enabledCapabilities.includes(capability);
+        },
+
+        setDelegatedPayment(value) {
+            if (value instanceof Event) {
+                return;
+            }
+            this.form.advertiseDelegatedPaymentHandlers = Boolean(value);
         },
 
         updateTransport(transport, enabled) {

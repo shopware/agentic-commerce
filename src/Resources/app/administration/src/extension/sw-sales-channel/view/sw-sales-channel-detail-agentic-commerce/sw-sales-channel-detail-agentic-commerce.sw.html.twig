@@ -65,6 +65,32 @@
                     </div>
                 </div>
             </div>
+
+            <div class="sw-sales-channel-detail-agentic-commerce__section">
+                <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.advancedCapabilitiesLabel') }}
+                </p>
+                <div class="sw-sales-channel-detail-agentic-commerce__option-list">
+                    <sw-checkbox-field
+                        v-for="capability in advancedCapabilities"
+                        :key="capability.value"
+                        class="sw-sales-channel-detail-agentic-commerce__option-item"
+                        :label="$t(capability.label)"
+                        :help-text="$t(capability.reason)"
+                        :disabled="!canEditConfig || !isActive || !capability.available"
+                        :value="isCapabilityEnabled(capability.value)"
+                        @change="(checked) => updateCapability(capability.value, checked)"
+                    />
+                    <sw-checkbox-field
+                        class="sw-sales-channel-detail-agentic-commerce__option-item"
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.delegatedPaymentLabel')"
+                        :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.delegatedPaymentReason')"
+                        :disabled="!canEditConfig || !isActive || !isDelegatedPaymentAvailable"
+                        :value="isDelegatedPaymentEnabled"
+                        @change="(checked) => setDelegatedPayment(checked)"
+                    />
+                </div>
+            </div>
         </sw-card>
 
         <sw-card
