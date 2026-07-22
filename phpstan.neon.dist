@@ -63,10 +63,3 @@ __SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__
             paths:
                 - src/Storefront/Robots
                 - tests/Unit/Storefront/Robots
-        # BeforeCacheControlEvent is 6.7-only; ProfileCacheHeadersListener only handles it
-        # as an extra safeguard and it is never dispatched on 6.5/6.6, so these "class not
-        # found" errors only occur on those lanes. The version-agnostic RESPONSE handler
-        # still enforces the discovery cache policy there.
-        -
-            message: '#Shopware\\Core\\Framework\\Adapter\\Cache\\Http\\Event\\BeforeCacheControlEvent#'
-            path: src/Ucp/Profile/ProfileCacheHeadersListener.php
