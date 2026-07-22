@@ -72,6 +72,25 @@ final class ShopwareVersionDetector
             && version_compare($version, '6.7.13.0', '<');
     }
 
+    public function needsSystemConfigXsdCompatPatch(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        // Unknown/unresolvable version: prefer core's real, current schema rather
+        // than risk imposing the frozen bundled copy on a newer line.
+        if ('0.0.0.0' === $version) {
+            return false;
+        }
+
+        // Shopware 6.5's core config.xsd uses a non-deterministic content model that
+        // libxml2 >= 2.13 rejects, breaking ALL system-config validation. The plugin
+        // ships a permissive copy and swaps it in on 6.5 only. From 6.6 core's schema
+        // is fixed and stays current (e.g. it adds <subtitle> in 6.7), so the bundled
+        // copy must NOT be used there or it wrongly rejects valid newer core config
+        // such as basicInformation.xml.
+        return version_compare($version, '6.6.0.0', '<');
+    }
+
     public function coreShipsAgenticCommerce(): bool
     {
         // Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE is defined in 6.7.10–6.7.11 only.
