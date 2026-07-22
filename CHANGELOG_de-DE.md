@@ -1,3 +1,7 @@
+# 1.1.1
+
+- Behebt den Fehler "Element 'subtitle': This element is not expected" auf der Seite Grundeinstellungen unter Shopware 6.7. Der gebündelte System-Config-Schema-Workaround wird nur noch unter Shopware 6.5 angewendet; unter 6.6 und 6.7 wird das aktuelle Core-Schema verwendet.
+
 # 1.1.0
 
 - Vollständige UCP-Unterstützung für Katalog, Warenkorb, Checkout, Bestellungen, Identität, eingebettete Seiten und MCP.

@@ -1,3 +1,7 @@
+# 1.1.1
+
+- Fix the Basic Information settings page failing on Shopware 6.7 with "Element 'subtitle': This element is not expected" by applying the bundled system-config schema workaround only on Shopware 6.5, and using core's own current schema on 6.6 and 6.7.
+
 # 1.1.0
 
 - Add full UCP catalog, cart, checkout, order, identity, embedded, and MCP support.
