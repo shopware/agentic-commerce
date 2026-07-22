@@ -21,6 +21,8 @@
         "rector/rector": "^1.1",
         "roave/backward-compatibility-check": "^8.6"
     },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "Swag\\AgenticCommerce\\": "src/"
