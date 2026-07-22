@@ -88,6 +88,7 @@ final class ShopwareOrderGateway implements OrderGatewayInterface
         $criteria->addAssociation('currency');
         $criteria->addAssociation('billingAddress');
         $criteria->addAssociation('lineItems.cover');
+        $criteria->addAssociation('stateMachineState');
 
         return $criteria;
     }
