@@ -67,6 +67,10 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
             \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
             $profile->signingKeys,
             $profile->supportedVersions,
+            // Forward transport-level security metadata (e.g. the agent-profile-host
+            // allowlist advertised under ucp.security) that the builder set upstream -
+            // reconstructing the profile without it silently drops the block.
+            $profile->security,
         );
     }
 

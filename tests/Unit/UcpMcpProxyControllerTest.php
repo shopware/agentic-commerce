@@ -242,7 +242,7 @@ final class UcpMcpProxyControllerTest extends TestCase
         $response = $controller->proxy($request);
 
         self::assertSame(Response::HTTP_UNAUTHORIZED, $response->getStatusCode());
-        self::assertStringContainsString('Platform profile host is not allowed', (string) $response->getContent());
+        self::assertStringContainsString('is not allowed. Allowed hosts: trusted.example', (string) $response->getContent());
     }
 
     #[Test]

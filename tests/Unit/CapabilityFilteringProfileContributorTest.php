@@ -63,6 +63,25 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT, $result);
     }
 
+    #[Test]
+    public function testItPreservesSecurityMetadata(): void
+    {
+        // The builder advertises the agent-profile-host allowlist under ucp.security;
+        // the contributor reconstructs the profile and must forward it, not drop it.
+        $security = [
+            'allowed_profile_hosts' => ['shop.example'],
+            'allowed_agent_domains' => ['agent.example'],
+        ];
+        $profile = new PlatformProfile(UcpProtocol::VERSION, [], [], [], [], [], $security);
+
+        $result = $this->contributor([])->contribute(
+            $profile,
+            new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
+        );
+
+        self::assertSame($security, $result->security);
+    }
+
     /**
      * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
