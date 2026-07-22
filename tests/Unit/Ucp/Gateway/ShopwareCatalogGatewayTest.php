@@ -131,6 +131,47 @@ final class ShopwareCatalogGatewayTest extends TestCase
         self::assertSame(['amount' => 1999, 'currency' => 'USD'], $payload['variants'][0]['price'] ?? null);
     }
 
+    #[Test]
+    public function testCatalogExposesThePlainProductDescription(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'A', 19.99, '<p>A lightweight <strong>everyday</strong> shoe.</p>')],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('A lightweight everyday shoe.', $products[0]->description);
+
+        $payload = $products[0]->toArray();
+        self::assertSame(['plain' => 'A lightweight everyday shoe.'], $payload['description']);
+        self::assertSame(['plain' => 'A lightweight everyday shoe.'], $payload['variants'][0]['description'] ?? null);
+    }
+
+    #[Test]
+    public function testCatalogDescriptionFallsBackToTheTitleWhenAbsent(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'Runner Pro', 19.99)],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertNull($products[0]->description);
+        self::assertSame(['plain' => 'Runner Pro'], $products[0]->toArray()['description']);
+    }
+
     private function gateway(
         int $catalogResultLimit,
         ?AbstractProductSearchRoute $searchRoute = null,
@@ -216,13 +257,17 @@ final class ShopwareCatalogGatewayTest extends TestCase
         );
     }
 
-    private function product(string $id, string $name, float $price): SalesChannelProductEntity
+    private function product(string $id, string $name, float $price, ?string $description = null): SalesChannelProductEntity
     {
         $product = new SalesChannelProductEntity();
         $product->setId($id);
         $product->setName($name);
         $product->setProductNumber($id);
         $product->setCalculatedPrice(new CalculatedPrice($price, $price, new CalculatedTaxCollection(), new TaxRuleCollection()));
+
+        if (null !== $description) {
+            $product->setDescription($description);
+        }
 
         return $product;
     }
