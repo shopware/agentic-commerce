@@ -79,7 +79,7 @@ final class CheckoutGuestAddressPayloadResolver
             $missing[] = '$.checkout_session.fulfillment.shipping_address.city';
         }
 
-        if ([] !== $missing) {
+        if (null === $street || null === $zipcode || null === $city) {
             throw new ValidationException('fulfillment address is incomplete. Provide fulfillment.extra.shipping_address (or billing_address) with: street (or street_address / line1), zipcode (or postal_code), city (or address_locality / locality), and country_code (or country).', $missing);
         }
 
