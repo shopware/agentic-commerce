@@ -393,7 +393,7 @@ final class CheckoutCompleterTest extends TestCase
                 return (new \ReflectionClass(Checkout::class))->newInstanceWithoutConstructor();
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
