@@ -1,4 +1,5 @@
 /.github export-ignore
+/.tools export-ignore
 /AGENTS.md export-ignore
 /tests export-ignore
 /var export-ignore

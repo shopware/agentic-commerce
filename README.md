@@ -147,6 +147,18 @@ export AGENTIC_COMMERCE_BASE_URL=http://trunk.localhost:8088
 
 Adjust the paths to match your local checkout layout.
 
+### Do not run `composer install` inside a live plugin checkout
+
+Do not run `composer install` (or `composer update`) inside `custom/plugins/SwagAgenticCommerce` when that directory lives in a running Shopware. The plugin declares `shopware/core` in `require` and uses `vendor-dir: .tools/vendor`, so a bare install downloads a stable `shopware/core` into `.tools/vendor/shopware/core`. That bundled copy is loaded ahead of the host's `src/Core`, and its older schema (e.g. a `config.xsd` without newer elements such as `subtitle`) then fails to validate the host's config XML — surfacing as errors like `Element 'subtitle': This element is not expected` on the Basic Information settings page.
+
+Nothing ships this copy (`.tools/` is gitignored and stripped from the store zip); it is purely a local build artifact. Use the lane tooling instead, and run tooling with `SHOPWARE_PROJECT_DIR` pointed at your Shopware checkout so PHPStan and friends resolve core from the host rather than a bundled copy. If a shop has already picked up the bundled core, delete it and recycle PHP-FPM:
+
+```bash
+rm -rf custom/plugins/SwagAgenticCommerce/.tools
+# then restart php-fpm / the web container (a file delete alone is not enough;
+# already-loaded classes live in the FPM workers until they recycle)
+```
+
 ## QA
 
 ```bash
