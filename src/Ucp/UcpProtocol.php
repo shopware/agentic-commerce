@@ -16,6 +16,6 @@ final class UcpProtocol
 
     public static function schemaUrl(string $capability): string
     {
-        return \sprintf('https://ucp.dev/schemas/shopping/%s.json', $capability);
+        return \sprintf('https://ucp.dev/%s/schemas/shopping/%s.json', self::VERSION, $capability);
     }
 }
