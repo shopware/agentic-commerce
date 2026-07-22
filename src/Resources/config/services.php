@@ -121,6 +121,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalid
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
+use Swag\AgenticCommerce\Ucp\Validation\CartIdCheckoutCreateProtocolValidator;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
@@ -140,6 +141,7 @@ use Ucp\Sdk\Contract\DiscountCapabilityInterface;
 use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
+use Ucp\Sdk\Service\ProtocolValidatorInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
@@ -440,4 +442,10 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ConfigReader::class, CompatConfigReader::class)
         ->public();
+
+    // ── UCP: allow checkout.create from cart_id without resending line_items ──
+
+    $services->set(CartIdCheckoutCreateProtocolValidator::class)
+        ->decorate(ProtocolValidatorInterface::class)
+        ->arg('$inner', service('.inner'));
 };
