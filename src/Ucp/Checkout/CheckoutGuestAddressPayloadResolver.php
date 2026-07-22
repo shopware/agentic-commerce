@@ -64,8 +64,8 @@ final class CheckoutGuestAddressPayloadResolver
             throw new ValidationException('fulfillment address must be an object with street (or line1), zipcode (or postal_code), city (or locality) and country_code (or country).', ['$.checkout_session.fulfillment.extra.shipping_address must be an object']);
         }
 
-        $street = $this->stringValue($address['street'] ?? $address['street_address'] ?? $address['line1'] ?? $address['line_1'] ?? null);
-        $zipcode = $this->stringValue($address['zipcode'] ?? $address['postal_code'] ?? $address['postalCode'] ?? $address['zip'] ?? null);
+        $street = $this->stringValue($address['street'] ?? $address['street_address'] ?? $address['line1'] ?? null);
+        $zipcode = $this->stringValue($address['zipcode'] ?? $address['postal_code'] ?? null);
         $city = $this->stringValue($address['city'] ?? $address['locality'] ?? $address['address_locality'] ?? null);
 
         $missing = [];
@@ -94,7 +94,7 @@ final class CheckoutGuestAddressPayloadResolver
             $normalized['countryId'] = $countryId;
         }
 
-        $countryCode = $this->stringValue($address['country_code'] ?? $address['countryCode'] ?? $address['country'] ?? null);
+        $countryCode = $this->stringValue($address['country_code'] ?? $address['country'] ?? null);
         if (null !== $countryCode) {
             $normalized['countryCode'] = strtoupper($countryCode);
         }
