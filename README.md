@@ -220,6 +220,28 @@ After merging and waiting for the `main` CI run, dispatch a packaging-only run f
 
 Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
 
+### Bumping the SDK version floor
+
+The plugin requires `ucp-php-sdk/symfony-bundle` with a caret constraint on a `0.0.x` version. **A caret on a `0.0.x` version is locked to that exact patch** — `^0.0.1` resolves to `>=0.0.1 <0.0.2`, so it will never pick up `0.0.2`. Raising the floor is therefore a deliberate, coordinated step, not an automatic upgrade.
+
+When plugin code starts using SDK symbols introduced in a newer SDK tag (a new model, enum, or constructor argument):
+
+1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — production and any `^0.0.x` consumer will resolve the older published tag that lacks them, and the plugin will fatal with `Class "…" not found`.
+2. **Bump all five pins together**, or Composer resolution breaks (a path repo whose forced version is below the new floor no longer satisfies the constraint):
+   - `composer.json` — the `ucp-php-sdk/symfony-bundle` require constraint.
+   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`).
+   - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines.
+3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the raised floor. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
+
+> **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against the published tag the plugin actually pins. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json` pins that tag or newer.
+
+### Migrations and releases
+
+Shopware's migration runner tracks each migration by class + creation timestamp and **never re-executes one it has already marked applied**. This has a hard consequence for edits:
+
+- **Never change the effect of a migration that has shipped in a tagged release.** Existing installs will not re-run it, so editing the DDL only affects fresh installs and silently drifts the schema of upgraded shops (e.g. a column added to a `CREATE TABLE IF NOT EXISTS` is a no-op where the table already exists). Add a **new** forward migration instead, made idempotent (guard column/index/FK changes with `information_schema` checks) so it is safe on both drifted and already-correct schemas.
+- **Editing a migration that only exists in the current unreleased development cycle is fine.** No released install ever ran the old version, and fresh installs get the corrected DDL. Only internal dev/QA/CI shops that ran the intermediate version drift — reset or manually reconcile those databases rather than shipping a migration for them. Check with `git show <tag>:<migration-path>`: if the migration is absent from every release tag, editing it is safe.
+
 ### Test packages on pull requests
 
 Reviewers can get an install-ready ZIP for a pull request without a local build. `.github/workflows/package-zip.yml` builds and validates the extension with the same `shopware/github-actions/build-zip` action the release uses, then uploads it as a `SwagAgenticCommerce.zip` run artifact.
@@ -246,7 +268,7 @@ The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane
 
 Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin's source `composer.json` is the public metadata source of truth for plugin-owned dependencies: it requires the public `ucp-php-sdk/symfony-bundle` Packagist package, and SDK core is resolved transitively by that bundle. Shopware packages are provided by the active lane. Release packages therefore do not embed a plugin-local vendor tree.
 
-Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories use stable `0.0.1` aliases, and the plugin path repository exposes the release version from `composer.json` so Shopware's plugin lifecycle resolves the same package version during `plugin:install`.
+Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories force the SDK to the current version floor (kept in step with `composer.json` — see *Bumping the SDK version floor* above), and the plugin path repository exposes the release version from `composer.json` so Shopware's plugin lifecycle resolves the same package version during `plugin:install`.
 
 `bin/ci-smoke.sh` supports two execution modes:
 
