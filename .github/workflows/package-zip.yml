@@ -1,27 +1,30 @@
 name: Package extension zip
 
-# Builds a downloadable, install-ready SwagAgenticCommerce.zip for a pull
-# request so reviewers can test the change without a local build. This is opt-in
-# per PR: it only runs while the `build:zip` label is set. Adding the label
-# builds immediately; while the label stays on, every new push rebuilds the zip.
+# Builds a downloadable, install-ready SwagAgenticCommerce.zip so it can be
+# tested without a local build. Two ways to trigger it:
+#   - On a pull request, opt-in per PR by setting the `build:zip` label. Adding
+#     the label builds immediately; while it stays on, every push rebuilds.
+#   - Manually via "Run workflow" (workflow_dispatch), picking any branch or tag
+#     (e.g. main) when a fresh zip is needed outside of a PR.
 # The artifact is attached to the workflow run under the name
 # "SwagAgenticCommerce.zip".
 
 on:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: package-zip-${{ github.event.pull_request.number }}
+  group: package-zip-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   package-zip:
     name: Package extension zip
-    if: contains(github.event.pull_request.labels.*.name, 'build:zip')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build:zip')
     runs-on: ubuntu-latest
     steps:
       - name: Build, validate and upload the extension zip
