@@ -1,7 +1,7 @@
 {
     "name": "shopware/agentic-commerce",
     "description": "Shopware plugin for agentic commerce discovery, product feeds, and Universal Commerce Protocol shopping flows",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "type": "shopware-platform-plugin",
     "license": "MIT",
     "authors": [

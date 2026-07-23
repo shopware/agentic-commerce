@@ -141,6 +141,36 @@ cleanup() {
   "${compose[@]}" down -v >/dev/null 2>&1 || true
 }
 
+write_composer_security_audit() {
+  local output_file="${CI_COMPOSER_AUDIT_OUTPUT:-}"
+  local temporary_file
+  local audit_status=0
+
+  if [[ -z "${output_file}" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${output_file}")"
+  temporary_file="$(mktemp "${output_file}.XXXXXX")"
+
+  if web sh -lc 'cd /var/www/html && composer audit --no-dev --format=json' >"${temporary_file}"; then
+    audit_status=0
+  else
+    audit_status=$?
+  fi
+
+  if [[ ! -s "${temporary_file}" ]]; then
+    if [[ "${audit_status}" -eq 0 ]]; then
+      printf '{"advisories":{},"abandoned":[]}\n' >"${temporary_file}"
+    else
+      printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" >"${temporary_file}"
+    fi
+  fi
+
+  mv "${temporary_file}" "${output_file}"
+  echo "Composer audit report written to ${output_file} (exit ${audit_status})."
+}
+
 trap cleanup EXIT
 
 # HTTP/assertion/JSON-RPC helpers (assert_jq, assert_contains, fetch_required_url,
@@ -322,6 +352,8 @@ else
     && { composer remove --no-update --no-interaction ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
     && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 fi
+
+write_composer_security_audit
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console

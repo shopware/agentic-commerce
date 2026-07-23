@@ -32,6 +32,12 @@ on:
         type: boolean
 
 env:
+  # Compatibility lanes intentionally exercise Shopware versions with known
+  # advisories. Keep dependency resolution running, then report advisories
+  # without making them the test result. Composer 2.9 uses the first variable;
+  # newer Composer versions use the policy variable.
+  COMPOSER_NO_SECURITY_BLOCKING: '1'
+  COMPOSER_POLICY_ADVISORIES_BLOCK: '0'
   # This branch depends on the AP2 work that lives on the SDK's feat/ap2-mandates
   # branch and is not yet on the SDK's main. Default the SDK ref to that branch so
   # CI resolves the AP2 symbols. Revert to 'main' once the SDK AP2 work merges.
@@ -220,6 +226,36 @@ jobs:
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
+      - name: Capture plugin Composer advisory report
+        if: matrix.lane == 'php-8.2'
+        working-directory: agentic-commerce
+        run: |
+          audit_file="${GITHUB_WORKSPACE}/composer-audit-plugin.json"
+          audit_status=0
+
+          if composer audit --no-dev --format=json > "${audit_file}"; then
+            audit_status=0
+          else
+            audit_status=$?
+          fi
+
+          if [[ ! -s "${audit_file}" ]]; then
+            if [[ "${audit_status}" -eq 0 ]]; then
+              printf '{"advisories":{},"abandoned":[]}\n' > "${audit_file}"
+            else
+              printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" > "${audit_file}"
+            fi
+          fi
+
+          echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
+      - name: Upload plugin Composer advisory report
+        if: always() && matrix.lane == 'php-8.2'
+        uses: actions/upload-artifact@v6
+        with:
+          name: composer-audit-plugin
+          path: composer-audit-plugin.json
+          if-no-files-found: ignore
+          retention-days: 7
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: composer ci
         working-directory: agentic-commerce
@@ -297,11 +333,42 @@ jobs:
           # (6.5->9.x, 6.6->10.x, trunk->11.x; Shopware's test base classes are coupled
           # to the phpunit major), covering lane-specific behavior everywhere the smoke runs.
           CI_SMOKE_RUN_FUNCTIONAL: '1'
+          CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
+      - name: Upload Composer advisory report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: composer-audit-${{ matrix.lane }}
+          path: composer-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run test:e2e:ucp -- --reporter=list
         working-directory: agentic-commerce
         env:
           BASE_URL: http://localhost:8000
           SHOPWARE_REF: ${{ matrix.lane }}
+
+  composer-security-report:
+    name: composer-security-report
+    runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+      - php-quality
+      - shopware-matrix
+    if: always() && needs.verify-main-validation.outputs.run_full_matrix == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - name: Download Composer advisory reports
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: composer-audit-*
+          path: composer-audits
+      - name: Summarize Composer security advisories
+        continue-on-error: true
+        run: bash agentic-commerce/bin/ci-composer-audit-report.sh composer-audits
 
   mysql84-install:
     runs-on: ubuntu-latest
