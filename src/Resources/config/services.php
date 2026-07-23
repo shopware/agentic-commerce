@@ -436,7 +436,13 @@ return static function (ContainerConfigurator $container): void {
     $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class)
         ->tag('kernel.event_subscriber');
 
-    // ── CompatConfigReader: fixes libxml2 2.13+ rejection of 6.5 XSD ─────────
+    // ── CompatConfigReader: works around libxml2 2.13+ rejection of the 6.5 XSD ─
+    //
+    // Registered unconditionally so the compiled DI container stays deterministic
+    // (a hard requirement for SaaS's cacheable container). CompatConfigReader
+    // decides at runtime which schema to use: the bundled 6.5-compat copy on 6.5,
+    // or core's real, current schema on 6.6+ (so newer core config such as
+    // basicInformation.xml — which adds <subtitle> in 6.7 — validates correctly).
 
     $services->set(ConfigReader::class, CompatConfigReader::class)
         ->public();

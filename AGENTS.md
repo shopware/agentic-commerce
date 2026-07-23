@@ -175,6 +175,35 @@ Signed / strict-signature request verification is **not** covered by the smoke
 (it sends unsigned requests under log policy); use the conformance suite,
 `bin/validate-ucp-store.sh <url> '' conformance`.
 
+### Composer advisory reporting
+
+Compatibility lanes may need to resolve historical Shopware dependencies with
+known advisories. Keep Composer's security blocking disabled for these disposable
+CI containers, but preserve visibility through the centralized reporting flow:
+
+- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency
+  report. The three `shopware-matrix` lanes (`6.5.x`, `6.6.x`, and `trunk`)
+  capture the dependencies resolved in each installed Shopware environment.
+- Those four sources upload normalized JSON as uniquely named
+  `composer-audit-*` artifacts with short retention. Composer versions that emit
+  no JSON for a clean audit must still produce an empty report.
+- The non-blocking `composer-security-report` job downloads those artifacts,
+  deduplicates advisory IDs, and writes exactly one workflow warning and one job
+  summary for the run.
+- Do not add Composer advisory annotations or summaries to `php-quality`,
+  `admin-matrix`, `storefront-matrix`, MySQL, or individual smoke jobs. A
+  nonzero `composer audit` status can also represent abandoned packages; inspect
+  the JSON `advisories` data instead of treating the exit code as proof of a
+  security advisory.
+- Keep `composer-security-report` outside `validation-gate`. Missing, malformed,
+  or known-vulnerable compatibility reports must remain visible without blocking
+  functional validation.
+
+Do not reuse a complete installed Shopware tree across these jobs. Lanes use
+different Shopware versions and administration build modes, and the tests mutate
+dependencies, assets, databases, and caches. Composer's download cache can be
+optimized separately without coupling otherwise isolated compatibility jobs.
+
 ## Administration Build Matrix
 
 The administration build system differs by lane:
