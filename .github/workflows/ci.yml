@@ -223,25 +223,6 @@ jobs:
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
-      - name: Report Composer security advisories
-        working-directory: agentic-commerce
-        run: |
-          if audit_output="$(composer audit --no-dev --format=summary 2>&1)"; then
-            printf '%s\n' "${audit_output}"
-            exit 0
-          fi
-
-          printf '%s\n' "${audit_output}"
-          echo "::warning title=Composer security advisories::Known advisories exist in this compatibility lane; dependency resolution and tests will continue."
-          {
-            echo "### Composer security advisory warning"
-            echo
-            echo "Known advisories exist in the resolved compatibility dependencies. They are reported here without blocking the test lane."
-            echo
-            echo '```text'
-            printf '%s\n' "${audit_output}"
-            echo '```'
-          } >> "${GITHUB_STEP_SUMMARY}"
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: composer ci
         working-directory: agentic-commerce
@@ -319,11 +300,41 @@ jobs:
           # (6.5->9.x, 6.6->10.x, trunk->11.x; Shopware's test base classes are coupled
           # to the phpunit major), covering lane-specific behavior everywhere the smoke runs.
           CI_SMOKE_RUN_FUNCTIONAL: '1'
+          CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
+      - name: Upload Composer advisory report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-audit-${{ matrix.lane }}
+          path: composer-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
       - run: npm run test:e2e:ucp -- --reporter=list
         working-directory: agentic-commerce
         env:
           BASE_URL: http://localhost:8000
           SHOPWARE_REF: ${{ matrix.lane }}
+
+  composer-security-report:
+    name: composer-security-report
+    runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+      - shopware-matrix
+    if: always() && needs.verify-main-validation.outputs.run_full_matrix == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - name: Download Composer advisory reports
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          pattern: composer-audit-*
+          path: composer-audits
+      - name: Summarize Composer security advisories
+        continue-on-error: true
+        run: bash agentic-commerce/bin/ci-composer-audit-report.sh composer-audits
 
   mysql84-install:
     runs-on: ubuntu-latest

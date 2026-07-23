@@ -140,28 +140,32 @@ cleanup() {
   "${compose[@]}" down -v >/dev/null 2>&1 || true
 }
 
-report_composer_security_advisories() {
-  local audit_output
+write_composer_security_audit() {
+  local output_file="${CI_COMPOSER_AUDIT_OUTPUT:-}"
+  local temporary_file
+  local audit_status=0
 
-  if audit_output="$(web sh -lc 'cd /var/www/html && composer audit --no-dev --format=summary' 2>&1)"; then
-    printf '%s\n' "${audit_output}"
+  if [[ -z "${output_file}" ]]; then
     return 0
   fi
 
-  printf '%s\n' "${audit_output}"
-  echo "::warning title=Composer security advisories::Known advisories exist in this compatibility lane; dependency resolution and tests will continue."
+  mkdir -p "$(dirname "${output_file}")"
+  temporary_file="$(mktemp "${output_file}.XXXXXX")"
 
-  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-    {
-      echo "### Composer security advisory warning"
-      echo
-      echo "Known advisories exist in the resolved compatibility dependencies. They are reported here without blocking the test lane."
-      echo
-      echo '```text'
-      printf '%s\n' "${audit_output}"
-      echo '```'
-    } >> "${GITHUB_STEP_SUMMARY}"
+  if web sh -lc 'cd /var/www/html && composer audit --no-dev --format=json' >"${temporary_file}"; then
+    audit_status=0
+  else
+    audit_status=$?
   fi
+
+  if [[ ! -s "${temporary_file}" ]]; then
+    echo "Composer audit produced no report (exit ${audit_status}); advisory reporting will continue without this lane." >&2
+    rm -f "${temporary_file}"
+    return 0
+  fi
+
+  mv "${temporary_file}" "${output_file}"
+  echo "Composer audit report written to ${output_file} (exit ${audit_status})."
 }
 
 trap cleanup EXIT
@@ -333,7 +337,7 @@ else
     && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 fi
 
-report_composer_security_advisories
+write_composer_security_audit
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console
