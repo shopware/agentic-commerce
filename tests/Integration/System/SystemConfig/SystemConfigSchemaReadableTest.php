@@ -32,7 +32,8 @@ final class SystemConfigSchemaReadableTest extends TestCase
     {
         // The runtime version comes from the same source the wired service uses
         // (kernel.shopware_version); InstalledVersions is unreliable in some setups.
-        $version = (string) KernelLifecycleManager::getKernel()->getContainer()->getParameter('kernel.shopware_version');
+        $version = KernelLifecycleManager::getKernel()->getContainer()->getParameter('kernel.shopware_version');
+        static::assertIsString($version);
 
         $reader = new CompatConfigReader(new ShopwareVersionDetector($version));
 
@@ -54,6 +55,7 @@ final class SystemConfigSchemaReadableTest extends TestCase
             // read() validates the XML against the reader's chosen xsd and throws on a
             // schema mismatch (the exact failure being guarded). A returned array = OK.
             static::assertIsArray(
+                // @phpstan-ignore-next-line method.deprecated -- the test intentionally exercises the inherited cross-version ConfigReader contract.
                 $reader->read($file),
                 \sprintf('Core system-config file "%s" failed schema validation on this lane.', basename($file))
             );
