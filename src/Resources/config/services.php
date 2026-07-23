@@ -45,6 +45,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Provider\OpenAiProductExportProvi
 use Swag\AgenticCommerce\Content\ProductExport\Service\EssentialCharacteristicsResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Service\JsonlAwareProductExportRenderer;
 use Swag\AgenticCommerce\Content\ProductExport\Service\ProductMeasurementsResolver;
+use Swag\AgenticCommerce\Content\ProductExport\Storefront\AgenticFeedLinkCacheInvalidator;
+use Swag\AgenticCommerce\Content\ProductExport\Storefront\AgenticFeedLinkResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportCriteriaSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportProviderContextSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\JsonlContentTypeSubscriber;
@@ -393,6 +395,20 @@ return static function (ContainerConfigurator $container): void {
     $services->set(AgenticCommerceProductExportProviderContextSubscriber::class);
 
     $services->set(JsonlContentTypeSubscriber::class);
+
+    // ── Product export: storefront feed discovery ─────────────────────────────
+    // Advertise the generated Google/XML export in the storefront <head> so agent
+    // crawlers/scanners can find the feed. Resolver is cached per storefront sales
+    // channel and invalidated on product_export writes. The response subscriber is
+    // auto-registered (autoconfigure) and depends on the resolver by type.
+
+    $services->set(AgenticFeedLinkResolver::class)
+        ->arg('$productExportRepository', service('product_export.repository'))
+        ->arg('$cache', service('cache.object'));
+
+    $services->set(AgenticFeedLinkCacheInvalidator::class)
+        ->arg('$cache', service('cache.object'))
+        ->tag('kernel.event_subscriber');
 
     // ── Product export: validators ────────────────────────────────────────────
 

@@ -23,6 +23,8 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
 /** @internal */
 class GoogleProductExportProvider extends AbstractAgenticCommerceProductExportProvider
 {
+    public const TECHNICAL_NAME = 'google';
+
     /**
      * @internal
      *
@@ -36,7 +38,7 @@ class GoogleProductExportProvider extends AbstractAgenticCommerceProductExportPr
 
     public function getTechnicalName(): string
     {
-        return 'google';
+        return self::TECHNICAL_NAME;
     }
 
     protected function buildProviderContext(
