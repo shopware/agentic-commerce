@@ -74,14 +74,14 @@ final class CheckoutCompleterTest extends TestCase
                 return $this->checkout;
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
         };
 
         $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): ?string
+            public function build(string $checkoutId, string $salesChannelId): string
             {
                 return 'https://example.com/continue';
             }
@@ -211,7 +211,7 @@ final class CheckoutCompleterTest extends TestCase
                 return $this->checkout;
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
@@ -231,7 +231,7 @@ final class CheckoutCompleterTest extends TestCase
         $configService = $this->nullConfigService();
 
         $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): ?string
+            public function build(string $checkoutId, string $salesChannelId): string
             {
                 return 'https://example.com/continue';
             }

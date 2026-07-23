@@ -175,6 +175,35 @@ Signed / strict-signature request verification is **not** covered by the smoke
 (it sends unsigned requests under log policy); use the conformance suite,
 `bin/validate-ucp-store.sh <url> '' conformance`.
 
+### Composer advisory reporting
+
+Compatibility lanes may need to resolve historical Shopware dependencies with
+known advisories. Keep Composer's security blocking disabled for these disposable
+CI containers, but preserve visibility through the centralized reporting flow:
+
+- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency
+  report. The three `shopware-matrix` lanes (`6.5.x`, `6.6.x`, and `trunk`)
+  capture the dependencies resolved in each installed Shopware environment.
+- Those four sources upload normalized JSON as uniquely named
+  `composer-audit-*` artifacts with short retention. Composer versions that emit
+  no JSON for a clean audit must still produce an empty report.
+- The non-blocking `composer-security-report` job downloads those artifacts,
+  deduplicates advisory IDs, and writes exactly one workflow warning and one job
+  summary for the run.
+- Do not add Composer advisory annotations or summaries to `php-quality`,
+  `admin-matrix`, `storefront-matrix`, MySQL, or individual smoke jobs. A
+  nonzero `composer audit` status can also represent abandoned packages; inspect
+  the JSON `advisories` data instead of treating the exit code as proof of a
+  security advisory.
+- Keep `composer-security-report` outside `validation-gate`. Missing, malformed,
+  or known-vulnerable compatibility reports must remain visible without blocking
+  functional validation.
+
+Do not reuse a complete installed Shopware tree across these jobs. Lanes use
+different Shopware versions and administration build modes, and the tests mutate
+dependencies, assets, databases, and caches. Composer's download cache can be
+optimized separately without coupling otherwise isolated compatibility jobs.
+
 ## Administration Build Matrix
 
 The administration build system differs by lane:
@@ -309,6 +338,34 @@ The script handles the important differences:
   follow-up commit unless the user explicitly asks for an amend or force-push.
 - PR descriptions should summarize what changed and why. Do not add validation
   sections; CI owns validation reporting.
+- Need an install-ready package for a reviewer? Add the `build:zip` label to the
+  PR. `.github/workflows/package-zip.yml` then builds, validates, and uploads a
+  `SwagAgenticCommerce.zip` run artifact, and rebuilds it on every push while the
+  label stays on. It is opt-in on purpose, so do not wire it into the default CI
+  matrix or the `validation-gate`. See the README `Release` section for details.
+
+## Releases
+
+Store releases run from `main` HEAD via `.github/workflows/store-release.yml` after
+that commit has a green `validation-gate`. Bump `composer.json` `version`, the admin
+`package.json` + lock, and both changelogs (`# <version>`) in the release PR. See the
+README `Release` section for the full flow. Two recurring pitfalls have their own
+subsections there — read them before the change, not after CI is green:
+
+- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is pinned with a caret on a
+  `0.0.x` version, which is **locked to that exact patch** (`^0.0.1` never resolves
+  `0.0.2`). Never merge release-bound code that references SDK symbols living only on
+  the SDK `main` branch or an unmerged SDK PR — CI tests against SDK `main` (moving)
+  and will pass, but production resolves the older *published* tag from Packagist and
+  fatals with `Class "…" not found`. Raising the floor means bumping **five** pins
+  together — `composer.json`, the two forced `versions` in `ci.yml`'s *Configure
+  private SDK path repositories* step, and the two in `bin/ci-smoke.sh` — while
+  leaving `UCP_SDK_REF` on `main` to keep the moving-main early-warning signal.
+- **Migrations.** The runner never re-runs an applied migration. Never edit the
+  effect of a migration already shipped in a tagged release (upgraded shops keep the
+  old schema); add a new idempotent forward migration instead. Editing a migration
+  that exists only in the current unreleased cycle is fine — verify with
+  `git show <tag>:<migration-path>` that no release tag contains it.
 
 ## Further References
 

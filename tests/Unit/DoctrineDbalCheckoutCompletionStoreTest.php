@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 
@@ -32,6 +33,7 @@ final class DoctrineDbalCheckoutCompletionStoreTest extends TestCase
                 static::callback(static function (array $payload): bool {
                     static::assertSame(self::CHECKOUT_ID, $payload['checkout_id']);
                     static::assertSame(Uuid::fromHexToBytes(self::ORDER_ID), $payload['order_id']);
+                    static::assertSame(Uuid::fromHexToBytes(Defaults::LIVE_VERSION), $payload['order_version_id']);
                     static::assertArrayNotHasKey('sales_channel_id', $payload);
                     static::assertIsString($payload['created_at']);
 

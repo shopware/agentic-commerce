@@ -8,9 +8,11 @@ use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Content\Product\ProductEntity;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Ucp\Sdk\Enum\AdjustmentStatus;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\Checkout\Checkout;
@@ -20,12 +22,13 @@ use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Common\Money;
+use Ucp\Sdk\Model\Order\Adjustment;
 use Ucp\Sdk\Model\Order\OrderView;
 
 /** @internal */
 final class ShopwareDataMapper implements ShopwareDataMapperInterface
 {
-    public function toProduct(ProductEntity $product, ?string $lookupInputId = null): Product
+    public function toProduct(ProductEntity $product, SalesChannelContext $context, ?string $lookupInputId = null): Product
     {
         $name = $product->getTranslation('name');
         if (!\is_string($name) || '' === $name) {
@@ -35,6 +38,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $cover = $product->getCover();
         $imageUrl = $cover?->getMedia()?->getUrl();
         $price = $product instanceof SalesChannelProductEntity ? $product->getCalculatedPrice()->getUnitPrice() : 0.0;
+        $currency = $context->getCurrency()->getIsoCode();
         $extra = [];
 
         if (null !== $lookupInputId) {
@@ -42,7 +46,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
                 'id' => $product->getId(),
                 'title' => $name,
                 'description' => ['plain' => $name],
-                'price' => ['amount' => (int) round($price * 100), 'currency' => 'EUR'],
+                'price' => ['amount' => (int) round($price * 100), 'currency' => $currency],
                 'inputs' => [['id' => $lookupInputId, 'match' => 'exact']],
             ]];
         }
@@ -54,6 +58,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
             // @phpstan-ignore-next-line argument.type -- SDK schema requires lookup inputs, but Product::$extra is typed too narrowly.
             $extra,
+            $currency,
         );
     }
 
@@ -115,14 +120,56 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->mapOrderLineItems($order),
             $this->orderMoneySummary($order),
-            [],
+            $this->mapOrderMessages($order),
             null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
             $this->mapOrderBuyer($order),
             $order->getCreatedAt()?->format(\DATE_ATOM),
             checkoutId: $checkoutId,
             permalinkUrl: $permalinkUrl,
             fulfillment: ['expectations' => [], 'events' => []],
+            adjustments: $this->mapOrderAdjustments($order),
         );
+    }
+
+    /**
+     * @return list<Message>
+     *
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/message_info.json
+     */
+    private function mapOrderMessages(OrderEntity $order): array
+    {
+        return match ($order->getStateMachineState()?->getTechnicalName()) {
+            OrderStates::STATE_OPEN => [new Message('info', 'The order is open.', code: 'order_open')],
+            OrderStates::STATE_IN_PROGRESS => [new Message('info', 'The merchant is processing this order.', code: 'order_in_progress')],
+            OrderStates::STATE_COMPLETED => [new Message('info', 'The merchant completed this order.', code: 'order_completed')],
+            default => [],
+        };
+    }
+
+    /**
+     * @return list<Adjustment>
+     *
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/order.json
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/adjustment.json
+     */
+    private function mapOrderAdjustments(OrderEntity $order): array
+    {
+        if (OrderStates::STATE_CANCELLED !== $order->getStateMachineState()?->getTechnicalName()) {
+            return [];
+        }
+
+        $occurredAt = $order->getUpdatedAt() ?? $order->getCreatedAt();
+        if (null === $occurredAt) {
+            return [];
+        }
+
+        return [new Adjustment(
+            $order->getId().'-cancellation',
+            'cancellation',
+            $occurredAt->format(\DATE_ATOM),
+            AdjustmentStatus::Completed,
+            description: 'The merchant cancelled this order.',
+        )];
     }
 
     /**
