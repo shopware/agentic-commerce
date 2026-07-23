@@ -81,7 +81,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
             {
                 return $this->checkout;
             }
@@ -223,7 +223,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
             {
                 return $this->checkout;
             }
@@ -671,7 +671,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
             {
                 return $this->checkout;
             }
