@@ -140,6 +140,30 @@ cleanup() {
   "${compose[@]}" down -v >/dev/null 2>&1 || true
 }
 
+report_composer_security_advisories() {
+  local audit_output
+
+  if audit_output="$(web sh -lc 'cd /var/www/html && composer audit --no-dev --format=summary' 2>&1)"; then
+    printf '%s\n' "${audit_output}"
+    return 0
+  fi
+
+  printf '%s\n' "${audit_output}"
+  echo "::warning title=Composer security advisories::Known advisories exist in this compatibility lane; dependency resolution and tests will continue."
+
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    {
+      echo "### Composer security advisory warning"
+      echo
+      echo "Known advisories exist in the resolved compatibility dependencies. They are reported here without blocking the test lane."
+      echo
+      echo '```text'
+      printf '%s\n' "${audit_output}"
+      echo '```'
+    } >> "${GITHUB_STEP_SUMMARY}"
+  fi
+}
+
 trap cleanup EXIT
 
 # HTTP/assertion/JSON-RPC helpers (assert_jq, assert_contains, fetch_required_url,
@@ -308,6 +332,8 @@ else
     && { composer remove --no-update --no-interaction ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
     && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 fi
+
+report_composer_security_advisories
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console

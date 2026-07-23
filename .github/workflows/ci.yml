@@ -32,6 +32,12 @@ on:
         type: boolean
 
 env:
+  # Compatibility lanes intentionally exercise Shopware versions with known
+  # advisories. Keep dependency resolution running, then report advisories
+  # without making them the test result. Composer 2.9 uses the first variable;
+  # newer Composer versions use the policy variable.
+  COMPOSER_NO_SECURITY_BLOCKING: '1'
+  COMPOSER_POLICY_ADVISORIES_BLOCK: '0'
   UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
@@ -217,6 +223,25 @@ jobs:
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
+      - name: Report Composer security advisories
+        working-directory: agentic-commerce
+        run: |
+          if audit_output="$(composer audit --no-dev --format=summary 2>&1)"; then
+            printf '%s\n' "${audit_output}"
+            exit 0
+          fi
+
+          printf '%s\n' "${audit_output}"
+          echo "::warning title=Composer security advisories::Known advisories exist in this compatibility lane; dependency resolution and tests will continue."
+          {
+            echo "### Composer security advisory warning"
+            echo
+            echo "Known advisories exist in the resolved compatibility dependencies. They are reported here without blocking the test lane."
+            echo
+            echo '```text'
+            printf '%s\n' "${audit_output}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: composer ci
         working-directory: agentic-commerce
