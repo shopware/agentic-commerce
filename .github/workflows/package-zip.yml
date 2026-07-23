@@ -1,8 +1,11 @@
 name: Package extension zip
 
-# Builds a downloadable, directly-installable SwagAgenticCommerce archive for a
-# pull request so reviewers can test the change without a local build. Opt-in per
-# PR via the `build:zip` label; while the label stays on, every push rebuilds it.
+# Builds a downloadable, directly-installable SwagAgenticCommerce archive for
+# testing without a local build. Two ways to trigger it:
+#   - On a pull request, opt in with the `build:zip` label. Adding the label
+#     builds immediately; while it stays on, every push rebuilds.
+#   - Manually via "Run workflow" (workflow_dispatch), selecting any branch or
+#     tag (for example main).
 #
 # The artifact is uploaded UNPACKED (the SwagAgenticCommerce/ plugin directory),
 # so GitHub's own artifact-download wrapper is the install-ready zip: downloading
@@ -15,18 +18,19 @@ name: Package extension zip
 on:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: package-zip-${{ github.event.pull_request.number }}
+  group: package-zip-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   package-zip:
     name: Package extension zip
-    if: contains(github.event.pull_request.labels.*.name, 'build:zip')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build:zip')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
