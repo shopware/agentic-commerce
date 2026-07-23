@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Integration\System\SystemConfig;
 
-use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Test\TestCaseBase\KernelLifecycleManager;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
@@ -27,7 +26,6 @@ use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
  *
  * @internal
  */
-#[CoversClass(CompatConfigReader::class)]
 final class SystemConfigSchemaReadableTest extends TestCase
 {
     public function testCoreSystemConfigFilesValidateOnThisLane(): void
@@ -38,7 +36,7 @@ final class SystemConfigSchemaReadableTest extends TestCase
 
         $reader = new CompatConfigReader(new ShopwareVersionDetector($version));
 
-        $files = glob($this->coreSystemConfigDir() . '/*.xml');
+        $files = glob($this->coreSystemConfigDir().'/*.xml');
         static::assertIsArray($files);
 
         $validated = 0;
@@ -47,7 +45,7 @@ final class SystemConfigSchemaReadableTest extends TestCase
             // also holds routing/DI XMLs (e.g. routes.xml) with a different schema, so
             // filter by the <config> root element.
             $xml = @simplexml_load_file($file);
-            if (!$xml instanceof \SimpleXMLElement || $xml->getName() !== 'config') {
+            if (!$xml instanceof \SimpleXMLElement || 'config' !== $xml->getName()) {
                 continue;
             }
 
@@ -57,7 +55,7 @@ final class SystemConfigSchemaReadableTest extends TestCase
             // schema mismatch (the exact failure being guarded). A returned array = OK.
             static::assertIsArray(
                 $reader->read($file),
-                sprintf('Core system-config file "%s" failed schema validation on this lane.', basename($file))
+                \sprintf('Core system-config file "%s" failed schema validation on this lane.', basename($file))
             );
         }
 
@@ -70,6 +68,6 @@ final class SystemConfigSchemaReadableTest extends TestCase
         static::assertIsString($readerFile);
 
         // .../System/SystemConfig/Util/ConfigReader.php -> .../System/Resources/config
-        return \dirname($readerFile, 3) . '/Resources/config';
+        return \dirname($readerFile, 3).'/Resources/config';
     }
 }
