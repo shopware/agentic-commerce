@@ -1,0 +1,25 @@
+{
+  "base": "/bundles/swagagenticcommerce/administration/",
+  "entryPoints": {
+    "swag-agentic-commerce": {
+      "css": [
+        "/bundles/swagagenticcommerce/administration/css/swag-agentic-commerce.css"
+      ],
+      "dynamic": [],
+      "js": [
+        "/bundles/swagagenticcommerce/administration/js/swag-agentic-commerce.js"
+      ],
+      "legacy": false,
+      "preload": []
+    }
+  },
+  "legacy": false,
+  "metadatas": {},
+  "version": [
+    "7.0.4",
+    7,
+    0,
+    4
+  ],
+  "viteServer": null
+}
