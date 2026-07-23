@@ -49,13 +49,13 @@ final class UcpCapabilityCatalog
                 'descriptor' => self::DESCRIPTOR_IDENTITY_LINKING,
                 'path' => 'identity-linking',
                 'specUrl' => 'https://ucp.dev/specification/identity-linking/',
-                'schemaUrl' => 'https://ucp.dev/schemas/identity/oauth.json',
+                'schemaUrl' => UcpProtocol::schemaUrl('oauth', 'identity'),
             ],
             self::CONFIG_PAYMENT_TOKENIZATION => [
                 'descriptor' => self::DESCRIPTOR_PAYMENT_TOKENIZATION,
                 'path' => 'payment-tokenization',
                 'specUrl' => 'https://ucp.dev/specification/payment-token-exchange/',
-                'schemaUrl' => 'https://ucp.dev/schemas/shopping/payment-tokenization.json',
+                // schemaUrl falls back to UcpProtocol::schemaUrl('payment-tokenization') → shopping/payment-tokenization.json
             ],
         ];
     }
