@@ -101,7 +101,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
     {
         return new Checkout(
             $checkoutId,
@@ -114,7 +114,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $this->mapOrderBuyer($order),
             $continueUrl,
             $order->getCreatedAt()?->format(\DATE_ATOM),
-            new OrderConfirmation($order->getId(), $continueUrl),
+            new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl),
         );
     }
 

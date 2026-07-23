@@ -118,7 +118,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -195,7 +195,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -331,12 +331,32 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         OrderEntity $order,
         string $checkoutId,
         string $salesChannelId,
+        RequestContext $context,
     ): Checkout {
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            $this->orderPermalinkUrl($order, $context),
         );
+    }
+
+    /**
+     * A placed order has no relation to the checkout id the continue-URL
+     * template is built from, so its permalink instead uses the order's own
+     * guest-access deepLinkCode against the storefront's order-detail-by-code
+     * route (frontend.account.order.single.page) - the same guest-order proof
+     * X402CheckoutResponseAugmenter already relies on for the pay route.
+     */
+    private function orderPermalinkUrl(OrderEntity $order, RequestContext $context): ?string
+    {
+        $deepLinkCode = $order->getDeepLinkCode();
+        $baseUri = rtrim($context->runtimeConfiguration?->baseUri ?? '', '/');
+        if (null === $deepLinkCode || '' === $deepLinkCode || '' === $baseUri) {
+            return null;
+        }
+
+        return $baseUri.'/account/order/'.rawurlencode($deepLinkCode);
     }
 }

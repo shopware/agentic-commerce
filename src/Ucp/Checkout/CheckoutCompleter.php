@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateOrderPersister;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -129,6 +130,7 @@ final class CheckoutCompleter
                 $checkoutId,
                 $customerContext->getCurrency()->getIsoCode(),
                 $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
+                $this->orderPermalinkUrl($order, $requestContext),
             );
         } finally {
             $lock->release();
@@ -148,6 +150,25 @@ final class CheckoutCompleter
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            $this->orderPermalinkUrl($order, $requestContext),
         );
+    }
+
+    /**
+     * A placed order has no relation to the checkout id the continue-URL
+     * template is built from, so its permalink instead uses the order's own
+     * guest-access deepLinkCode against the storefront's order-detail-by-code
+     * route (frontend.account.order.single.page) - the same guest-order proof
+     * X402CheckoutResponseAugmenter already relies on for the pay route.
+     */
+    private function orderPermalinkUrl(OrderEntity $order, RequestContext $requestContext): ?string
+    {
+        $deepLinkCode = $order->getDeepLinkCode();
+        $baseUri = rtrim($requestContext->runtimeConfiguration?->baseUri ?? '', '/');
+        if (null === $deepLinkCode || '' === $deepLinkCode || '' === $baseUri) {
+            return null;
+        }
+
+        return $baseUri.'/account/order/'.rawurlencode($deepLinkCode);
     }
 }
