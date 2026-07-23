@@ -15,10 +15,16 @@ done
 
 AUDIT_DIRECTORY="$1"
 SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-}"
+EXPECTED_REPORT_COUNT="${CI_COMPOSER_AUDIT_EXPECTED_REPORTS:-4}"
 
 if [[ -z "${SUMMARY_FILE}" ]]; then
   echo "GITHUB_STEP_SUMMARY is not set; no Composer advisory summary can be written." >&2
   exit 0
+fi
+
+if [[ ! "${EXPECTED_REPORT_COUNT}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "CI_COMPOSER_AUDIT_EXPECTED_REPORTS must be a positive integer." >&2
+  exit 1
 fi
 
 mapfile -t report_files < <(find "${AUDIT_DIRECTORY}" -type f -name '*.json' 2>/dev/null | sort)
@@ -29,7 +35,8 @@ invalid_report_count=0
 for report_file in "${report_files[@]}"; do
   if jq -e '
     type == "object"
-    and ((.advisories // {}) | type == "object" or type == "array")
+    and has("advisories")
+    and (.advisories | type == "object" or type == "array")
   ' "${report_file}" >/dev/null 2>&1; then
     valid_reports+=("${report_file}")
   else
@@ -72,7 +79,7 @@ package_count="$(jq '[.[].packageName // "unknown"] | unique | length' "${adviso
 affected_packages="$(jq -r '[.[].packageName // "unknown"] | unique | sort | join(", ")' "${advisories_file}")"
 report_count="${#valid_reports[@]}"
 expected_report_count="${#report_files[@]}"
-missing_report_count=$((3 - expected_report_count))
+missing_report_count=$((EXPECTED_REPORT_COUNT - expected_report_count))
 if [[ "${missing_report_count}" -lt 0 ]]; then
   missing_report_count=0
 fi

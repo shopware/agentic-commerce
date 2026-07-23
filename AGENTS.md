@@ -181,10 +181,12 @@ Compatibility lanes may need to resolve historical Shopware dependencies with
 known advisories. Keep Composer's security blocking disabled for these disposable
 CI containers, but preserve visibility through the centralized reporting flow:
 
-- Only the three authoritative `shopware-matrix` lanes (`6.5.x`, `6.6.x`, and
-  `trunk`) run `composer audit --format=json`.
-- Each lane uploads its raw report as a uniquely named `composer-audit-*`
-  artifact with short retention.
+- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency
+  report. The three `shopware-matrix` lanes (`6.5.x`, `6.6.x`, and `trunk`)
+  capture the dependencies resolved in each installed Shopware environment.
+- Those four sources upload normalized JSON as uniquely named
+  `composer-audit-*` artifacts with short retention. Composer versions that emit
+  no JSON for a clean audit must still produce an empty report.
 - The non-blocking `composer-security-report` job downloads those artifacts,
   deduplicates advisory IDs, and writes exactly one workflow warning and one job
   summary for the run.

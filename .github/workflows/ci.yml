@@ -223,6 +223,36 @@ jobs:
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
+      - name: Capture plugin Composer advisory report
+        if: matrix.lane == 'php-8.2'
+        working-directory: agentic-commerce
+        run: |
+          audit_file="${GITHUB_WORKSPACE}/composer-audit-plugin.json"
+          audit_status=0
+
+          if composer audit --no-dev --format=json > "${audit_file}"; then
+            audit_status=0
+          else
+            audit_status=$?
+          fi
+
+          if [[ ! -s "${audit_file}" ]]; then
+            if [[ "${audit_status}" -eq 0 ]]; then
+              printf '{"advisories":{},"abandoned":[]}\n' > "${audit_file}"
+            else
+              printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" > "${audit_file}"
+            fi
+          fi
+
+          echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
+      - name: Upload plugin Composer advisory report
+        if: always() && matrix.lane == 'php-8.2'
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-audit-plugin
+          path: composer-audit-plugin.json
+          if-no-files-found: ignore
+          retention-days: 7
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: composer ci
         working-directory: agentic-commerce
@@ -320,6 +350,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - verify-main-validation
+      - php-quality
       - shopware-matrix
     if: always() && needs.verify-main-validation.outputs.run_full_matrix == 'true'
     steps:

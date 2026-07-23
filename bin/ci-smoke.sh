@@ -159,9 +159,11 @@ write_composer_security_audit() {
   fi
 
   if [[ ! -s "${temporary_file}" ]]; then
-    echo "Composer audit produced no report (exit ${audit_status}); advisory reporting will continue without this lane." >&2
-    rm -f "${temporary_file}"
-    return 0
+    if [[ "${audit_status}" -eq 0 ]]; then
+      printf '{"advisories":{},"abandoned":[]}\n' >"${temporary_file}"
+    else
+      printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" >"${temporary_file}"
+    fi
   fi
 
   mv "${temporary_file}" "${output_file}"
