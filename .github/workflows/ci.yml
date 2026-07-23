@@ -247,7 +247,7 @@ jobs:
           echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
       - name: Upload plugin Composer advisory report
         if: always() && matrix.lane == 'php-8.2'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: composer-audit-plugin
           path: composer-audit-plugin.json
@@ -333,7 +333,7 @@ jobs:
           CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
       - name: Upload Composer advisory report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: composer-audit-${{ matrix.lane }}
           path: composer-audit.json
@@ -358,7 +358,7 @@ jobs:
         with:
           path: agentic-commerce
       - name: Download Composer advisory reports
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           pattern: composer-audit-*
