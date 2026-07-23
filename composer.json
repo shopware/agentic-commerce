@@ -81,6 +81,18 @@
         },
         "platform": {
             "php": "8.1.0"
+        },
+        "policy": {
+            "advisories": {
+                "ignore-id": [
+                    "PKSA-cv56-2228-pzr6",
+                    "PKSA-6r8f-nxsb-67bq",
+                    "PKSA-gh7h-hhy4-byg7",
+                    "PKSA-mwt3-h9tv-kx78",
+                    "PKSA-hp6n-n4kz-21wk",
+                    "PKSA-mckv-s5hg-868k"
+                ]
+            }
         }
     }
 }
