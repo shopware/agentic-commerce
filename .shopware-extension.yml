@@ -2,7 +2,7 @@ compatibility_date: 2026-06-05
 build:
   # This is the asset-build lane, not the plugin's runtime compatibility range.
   # Vite output plus the legacy loader below is shared by all supported lanes.
-  shopwareVersionConstraint: ">=6.7.0 <6.8.0"
+  shopwareVersionConstraint: ">=6.5.0 <6.8.0"
   zip:
     composer:
       enabled: true
