@@ -7,6 +7,7 @@ import {
     buildConfigPayload as ucpBuildConfigPayload,
 } from '../../agentic-commerce/ucp-form-state';
 import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
+import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -76,20 +77,10 @@ export const swSalesChannelDetailOverride = {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
         },
 
-        // The consolidated "Agentic Commerce" tab (UCP card + feature cards) is
-        // broader than the product-export surface: UCP config is the plugin's own
-        // feature and applies to any exposable channel (Storefront / Headless /
-        // Agentic Commerce), but not the native Product Comparison type.
-        //
-        // It is intentionally NOT gated on `coreShipsAgenticCommerce`: that guard
-        // suppresses the plugin's duplicate product-export integration when core
-        // ships its own, but UCP configuration is unique to this plugin and must
-        // stay reachable regardless. The embedded Product Feed export card keeps
-        // its own `isAgenticCommerce` gate.
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
-            return this.acl.can('ucp.viewer') && Boolean(typeId) && typeId !== Defaults.productComparisonTypeId;
+            return this.acl.can('ucp.viewer') && isTransactionalSalesChannelType(typeId);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.

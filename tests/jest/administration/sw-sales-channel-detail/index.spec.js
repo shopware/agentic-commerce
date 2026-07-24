@@ -24,6 +24,8 @@ global.Shopware = {
     Classes: {},
     Defaults: {
         productComparisonTypeId: 'product-comparison-type-id',
+        storefrontSalesChannelTypeId: 'storefront-type-id',
+        apiSalesChannelTypeId: 'api-type-id',
     },
 };
 
@@ -89,13 +91,30 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
         expect(context.acl.can).toHaveBeenCalledWith('ucp.viewer');
     });
 
-    it('renders for non-product-comparison sales channels when ucp.viewer is granted', () => {
+    it.each([
+        ['Storefront', 'storefront-type-id'],
+        ['Headless/API', 'api-type-id'],
+    ])('renders for transactional %s channels when ucp.viewer is granted', (_label, typeId) => {
         const context = {
             acl: { can: jest.fn(() => true) },
-            salesChannel: { typeId: 'storefront-type-id' },
+            salesChannel: { typeId },
             $route: { params: {} },
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
+    });
+
+    it.each([
+        ['Product Comparison', 'product-comparison-type-id'],
+        ['Agentic Commerce', 'agentic-commerce-type-id'],
+        ['an unknown', 'unknown-type-id'],
+    ])('does not render for %s channels', (_label, typeId) => {
+        const context = {
+            acl: { can: jest.fn(() => true) },
+            salesChannel: { typeId },
+            $route: { params: {} },
+        };
+
+        expect(shouldRenderAgenticCommerceTab.call(context)).toBe(false);
     });
 });
