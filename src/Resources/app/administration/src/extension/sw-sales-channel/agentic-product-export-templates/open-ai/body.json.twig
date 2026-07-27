@@ -25,7 +25,8 @@
         {% endif %}
     {% endfor %}
 {% endif %}
-{% set hasVariantListing = productExport.includeVariants and (product.parentId or product.childCount > 0) %}
+{% set hasVariations = product.parentId or product.childCount > 0 %}
+{% set isConcreteVariant = product.parentId %}
 {% set productUrl = seoUrl('frontend.detail.page', {'productId': product.id}) ~ '?referringSalesChannel=' ~ provider.referringSalesChannel %}
 {% if provider.affiliateCode %}
     {% set productUrl = productUrl ~ '&affiliateCode=' ~ provider.affiliateCode|url_encode %}
@@ -68,9 +69,9 @@
     }) %}
 {% endif %}
 {% set feedRow = feedRow|merge({
-    'listing_has_variations': hasVariantListing
+    'listing_has_variations': hasVariations
 }) %}
-{% if hasVariantListing %}
+{% if hasVariations %}
     {% set offerId = 'SKU-' ~ (product.productNumber ? product.productNumber : product.id) ~ '-' ~ (regularPriceValue|number_format(context.currency.itemRounding.decimals, '.', '')) %}
     {% set feedRow = feedRow|merge({
         'offer_id': offerId,
@@ -78,6 +79,7 @@
         'item_group_title': title
     }) %}
 
+    {% if isConcreteVariant %}
     {# Collect resolved variant output fields and the final OpenAI variant_dict payload #}
     {% set mappedVariantOptions = {} %}
     {% set variantDict = {} %}
@@ -236,6 +238,7 @@
         {% set feedRow = feedRow|merge({
             'variant_dict': variantDict
         }) %}
+    {% endif %}
     {% endif %}
 {% endif %}
 
