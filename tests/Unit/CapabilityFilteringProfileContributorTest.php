@@ -94,8 +94,8 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         $descriptor = $result[UcpCapabilityCatalog::DESCRIPTOR_QUOTE][0];
 
         // Resolvable against the shop itself, so discovery works without ucp.dev.
-        self::assertSame('https://shop.example/ucp/schemas/quote.openapi.json', $descriptor->schemaUrl);
-        self::assertSame('https://shop.example/ucp/schemas/quote.openapi.json', $descriptor->config['schema']);
+        self::assertSame('https://shop.example/.well-known/ucp/schemas/quote.openapi.json', $descriptor->schemaUrl);
+        self::assertSame('https://shop.example/.well-known/ucp/schemas/quote.openapi.json', $descriptor->config['schema']);
         self::assertSame('https://shop.example/ucp/quotes', $descriptor->config['endpoint']);
     }
 

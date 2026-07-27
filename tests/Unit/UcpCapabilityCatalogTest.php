@@ -89,12 +89,12 @@ final class UcpCapabilityCatalogTest extends TestCase
     public function testItResolvesTheQuoteSchemaUrlAgainstTheShopBaseUri(): void
     {
         self::assertSame(
-            'https://shop.example/ucp/schemas/quote.openapi.json',
+            'https://shop.example/.well-known/ucp/schemas/quote.openapi.json',
             UcpCapabilityCatalog::quoteSchemaUrl('https://shop.example'),
         );
 
         self::assertSame(
-            'https://shop.example/ucp/schemas/quote.openapi.json',
+            'https://shop.example/.well-known/ucp/schemas/quote.openapi.json',
             UcpCapabilityCatalog::quoteSchemaUrl('https://shop.example/'),
         );
     }

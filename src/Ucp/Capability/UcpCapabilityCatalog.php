@@ -35,8 +35,15 @@ final class UcpCapabilityCatalog
      */
     public const DESCRIPTOR_QUOTE = 'com.shopware.quote';
 
-    /** Plugin-served OpenAPI contract, resolved against the shop's base URI. */
-    public const QUOTE_SCHEMA_PATH = '/ucp/schemas/quote.openapi.json';
+    /**
+     * Plugin-served OpenAPI contract, resolved against the shop's base URI.
+     *
+     * Deliberately outside the `/ucp/` prefix: the SDK's request-context listener
+     * requires a `UCP-Agent` header on everything below it, but the contract has
+     * to be readable anonymously — an agent fetches it straight from the
+     * discovery document, before it has negotiated anything.
+     */
+    public const QUOTE_SCHEMA_PATH = '/.well-known/ucp/schemas/quote.openapi.json';
 
     /**
      * @return array<string, array{descriptor: string, path: string, specUrl?: string, schemaUrl?: string, extends?: list<string>}>
