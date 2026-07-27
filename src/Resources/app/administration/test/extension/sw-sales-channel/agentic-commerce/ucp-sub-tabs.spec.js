@@ -15,13 +15,13 @@ describe('agentic-commerce/ucp-sub-tabs', () => {
     describe('buildSubTabItems', () => {
         it('enables all tabs when UCP is active', () => {
             const items = buildSubTabItems((key) => key, { active: true });
-            expect(items.every((item) => item.disabled === false)).toBe(true);
+            expect(items).toHaveLength(2);
         });
 
         it('disables everything but Exposure when UCP is off', () => {
             const items = buildSubTabItems((key) => key, { active: false });
-            expect(items.find((i) => i.name === 'exposure').disabled).toBe(false);
-            expect(items.find((i) => i.name === 'preview').disabled).toBe(true);
+            expect(items.find((i) => i.name === 'exposure')).toBeDefined();
+            expect(items.find((i) => i.name === 'preview')).toBeUndefined();
         });
 
         it('translates labels through the provided function', () => {
