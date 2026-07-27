@@ -223,6 +223,13 @@ export const swSalesChannelDetailOverride = {
             }
 
             this.productComparison.selectedTemplate = { ...this.productComparison.templates[templateName] };
+
+            if (this.productExport.isNew()) {
+                this.productComparison.templateName = templateName;
+                this.onTemplateModalConfirm();
+                return;
+            }
+
             const contentChanged = Object.keys(this.productComparison.selectedTemplate).some((value) => {
                 return this.productExport[value] !== this.productComparison.selectedTemplate[value];
             });
@@ -259,6 +266,10 @@ export const swSalesChannelDetailOverride = {
             this.productComparison.selectedTemplate = null;
             this.previousTemplateName = null;
             this.productComparison.showTemplateModal = false;
+
+            if (this.productExport.isNew()) {
+                return;
+            }
 
             this.createNotificationInfo({
                 message: this.$t('sw-sales-channel.detail.productComparison.templates.message.template-applied-message'),

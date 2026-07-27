@@ -28,8 +28,7 @@ export function buildSubTabItems(translate, { active = true } = {}) {
     return UCP_SUB_TABS.map((tab) => ({
         name: tab.name,
         label: typeof translate === 'function' ? translate(tab.label) : tab.label,
-        disabled: !active && tab.name !== SUB_TAB_EXPOSURE,
-    }));
+    })).filter((tab) => active || tab.name === SUB_TAB_EXPOSURE);
 }
 
 /**
