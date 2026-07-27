@@ -70,4 +70,39 @@ final class UcpCapabilityCatalogTest extends TestCase
         self::assertSame('https://ucp.dev/specification/payment-token-exchange/', $tokenization->specUrl);
         self::assertSame('https://ucp.dev/2026-04-08/schemas/shopping/payment-tokenization.json', $tokenization->schemaUrl);
     }
+
+    #[Test]
+    public function testItDescribesTheVendorQuoteCapabilityOutsideTheUcpDevNamespace(): void
+    {
+        $quote = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_QUOTE);
+
+        self::assertSame('com.shopware.quote', $quote->name);
+        self::assertStringStartsNotWith('dev.ucp.', $quote->name);
+        self::assertSame(UcpProtocol::VERSION, $quote->version);
+        // The vendor contract is not hosted on ucp.dev; the plugin serves it itself.
+        self::assertStringNotContainsString('ucp.dev', $quote->schemaUrl);
+        self::assertSame(UcpCapabilityCatalog::QUOTE_SCHEMA_PATH, $quote->schemaUrl);
+        self::assertNull($quote->extends);
+    }
+
+    #[Test]
+    public function testItResolvesTheQuoteSchemaUrlAgainstTheShopBaseUri(): void
+    {
+        self::assertSame(
+            'https://shop.example/ucp/schemas/quote.openapi.json',
+            UcpCapabilityCatalog::quoteSchemaUrl('https://shop.example'),
+        );
+
+        self::assertSame(
+            'https://shop.example/ucp/schemas/quote.openapi.json',
+            UcpCapabilityCatalog::quoteSchemaUrl('https://shop.example/'),
+        );
+    }
+
+    #[Test]
+    public function testItAcceptsTheQuoteConfigKeyWithoutShippingItByDefault(): void
+    {
+        self::assertContains(UcpCapabilityCatalog::CONFIG_QUOTE, UcpCapabilityCatalog::allConfigKeys());
+        self::assertNotContains(UcpCapabilityCatalog::CONFIG_QUOTE, UcpCapabilityCatalog::defaultConfigKeys());
+    }
 }

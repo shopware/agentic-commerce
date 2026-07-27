@@ -18,6 +18,7 @@ final class UcpCapabilityCatalog
     public const CONFIG_ORDER = 'order';
     public const CONFIG_IDENTITY_LINKING = 'identity_linking';
     public const CONFIG_PAYMENT_TOKENIZATION = 'payment_tokenization';
+    public const CONFIG_QUOTE = 'quote';
 
     public const DESCRIPTOR_CATALOG = 'dev.ucp.shopping.catalog';
     public const DESCRIPTOR_CART = 'dev.ucp.shopping.cart';
@@ -26,6 +27,16 @@ final class UcpCapabilityCatalog
     public const DESCRIPTOR_ORDER = 'dev.ucp.shopping.order';
     public const DESCRIPTOR_IDENTITY_LINKING = 'dev.ucp.common.identity_linking';
     public const DESCRIPTOR_PAYMENT_TOKENIZATION = 'dev.ucp.shopping.payment_tokenization';
+
+    /**
+     * Vendor capability: `com.shopware.*` is Shopware's own reverse-domain
+     * namespace. UCP allows vendor capabilities without upstream approval, and
+     * `dev.ucp.*` is reserved for the UCP governing body.
+     */
+    public const DESCRIPTOR_QUOTE = 'com.shopware.quote';
+
+    /** Plugin-served OpenAPI contract, resolved against the shop's base URI. */
+    public const QUOTE_SCHEMA_PATH = '/ucp/schemas/quote.openapi.json';
 
     /**
      * @return array<string, array{descriptor: string, path: string, specUrl?: string, schemaUrl?: string, extends?: list<string>}>
@@ -57,7 +68,26 @@ final class UcpCapabilityCatalog
                 'specUrl' => 'https://ucp.dev/specification/payment-token-exchange/',
                 // schemaUrl falls back to UcpProtocol::schemaUrl('payment-tokenization') → shopping/payment-tokenization.json
             ],
+            self::CONFIG_QUOTE => [
+                'descriptor' => self::DESCRIPTOR_QUOTE,
+                'path' => 'quote',
+                // ucp.dev hosts neither spec nor schema for a vendor capability, so both
+                // URLs are overridden: the spec points at Shopware's docs and the schema is
+                // served by this plugin. CapabilityFilteringProfileContributor replaces the
+                // schema URL with the shop's own absolute URL, so discovery stays resolvable
+                // without any central infrastructure.
+                'specUrl' => 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
+                'schemaUrl' => self::QUOTE_SCHEMA_PATH,
+            ],
         ];
+    }
+
+    /**
+     * Absolute URL of the plugin-served quote contract for a given shop base URI.
+     */
+    public static function quoteSchemaUrl(string $baseUri): string
+    {
+        return rtrim($baseUri, '/').self::QUOTE_SCHEMA_PATH;
     }
 
     /**

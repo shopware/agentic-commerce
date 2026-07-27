@@ -40,6 +40,10 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
             $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION]));
         }
 
+        if (!$this->extensionAvailability->supportsQuotes()) {
+            $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_QUOTE]));
+        }
+
         $enabledTransports = array_map(
             static fn (Transport $transport): string => $transport->value,
             $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()),
@@ -47,6 +51,7 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
 
         $capabilities = array_intersect_key($profile->capabilities, array_flip($enabledDescriptors));
         $capabilities = $this->withPrunedDiscountExtension($capabilities);
+        $capabilities = $this->withResolvedQuoteContract($capabilities, $input->baseUri);
         $services = $profile->services;
 
         if (!$config->active) {
@@ -68,6 +73,41 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
             $profile->signingKeys,
             $profile->supportedVersions,
         );
+    }
+
+    /**
+     * The vendor quote capability is not hosted on ucp.dev: its schema is served
+     * by this plugin, so the published descriptor carries the shop's own absolute
+     * URL plus the endpoint agents call.
+     *
+     * @param array<string, list<CapabilityDescriptor>> $capabilities
+     *
+     * @return array<string, list<CapabilityDescriptor>>
+     */
+    private function withResolvedQuoteContract(array $capabilities, string $baseUri): array
+    {
+        if (!isset($capabilities[UcpCapabilityCatalog::DESCRIPTOR_QUOTE])) {
+            return $capabilities;
+        }
+
+        $schemaUrl = UcpCapabilityCatalog::quoteSchemaUrl($baseUri);
+
+        $capabilities[UcpCapabilityCatalog::DESCRIPTOR_QUOTE] = array_map(
+            static fn (CapabilityDescriptor $descriptor): CapabilityDescriptor => new CapabilityDescriptor(
+                $descriptor->name,
+                $descriptor->version,
+                $descriptor->specUrl,
+                $schemaUrl,
+                $descriptor->extends,
+                array_merge($descriptor->config, [
+                    'schema' => $schemaUrl,
+                    'endpoint' => rtrim($baseUri, '/').'/ucp/quotes',
+                ]),
+            ),
+            $capabilities[UcpCapabilityCatalog::DESCRIPTOR_QUOTE],
+        );
+
+        return $capabilities;
     }
 
     /**

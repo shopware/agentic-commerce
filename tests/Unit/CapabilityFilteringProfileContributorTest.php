@@ -18,6 +18,7 @@ use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Profile\CapabilityFilteringProfileContributor;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
@@ -63,17 +64,52 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT, $result);
     }
 
+    #[Test]
+    public function testItDropsTheQuoteCapabilityWithoutACommercialBackend(): void
+    {
+        $result = $this->contribute([
+            UcpCapabilityCatalog::CONFIG_QUOTE,
+        ], [
+            UcpCapabilityCatalog::DESCRIPTOR_QUOTE => [
+                $this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_QUOTE),
+            ],
+        ]);
+
+        self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_QUOTE, $result);
+    }
+
+    #[Test]
+    public function testItAdvertisesTheQuoteCapabilityWithAHostResolvedContract(): void
+    {
+        $result = $this->contribute([
+            UcpCapabilityCatalog::CONFIG_QUOTE,
+        ], [
+            UcpCapabilityCatalog::DESCRIPTOR_QUOTE => [
+                $this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_QUOTE),
+            ],
+        ], quotesAvailable: true);
+
+        self::assertArrayHasKey(UcpCapabilityCatalog::DESCRIPTOR_QUOTE, $result);
+
+        $descriptor = $result[UcpCapabilityCatalog::DESCRIPTOR_QUOTE][0];
+
+        // Resolvable against the shop itself, so discovery works without ucp.dev.
+        self::assertSame('https://shop.example/ucp/schemas/quote.openapi.json', $descriptor->schemaUrl);
+        self::assertSame('https://shop.example/ucp/schemas/quote.openapi.json', $descriptor->config['schema']);
+        self::assertSame('https://shop.example/ucp/quotes', $descriptor->config['endpoint']);
+    }
+
     /**
      * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
      *
      * @return array<string, list<CapabilityDescriptor>>
      */
-    private function contribute(array $enabledCapabilities, array $profileCapabilities): array
+    private function contribute(array $enabledCapabilities, array $profileCapabilities, bool $quotesAvailable = false): array
     {
         $profile = new PlatformProfile(UcpProtocol::VERSION, [], $profileCapabilities, []);
 
-        return $this->contributor($enabledCapabilities)->contribute(
+        return $this->contributor($enabledCapabilities, $quotesAvailable)->contribute(
             $profile,
             new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
         )->capabilities;
@@ -96,7 +132,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     /**
      * @param list<string> $enabledCapabilities
      */
-    private function contributor(array $enabledCapabilities): CapabilityFilteringProfileContributor
+    private function contributor(array $enabledCapabilities, bool $quotesAvailable = false): CapabilityFilteringProfileContributor
     {
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
@@ -120,11 +156,17 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         $paymentHandlerRegistry = $this->createMock(PaymentHandlerRegistryInterface::class);
         $paymentHandlerRegistry->method('all')->willReturn([]);
 
+        $quoteGateway = null;
+        if ($quotesAvailable) {
+            $quoteGateway = $this->createMock(QuoteGatewayInterface::class);
+            $quoteGateway->method('isAvailable')->willReturn(true);
+        }
+
         return new CapabilityFilteringProfileContributor(
             new SalesChannelDomainResolver($domainRepository),
             new UcpConfigService($this->createMock(UcpConfigRepositoryInterface::class), $legacyStore),
             new ShopwareVersionDetector('6.7.0.0'),
-            new UcpExtensionAvailability([], $paymentHandlerRegistry),
+            new UcpExtensionAvailability([], $paymentHandlerRegistry, $quoteGateway),
         );
     }
 }

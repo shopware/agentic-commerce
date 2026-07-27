@@ -8,6 +8,7 @@ use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\PlatformRequest;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteBackendFeature;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 
 return static function (RoutingConfigurator $routes): void {
@@ -22,6 +23,12 @@ return static function (RoutingConfigurator $routes): void {
 
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
+    }
+
+    // Vendor capability com.shopware.quote: only routable when the commercial B2B
+    // quote backend is installed, matching the service-graph gate in services.php.
+    if (QuoteBackendFeature::isAvailableByClass()) {
+        $routes->import('../../Ucp/Quote/Controller/', 'attribute');
     }
 
     $sdkBundlePath = InstalledVersions::getInstallPath('ucp-php-sdk/symfony-bundle');

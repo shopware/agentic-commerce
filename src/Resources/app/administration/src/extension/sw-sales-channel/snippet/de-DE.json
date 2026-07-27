@@ -39,6 +39,8 @@
           "capabilityCheckoutTooltip": "Agenten können einen Checkout für den Kunden abschließen.",
           "capabilityOrderLabel": "Bestellungen",
           "capabilityOrderTooltip": "Agenten können den Bestellstatus nach dem Kauf lesen.",
+          "capabilityQuoteLabel": "Angebote (B2B)",
+          "capabilityQuoteReason": "Erfordert das Commercial-B2B-Feature „Angebotsverwaltung“ und eine gültige Lizenz. Einkaufs-Agenten können Angebote für Kunden mit aktivierter Angebotsverwaltung anfragen, verhandeln, annehmen und ablehnen.",
           "transportsLabel": "Transportwege",
           "transportRestDescription": "REST – Standard-HTTP-API.",
           "transportA2aDescription": "A2A – Agent-zu-Agent-Protokoll.",

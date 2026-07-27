@@ -97,6 +97,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareQuoteGateway;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
@@ -116,6 +117,9 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
+use Swag\AgenticCommerce\Ucp\Quote\Controller\UcpQuoteController;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteBackendFeature;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -202,6 +206,32 @@ return static function (ContainerConfigurator $container): void {
 
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $services->set(RemoveLeadingSpacesTwigExtension::class);
+    }
+
+    // ── Vendor capability com.shopware.quote ─────────────────────────────────
+    //
+    // SwagCommercial is a runtime-detected soft dependency (never a composer
+    // requirement), so the gateway is only wired when the commercial quote
+    // classes exist. Without them QuoteCapability keeps a null gateway,
+    // UcpExtensionAvailability reports quotes as unsupported, and the capability
+    // is pruned from the published profile.
+
+    $services->set(UcpQuoteController::class)
+        ->arg('$quoteSchemaPath', __DIR__.'/../schema/quote.openapi.json')
+        ->tag('controller.service_arguments');
+
+    if (QuoteBackendFeature::isAvailableByClass()) {
+        $services->set(ShopwareQuoteGateway::class)
+            ->arg('$quoteRequestRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\CartToQuote\\QuoteRequestRoute'))
+            ->arg('$quoteSendRequestRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\State\\QuoteSendRequestRoute'))
+            ->arg('$quoteLineItemRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\LineItem\\QuoteLineItemRoute'))
+            ->arg('$quoteLoadRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\QuoteAccounting\\QuoteLoadRoute'))
+            ->arg('$quoteRequestChangeRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\State\\QuoteRequestChangeRoute'))
+            ->arg('$quoteDeclineRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\State\\QuoteDeclineRoute'))
+            ->arg('$quoteOrderRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\QuoteToOrder\\QuoteOrderRoute'))
+            ->arg('$customerSpecificFeatureService', service('Shopware\\Commercial\\B2B\\CustomerSpecificFeatures\\Domain\\CustomerSpecificFeature\\CustomerSpecificFeatureService')->nullOnInvalid());
+
+        $services->alias(QuoteGatewayInterface::class, ShopwareQuoteGateway::class);
     }
 
     $services->set(ShopwareVersionDetector::class)

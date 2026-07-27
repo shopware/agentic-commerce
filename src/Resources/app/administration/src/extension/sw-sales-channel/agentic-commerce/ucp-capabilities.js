@@ -30,6 +30,12 @@ export const NOT_READY_CAPABILITIES = [
         reason: `${SNIPPET_ROOT}.capabilityPaymentTokenizationReason`,
         docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
     },
+    {
+        value: 'quote',
+        label: `${SNIPPET_ROOT}.capabilityQuoteLabel`,
+        reason: `${SNIPPET_ROOT}.capabilityQuoteReason`,
+        docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
+    },
 ];
 
 export function readyCapabilityValues() {

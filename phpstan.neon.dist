@@ -63,3 +63,11 @@ __SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__
             paths:
                 - src/Storefront/Robots
                 - tests/Unit/Storefront/Robots
+        # The commercial B2B quote routes are a runtime-detected soft dependency
+        # (SwagCommercial is deliberately never a composer requirement), so they are typed
+        # as `object` and only injected when their classes exist. Their calls cannot be
+        # resolved statically; the gateway is registered only behind
+        # QuoteBackendFeature::isAvailableByClass().
+        -
+            message: '#Call to an undefined method object::[a-zA-Z]+\(\)#'
+            path: src/Ucp/Gateway/ShopwareQuoteGateway.php
