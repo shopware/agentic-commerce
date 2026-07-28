@@ -32,6 +32,7 @@ final class CheckoutCompleter
         private readonly CheckoutContinueUrlBuilderInterface $continueUrlBuilder,
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
+        private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
     ) {
     }
 
@@ -117,6 +118,7 @@ final class CheckoutCompleter
                 $customerContext->getCurrency()->getIsoCode(),
                 $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
                 $status,
+                $this->orderPermalinkBuilder->build($order->getId(), $requestContext),
             );
         } finally {
             $lock->release();
@@ -141,6 +143,7 @@ final class CheckoutCompleter
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
             $status,
+            $this->orderPermalinkBuilder->build($order->getId(), $requestContext),
         );
     }
 }

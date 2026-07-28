@@ -12,7 +12,7 @@ use Ucp\Sdk\Model\Order\OrderView;
 /** @internal */
 interface ShopwareDataMapperInterface
 {
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, CheckoutStatus $status = CheckoutStatus::Completed): Checkout;
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, CheckoutStatus $status = CheckoutStatus::Completed, ?string $orderPermalinkUrl = null): Checkout;
 
     public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView;
 }

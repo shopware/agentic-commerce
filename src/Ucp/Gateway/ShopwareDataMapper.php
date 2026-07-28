@@ -96,7 +96,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, CheckoutStatus $status = CheckoutStatus::Completed): Checkout
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, CheckoutStatus $status = CheckoutStatus::Completed, ?string $orderPermalinkUrl = null): Checkout
     {
         return new Checkout(
             $checkoutId,
@@ -109,7 +109,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $this->mapOrderBuyer($order),
             $continueUrl,
             $order->getCreatedAt()?->format(\DATE_ATOM),
-            new OrderConfirmation($order->getId(), $continueUrl),
+            // `order.permalink_url` is a required, absolute URI in the UCP response
+            // schema; fall back to the continue URL only when a permalink is not
+            // supplied. A null permalink makes the response fail SDK validation.
+            new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl),
         );
     }
 
