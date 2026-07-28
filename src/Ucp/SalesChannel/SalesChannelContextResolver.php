@@ -36,6 +36,27 @@ final class SalesChannelContextResolver
         ));
     }
 
+    /**
+     * Builds a context for a customer identified out-of-band — today an OAuth
+     * access token's subject. The caller must have proven the authorization; this
+     * only materialises the customer's sales-channel context on a fresh token, so
+     * contract prices and rules apply exactly as for the customer themselves.
+     */
+    public function resolveForCustomer(string $customerId, string $token, RequestContext $requestContext): SalesChannelContext
+    {
+        $resolution = $this->requireResolution($requestContext);
+
+        return $this->contextService->get(new SalesChannelContextServiceParameters(
+            $resolution->salesChannelId,
+            $token,
+            $resolution->languageId,
+            $resolution->currencyId,
+            $resolution->domainId,
+            null,
+            $customerId,
+        ));
+    }
+
     public function resolveSalesChannel(RequestContext $requestContext): SalesChannelResolution
     {
         return $this->requireResolution($requestContext);

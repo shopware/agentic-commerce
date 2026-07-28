@@ -11,6 +11,7 @@ use Swag\AgenticCommerce\Ucp\Capability\QuoteCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
+use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteBackendFeature;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteSnapshot;
@@ -39,7 +40,7 @@ final class QuoteCapabilityTest extends TestCase
         $capability = new QuoteCapability($this->createMock(QuoteGatewayInterface::class));
 
         $this->expectException(UnsupportedCapabilityException::class);
-        $capability->getQuote('context-token', 'quote-id', $this->context([]));
+        $capability->getQuote($this->credential(), 'quote-id', $this->context([]));
     }
 
     #[Test]
@@ -49,7 +50,7 @@ final class QuoteCapabilityTest extends TestCase
 
         $this->expectException(UnsupportedCapabilityException::class);
         $this->expectExceptionMessageMatches('/commercial B2B quote backend/');
-        $capability->getQuote('context-token', 'quote-id', $this->enabledContext());
+        $capability->getQuote($this->credential(), 'quote-id', $this->enabledContext());
     }
 
     #[Test]
@@ -59,13 +60,13 @@ final class QuoteCapabilityTest extends TestCase
         $gateway = $this->createMock(QuoteGatewayInterface::class);
         $gateway->expects(self::once())
             ->method('requestQuote')
-            ->with('context-token', [['product_id' => 'product-id', 'quantity' => 5]], 'volume pricing please')
+            ->with(self::isInstanceOf(AgentCustomerCredential::class), [['product_id' => 'product-id', 'quantity' => 5]], 'volume pricing please')
             ->willReturn($snapshot);
 
         $capability = new QuoteCapability($gateway);
 
         self::assertSame($snapshot, $capability->requestQuote(
-            'context-token',
+            $this->credential(),
             [['product_id' => 'product-id', 'quantity' => 5]],
             'volume pricing please',
             $this->enabledContext(),
@@ -144,6 +145,11 @@ final class QuoteCapabilityTest extends TestCase
 
         self::assertSame(['id' => 'order-id', 'order_number' => '10001'], $accepted->toArray()['order']);
         self::assertNull($accepted->toArray()['expiration_date']);
+    }
+
+    private function credential(): AgentCustomerCredential
+    {
+        return AgentCustomerCredential::fromAccessToken('ucp_access_test');
     }
 
     private function snapshot(): QuoteSnapshot

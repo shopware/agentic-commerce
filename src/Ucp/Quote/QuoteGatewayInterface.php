@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Quote;
 
+use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Ucp\Sdk\Model\RequestContext;
 
 /**
@@ -27,22 +28,22 @@ interface QuoteGatewayInterface
      *
      * @param list<array{product_id?: string, product_number?: string, quantity?: int, requested_unit_price?: float|int|string}> $lineItems
      */
-    public function requestQuote(string $contextToken, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot;
+    public function requestQuote(AgentCustomerCredential $credential, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot;
 
-    public function getQuote(string $contextToken, string $quoteId, RequestContext $requestContext): QuoteSnapshot;
+    public function getQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $requestContext): QuoteSnapshot;
 
     /**
      * Counter-offer: new per-unit asks and/or a comment. Valid from `replied`.
      *
      * @param list<array{id?: string, product_id?: string, requested_unit_price?: float|int|string}> $lineItems
      */
-    public function counterQuote(string $contextToken, string $quoteId, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot;
+    public function counterQuote(AgentCustomerCredential $credential, string $quoteId, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot;
 
     /**
      * Accept the offer. Accepting is ordering in Shopware's model; the returned
      * snapshot carries the resulting order reference.
      */
-    public function acceptQuote(string $contextToken, string $quoteId, RequestContext $requestContext): QuoteSnapshot;
+    public function acceptQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $requestContext): QuoteSnapshot;
 
-    public function declineQuote(string $contextToken, string $quoteId, ?string $comment, RequestContext $requestContext): QuoteSnapshot;
+    public function declineQuote(AgentCustomerCredential $credential, string $quoteId, ?string $comment, RequestContext $requestContext): QuoteSnapshot;
 }

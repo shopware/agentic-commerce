@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteSnapshot;
 use Ucp\Sdk\Contract\CapabilityInterface;
@@ -37,42 +38,42 @@ final class QuoteCapability implements CapabilityInterface
     /**
      * @param list<array{product_id?: string, product_number?: string, quantity?: int, requested_unit_price?: float|int|string}> $lineItems
      */
-    public function requestQuote(string $contextToken, array $lineItems, ?string $comment, RequestContext $context): QuoteSnapshot
+    public function requestQuote(AgentCustomerCredential $credential, array $lineItems, ?string $comment, RequestContext $context): QuoteSnapshot
     {
         $this->assertEnabled($context);
 
-        return $this->gateway()->requestQuote($contextToken, $lineItems, $comment, $context);
+        return $this->gateway()->requestQuote($credential, $lineItems, $comment, $context);
     }
 
-    public function getQuote(string $contextToken, string $quoteId, RequestContext $context): QuoteSnapshot
+    public function getQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $context): QuoteSnapshot
     {
         $this->assertEnabled($context);
 
-        return $this->gateway()->getQuote($contextToken, $quoteId, $context);
+        return $this->gateway()->getQuote($credential, $quoteId, $context);
     }
 
     /**
      * @param list<array{id?: string, product_id?: string, requested_unit_price?: float|int|string}> $lineItems
      */
-    public function counterQuote(string $contextToken, string $quoteId, array $lineItems, ?string $comment, RequestContext $context): QuoteSnapshot
+    public function counterQuote(AgentCustomerCredential $credential, string $quoteId, array $lineItems, ?string $comment, RequestContext $context): QuoteSnapshot
     {
         $this->assertEnabled($context);
 
-        return $this->gateway()->counterQuote($contextToken, $quoteId, $lineItems, $comment, $context);
+        return $this->gateway()->counterQuote($credential, $quoteId, $lineItems, $comment, $context);
     }
 
-    public function acceptQuote(string $contextToken, string $quoteId, RequestContext $context): QuoteSnapshot
+    public function acceptQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $context): QuoteSnapshot
     {
         $this->assertEnabled($context);
 
-        return $this->gateway()->acceptQuote($contextToken, $quoteId, $context);
+        return $this->gateway()->acceptQuote($credential, $quoteId, $context);
     }
 
-    public function declineQuote(string $contextToken, string $quoteId, ?string $comment, RequestContext $context): QuoteSnapshot
+    public function declineQuote(AgentCustomerCredential $credential, string $quoteId, ?string $comment, RequestContext $context): QuoteSnapshot
     {
         $this->assertEnabled($context);
 
-        return $this->gateway()->declineQuote($contextToken, $quoteId, $comment, $context);
+        return $this->gateway()->declineQuote($credential, $quoteId, $comment, $context);
     }
 
     private function assertEnabled(RequestContext $context): void

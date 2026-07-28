@@ -10,6 +10,7 @@ use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\Ucp\Capability\QuoteCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
+use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -57,7 +58,7 @@ final class UcpQuoteController
         $payload = $this->payload($request);
 
         $snapshot = $this->quoteCapability->requestQuote(
-            $this->contextToken($request),
+            $this->credential($request),
             $this->lineItems($payload),
             $this->comment($payload),
             $context,
@@ -71,7 +72,7 @@ final class UcpQuoteController
     {
         $context = $this->requestContext($request);
 
-        $snapshot = $this->quoteCapability->getQuote($this->contextToken($request), $id, $context);
+        $snapshot = $this->quoteCapability->getQuote($this->credential($request), $id, $context);
 
         return $this->responseFactory->success($snapshot->toArray(), Response::HTTP_OK, [], $context, 'quote.get');
     }
@@ -83,7 +84,7 @@ final class UcpQuoteController
         $payload = $this->payload($request);
 
         $snapshot = $this->quoteCapability->counterQuote(
-            $this->contextToken($request),
+            $this->credential($request),
             $id,
             $this->lineItems($payload),
             $this->comment($payload),
@@ -98,7 +99,7 @@ final class UcpQuoteController
     {
         $context = $this->requestContext($request);
 
-        $snapshot = $this->quoteCapability->acceptQuote($this->contextToken($request), $id, $context);
+        $snapshot = $this->quoteCapability->acceptQuote($this->credential($request), $id, $context);
 
         return $this->responseFactory->success($snapshot->toArray(), Response::HTTP_OK, [], $context, 'quote.accept');
     }
@@ -109,7 +110,7 @@ final class UcpQuoteController
         $context = $this->requestContext($request);
         $payload = $this->payload($request);
 
-        $snapshot = $this->quoteCapability->declineQuote($this->contextToken($request), $id, $this->comment($payload), $context);
+        $snapshot = $this->quoteCapability->declineQuote($this->credential($request), $id, $this->comment($payload), $context);
 
         return $this->responseFactory->success($snapshot->toArray(), Response::HTTP_OK, [], $context, 'quote.decline');
     }
@@ -138,16 +139,26 @@ final class UcpQuoteController
         return $this->requestContextFactory->get($request) ?? $this->requestContextFactory->create($request);
     }
 
-    private function contextToken(Request $request): string
+    /**
+     * Prefers the identity-linking access token: it names the customer, carries
+     * scopes, and can be revoked. A customer context token stays accepted for
+     * agents already holding one (embedded checkout), but it is unscoped.
+     */
+    private function credential(Request $request): AgentCustomerCredential
     {
-        $token = $request->headers->get(PlatformRequest::HEADER_CONTEXT_TOKEN)
-            ?? $request->headers->get('sw-context-token');
-
-        if (!\is_string($token) || '' === $token) {
-            throw new ValidationException('Quote operations require a customer-linked context token.', ['$.headers.sw-context-token is required']);
+        $authorization = (string) $request->headers->get('Authorization', '');
+        if (str_starts_with($authorization, 'Bearer ')) {
+            return AgentCustomerCredential::fromAccessToken(trim(substr($authorization, 7)));
         }
 
-        return $token;
+        $contextToken = $request->headers->get(PlatformRequest::HEADER_CONTEXT_TOKEN)
+            ?? $request->headers->get('sw-context-token');
+
+        if (!\is_string($contextToken) || '' === $contextToken) {
+            throw new ValidationException('Quote operations require an identity-linking access token or a customer context token.', ['$.headers.authorization or $.headers.sw-context-token is required']);
+        }
+
+        return AgentCustomerCredential::fromContextToken($contextToken);
     }
 
     /**

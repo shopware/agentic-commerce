@@ -25,7 +25,11 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
         'dev.ucp.shopping.cart:manage',
         'dev.ucp.shopping.order:read',
         'dev.ucp.shopping.order:manage',
+        self::SCOPE_QUOTE_MANAGE,
     ];
+
+    /** Vendor capability com.shopware.quote — request, negotiate, accept and decline quotes. */
+    public const SCOPE_QUOTE_MANAGE = 'com.shopware.quote:manage';
 
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,

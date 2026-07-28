@@ -4,17 +4,19 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Gateway;
 
-use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
-use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
+use Shopware\Core\Checkout\Cart\LineItem\LineItem;
+use Shopware\Core\Checkout\Cart\LineItemFactoryRegistry;
+use Shopware\Core\Checkout\Cart\SalesChannel\CartService;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerAuthenticator;
+use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
+use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteBackendFeature;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteSnapshot;
-use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
-use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Exception\ValidationException;
@@ -35,9 +37,9 @@ use Ucp\Sdk\Model\RequestContext;
 final class ShopwareQuoteGateway implements QuoteGatewayInterface
 {
     public function __construct(
-        private readonly SalesChannelContextResolver $contextResolver,
-        private readonly AbstractCartLoadRoute $cartLoadRoute,
-        private readonly AbstractCartItemAddRoute $cartItemAddRoute,
+        private readonly AgentCustomerAuthenticator $authenticator,
+        private readonly CartService $cartService,
+        private readonly LineItemFactoryRegistry $lineItemFactory,
         private readonly object $quoteRequestRoute,
         private readonly object $quoteSendRequestRoute,
         private readonly object $quoteLineItemRoute,
@@ -54,15 +56,16 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
         return QuoteBackendFeature::isLicensed();
     }
 
-    public function requestQuote(string $contextToken, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot
+    public function requestQuote(AgentCustomerCredential $credential, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot
     {
-        $context = $this->customerContext($contextToken, $requestContext);
+        $context = $this->customerContext($credential, $requestContext);
 
         if ([] === $lineItems) {
             throw new ValidationException('A quote request needs at least one line item.', ['$.line_items must not be empty']);
         }
 
         $requestedPrices = [];
+        /** @var list<LineItem> $items */
         $items = [];
 
         foreach ($lineItems as $index => $lineItem) {
@@ -73,7 +76,10 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
                 throw new ValidationException('Line item quantity must be a positive integer.', [\sprintf('$.line_items[%d].quantity must be >= 1', $index)]);
             }
 
-            $items[] = ['type' => 'product', 'referencedId' => $productId, 'quantity' => $quantity];
+            $items[] = $this->lineItemFactory->create(
+                ['type' => LineItem::PRODUCT_LINE_ITEM_TYPE, 'referencedId' => $productId, 'quantity' => $quantity],
+                $context,
+            );
 
             $requestedPrice = $this->requestedPrice($lineItem, \sprintf('$.line_items[%d].requested_unit_price', $index));
             if (null !== $requestedPrice) {
@@ -81,8 +87,13 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
             }
         }
 
-        $cart = $this->cartLoadRoute->load(new Request(['token' => $context->getToken()]), $context)->getCart();
-        $this->cartItemAddRoute->add(new Request([], ['items' => $items]), $cart, $context, null);
+        // Deliberately through CartService rather than the item-add route directly:
+        // the commercial quote route reads the cart back through CartService, which
+        // caches per context token, so a cart filled around it would look empty to
+        // the quote. CartService itself delegates to the Store API item-add route,
+        // so the route boundary is still respected.
+        $cart = $this->cartService->getCart($context->getToken(), $context);
+        $this->cartService->add($cart, $items, $context);
 
         $quote = $this->quoteRequestRoute->request($context)->getQuote();
         $quoteId = (string) $quote->getId();
@@ -94,14 +105,14 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
         return $this->loadSnapshot($quoteId, $context);
     }
 
-    public function getQuote(string $contextToken, string $quoteId, RequestContext $requestContext): QuoteSnapshot
+    public function getQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $requestContext): QuoteSnapshot
     {
-        return $this->loadSnapshot($quoteId, $this->customerContext($contextToken, $requestContext));
+        return $this->loadSnapshot($quoteId, $this->customerContext($credential, $requestContext));
     }
 
-    public function counterQuote(string $contextToken, string $quoteId, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot
+    public function counterQuote(AgentCustomerCredential $credential, string $quoteId, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot
     {
-        $context = $this->customerContext($contextToken, $requestContext);
+        $context = $this->customerContext($credential, $requestContext);
 
         if ([] !== $lineItems) {
             $quote = $this->loadQuote($quoteId, $context);
@@ -113,9 +124,9 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
         return $this->loadSnapshot($quoteId, $context);
     }
 
-    public function acceptQuote(string $contextToken, string $quoteId, RequestContext $requestContext): QuoteSnapshot
+    public function acceptQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $requestContext): QuoteSnapshot
     {
-        $context = $this->customerContext($contextToken, $requestContext);
+        $context = $this->customerContext($credential, $requestContext);
 
         $order = $this->quoteOrderRoute->order($context, new RequestDataBag(), $quoteId)->getOrder();
 
@@ -137,9 +148,9 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
         );
     }
 
-    public function declineQuote(string $contextToken, string $quoteId, ?string $comment, RequestContext $requestContext): QuoteSnapshot
+    public function declineQuote(AgentCustomerCredential $credential, string $quoteId, ?string $comment, RequestContext $requestContext): QuoteSnapshot
     {
-        $context = $this->customerContext($contextToken, $requestContext);
+        $context = $this->customerContext($credential, $requestContext);
 
         $this->quoteDeclineRoute->decline($context, $quoteId, new RequestDataBag(['comment' => trim($comment ?? '')]));
 
@@ -147,22 +158,22 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
     }
 
     /**
-     * Resolves the customer the agent acts for. The context token is the trust
-     * boundary: it is issued by the identity-linking flow, so the customer's
-     * consent - not anything in the request body - decides whose quotes are
-     * touched.
+     * Resolves the customer the agent acts for. The credential is the trust
+     * boundary: an identity-linking access token names the customer and must
+     * carry the quote scope, so the customer's recorded consent - not anything in
+     * the request body - decides whose quotes are touched.
      */
-    private function customerContext(string $contextToken, RequestContext $requestContext): SalesChannelContext
+    private function customerContext(AgentCustomerCredential $credential, RequestContext $requestContext): SalesChannelContext
     {
         if (!$this->isAvailable()) {
             throw new UnsupportedCapabilityException('Quote management is not licensed for this shop.');
         }
 
-        $context = $this->contextResolver->resolve($contextToken, $requestContext);
+        $context = $this->authenticator->authenticate($credential, $requestContext, ShopwareIdentityLinkingAdapter::SCOPE_QUOTE_MANAGE);
         $customer = $context->getCustomer();
 
         if (null === $customer) {
-            throw new ValidationException('Quote operations require a linked customer context.', ['$.headers.sw-context-token must belong to a customer linked through identity linking']);
+            throw new ValidationException('Quote operations require a linked customer context.', ['$.headers.authorization must carry an identity-linking access token with the com.shopware.quote:manage scope']);
         }
 
         if (!$this->hasCustomerQuoteFeature($customer->getId())) {

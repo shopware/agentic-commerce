@@ -9,7 +9,7 @@ use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
 /** @internal */
-final class DoctrineDbalUcpOAuthStore
+final class DoctrineDbalUcpOAuthStore implements AccessTokenReaderInterface
 {
     private const ACCESS_TOKEN_TTL = 3600;
     private const AUTHORIZATION_CODE_TTL = 600;
@@ -123,6 +123,50 @@ final class DoctrineDbalUcpOAuthStore
         ]);
 
         return new OAuthTokenSet($accessToken, $refreshToken, self::ACCESS_TOKEN_TTL, $scope);
+    }
+
+    /**
+     * Resolves a presented access token to the customer it authorizes.
+     *
+     * Returns null for unknown, expired, or foreign-sales-channel tokens, and for
+     * tokens whose refresh family has been revoked — a revoked family means the
+     * link was withdrawn (or a refresh-token reuse was detected), so its access
+     * tokens must stop working immediately instead of lingering until expiry.
+     */
+    public function findAccessToken(string $accessToken, string $salesChannelId): ?OAuthAccessTokenInfo
+    {
+        $row = $this->connection->fetchAssociative(
+            \sprintf(
+                'SELECT LOWER(HEX(a.sales_channel_id)) AS sales_channel_id, a.client_id, a.subject, a.scope, a.expires_at, r.revoked_at'
+                .' FROM `%s` AS a LEFT JOIN `%s` AS r ON r.token_hash = a.refresh_token_hash'
+                .' WHERE a.token_hash = :tokenHash AND a.sales_channel_id = :salesChannelId',
+                self::ACCESS_TOKEN_TABLE,
+                self::REFRESH_TOKEN_TABLE,
+            ),
+            [
+                'tokenHash' => $this->hashBytes($accessToken),
+                'salesChannelId' => Uuid::fromHexToBytes($salesChannelId),
+            ],
+        );
+
+        if (false === $row) {
+            return null;
+        }
+
+        if ((int) $row['expires_at'] < time()) {
+            return null;
+        }
+
+        if (null !== $row['revoked_at']) {
+            return null;
+        }
+
+        return new OAuthAccessTokenInfo(
+            (string) $row['sales_channel_id'],
+            (string) $row['client_id'],
+            (string) $row['subject'],
+            $this->scopeList((string) $row['scope']),
+        );
     }
 
     public function refreshTokenSet(string $refreshToken, ?string $clientId = null, ?string $salesChannelId = null): ?OAuthTokenSet
@@ -245,6 +289,14 @@ final class DoctrineDbalUcpOAuthStore
     private function hashBytes(string $value): string
     {
         return hash('sha256', $value, true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function scopeList(string $scope): array
+    {
+        return array_values(array_filter(explode(' ', trim($scope)), static fn (string $entry): bool => '' !== $entry));
     }
 
     private function now(): string
