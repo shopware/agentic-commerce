@@ -3,6 +3,7 @@
  * mt-tabs on 6.6+, or sw-tabs on 6.5). Pure: the component maps these to the
  * concrete tab-strip items and resolves labels with `$t`.
  */
+import { currentAdminVersion, isVersionAtLeast } from './admin-version';
 
 const SNIPPET_ROOT = 'sw-sales-channel.detail.agenticCommerce.ucp';
 
@@ -25,10 +26,17 @@ export const UCP_SUB_TABS = [
  * @returns {Array<{ name: string, label: string, disabled: boolean }>}
  */
 export function buildSubTabItems(translate, { active = true } = {}) {
-    return UCP_SUB_TABS.map((tab) => ({
+    const items = UCP_SUB_TABS.map((tab) => ({
         name: tab.name,
         label: typeof translate === 'function' ? translate(tab.label) : tab.label,
-    })).filter((tab) => active || tab.name === SUB_TAB_EXPOSURE);
+        disabled: !active && tab.name !== SUB_TAB_EXPOSURE,
+    }));
+
+    if (isVersionAtLeast(currentAdminVersion(), 6, 7)) {
+        return items;
+    }
+
+    return items.filter((tab) => !tab.disabled);
 }
 
 /**
