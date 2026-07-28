@@ -88,6 +88,14 @@ final class CustomerConsentServiceTest extends TestCase
     }
 
     #[Test]
+    public function testItRejectsAMalformedCodeChallenge(): void
+    {
+        $this->expectException(OAuthException::class);
+        $this->expectExceptionMessageMatches('/base64url-encoded SHA-256/');
+        $this->service()->parse($this->parameters(['code_challenge' => '<generated>']), self::SALES_CHANNEL_ID);
+    }
+
+    #[Test]
     public function testItRejectsAnUnsupportedScope(): void
     {
         $this->expectException(OAuthException::class);

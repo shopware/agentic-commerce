@@ -72,6 +72,14 @@ final class CustomerConsentService
             throw new OAuthException('Only PKCE S256 code challenge method is supported.');
         }
 
+        // RFC 7636: an S256 challenge is the base64url-encoded SHA-256 of the
+        // verifier, so exactly 43 unpadded characters. Rejecting anything else here
+        // fails a malformed request before the customer is asked to approve it,
+        // instead of at the token exchange when consent has already been given.
+        if (1 !== preg_match('/^[A-Za-z0-9_-]{43}$/', $codeChallenge)) {
+            throw new OAuthException('PKCE code challenge must be the base64url-encoded SHA-256 of the code verifier.');
+        }
+
         return new CustomerConsentRequest(
             $clientId,
             $redirectUri,
