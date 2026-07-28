@@ -30,6 +30,34 @@ final class OAuthClientBindingValidator
         }
     }
 
+    /**
+     * Client check for the browser consent flow, where no signed platform profile
+     * can be presented: the client id must still be an HTTPS platform profile URI
+     * and its host must be on the merchant's platform allowlist. The client itself
+     * is authenticated later, when the code is redeemed at the token endpoint.
+     *
+     * @param list<string> $allowedPlatformHosts
+     */
+    public function assertConsentClientId(string $clientId, array $allowedPlatformHosts): void
+    {
+        if ('' === $clientId) {
+            throw new OAuthException('Missing OAuth client ID.');
+        }
+
+        $clientParts = $this->urlParts($clientId, 'UCP identity linking requires an HTTPS platform profile URI as client ID.');
+        if ('https' !== $clientParts['scheme'] && !('http' === $clientParts['scheme'] && 'localhost' === $clientParts['host'])) {
+            throw new OAuthException('UCP identity linking requires an HTTPS platform profile URI as client ID.');
+        }
+
+        if ([] === $allowedPlatformHosts) {
+            throw new OAuthException('No agent platform is allowed to request access for this sales channel.');
+        }
+
+        if (!\in_array($clientParts['host'], array_map('strtolower', $allowedPlatformHosts), true)) {
+            throw new OAuthException(\sprintf('Agent platform "%s" is not allowed for this sales channel.', $clientParts['host']));
+        }
+    }
+
     public function assertRedirectUri(string $redirectUri, string $clientId): void
     {
         if ('' === $redirectUri) {

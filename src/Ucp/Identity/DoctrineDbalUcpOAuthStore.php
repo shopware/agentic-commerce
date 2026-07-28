@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
+use Ucp\Sdk\Exception\OAuthException;
 
 /** @internal */
-final class DoctrineDbalUcpOAuthStore implements AccessTokenReaderInterface
+final class DoctrineDbalUcpOAuthStore implements AccessTokenReaderInterface, AuthorizationCodeIssuerInterface
 {
     private const ACCESS_TOKEN_TTL = 3600;
     private const AUTHORIZATION_CODE_TTL = 600;
@@ -54,6 +56,34 @@ final class DoctrineDbalUcpOAuthStore implements AccessTokenReaderInterface
         ];
 
         $this->connection->insert(self::CODE_TABLE, $payload);
+    }
+
+    /**
+     * Generates and persists an authorization code, retrying on the (astronomically
+     * unlikely) hash collision.
+     */
+    public function issueAuthorizationCode(
+        string $salesChannelId,
+        string $clientId,
+        string $redirectUri,
+        string $subject,
+        string $scope,
+        string $codeChallenge,
+        string $codeChallengeMethod,
+    ): string {
+        for ($attempt = 0; $attempt < 3; ++$attempt) {
+            $code = 'ucp_code_'.bin2hex(random_bytes(24));
+
+            try {
+                $this->saveAuthorizationCode($salesChannelId, $code, $clientId, $redirectUri, $subject, $scope, $codeChallenge, $codeChallengeMethod);
+
+                return $code;
+            } catch (UniqueConstraintViolationException) {
+                continue;
+            }
+        }
+
+        throw new OAuthException('Unable to issue a unique OAuth authorization code.');
     }
 
     public function consumeAuthorizationCode(string $code, string $salesChannelId): ?OAuthAuthorization

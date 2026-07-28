@@ -25,6 +25,10 @@ return static function (RoutingConfigurator $routes): void {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
     }
 
+    // Browser-facing identity-linking consent page (advertised as the OAuth
+    // authorization_endpoint); outside /ucp/ so no UCP-Agent header is demanded.
+    $routes->import('../../Ucp/Identity/Consent/Controller/', 'attribute');
+
     // Vendor capability com.shopware.quote: only routable when the commercial B2B
     // quote backend is installed, matching the service-graph gate in services.php.
     if (QuoteBackendFeature::isAvailableByClass()) {

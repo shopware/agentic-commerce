@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block ucp_consent_error_title %}Authorization request rejected{% endblock %}</title>
+    <style>
+        :root { color-scheme: light; --ink: #17202a; --muted: #667085; --line: #d0d5dd; --danger: #b42318; }
+        body { margin: 0; background: #f7f9fc; color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        main { max-width: 560px; margin: 0 auto; padding: 32px 20px; }
+        .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 24px; }
+        h1 { font-size: 20px; margin: 0 0 8px; color: var(--danger); }
+        p { margin: 0; color: var(--muted); }
+    </style>
+</head>
+<body>
+<main>
+    {% block ucp_consent_error_content %}
+    <div class="card">
+        <h1>Authorization request rejected</h1>
+        {# Never redirect back on an invalid request: a bad client id or redirect URI is
+           precisely what must not be used as a redirect target. #}
+        <p>{{ message }}</p>
+    </div>
+    {% endblock %}
+</main>
+</body>
+</html>

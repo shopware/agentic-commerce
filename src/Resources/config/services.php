@@ -100,6 +100,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareQuoteGateway;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
+use Swag\AgenticCommerce\Ucp\Identity\Consent\Controller\OAuthConsentController;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
@@ -215,6 +216,9 @@ return static function (ContainerConfigurator $container): void {
     // classes exist. Without them QuoteCapability keeps a null gateway,
     // UcpExtensionAvailability reports quotes as unsupported, and the capability
     // is pruned from the published profile.
+
+    $services->set(OAuthConsentController::class)
+        ->tag('controller.service_arguments');
 
     $services->set(UcpQuoteController::class)
         ->arg('$quoteSchemaPath', __DIR__.'/../schema/quote.openapi.json')

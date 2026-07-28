@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\PlatformRequest;
+use Swag\AgenticCommerce\Ucp\Identity\Consent\CustomerConsentService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
 use Ucp\Sdk\Exception\OAuthException;
@@ -21,7 +21,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
     /**
      * @var list<string>
      */
-    private const SUPPORTED_SCOPES = [
+    public const SUPPORTED_SCOPES = [
         'dev.ucp.shopping.cart:manage',
         'dev.ucp.shopping.order:read',
         'dev.ucp.shopping.order:manage',
@@ -44,7 +44,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
 
         return new OAuthMetadata(
             $baseUri,
-            $baseUri.'/ucp/v1/oauth/authorize',
+            $baseUri.CustomerConsentService::CONSENT_PATH,
             $baseUri.'/ucp/v1/oauth/token',
             self::SUPPORTED_SCOPES,
             ['authorization_code', 'refresh_token'],
@@ -78,7 +78,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
             throw new OAuthException('Customer context token does not belong to the current sales channel.');
         }
 
-        $code = $this->saveAuthorizationCode(
+        $code = $this->oauthStore->issueAuthorizationCode(
             $salesChannel->salesChannelId,
             $request->clientId,
             $request->redirectUri,
@@ -170,39 +170,6 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
         );
 
         return new OAuthTokenResponse($tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
-    }
-
-    private function saveAuthorizationCode(
-        string $salesChannelId,
-        string $clientId,
-        string $redirectUri,
-        string $subject,
-        string $scope,
-        string $codeChallenge,
-        string $codeChallengeMethod,
-    ): string {
-        for ($attempt = 0; $attempt < 3; ++$attempt) {
-            $code = 'ucp_code_'.bin2hex(random_bytes(24));
-
-            try {
-                $this->oauthStore->saveAuthorizationCode(
-                    $salesChannelId,
-                    $code,
-                    $clientId,
-                    $redirectUri,
-                    $subject,
-                    $scope,
-                    $codeChallenge,
-                    $codeChallengeMethod,
-                );
-
-                return $code;
-            } catch (UniqueConstraintViolationException) {
-                continue;
-            }
-        }
-
-        throw new OAuthException('Unable to issue a unique OAuth authorization code.');
     }
 
     private function baseUri(RequestContext $context): string
