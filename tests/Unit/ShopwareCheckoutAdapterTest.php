@@ -33,6 +33,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
+use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -141,6 +142,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutCompleter::class),
             $contextResolver,
             new ContextTokenGenerator(),
+            new OrderPermalinkBuilder(),
         );
 
         $checkout = $adapter->getCheckout($checkoutId, new RequestContext('shop.example'));
@@ -190,6 +192,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutCompleter::class),
             $contextResolver,
             new ContextTokenGenerator(),
+            new OrderPermalinkBuilder(),
         );
 
         $this->expectExceptionObject(new ValidationException('Completed checkout session is missing its Shopware context token.'));

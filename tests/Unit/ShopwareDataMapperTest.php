@@ -292,6 +292,44 @@ final class ShopwareDataMapperTest extends TestCase
         return $context;
     }
 
+    #[Test]
+    public function testCompletedCheckoutExposesRequiredOrderPermalink(): void
+    {
+        $order = $this->order();
+
+        // continueUrl is null (the regression trigger); the explicit order
+        // permalink must still populate the required order.permalink_url.
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $order,
+            'checkout-1',
+            'USD',
+            null,
+            orderPermalinkUrl: 'https://shop.example/ucp/v1/orders/'.$order->getId(),
+        );
+
+        $array = $checkout->toArray();
+        self::assertArrayHasKey('order', $array);
+        self::assertSame(
+            'https://shop.example/ucp/v1/orders/'.$order->getId(),
+            $array['order']['permalink_url'],
+        );
+    }
+
+    #[Test]
+    public function testCompletedCheckoutFallsBackToContinueUrlForPermalink(): void
+    {
+        $order = $this->order();
+
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $order,
+            'checkout-1',
+            'USD',
+            'https://shop.example/continue',
+        );
+
+        self::assertSame('https://shop.example/continue', $checkout->toArray()['order']['permalink_url']);
+    }
+
     private function order(): OrderEntity
     {
         $taxes = new CalculatedTaxCollection();
