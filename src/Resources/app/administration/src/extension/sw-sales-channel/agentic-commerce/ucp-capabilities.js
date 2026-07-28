@@ -15,25 +15,15 @@ export const READY_CAPABILITIES = [
     { value: 'discount', label: `${SNIPPET_ROOT}.capabilityDiscountLabel`, tooltip: `${SNIPPET_ROOT}.capabilityDiscountTooltip` },
     { value: 'checkout', label: `${SNIPPET_ROOT}.capabilityCheckoutLabel`, tooltip: `${SNIPPET_ROOT}.capabilityCheckoutTooltip` },
     { value: 'order', label: `${SNIPPET_ROOT}.capabilityOrderLabel`, tooltip: `${SNIPPET_ROOT}.capabilityOrderTooltip` },
+    { value: 'identity_linking', label: `${SNIPPET_ROOT}.capabilityIdentityLinkingLabel`, tooltip: `${SNIPPET_ROOT}.capabilityIdentityLinkingTooltip` },
+    { value: 'quote', label: `${SNIPPET_ROOT}.capabilityQuoteLabel`, tooltip: `${SNIPPET_ROOT}.capabilityQuoteTooltip` },
 ];
 
 export const NOT_READY_CAPABILITIES = [
     {
-        value: 'identity_linking',
-        label: `${SNIPPET_ROOT}.capabilityIdentityLinkingLabel`,
-        reason: `${SNIPPET_ROOT}.capabilityIdentityLinkingReason`,
-        docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
-    },
-    {
         value: 'payment_tokenization',
         label: `${SNIPPET_ROOT}.capabilityPaymentTokenizationLabel`,
         reason: `${SNIPPET_ROOT}.capabilityPaymentTokenizationReason`,
-        docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
-    },
-    {
-        value: 'quote',
-        label: `${SNIPPET_ROOT}.capabilityQuoteLabel`,
-        reason: `${SNIPPET_ROOT}.capabilityQuoteReason`,
         docsUrl: 'https://developer.shopware.com/docs/concepts/agentic-commerce/ucp.html',
     },
 ];

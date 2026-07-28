@@ -10,6 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
+use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
@@ -34,6 +37,7 @@ final class ShopwareIdentityLinkingAdapterTest extends TestCase
         $this->adapter = new ShopwareIdentityLinkingAdapter(
             $contextResolver,
             new DoctrineDbalUcpOAuthStore($this->createMock(Connection::class)),
+            new UcpConfigService($this->createMock(UcpConfigRepositoryInterface::class), $this->createMock(LegacyConfigStoreInterface::class)),
         );
     }
 

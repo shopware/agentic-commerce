@@ -30,6 +30,7 @@ final class CustomerConsentService
 
     /** Human-readable purpose per scope, shown on the consent page. */
     private const SCOPE_DESCRIPTIONS = [
+        ShopwareIdentityLinkingAdapter::SCOPE_CHECKOUT_SESSION => 'Shop and check out on your behalf',
         'dev.ucp.shopping.cart:manage' => 'Build and change shopping carts for you',
         'dev.ucp.shopping.order:read' => 'See your orders',
         'dev.ucp.shopping.order:manage' => 'Place orders on your behalf',

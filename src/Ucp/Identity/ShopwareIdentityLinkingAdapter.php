@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Shopware\Core\PlatformRequest;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Identity\Consent\CustomerConsentService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
@@ -22,11 +23,15 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
      * @var list<string>
      */
     public const SUPPORTED_SCOPES = [
+        self::SCOPE_CHECKOUT_SESSION,
         'dev.ucp.shopping.cart:manage',
         'dev.ucp.shopping.order:read',
         'dev.ucp.shopping.order:manage',
         self::SCOPE_QUOTE_MANAGE,
     ];
+
+    /** Standard UCP scope covering the checkout-session lifecycle. */
+    public const SCOPE_CHECKOUT_SESSION = 'ucp:scopes:checkout_session';
 
     /** Vendor capability com.shopware.quote — request, negotiate, accept and decline quotes. */
     public const SCOPE_QUOTE_MANAGE = 'com.shopware.quote:manage';
@@ -34,6 +39,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly DoctrineDbalUcpOAuthStore $oauthStore,
+        private readonly UcpConfigService $configService,
         private readonly OAuthClientBindingValidator $clientBindingValidator = new OAuthClientBindingValidator(),
     ) {
     }
@@ -110,9 +116,10 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
                 throw new OAuthException('Missing refresh token.');
             }
 
-            $this->clientBindingValidator->assertClientId($request->clientId ?? '', $context);
-
+            $this->clientBindingValidator->assertClientIdFormat($request->clientId ?? '');
             $salesChannel = $this->contextResolver->resolveSalesChannel($context);
+            $this->assertTokenEndpointClient($request->clientId ?? '', $context, $salesChannel->salesChannelId);
+
             $tokenSet = $this->oauthStore->refreshTokenSet($request->refreshToken, $request->clientId, $salesChannel->salesChannelId);
             if (null === $tokenSet) {
                 throw new OAuthException('Refresh token is invalid or expired.');
@@ -137,10 +144,11 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
             throw new OAuthException('Redirect URI is required for authorization code exchange.');
         }
 
-        $this->clientBindingValidator->assertClientId($request->clientId ?? '', $context);
+        $this->clientBindingValidator->assertClientIdFormat($request->clientId ?? '');
         $this->clientBindingValidator->assertRedirectUri($request->redirectUri, $request->clientId ?? '');
-
         $salesChannel = $this->contextResolver->resolveSalesChannel($context);
+        $this->assertTokenEndpointClient($request->clientId ?? '', $context, $salesChannel->salesChannelId);
+
         $authorization = $this->oauthStore->consumeAuthorizationCode($request->code, $salesChannel->salesChannelId);
         if (null === $authorization) {
             throw new OAuthException('Authorization code is invalid, expired, or already consumed.');
@@ -170,6 +178,15 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
         );
 
         return new OAuthTokenResponse($tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
+    }
+
+    private function assertTokenEndpointClient(string $clientId, RequestContext $context, string $salesChannelId): void
+    {
+        $this->clientBindingValidator->assertTokenEndpointClient(
+            $clientId,
+            $context,
+            $this->configService->getConfig($salesChannelId)->platformAllowlist,
+        );
     }
 
     private function baseUri(RequestContext $context): string
