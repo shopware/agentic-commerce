@@ -171,6 +171,52 @@
             "$ref": "#/components/responses/NotFound"
           }
         }
+      },
+      "get": {
+        "operationId": "listQuotes",
+        "summary": "The customer's quotes, newest first. Only quotes owned by the customer the credential resolves to are listed. Use this to rediscover a quote whose id was not stored, or to poll several negotiations at once.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 25
+            },
+            "description": "Page size; values above 50 are clamped."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of quotes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteList"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
       }
     },
     "/ucp/quotes/{id}": {
@@ -704,6 +750,33 @@
           }
         },
         "description": "Standard UCP error envelope produced by the SDK (validation, not-found, and unsupported-capability errors)."
+      },
+      "QuoteList": {
+        "type": "object",
+        "required": [
+          "quotes",
+          "total",
+          "limit",
+          "page"
+        ],
+        "properties": {
+          "quotes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Quote"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total quotes for this customer, not just this page"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
       }
     }
   }

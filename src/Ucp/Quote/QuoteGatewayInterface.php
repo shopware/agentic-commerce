@@ -33,6 +33,13 @@ interface QuoteGatewayInterface
     public function getQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $requestContext): QuoteSnapshot;
 
     /**
+     * The customer's quotes, newest first. Only quotes the resolved customer owns
+     * are listed - the commercial listing route filters by customer and sales
+     * channel itself.
+     */
+    public function listQuotes(AgentCustomerCredential $credential, int $limit, int $page, RequestContext $requestContext): QuoteList;
+
+    /**
      * Counter-offer: new per-unit asks and/or a comment. Valid from `replied`.
      *
      * @param list<array{id?: string, product_id?: string, requested_unit_price?: float|int|string}> $lineItems

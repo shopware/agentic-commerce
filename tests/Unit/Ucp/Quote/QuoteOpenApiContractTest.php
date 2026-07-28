@@ -46,6 +46,7 @@ final class QuoteOpenApiContractTest extends TestCase
         $paths = $this->schema['paths'];
 
         self::assertArrayHasKey('post', $paths['/ucp/quotes']);
+        self::assertArrayHasKey('get', $paths['/ucp/quotes']);
         self::assertArrayHasKey('get', $paths['/ucp/quotes/{id}']);
         self::assertArrayHasKey('post', $paths['/ucp/quotes/{id}/counter']);
         self::assertArrayHasKey('post', $paths['/ucp/quotes/{id}/accept']);

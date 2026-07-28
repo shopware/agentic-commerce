@@ -9,6 +9,7 @@ use Shopware\Core\Checkout\Cart\LineItemFactoryRegistry;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartService;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerAuthenticator;
@@ -16,7 +17,9 @@ use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteBackendFeature;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteList;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteSnapshot;
+use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Exception\ValidationException;
@@ -36,6 +39,9 @@ use Ucp\Sdk\Model\RequestContext;
  */
 final class ShopwareQuoteGateway implements QuoteGatewayInterface
 {
+    /** Upper bound on a listing page, so an agent cannot ask for the whole table. */
+    private const MAX_LIST_LIMIT = 50;
+
     public function __construct(
         private readonly AgentCustomerAuthenticator $authenticator,
         private readonly CartService $cartService,
@@ -44,6 +50,7 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
         private readonly object $quoteSendRequestRoute,
         private readonly object $quoteLineItemRoute,
         private readonly object $quoteLoadRoute,
+        private readonly object $quoteListingRoute,
         private readonly object $quoteRequestChangeRoute,
         private readonly object $quoteDeclineRoute,
         private readonly object $quoteOrderRoute,
@@ -108,6 +115,37 @@ final class ShopwareQuoteGateway implements QuoteGatewayInterface
     public function getQuote(AgentCustomerCredential $credential, string $quoteId, RequestContext $requestContext): QuoteSnapshot
     {
         return $this->loadSnapshot($quoteId, $this->customerContext($credential, $requestContext));
+    }
+
+    public function listQuotes(AgentCustomerCredential $credential, int $limit, int $page, RequestContext $requestContext): QuoteList
+    {
+        $context = $this->customerContext($credential, $requestContext);
+
+        $limit = max(1, min($limit, self::MAX_LIST_LIMIT));
+        $page = max(1, $page);
+
+        $criteria = new Criteria();
+        $criteria->setLimit($limit);
+        $criteria->setOffset(($page - 1) * $limit);
+        $criteria->setTotalCountMode(Criteria::TOTAL_COUNT_MODE_EXACT);
+        $criteria->addSorting(new FieldSorting('createdAt', FieldSorting::DESCENDING));
+        // The listing route only associates the currency, so state and line items
+        // must be requested here or every entry would come back stateless - and
+        // state is exactly what an agent polls this endpoint for.
+        $criteria->addAssociation('stateMachineState');
+        $criteria->addAssociation('currency');
+        $criteria->addAssociation('lineItems');
+        $criteria->getAssociation('lineItems')->addFilter(new EqualsFilter('deletedAt', null));
+        $criteria->addAssociation('comments');
+
+        $result = $this->quoteListingRoute->quotes($context, new Request(), $criteria)->getQuotes();
+
+        $quotes = [];
+        foreach ($result as $quote) {
+            $quotes[] = $this->toSnapshot($quote);
+        }
+
+        return new QuoteList($quotes, $result->getTotal(), $limit, $page);
     }
 
     public function counterQuote(AgentCustomerCredential $credential, string $quoteId, array $lineItems, ?string $comment, RequestContext $requestContext): QuoteSnapshot

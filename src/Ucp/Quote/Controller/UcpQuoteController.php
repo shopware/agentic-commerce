@@ -43,6 +43,8 @@ use Ucp\Sdk\Symfony\Bridge\UcpResponseFactory;
 #[Package('framework')]
 final class UcpQuoteController
 {
+    private const DEFAULT_LIST_LIMIT = 25;
+
     public function __construct(
         private readonly QuoteCapability $quoteCapability,
         private readonly SymfonyRequestContextFactory $requestContextFactory,
@@ -65,6 +67,21 @@ final class UcpQuoteController
         );
 
         return $this->responseFactory->success($snapshot->toArray(), Response::HTTP_CREATED, [], $context, 'quote.request');
+    }
+
+    #[Route(path: '/ucp/quotes', name: 'frontend.ucp.quote.list', methods: ['GET'])]
+    public function listQuotes(Request $request): JsonResponse
+    {
+        $context = $this->requestContext($request);
+
+        $list = $this->quoteCapability->listQuotes(
+            $this->credential($request),
+            $request->query->getInt('limit', self::DEFAULT_LIST_LIMIT),
+            $request->query->getInt('page', 1),
+            $context,
+        );
+
+        return $this->responseFactory->success($list->toArray(), Response::HTTP_OK, [], $context, 'quote.list');
     }
 
     #[Route(path: '/ucp/quotes/{id}', name: 'frontend.ucp.quote.get', methods: ['GET'])]

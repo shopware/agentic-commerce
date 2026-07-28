@@ -14,6 +14,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteBackendFeature;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteList;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteSnapshot;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Model\RequestContext;
@@ -22,6 +23,7 @@ use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 /** @internal */
 #[CoversClass(QuoteCapability::class)]
 #[CoversClass(QuoteSnapshot::class)]
+#[CoversClass(QuoteList::class)]
 #[CoversClass(QuoteBackendFeature::class)]
 final class QuoteCapabilityTest extends TestCase
 {
@@ -71,6 +73,37 @@ final class QuoteCapabilityTest extends TestCase
             'volume pricing please',
             $this->enabledContext(),
         ));
+    }
+
+    #[Test]
+    public function testItListsQuotesThroughTheGatewayWhenEnabled(): void
+    {
+        $list = new QuoteList([$this->snapshot()], 3, 25, 1);
+        $gateway = $this->createMock(QuoteGatewayInterface::class);
+        $gateway->expects(self::once())
+            ->method('listQuotes')
+            ->with(self::isInstanceOf(AgentCustomerCredential::class), 25, 1)
+            ->willReturn($list);
+
+        $payload = (new QuoteCapability($gateway))
+            ->listQuotes($this->credential(), 25, 1, $this->enabledContext())
+            ->toArray();
+
+        // total reports every quote of the customer, not just this page
+        self::assertSame(3, $payload['total']);
+        self::assertCount(1, $payload['quotes']);
+        self::assertSame('1030', $payload['quotes'][0]['quote_number']);
+        self::assertSame(25, $payload['limit']);
+        self::assertSame(1, $payload['page']);
+    }
+
+    #[Test]
+    public function testItRefusesToListQuotesWhenTheCapabilityIsDisabled(): void
+    {
+        $capability = new QuoteCapability($this->createMock(QuoteGatewayInterface::class));
+
+        $this->expectException(UnsupportedCapabilityException::class);
+        $capability->listQuotes($this->credential(), 25, 1, $this->context([]));
     }
 
     #[Test]

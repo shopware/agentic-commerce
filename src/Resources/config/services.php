@@ -230,6 +230,7 @@ return static function (ContainerConfigurator $container): void {
             ->arg('$quoteSendRequestRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\State\\QuoteSendRequestRoute'))
             ->arg('$quoteLineItemRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\LineItem\\QuoteLineItemRoute'))
             ->arg('$quoteLoadRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\QuoteAccounting\\QuoteLoadRoute'))
+            ->arg('$quoteListingRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\QuoteAccounting\\QuoteListingRoute'))
             ->arg('$quoteRequestChangeRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\State\\QuoteRequestChangeRoute'))
             ->arg('$quoteDeclineRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\State\\QuoteDeclineRoute'))
             ->arg('$quoteOrderRoute', service('Shopware\\Commercial\\B2B\\QuoteManagement\\Domain\\QuoteToOrder\\QuoteOrderRoute'))

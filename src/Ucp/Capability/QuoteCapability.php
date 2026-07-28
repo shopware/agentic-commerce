@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Capability;
 
 use Swag\AgenticCommerce\Ucp\Identity\AgentCustomerCredential;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Quote\QuoteList;
 use Swag\AgenticCommerce\Ucp\Quote\QuoteSnapshot;
 use Ucp\Sdk\Contract\CapabilityInterface;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
@@ -50,6 +51,13 @@ final class QuoteCapability implements CapabilityInterface
         $this->assertEnabled($context);
 
         return $this->gateway()->getQuote($credential, $quoteId, $context);
+    }
+
+    public function listQuotes(AgentCustomerCredential $credential, int $limit, int $page, RequestContext $context): QuoteList
+    {
+        $this->assertEnabled($context);
+
+        return $this->gateway()->listQuotes($credential, $limit, $page, $context);
     }
 
     /**
