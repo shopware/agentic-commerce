@@ -23,6 +23,7 @@
 
         {% block sw_sales_channel_detail_agentic_commerce_ucp_card %}
         <mt-card
+            v-if="isTransactionalSalesChannel"
             class="sw-sales-channel-detail-agentic-commerce__ucp-card"
             position-identifier="sw-sales-channel-detail-agentic-commerce-ucp"
         >
