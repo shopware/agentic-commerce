@@ -75,6 +75,19 @@ final class CheckoutSessionStore
     }
 
     /**
+     * The UCP payment handler id the client committed to (from
+     * CheckoutUpdateRequest.payment). Null when the client committed none.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public function paymentHandlerId(array $metadata): ?string
+    {
+        $id = $metadata['paymentHandlerId'] ?? null;
+
+        return \is_string($id) && '' !== $id ? $id : null;
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      */
     public function buyer(array $metadata): ?Buyer
