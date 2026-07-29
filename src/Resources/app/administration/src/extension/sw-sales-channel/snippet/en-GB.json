@@ -23,7 +23,7 @@
           "cardIntro": "Configure how this sales channel is exposed to AI agents over the Universal Commerce Protocol (UCP): which capabilities agents may use, how requests are secured, and which profile they discover.",
           "exposeLabel": "Expose via UCP",
           "unsavedTitle": "Unsaved changes",
-          "unsavedMessage": "You have unsaved changes. Check the Preview tab, then save the sales channel to apply them.",
+          "unsavedMessage": "You have unsaved changes. Check the preview, then save the sales channel to apply them.",
           "subTabExposure": "Exposure",
           "subTabPreview": "Preview",
           "profileDomainLabel": "Profile domain",

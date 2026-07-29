@@ -23,7 +23,7 @@
           "cardIntro": "Lege fest, wie dieser Verkaufskanal KI-Agenten über das Universal Commerce Protocol (UCP) bereitgestellt wird: welche Fähigkeiten Agenten nutzen dürfen, wie Anfragen abgesichert werden und welches Profil sie finden.",
           "exposeLabel": "Über UCP bereitstellen",
           "unsavedTitle": "Ungespeicherte Änderungen",
-          "unsavedMessage": "Du hast ungespeicherte Änderungen. Prüfe den Vorschau-Tab und speichere dann den Verkaufskanal, um sie zu übernehmen.",
+          "unsavedMessage": "Du hast ungespeicherte Änderungen. Prüfe die Vorschau und speichere dann den Verkaufskanal, um sie zu übernehmen.",
           "subTabExposure": "Bereitstellung",
           "subTabPreview": "Vorschau",
           "profileDomainLabel": "Profil-Domain",

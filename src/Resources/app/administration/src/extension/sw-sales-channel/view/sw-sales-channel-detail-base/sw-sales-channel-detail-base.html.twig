@@ -38,6 +38,8 @@
     v-if="isProductComparison"
     v-model="templateName"
     data-ac-template-select
+    :required="isAgenticCommerce && productExport?.isNew()"
+    :error="currentTemplateNameError"
     :disabled="!acl.can('sales_channel.editor')"
     :label="$t('sw-sales-channel.detail.productComparison.templates.label')"
     :placeholder="$t('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"

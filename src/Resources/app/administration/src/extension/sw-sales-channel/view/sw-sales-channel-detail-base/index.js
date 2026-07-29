@@ -24,6 +24,11 @@ export const swSalesChannelDetailBaseOverride = {
             required: false,
             default: () => [],
         },
+        templateNameError: {
+            type: Object,
+            required: false,
+            default: () => null,
+        },
     },
 
     data() {
@@ -109,6 +114,14 @@ export const swSalesChannelDetailBaseOverride = {
                 ) || []).length === 0,
             ) ?? [];
         },
+
+        currentTemplateNameError() {
+            if (this.templateName) {
+                return null;
+            }
+
+            return this.templateNameError;
+        }
     },
 
     methods: {

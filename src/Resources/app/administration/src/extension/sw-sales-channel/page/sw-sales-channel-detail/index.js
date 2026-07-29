@@ -43,6 +43,7 @@ export const swSalesChannelDetailOverride = {
                 meta: {},
                 preview: null,
             },
+            templateNameError: null,
         };
     },
 
@@ -338,6 +339,12 @@ export const swSalesChannelDetailOverride = {
                     entry.errors[el.name] = requiredError;
                     isValid = false;
                 }
+            }
+
+            this.templateNameError = null;
+            if (this.isAgenticCommerce && this.productExport?.isNew() === true && this.productComparison.templateName == null) {
+                this.templateNameError = requiredError;
+                isValid = false;
             }
 
             return isValid;
