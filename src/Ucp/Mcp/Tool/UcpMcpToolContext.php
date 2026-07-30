@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
+use Doctrine\DBAL\Connection;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Symfony\Component\HttpFoundation\Request;
@@ -39,6 +40,7 @@ final class UcpMcpToolContext
         private readonly SymfonyRequestContextFactory $requestContextFactory,
         private readonly IdempotencyServiceInterface $idempotencyService,
         private readonly RequestStack $requestStack,
+        private readonly Connection $connection,
     ) {
     }
 
@@ -66,16 +68,25 @@ final class UcpMcpToolContext
      * @param UcpMcpJsonObject                                $fingerprintInput
      * @param callable(RequestContext): UcpMcpOperationResult $execute
      */
-    public function executeMutating(string $operation, array $fingerprintInput, callable $execute): string
+    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false): string
     {
         $context = $this->requestContext();
 
+        // Validation applies to a dry run as well — the point of a preview is to
+        // fail on the same input a commit would fail on.
         if (true === $context->runtimeConfiguration?->idempotencyRequired && null === $context->idempotencyKey) {
             throw new ValidationException('Idempotency key is required for mutating UCP requests.', ['$.headers.idempotency-key is required']);
         }
 
+        if ($dryRun) {
+            // Deliberately before claim(): a preview must not consume the
+            // idempotency key, or the following real call would replay the
+            // rolled-back preview instead of committing.
+            return $this->previewMutation($execute, $context);
+        }
+
         if (null === $context->idempotencyKey) {
-            return $this->success($execute($context));
+            return $this->success($execute($context), false);
         }
 
         // Keep native hash while 6.5 is supported: Shopware\Core\Framework\Util\Hasher
@@ -92,7 +103,7 @@ final class UcpMcpToolContext
             /** @var UcpMcpJsonObject $responseBody */
             $responseBody = $record->responseBody;
 
-            return $this->success($responseBody);
+            return $this->success($responseBody, false);
         }
 
         try {
@@ -106,7 +117,81 @@ final class UcpMcpToolContext
         $data = $this->normalizeData($data);
         $this->idempotencyService->complete($record, $data, 200);
 
-        return $this->success($data);
+        return $this->success($data, false);
+    }
+
+    /**
+     * Renders a read-only preview of a mutating operation the tool declined to run.
+     *
+     * Used where rolling a commit back is not enough to undo it — `checkout.complete`
+     * synchronously POSTs an `order.created` webhook to the merchant, and no database
+     * rollback recalls that. The tool reads current state instead and reports what a
+     * commit would do, so nothing outside the database is touched.
+     *
+     * @param UcpMcpOperationResult $data
+     * @param list<string>          $blockers
+     */
+    public function preview(string $operation, array|UcpOperationResponse $data, array $blockers = []): string
+    {
+        return json_encode([
+            'success' => true,
+            'dryRun' => true,
+            'preview' => [
+                'operation' => $operation,
+                'committed' => false,
+                'wouldSucceed' => [] === $blockers,
+                'blockers' => $blockers,
+            ],
+            'data' => $this->normalizeData($data),
+        ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Runs a mutating operation inside a transaction that is always rolled back.
+     *
+     * Same mechanism as the core admin write tools (Shopware's
+     * McpToolResponse::executeWithDryRun): the operation runs for real so the agent
+     * gets genuine validation and a genuine result shape, then the transaction is
+     * discarded. This only covers database state — see docs/mcp-dry-run.md for the
+     * side effects it cannot undo, which is why `checkout.complete` uses preview()
+     * instead.
+     *
+     * @param callable(RequestContext): UcpMcpOperationResult $execute
+     */
+    private function previewMutation(callable $execute, RequestContext $context): string
+    {
+        $this->connection->beginTransaction();
+
+        try {
+            $data = $execute($context);
+        } catch (\Throwable $exception) {
+            $this->rollBackPreview();
+
+            throw $exception;
+        }
+
+        $rollbackError = $this->rollBackPreview();
+        if (null !== $rollbackError) {
+            throw new UcpException(\sprintf('Dry-run rollback failed, so the operation may have been committed: %s', $rollbackError));
+        }
+
+        return $this->success($data, true);
+    }
+
+    /**
+     * @return string|null the failure reason, or null when the rollback succeeded
+     */
+    private function rollBackPreview(): ?string
+    {
+        try {
+            if ($this->connection->isTransactionActive()) {
+                $this->connection->rollBack();
+            }
+
+            return null;
+        } catch (\Throwable $exception) {
+            return $exception->getMessage();
+        }
     }
 
     /**
@@ -214,13 +299,19 @@ final class UcpMcpToolContext
 
     /**
      * @param UcpMcpOperationResult $data
+     * @param bool|null             $dryRun whether the caller mutated state; null for read-only tools, which never do
      */
-    public function success(array|UcpOperationResponse $data): string
+    public function success(array|UcpOperationResponse $data, ?bool $dryRun = null): string
     {
-        return json_encode([
-            'success' => true,
-            'data' => $this->normalizeData($data),
-        ], \JSON_THROW_ON_ERROR);
+        $payload = ['success' => true];
+
+        if (null !== $dryRun) {
+            $payload['dryRun'] = $dryRun;
+        }
+
+        $payload['data'] = $this->normalizeData($data);
+
+        return json_encode($payload, \JSON_THROW_ON_ERROR);
     }
 
     /**

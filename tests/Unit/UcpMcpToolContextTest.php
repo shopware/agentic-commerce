@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -42,6 +43,7 @@ final class UcpMcpToolContextTest extends TestCase
             new SymfonyRequestContextFactory($requestContextFactory),
             $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack($request),
+            $this->createMock(Connection::class),
         );
 
         self::assertSame($expectedContext, $context->requestContext());
@@ -75,6 +77,7 @@ final class UcpMcpToolContextTest extends TestCase
                 server: ['HTTP_X_TEST' => 'one'],
                 content: 'body',
             )),
+            $this->createMock(Connection::class),
         );
 
         self::assertSame($expectedContext, $context->requestContext());
@@ -122,7 +125,7 @@ final class UcpMcpToolContextTest extends TestCase
             },
         );
 
-        self::assertSame(['success' => true, 'data' => ['ok' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['ok' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
     }
 
     #[Test]
@@ -153,7 +156,7 @@ final class UcpMcpToolContextTest extends TestCase
             static fn (): array => ['cancelled' => true],
         );
 
-        self::assertSame(['success' => true, 'data' => ['cancelled' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['cancelled' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
     }
 
     #[Test]
@@ -191,7 +194,7 @@ final class UcpMcpToolContextTest extends TestCase
         );
 
         self::assertFalse($executed);
-        self::assertSame(['success' => true, 'data' => ['stored' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['stored' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
     }
 
     #[Test]
@@ -405,10 +408,164 @@ final class UcpMcpToolContextTest extends TestCase
         ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
     }
 
+    #[Test]
+    public function testDryRunRunsTheOperationInsideARolledBackTransaction(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::once())->method('beginTransaction');
+        $connection->method('isTransactionActive')->willReturn(true);
+        $connection->expects(self::once())->method('rollBack');
+        $connection->expects(self::never())->method('commit');
+
+        $requestContext = $this->requestContext(idempotencyRequired: false);
+        $executed = false;
+
+        $result = $this->toolContext($requestContext, connection: $connection)->executeMutating(
+            'cart.create',
+            [],
+            static function (RequestContext $context) use ($requestContext, &$executed): array {
+                self::assertSame($requestContext, $context);
+                $executed = true;
+
+                return ['id' => 'cart-id'];
+            },
+            true,
+        );
+
+        self::assertTrue($executed, 'A dry run must still run the operation, otherwise it validates nothing.');
+        self::assertSame(
+            ['success' => true, 'dryRun' => true, 'data' => ['id' => 'cart-id']],
+            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
+    public function testDryRunNeverClaimsTheIdempotencyKey(): void
+    {
+        // Claiming on a preview would make the following real call replay the
+        // rolled-back preview response instead of committing.
+        $idempotencyService = $this->createMock(IdempotencyServiceInterface::class);
+        $idempotencyService->expects(self::never())->method('claim');
+        $idempotencyService->expects(self::never())->method('complete');
+        $idempotencyService->expects(self::never())->method('abort');
+
+        $result = $this->toolContext(
+            $this->requestContext(idempotencyRequired: true, idempotencyKey: 'idem-key'),
+            idempotencyService: $idempotencyService,
+        )->executeMutating('cart.cancel', ['id' => 'cart-id'], static fn (): array => ['cancelled' => true], true);
+
+        self::assertSame(
+            ['success' => true, 'dryRun' => true, 'data' => ['cancelled' => true]],
+            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
+    public function testDryRunStillRequiresAnIdempotencyKeyWhenConfigured(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::never())->method('beginTransaction');
+
+        $context = $this->toolContext($this->requestContext(idempotencyRequired: true), connection: $connection);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Idempotency key is required for mutating UCP requests.');
+
+        $context->executeMutating('cart.create', [], static function (): array {
+            self::fail('A dry run must fail the same validation a commit would.');
+        }, true);
+    }
+
+    #[Test]
+    public function testDryRunRollsBackAndRethrowsWhenTheOperationFails(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::once())->method('beginTransaction');
+        $connection->method('isTransactionActive')->willReturn(true);
+        $connection->expects(self::once())->method('rollBack');
+
+        $failure = new ValidationException('line item is unknown');
+
+        try {
+            $this->toolContext($this->requestContext(idempotencyRequired: false), connection: $connection)
+                ->executeMutating('cart.update', [], static fn (): array => throw $failure, true);
+            self::fail('Expected the original failure.');
+        } catch (ValidationException $exception) {
+            self::assertSame($failure, $exception);
+        }
+    }
+
+    #[Test]
+    public function testDryRunReportsAFailedRollbackInsteadOfClaimingNothingWasCommitted(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::once())->method('beginTransaction');
+        $connection->method('isTransactionActive')->willReturn(true);
+        $connection->method('rollBack')->willThrowException(new \RuntimeException('deadlock'));
+
+        $context = $this->toolContext($this->requestContext(idempotencyRequired: false), connection: $connection);
+
+        try {
+            $context->executeMutating('cart.create', [], static fn (): array => ['id' => 'cart-id'], true);
+            self::fail('Expected a failed rollback to be reported.');
+        } catch (UcpException $exception) {
+            self::assertSame('Dry-run rollback failed, so the operation may have been committed: deadlock', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function testSuccessOmitsTheDryRunFlagForReadOnlyTools(): void
+    {
+        $result = $this->toolContext($this->requestContext())->success(['products' => []]);
+
+        self::assertSame(['success' => true, 'data' => ['products' => []]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testPreviewReportsWhatACommitWouldDoWithoutCommitting(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::never())->method('beginTransaction');
+
+        $result = $this->toolContext($this->requestContext(), connection: $connection)->preview(
+            'checkout.complete',
+            ['id' => 'checkout-id', 'status' => 'incomplete'],
+            ['Checkout is incomplete.'],
+        );
+
+        self::assertSame([
+            'success' => true,
+            'dryRun' => true,
+            'preview' => [
+                'operation' => 'checkout.complete',
+                'committed' => false,
+                'wouldSucceed' => false,
+                'blockers' => ['Checkout is incomplete.'],
+            ],
+            'data' => ['id' => 'checkout-id', 'status' => 'incomplete'],
+        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testPreviewWithoutBlockersReportsThatACommitWouldSucceed(): void
+    {
+        $result = $this->toolContext($this->requestContext())->preview(
+            'checkout.complete',
+            ['id' => 'checkout-id', 'status' => 'ready_for_complete'],
+        );
+
+        $payload = json_decode($result, true, flags: \JSON_THROW_ON_ERROR);
+
+        self::assertTrue($payload['preview']['wouldSucceed']);
+        self::assertSame([], $payload['preview']['blockers']);
+        self::assertFalse($payload['preview']['committed']);
+    }
+
     private function toolContext(
         RequestContext $requestContext,
         ?HttpRequestContextFactoryInterface $requestContextFactory = null,
         ?IdempotencyServiceInterface $idempotencyService = null,
+        ?Connection $connection = null,
     ): UcpMcpToolContext {
         $request = Request::create('https://shop.example/ucp/mcp');
         $request->attributes->set(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE, $requestContext);
@@ -417,6 +574,7 @@ final class UcpMcpToolContextTest extends TestCase
             new SymfonyRequestContextFactory($requestContextFactory ?? $this->requestContextFactory($requestContext)),
             $idempotencyService ?? $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack($request),
+            $connection ?? $this->createMock(Connection::class),
         );
     }
 
