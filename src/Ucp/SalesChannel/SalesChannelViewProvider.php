@@ -100,17 +100,28 @@ final class SalesChannelViewProvider
 
     public function firstDomainUrl(string $salesChannelId, ?Context $context = null): ?string
     {
+        return $this->domainUrls($salesChannelId, $context)[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function domainUrls(string $salesChannelId, ?Context $context = null): array
+    {
         $criteria = new Criteria([$salesChannelId]);
         $criteria->addAssociation('domains');
         $criteria->setLimit(1);
 
         $salesChannel = $this->salesChannelRepository->search($criteria, $context ?? Context::createDefaultContext())->first();
         if (!$salesChannel instanceof SalesChannelEntity) {
-            return null;
+            return [];
         }
 
-        $domains = $salesChannel->getDomains();
+        $urls = [];
+        foreach ($salesChannel->getDomains() ?? [] as $domain) {
+            $urls[] = $domain->getUrl();
+        }
 
-        return $domains?->first()?->getUrl();
+        return $urls;
     }
 }

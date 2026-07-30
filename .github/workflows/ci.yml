@@ -38,7 +38,10 @@ env:
   # newer Composer versions use the policy variable.
   COMPOSER_NO_SECURITY_BLOCKING: '1'
   COMPOSER_POLICY_ADVISORIES_BLOCK: '0'
-  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
+  # This branch depends on the AP2 work that lives on the SDK's feat/ap2-mandates
+  # branch and is not yet on the SDK's main. Default the SDK ref to that branch so
+  # CI resolves the AP2 symbols. Revert to 'main' once the SDK AP2 work merges.
+  UCP_SDK_REF: ${{ github.event.inputs.sdk_ref || vars.UCP_SDK_REF || 'feat/ap2-mandates' }}
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
@@ -218,8 +221,8 @@ jobs:
         working-directory: shopware
       - name: Configure private SDK path repositories
         run: |
-          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.2"}}}'
-          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.2"}}}'
+          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.3-alpha2"}}}'
+          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.3-alpha2"}}}'
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce

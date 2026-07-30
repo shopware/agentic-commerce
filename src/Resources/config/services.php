@@ -66,6 +66,10 @@ use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareDiscountAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareOrderAdapter;
 use Swag\AgenticCommerce\Ucp\Admin\Api\UcpAdminController;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2CheckoutLockReaderInterface;
+use Swag\AgenticCommerce\Ucp\Ap2\Ap2MandateOrderPersister;
+use Swag\AgenticCommerce\Ucp\Ap2\SessionAp2CheckoutLockReader;
+use Swag\AgenticCommerce\Ucp\Ap2\ShopwareAp2CheckoutMandateVerifier;
 use Swag\AgenticCommerce\Ucp\Capability\CartCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CatalogCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CheckoutCapability;
@@ -115,10 +119,13 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutGetTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
+use Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizerRegistry;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
+use Swag\AgenticCommerce\Ucp\Test\Ap2\FixtureAp2MandateClaimsVerifier;
+use Swag\AgenticCommerce\Ucp\Test\Ap2\FixtureAp2PaymentAuthorizer;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -157,6 +164,12 @@ return static function (ContainerConfigurator $container): void {
         'signature_policy' => 'strict',
         'idempotency_required' => true,
         'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
+        // Wires the SDK's merchant-authorization signer so AP2-negotiated checkout
+        // responses carry ap2.merchant_authorization. Per-sales-channel advertisement
+        // stays behind the admin capability toggle and verifier availability.
+        'ap2' => [
+            'enabled' => true,
+        ],
         'signing_keys' => [
             'auto_generate' => true,
             'default_kid' => 'default',
@@ -257,8 +270,22 @@ return static function (ContainerConfigurator $container): void {
     $services->set(IdentityLinkingCapability::class)
         ->arg('$adapterIterable', tagged_iterator('ucp_sdk.adapter.identity_linking'));
 
+    $services->alias(Ap2CheckoutLockReaderInterface::class, SessionAp2CheckoutLockReader::class);
+
+    $services->set(ShopwareAp2CheckoutMandateVerifier::class)
+        ->arg('$claimsVerifiers', tagged_iterator('swag_agentic_commerce.ucp.ap2_mandate_claims_verifier'))
+        ->tag('ucp_sdk.ap2_checkout_mandate_verifier');
+
+    $services->set(Ap2MandateOrderPersister::class)
+        ->arg('$orderRepository', service('order.repository'));
+
+    $services->set(PaymentAuthorizerRegistry::class)
+        ->arg('$authorizers', tagged_iterator('swag_agentic_commerce.ucp.payment_authorizer'));
+
     $services->set(UcpExtensionAvailability::class)
-        ->arg('$identityLinkingAdapterIterable', tagged_iterator('ucp_sdk.adapter.identity_linking'));
+        ->arg('$identityLinkingAdapterIterable', tagged_iterator('ucp_sdk.adapter.identity_linking'))
+        ->arg('$ap2CheckoutMandateVerifierIterable', tagged_iterator('swag_agentic_commerce.ucp.ap2_mandate_claims_verifier'))
+        ->arg('$paymentAuthorizerIterable', tagged_iterator('swag_agentic_commerce.ucp.payment_authorizer'));
 
     // Tagged service registrations.
 
@@ -321,6 +348,17 @@ return static function (ContainerConfigurator $container): void {
             ->arg('$appEnv', param('kernel.environment'))
             ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
             ->tag('controller.service_arguments');
+
+        // AP2 fixtures are double-gated: non-prod registration here plus the runtime
+        // SWAG_AGENTIC_COMMERCE_TEST_AP2 flag. Registering them makes the AP2 mandate
+        // capability advertisable in test lanes; the flag keeps them inert elsewhere.
+        if ('1' === EnvironmentHelper::getVariable('SWAG_AGENTIC_COMMERCE_TEST_AP2')) {
+            $services->set(FixtureAp2MandateClaimsVerifier::class)
+                ->arg('$enabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_AP2'));
+
+            $services->set(FixtureAp2PaymentAuthorizer::class)
+                ->arg('$enabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_AP2'));
+        }
 
         $services->set(SeedSmokeCatalogCommand::class)
             ->arg('$productRepository', service('product.repository'))

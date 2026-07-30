@@ -89,6 +89,53 @@ final class CheckoutSessionManagerTest extends TestCase
         self::assertSame('deep-link-code', $calls[1][1]['swagAgenticCommerce']['ucpCheckout']['orderDeepLinkCode']);
     }
 
+    #[Test]
+    public function testItPersistsSelectedPaymentAndAp2LockState(): void
+    {
+        $selectedPayment = [
+            'instruments' => [[
+                'type' => 'tokenized',
+                'handler_id' => 'com.example.psp',
+                'credential' => ['token' => 'payment_mandate'],
+            ]],
+        ];
+        $metadata = null;
+
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->expects(static::once())
+            ->method('save')
+            ->willReturnCallback(static function (string $token, array $payload) use (&$metadata): void {
+                $metadata = $payload['swagAgenticCommerce']['ucpCheckout'];
+            });
+
+        $store = new CheckoutSessionStore($persister);
+        (new CheckoutSessionManager($store))->save(
+            $this->context('22222222222222222222222222222222', 'context-token', '66666666666666666666666666666666'),
+            CheckoutStatus::ReadyForComplete->value,
+            null,
+            selectedPayment: $selectedPayment,
+            ap2Locked: true,
+        );
+
+        self::assertIsArray($metadata);
+        self::assertTrue($metadata['ap2Locked']);
+        self::assertSame('com.example.psp', $metadata['selectedPayment']['instruments'][0]['handler_id']);
+        self::assertTrue($store->ap2Locked($metadata));
+        self::assertSame($selectedPayment, $store->selectedPayment($metadata));
+    }
+
+    #[Test]
+    public function testItTreatsMissingPaymentAndAp2MetadataAsUnlocked(): void
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $store = new CheckoutSessionStore($persister);
+
+        self::assertFalse($store->ap2Locked([]));
+        self::assertNull($store->selectedPayment([]));
+        self::assertFalse($store->ap2Locked(['ap2Locked' => 'yes']));
+        self::assertNull($store->selectedPayment(['selectedPayment' => 'invalid']));
+    }
+
     private function context(string $salesChannelId, string $token, string $customerId): SalesChannelContext
     {
         $customer = new CustomerEntity();

@@ -58,6 +58,18 @@ final class UcpCapabilityCatalogTest extends TestCase
     }
 
     #[Test]
+    public function testItBuildsAp2MandateDescriptor(): void
+    {
+        $descriptor = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_AP2_MANDATE);
+
+        self::assertSame('dev.ucp.shopping.ap2_mandate', $descriptor->name);
+        self::assertSame([UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT], $descriptor->extends);
+        self::assertSame('https://ucp.dev/latest/specification/ap2-mandates/', $descriptor->specUrl);
+        self::assertNotContains(UcpCapabilityCatalog::CONFIG_AP2_MANDATE, UcpCapabilityCatalog::defaultConfigKeys());
+        self::assertContains(UcpCapabilityCatalog::CONFIG_AP2_MANDATE, UcpCapabilityCatalog::allConfigKeys());
+    }
+
+    #[Test]
     public function testItBuildsOptionalCapabilityDescriptorsFromCentralMetadata(): void
     {
         $identity = UcpCapabilityCatalog::descriptor(UcpCapabilityCatalog::CONFIG_IDENTITY_LINKING);

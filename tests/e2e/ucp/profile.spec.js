@@ -82,6 +82,15 @@ test.describe('UCP public profile and transports', () => {
         }
     });
 
+    test('does not advertise AP2 mandate support by default', async ({ request: api }) => {
+        // AP2 requires an explicit capability opt-in plus a registered mandate
+        // claims verifier; the default configuration provides neither.
+        const profile = await readPublicProfile(api);
+        const profileRoot = profile.ucp || profile;
+
+        expect(profileRoot.capabilities?.['dev.ucp.shopping.ap2_mandate']).toBeUndefined();
+    });
+
     test('keeps OAuth and tokenization unsupported by default', async ({ request: api }) => {
         const config = laneConfig();
         const oauthResponse = await api.get('/.well-known/oauth-authorization-server', { failOnStatusCode: false });

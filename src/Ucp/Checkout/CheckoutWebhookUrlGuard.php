@@ -29,11 +29,12 @@ final class CheckoutWebhookUrlGuard
         $host = $this->normalizeHost($host);
         $allowedHosts = array_map($this->normalizeHost(...), [] !== $config->agentAllowlist ? $config->agentAllowlist : $config->platformAllowlist);
         if ([] === $allowedHosts) {
-            $salesChannelBaseUrl = $this->salesChannelViewProvider->firstDomainUrl($salesChannelId);
-            $salesChannelHost = parse_url((string) $salesChannelBaseUrl, \PHP_URL_HOST);
+            foreach ($this->salesChannelViewProvider->domainUrls($salesChannelId) as $salesChannelBaseUrl) {
+                $salesChannelHost = parse_url($salesChannelBaseUrl, \PHP_URL_HOST);
 
-            if (\is_string($salesChannelHost) && '' !== $salesChannelHost) {
-                $allowedHosts[] = $this->normalizeHost($salesChannelHost);
+                if (\is_string($salesChannelHost) && '' !== $salesChannelHost) {
+                    $allowedHosts[] = $this->normalizeHost($salesChannelHost);
+                }
             }
         }
 

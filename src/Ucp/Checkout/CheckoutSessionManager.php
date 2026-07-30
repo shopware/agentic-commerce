@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
@@ -18,6 +19,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array<string, mixed>|null                                                                           $selectedPayment
      */
     public function save(
         SalesChannelContext $salesChannelContext,
@@ -27,8 +29,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?array $selectedPayment = null,
+        bool $ap2Locked = false,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $selectedPayment, $ap2Locked);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
     }
@@ -36,6 +40,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array<string, mixed>|null                                                                           $selectedPayment
      */
     public function saveForCheckoutId(
         string $checkoutId,
@@ -46,8 +51,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?array $selectedPayment = null,
+        bool $ap2Locked = false,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $selectedPayment, $ap2Locked);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -59,6 +66,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array<string, mixed>|null                                                                           $selectedPayment
      *
      * @return array<string, mixed>
      */
@@ -70,6 +78,8 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId,
         ?string $orderDeepLinkCode,
         ?array $guestAddress,
+        ?array $selectedPayment = null,
+        bool $ap2Locked = false,
     ): array {
         $metadata = [
             'status' => $status,
@@ -96,6 +106,14 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
             $metadata['guestAddress'] = $guestAddress;
         }
 
+        if (null !== $selectedPayment) {
+            $metadata['selectedPayment'] = $selectedPayment;
+        }
+
+        if ($ap2Locked) {
+            $metadata['ap2Locked'] = true;
+        }
+
         return $metadata;
     }
 
@@ -105,6 +123,14 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     public function buyer(array $metadata): ?Buyer
     {
         return $this->sessionStore->buyer($metadata);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    public function selectedPaymentInstrument(array $metadata): ?PaymentInstrument
+    {
+        return $this->sessionStore->selectedPaymentInstrument($metadata);
     }
 
     /**

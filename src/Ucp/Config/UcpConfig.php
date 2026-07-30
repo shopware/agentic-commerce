@@ -35,6 +35,7 @@ final class UcpConfig
         'webhookUrlOverride',
         'signaturePolicy',
         'idempotencyRequired',
+        'advertiseDelegatedPaymentHandlers',
     ];
 
     /**
@@ -78,6 +79,7 @@ final class UcpConfig
         public readonly ?string $webhookUrlOverride = null,
         public readonly string $signaturePolicy = 'strict',
         public readonly bool $idempotencyRequired = true,
+        public readonly bool $advertiseDelegatedPaymentHandlers = false,
     ) {
     }
 
@@ -119,6 +121,7 @@ final class UcpConfig
             $webhookUrlOverride,
             self::signaturePolicyValue($payload['signaturePolicy'] ?? 'strict'),
             self::boolValue($payload['idempotencyRequired'] ?? null, true, '$.idempotencyRequired'),
+            self::boolValue($payload['advertiseDelegatedPaymentHandlers'] ?? null, false, '$.advertiseDelegatedPaymentHandlers'),
         );
     }
 
@@ -159,6 +162,7 @@ final class UcpConfig
             'webhookUrlOverride' => $this->webhookUrlOverride,
             'signaturePolicy' => $this->signaturePolicy,
             'idempotencyRequired' => $this->idempotencyRequired,
+            'advertiseDelegatedPaymentHandlers' => $this->advertiseDelegatedPaymentHandlers,
         ];
     }
 
@@ -221,7 +225,12 @@ final class UcpConfig
         ];
     }
 
-    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false): RuntimeConfiguration
+    /**
+     * @param list<string>|null $enabledCapabilityDescriptors overrides the config-derived
+     *                                                        descriptors so callers can drop capabilities the installation
+     *                                                        cannot serve (see UcpExtensionAvailability::filterSupportedDescriptors())
+     */
+    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false, ?array $enabledCapabilityDescriptors = null): RuntimeConfiguration
     {
         $baseUri = $this->resolveBaseUri($fallbackBaseUri);
         $host = parse_url($baseUri, \PHP_URL_HOST);
@@ -238,7 +247,7 @@ final class UcpConfig
             $allowedAgentDomains,
             [],
             $this->runtimeTransports($storeApiMcpAvailable),
-            $this->runtimeEnabledCapabilityDescriptors(),
+            $enabledCapabilityDescriptors ?? $this->runtimeEnabledCapabilityDescriptors(),
             $tenantIdentifier,
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
         );

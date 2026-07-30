@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Http\HttpRequest;
@@ -19,6 +20,7 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
         private readonly UcpConfigService $configService,
         private readonly SalesChannelDomainResolver $domainResolver,
         private readonly ShopwareVersionDetector $versionDetector,
+        private readonly UcpExtensionAvailability $extensionAvailability,
     ) {
     }
 
@@ -31,7 +33,14 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
             $baseUri = $resolution->baseUrl;
         }
 
-        return $config->toRuntimeConfiguration($baseUri, $resolution?->salesChannelId, $this->versionDetector->supportsStoreApiMcp());
+        return $config->toRuntimeConfiguration(
+            $baseUri,
+            $resolution?->salesChannelId,
+            $this->versionDetector->supportsStoreApiMcp(),
+            // Keep negotiation on the same gate as profile advertisement: never
+            // negotiate a capability the installation cannot serve.
+            $this->extensionAvailability->filterSupportedDescriptors($config->runtimeEnabledCapabilityDescriptors()),
+        );
     }
 
     private function fallbackBaseUri(string $absoluteUri): string

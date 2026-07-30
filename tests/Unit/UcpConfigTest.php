@@ -95,6 +95,7 @@ final class UcpConfigTest extends TestCase
 
         self::assertSame(UcpCapabilityCatalog::defaultConfigKeys(), $config->enabledCapabilities);
         self::assertTrue($config->idempotencyRequired);
+        self::assertFalse($config->advertiseDelegatedPaymentHandlers);
         self::assertSame('strict', $config->signaturePolicy);
         self::assertSame(50, $config->catalogResultLimit);
         self::assertSame([
@@ -104,6 +105,19 @@ final class UcpConfigTest extends TestCase
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
             UcpCapabilityCatalog::DESCRIPTOR_ORDER,
         ], $config->runtimeEnabledCapabilityDescriptors());
+    }
+
+    #[Test]
+    public function testItParsesAndRoundTripsAdvertiseDelegatedPaymentHandlers(): void
+    {
+        $config = UcpConfig::fromArray([
+            'active' => true,
+            'advertiseDelegatedPaymentHandlers' => true,
+        ]);
+
+        self::assertTrue($config->advertiseDelegatedPaymentHandlers);
+        self::assertTrue($config->toArray()['advertiseDelegatedPaymentHandlers']);
+        self::assertTrue(UcpConfig::fromArray($config->toArray())->advertiseDelegatedPaymentHandlers);
     }
 
     #[Test]
@@ -226,6 +240,26 @@ final class UcpConfigTest extends TestCase
 
         self::assertSame(['legacy.example'], $legacyConfig->allowedProfileHosts);
         self::assertSame(['legacy.example'], $legacyConfig->allowedAgentDomains);
+    }
+
+    #[Test]
+    public function testItAcceptsAnEnabledCapabilityDescriptorOverride(): void
+    {
+        $config = UcpConfig::fromArray([
+            'active' => true,
+            'enabledCapabilities' => [UcpCapabilityCatalog::CONFIG_CHECKOUT, UcpCapabilityCatalog::CONFIG_AP2_MANDATE],
+        ]);
+
+        $unfiltered = $config->toRuntimeConfiguration('https://merchant.example');
+        self::assertContains(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE, $unfiltered->enabledCapabilities);
+
+        $filtered = $config->toRuntimeConfiguration(
+            'https://merchant.example',
+            null,
+            false,
+            [UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT],
+        );
+        self::assertSame([UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT], $filtered->enabledCapabilities);
     }
 
     /**

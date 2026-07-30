@@ -115,6 +115,7 @@ services:
   web:
     environment:
       SWAG_AGENTIC_COMMERCE_TEST_CAPTURE: "1"
+      SWAG_AGENTIC_COMMERCE_TEST_AP2: "1"
       SWAG_AGENTIC_COMMERCE_SMOKE_SEED: "1"
       SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: "1"
       MCP_SERVER: "1"
@@ -201,10 +202,23 @@ wait_for_capture() {
   exit 1
 }
 
-rm -rf "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
+# Local dev lanes may symlink the live checkouts into custom/; keep those
+# instead of replacing them with rsync copies.
+plugin_target_is_live_symlink=0
+if [[ -L "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" \
+  && "$(readlink "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce")" == "${PLUGIN_ROOT}" \
+  && ( ! -e "${SHOPWARE_DIR}/custom/ucp-php-sdk" || -L "${SHOPWARE_DIR}/custom/ucp-php-sdk" ) ]]; then
+  plugin_target_is_live_symlink=1
+fi
+
+if [[ "${plugin_target_is_live_symlink}" == "0" ]]; then
+  rm -rf "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
+fi
 mkdir -p "${SHOPWARE_DIR}/custom/plugins"
 
-if [[ "${SKIP_PLUGIN}" == "1" ]]; then
+if [[ "${plugin_target_is_live_symlink}" == "1" ]]; then
+  :
+elif [[ "${SKIP_PLUGIN}" == "1" ]]; then
   :
 else
   mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
@@ -311,7 +325,7 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 fi
 
 if [[ ! -f "${SHOPWARE_DIR}/composer.lock" && "${SHOPWARE_BRANCH}" == "6.5.x" ]]; then
@@ -333,10 +347,10 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
 else
   web sh -lc "cd /var/www/html \
     && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
-    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.2\"}}}' \
-    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.2\"}}}' \
+    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.3-alpha2\"}}}' \
+    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.3-alpha2\"}}}' \
     && { composer remove --no-update --no-interaction ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
-    && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
+    && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} ucp-php-sdk/core:0.0.3-alpha2@alpha ucp-php-sdk/symfony-bundle:0.0.3-alpha2@alpha --with-all-dependencies"
 fi
 
 write_composer_security_audit
@@ -492,7 +506,10 @@ if [[ "${BOOTSTRAP_ONLY}" == "1" ]]; then
   exit 0
 fi
 
-product_row="$(db_query "SELECT LOWER(HEX(product.id)), pt.name FROM product INNER JOIN product_translation pt ON pt.product_id = product.id WHERE product.active = 1 AND pt.name IS NOT NULL ORDER BY product.created_at ASC LIMIT 1;")"
+# Pin the translation to the system default language: with multilingual demo
+# data the unfiltered join can return a non-storefront translation whose first
+# word never matches in catalog.search.
+product_row="$(db_query "SELECT LOWER(HEX(product.id)), pt.name FROM product INNER JOIN product_translation pt ON pt.product_id = product.id AND pt.language_id = UNHEX('2FBB5FE2E29A4D70AA5854CE7CE3E20B') WHERE product.active = 1 AND pt.name IS NOT NULL ORDER BY product.created_at ASC LIMIT 1;")"
 product_id="${product_row%%$'\t'*}"
 product_name="${product_row#*$'\t'}"
 

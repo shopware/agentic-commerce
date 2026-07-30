@@ -226,7 +226,9 @@ function supportsConfigurableCoversRule(string $coreDir): bool
 function renderPhpstanAutoload(string $pluginDir, string $coreDir, string $tmpDir): string
 {
     $autoloadPath = $tmpDir.'/autoload.php';
-    $shopwareProjectDir = \dirname($coreDir, 2);
+    // Platform checkouts keep core at <project>/src/Core, composer installs at
+    // <project>/vendor/shopware/core.
+    $shopwareProjectDir = str_ends_with($coreDir, '/src/Core') ? \dirname($coreDir, 2) : \dirname($coreDir, 3);
     $content = <<<'PHP'
         <?php
 

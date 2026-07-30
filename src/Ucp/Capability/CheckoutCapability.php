@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Capability;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
@@ -46,11 +47,11 @@ final class CheckoutCapability implements CheckoutCapabilityInterface
         return $this->adapter->updateCheckout($request, $context);
     }
 
-    public function completeCheckout(string $id, RequestContext $context): Checkout
+    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context, ?Checkout $verifiedCheckout = null): Checkout
     {
         CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT, 'Checkout capability is disabled for this sales channel.');
 
-        return $this->adapter->completeCheckout($id, $context);
+        return $this->adapter->completeCheckout($request, $context, $verifiedCheckout);
     }
 
     public function cancelCheckout(string $id, RequestContext $context): Checkout

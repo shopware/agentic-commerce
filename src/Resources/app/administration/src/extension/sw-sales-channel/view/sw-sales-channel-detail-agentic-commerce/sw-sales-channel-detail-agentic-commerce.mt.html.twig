@@ -121,6 +121,34 @@
                         {% endblock %}
                     </div>
                 </div>
+
+                {% block sw_sales_channel_detail_agentic_commerce_ucp_advanced %}
+                <div class="sw-sales-channel-detail-agentic-commerce__section">
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.advancedCapabilitiesLabel') }}
+                    </p>
+                    <div class="sw-sales-channel-detail-agentic-commerce__option-list">
+                        <mt-checkbox
+                            v-for="capability in advancedCapabilities"
+                            :key="capability.value"
+                            class="sw-sales-channel-detail-agentic-commerce__option-item"
+                            :label="$t(capability.label)"
+                            :help-text="$t(capability.reason)"
+                            :disabled="!canEditConfig || !isActive || !capability.available"
+                            :checked="isCapabilityEnabled(capability.value)"
+                            @update:checked="(checked) => updateCapability(capability.value, checked)"
+                        />
+                        <mt-checkbox
+                            class="sw-sales-channel-detail-agentic-commerce__option-item"
+                            :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.delegatedPaymentLabel')"
+                            :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.delegatedPaymentReason')"
+                            :disabled="!canEditConfig || !isActive || !isDelegatedPaymentAvailable"
+                            :checked="isDelegatedPaymentEnabled"
+                            @update:checked="(checked) => setDelegatedPayment(checked)"
+                        />
+                    </div>
+                </div>
+                {% endblock %}
             </template>
             {% endblock %}
 

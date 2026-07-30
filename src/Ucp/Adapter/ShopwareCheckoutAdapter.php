@@ -7,6 +7,8 @@ namespace Swag\AgenticCommerce\Ucp\Adapter;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Ap2\ShopwareCheckoutTermsFactory;
+use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
@@ -20,8 +22,10 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Exception\Ap2Exception;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
@@ -41,6 +45,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         private readonly CheckoutCompleter $checkoutCompleter,
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly ContextTokenGenerator $contextTokenGenerator,
+        private readonly ShopwareCheckoutTermsFactory $termsFactory = new ShopwareCheckoutTermsFactory(),
     ) {
     }
 
@@ -58,6 +63,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $request->buyer,
             $discountCodes,
             guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment),
+            ap2Locked: $this->ap2Negotiated($context),
         );
 
         return $this->mapper->toCheckout(
@@ -112,7 +118,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -148,12 +154,25 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $buyer = $request->buyer ?? $this->sessionStore->buyer($metadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
 
+        $selectedPayment = null;
+        if (null !== $request->payment) {
+            $selectedPayment = [
+                'instruments' => [[
+                    'type' => $request->payment->type,
+                    'handler_id' => $request->payment->handlerId,
+                    'credential' => $request->payment->credential,
+                ]],
+            ];
+        }
+
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $buyer,
             $discountCodes,
             guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment, $metadata),
+            selectedPayment: $selectedPayment ?? $this->sessionStore->selectedPayment($metadata),
+            ap2Locked: $this->sessionStore->ap2Locked($metadata) || $this->ap2Negotiated($context),
         );
 
         return $this->mapper->toCheckout(
@@ -165,8 +184,9 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         );
     }
 
-    public function completeCheckout(string $id, RequestContext $context): Checkout
+    public function completeCheckout(CheckoutCompleteRequest $request, RequestContext $context, ?Checkout $verifiedCheckout = null): Checkout
     {
+        $id = $request->id;
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
 
@@ -175,13 +195,52 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
+        $this->assertVerifiedTermsUnchanged($verifiedCheckout, $cart, $salesChannelContext, $metadata, $id);
+
+        return $this->checkoutCompleter->complete($request, $metadata, $cart, $salesChannelContext, $context);
+    }
+
+    /**
+     * Refuses to complete terms the AP2 mandate verifiers never saw: the cart is
+     * shared server-side state and can be mutated between mandate verification and
+     * completion (TOCTOU).
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private function assertVerifiedTermsUnchanged(
+        ?Checkout $verifiedCheckout,
+        Cart $cart,
+        SalesChannelContext $salesChannelContext,
+        array $metadata,
+        string $checkoutId,
+    ): void {
+        if (null === $verifiedCheckout) {
+            return;
+        }
+
+        $buyer = $this->sessionStore->buyer($metadata);
+        $currentCheckout = $this->mapper->toCheckout(
+            $cart,
+            $salesChannelContext,
+            $this->statusFor($cart->getLineItems()->count(), null !== $buyer),
+            $buyer,
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
+        );
+
+        if ($this->termsFactory->terms($currentCheckout) !== $this->termsFactory->terms($verifiedCheckout)) {
+            throw new Ap2Exception('mandate_scope_mismatch', 'The checkout changed after the AP2 mandate was verified; request a fresh mandate for the current terms.');
+        }
+    }
+
+    private function ap2Negotiated(RequestContext $context): bool
+    {
+        return \in_array(UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE, $context->negotiation?->capabilityNames() ?? [], true);
     }
 
     /**
@@ -212,7 +271,13 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($id, $context);
         $cart = $this->cartGateway->cancelCart($id, $context);
 
-        $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
+        $this->sessionManager->save(
+            $salesChannelContext,
+            CheckoutStatus::Canceled->value,
+            $buyer,
+            selectedPayment: $this->sessionStore->selectedPayment($metadata),
+            ap2Locked: $this->sessionStore->ap2Locked($metadata),
+        );
 
         return $this->mapper->toCheckout(
             new Cart($cart->id),
@@ -266,12 +331,32 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         OrderEntity $order,
         string $checkoutId,
         string $salesChannelId,
+        RequestContext $context,
     ): Checkout {
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            $this->orderPermalinkUrl($order, $context),
         );
+    }
+
+    /**
+     * A placed order has no relation to the checkout id the continue-URL
+     * template is built from, so its permalink instead uses the order's own
+     * guest-access deepLinkCode against the storefront's order-detail-by-code
+     * route (frontend.account.order.single.page) - the same guest-order proof
+     * X402CheckoutResponseAugmenter already relies on for the pay route.
+     */
+    private function orderPermalinkUrl(OrderEntity $order, RequestContext $context): ?string
+    {
+        $deepLinkCode = $order->getDeepLinkCode();
+        $baseUri = rtrim($context->runtimeConfiguration?->baseUri ?? '', '/');
+        if (null === $deepLinkCode || '' === $deepLinkCode || '' === $baseUri) {
+            return null;
+        }
+
+        return $baseUri.'/account/order/'.rawurlencode($deepLinkCode);
     }
 }

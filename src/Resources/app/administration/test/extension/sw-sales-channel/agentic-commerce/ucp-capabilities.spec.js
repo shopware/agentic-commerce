@@ -11,8 +11,8 @@ describe('agentic-commerce/ucp-capabilities', () => {
         expect(readyCapabilityValues()).toEqual(['catalog', 'cart', 'discount', 'checkout', 'order']);
     });
 
-    it('keeps identity_linking and payment_tokenization out of Basic (not-ready)', () => {
-        expect(notReadyCapabilityValues()).toEqual(['identity_linking', 'payment_tokenization']);
+    it('keeps identity_linking, payment_tokenization and ap2_mandate out of Basic (not-ready)', () => {
+        expect(notReadyCapabilityValues()).toEqual(['identity_linking', 'payment_tokenization', 'ap2_mandate']);
         expect(isReadyCapability('identity_linking')).toBe(false);
         expect(isReadyCapability('catalog')).toBe(true);
     });

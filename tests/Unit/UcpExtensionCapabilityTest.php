@@ -72,6 +72,48 @@ final class UcpExtensionCapabilityTest extends TestCase
     }
 
     #[Test]
+    public function testItFiltersDescriptorsTheInstallationCannotServe(): void
+    {
+        $availability = new UcpExtensionAvailability([], new PaymentHandlerRegistryStub([]));
+
+        self::assertSame(
+            [UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT],
+            $availability->filterSupportedDescriptors([
+                UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
+                UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING,
+                UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
+                UcpCapabilityCatalog::DESCRIPTOR_AP2_MANDATE,
+            ]),
+        );
+    }
+
+    #[Test]
+    public function testItReportsPaymentAuthorizerAvailabilityPerHandler(): void
+    {
+        $authorizer = new class implements \Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizerInterface {
+            public function supports(string $handlerId): bool
+            {
+                return 'test.psp' === $handlerId;
+            }
+
+            public function authorize(
+                \Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest $request,
+                PaymentInstrument $instrument,
+                \Shopware\Core\Checkout\Cart\Cart $cart,
+                \Shopware\Core\System\SalesChannel\SalesChannelContext $context,
+                RequestContext $requestContext,
+            ): \Swag\AgenticCommerce\Ucp\Payment\PaymentAuthorizationResult {
+                throw new \BadMethodCallException('Not called in this test.');
+            }
+        };
+
+        $availability = new UcpExtensionAvailability([], new PaymentHandlerRegistryStub([]), [], [$authorizer]);
+
+        self::assertTrue($availability->hasPaymentAuthorizerFor('test.psp'));
+        self::assertFalse($availability->hasPaymentAuthorizerFor('other.psp'));
+    }
+
+    #[Test]
     public function testItRejectsTokenizationWithoutSupportingHandler(): void
     {
         $capability = new PaymentTokenizationCapability(new PaymentHandlerRegistryStub([]));
