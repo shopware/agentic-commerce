@@ -36,7 +36,7 @@ final class UcpCheckoutCreateTool
                 )),
             );
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

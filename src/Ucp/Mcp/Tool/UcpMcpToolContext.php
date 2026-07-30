@@ -8,7 +8,13 @@ use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Ucp\Sdk\Exception\ConfigurationException;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
+use Ucp\Sdk\Exception\NegotiationException;
+use Ucp\Sdk\Exception\ResourceNotFoundException;
+use Ucp\Sdk\Exception\SignatureException;
+use Ucp\Sdk\Exception\UcpException;
+use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\IdempotencyRecord;
 use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
@@ -108,10 +114,20 @@ final class UcpMcpToolContext
      */
     public function decodeObject(string $payload): array
     {
-        $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
+        $payload = trim($payload);
+
+        if ('' === $payload) {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($payload, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new ValidationException('The payload parameter must be a JSON object string, for example {"key":"value"}.', ['$.payload is not valid JSON: '.$exception->getMessage()]);
+        }
 
         if (!\is_array($decoded) || array_is_list($decoded)) {
-            return [];
+            throw new ValidationException('The payload parameter must be a JSON object string, for example {"key":"value"}.', ['$.payload must be a JSON object, '.get_debug_type($decoded).' given']);
         }
 
         /* @var UcpMcpNestedJsonObject $decoded */
@@ -119,28 +135,81 @@ final class UcpMcpToolContext
     }
 
     /**
+     * Decodes the id list of a read tool.
+     *
+     * Accepts what an agent realistically sends for a string parameter that
+     * carries a list: a JSON array string, a JSON object wrapping the list, a
+     * bare id, or a comma-separated list of ids. Anything else fails loudly
+     * instead of silently degrading to an empty list.
+     *
      * @return list<string>
      */
     public function decodeStringList(string $payload): array
     {
-        $decoded = '' !== $payload ? json_decode($payload, true, 512, \JSON_THROW_ON_ERROR) : [];
+        $payload = trim($payload);
 
-        return array_values(array_map('strval', \is_array($decoded) ? $decoded : []));
+        if ('' === $payload) {
+            return [];
+        }
+
+        if (!str_starts_with($payload, '[') && !str_starts_with($payload, '{')) {
+            return $this->splitList($payload);
+        }
+
+        try {
+            $decoded = json_decode($payload, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new ValidationException('The ids parameter must be a JSON array string of ids, for example ["id-a","id-b"].', ['$.ids is not valid JSON: '.$exception->getMessage()]);
+        }
+
+        if (\is_array($decoded) && !array_is_list($decoded)) {
+            $decoded = $decoded['ids'] ?? null;
+        }
+
+        if (!\is_array($decoded)) {
+            throw new ValidationException('The ids parameter must be a JSON array string of ids, for example ["id-a","id-b"].', ['$.ids must be a JSON array of ids, '.get_debug_type($decoded).' given']);
+        }
+
+        $ids = [];
+        foreach ($decoded as $id) {
+            if (!\is_string($id) && !\is_int($id)) {
+                throw new ValidationException('The ids parameter must be a JSON array string of ids, for example ["id-a","id-b"].', ['$.ids[] must contain ids as strings, '.get_debug_type($id).' given']);
+            }
+
+            $id = trim((string) $id);
+            if ('' !== $id) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 
     /**
-     * Normalises a tool failure before it bubbles up to the MCP server.
+     * Renders a tool failure as an in-band result so the calling agent can act on it.
      *
-     * Intentionally a pass-through for now: the pinned mcp/sdk ^0.5 (via
-     * symfony/mcp-bundle in shopware trunk) does not ship
-     * Mcp\Exception\ToolCallException, so the original exception propagates and
-     * the server returns a generic tool error. Once mcp/sdk ^0.6 is available,
-     * map failures to a ToolCallException here (per-violation messages and
-     * -32602 for invalid input). See docs/mcp-sdk-upgrade.md.
+     * The MCP server turns a thrown exception into a generic JSON-RPC tool error
+     * ("Error while executing tool"), which strips the message the agent needs to
+     * correct its call. Returning the failure as tool content keeps the message —
+     * and any validation violations — visible, which is also what the MCP spec
+     * recommends for tool-execution errors. Only UCP domain errors are surfaced
+     * verbatim; anything else is reported generically so internals do not leak to
+     * an unauthenticated MCP client.
      */
-    public function toToolCallException(\Throwable $exception): \Throwable
+    public function failure(\Throwable $exception): string
     {
-        return $exception;
+        $error = $exception instanceof UcpException
+            ? ['type' => $this->errorType($exception), 'message' => $exception->getMessage()]
+            : ['type' => 'internal', 'message' => 'The tool call failed unexpectedly.'];
+
+        if ($exception instanceof ValidationException && [] !== $exception->getViolations()) {
+            $error['violations'] = $exception->getViolations();
+        }
+
+        return json_encode([
+            'success' => false,
+            'error' => $error,
+        ], \JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -152,6 +221,36 @@ final class UcpMcpToolContext
             'success' => true,
             'data' => $this->normalizeData($data),
         ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitList(string $payload): array
+    {
+        $ids = [];
+        foreach (explode(',', $payload) as $id) {
+            $id = trim($id, " \t\n\r\0\x0B\"'");
+            if ('' !== $id) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    private function errorType(UcpException $exception): string
+    {
+        return match (true) {
+            $exception instanceof ValidationException => 'validation',
+            $exception instanceof SignatureException => 'signature',
+            $exception instanceof ResourceNotFoundException => 'not_found',
+            $exception instanceof IdempotencyConflictException => 'idempotency_conflict',
+            $exception instanceof NegotiationException => 'negotiation',
+            $exception instanceof UnsupportedCapabilityException => 'unsupported_capability',
+            $exception instanceof ConfigurationException => 'configuration',
+            default => 'ucp',
+        };
     }
 
     /**
