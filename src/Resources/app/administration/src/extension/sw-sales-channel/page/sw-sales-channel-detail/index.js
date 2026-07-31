@@ -116,6 +116,14 @@ export const swSalesChannelDetailOverride = {
     },
 
     methods: {
+        createdComponent() {
+            this.$super('createdComponent');
+
+            if (this.isAgenticCommerce && this.productExport?.isNew()) {
+                this.onTemplateSelected('open_ai');
+            }
+        },
+
         loadEntityData() {
             const hasRouteId = Boolean(this.$route.params.id);
             const hasRouteTypeId = Boolean(this.$route.params.typeId);
@@ -214,6 +222,13 @@ export const swSalesChannelDetailOverride = {
             }
 
             this.productComparison.selectedTemplate = { ...this.productComparison.templates[templateName] };
+
+            if (this.productExport.isNew()) {
+                this.productComparison.templateName = templateName;
+                this.onTemplateModalConfirm();
+                return;
+            }
+
             const contentChanged = Object.keys(this.productComparison.selectedTemplate).some((value) => {
                 return this.productExport[value] !== this.productComparison.selectedTemplate[value];
             });
@@ -250,6 +265,10 @@ export const swSalesChannelDetailOverride = {
             this.productComparison.selectedTemplate = null;
             this.previousTemplateName = null;
             this.productComparison.showTemplateModal = false;
+
+            if (this.productExport.isNew()) {
+                return;
+            }
 
             this.createNotificationInfo({
                 message: this.$t('sw-sales-channel.detail.productComparison.templates.message.template-applied-message'),
