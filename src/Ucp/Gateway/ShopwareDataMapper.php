@@ -180,6 +180,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $payload = [];
 
         foreach ($lineItems as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                continue;
+            }
+
             $label = $lineItem->getLabel() ?: ($lineItem->getReferencedId() ?? $lineItem->getId());
             $payload[] = $this->lineItem(
                 $lineItem->getReferencedId() ?? $lineItem->getId(),
@@ -198,6 +202,24 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
+     * Decides whether a Shopware line belongs in `totals` instead of `line_items`.
+     *
+     * A promotion (and a credit, and a custom negative line) carries a negative unit
+     * price. UCP has no such thing: `LineItem::toArray()` emits a per-line
+     * `{"type": "subtotal"}` entry, and `types/total.json` constrains `subtotal` to
+     * `minimum: 0`. Emitting one therefore made the whole response fail its own
+     * schema — `discount.apply` most visibly, but equally `cart.get`, `cart.update`,
+     * `checkout.get` and `checkout.update` whenever a promotion sat in the cart.
+     *
+     * The spec models these as a negative `items_discount` total instead, which is
+     * where mapDiscountTotal() puts them.
+     */
+    private function isDiscountLine(?float $unitPrice): bool
+    {
+        return null !== $unitPrice && $unitPrice < 0.0;
+    }
+
+    /**
      * @return list<LineItem>
      */
     private function mapOrderLineItems(OrderEntity $order): array
@@ -205,6 +227,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $payload = [];
 
         foreach ($order->getLineItems() ?? [] as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                continue;
+            }
+
             $payload[] = $this->lineItem(
                 $lineItem->getReferencedId() ?? $lineItem->getIdentifier(),
                 $lineItem->getLabel(),
@@ -260,11 +286,19 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
      */
     private function cartMoneySummary(Cart $cart): array
     {
+        $itemsDiscount = 0.0;
+        foreach ($cart->getLineItems() as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                $itemsDiscount += $lineItem->getPrice()?->getTotalPrice() ?? 0.0;
+            }
+        }
+
         return $this->moneySummary(
             $cart->getPrice()->getPositionPrice(),
             $cart->getShippingCosts()->getTotalPrice(),
             $cart->getPrice()->getTotalPrice(),
             $cart->getPrice()->getCalculatedTaxes(),
+            $itemsDiscount,
         );
     }
 
@@ -273,31 +307,59 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
      */
     private function orderMoneySummary(OrderEntity $order): array
     {
+        $itemsDiscount = 0.0;
+        foreach ($order->getLineItems() ?? [] as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                $itemsDiscount += $lineItem->getPrice()?->getTotalPrice() ?? 0.0;
+            }
+        }
+
         return $this->moneySummary(
             $order->getPrice()->getPositionPrice(),
             $order->getShippingCosts()->getTotalPrice(),
             $order->getPrice()->getTotalPrice(),
             $order->getPrice()->getCalculatedTaxes(),
+            $itemsDiscount,
         );
     }
 
     /**
+     * Builds the UCP totals breakdown.
+     *
+     * `$positionPrice` is Shopware's sum over every position, discounts included, so
+     * it is already net of the promotion. UCP wants the two reported separately —
+     * a non-negative `subtotal` (types/total.json: `minimum: 0`) plus a strictly
+     * negative `items_discount` (`exclusiveMaximum: 0`) — so the discount is added
+     * back out of the subtotal and reported on its own. `subtotal + items_discount`
+     * therefore returns to `$positionPrice`.
+     *
+     * `items_discount` is omitted entirely when nothing was discounted: zero would
+     * violate `exclusiveMaximum: 0`.
+     *
      * @param CalculatedTaxCollection $taxes
+     * @param float                   $itemsDiscount sum of the excluded discount lines, zero or negative
      *
      * @return list<Money>
      */
     private function moneySummary(
-        float $subtotal,
+        float $positionPrice,
         float $shipping,
         float $total,
         iterable $taxes,
+        float $itemsDiscount = 0.0,
     ): array {
-        return [
-            new Money('subtotal', $subtotal),
+        $summary = [
+            new Money('subtotal', $positionPrice - $itemsDiscount),
             new Money('fulfillment', $shipping),
             new Money('total', $total),
             new Money('tax', $this->totalTax($taxes)),
         ];
+
+        if ($itemsDiscount < 0.0) {
+            $summary[] = new Money('items_discount', $itemsDiscount);
+        }
+
+        return $summary;
     }
 
     /**
