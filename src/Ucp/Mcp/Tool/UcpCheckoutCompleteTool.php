@@ -10,7 +10,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-complete', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase.')]
+#[McpTool(name: 'shopware-ucp-checkout-complete', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object string matching the UCP checkout.complete request; UCP requires a payment object here. Omit it to charge the sales channel default (invoice/offline) method, which needs nothing from the buyer.')]
 /** @internal */
 #[Package('checkout')]
 final class UcpCheckoutCompleteTool
@@ -19,18 +19,21 @@ final class UcpCheckoutCompleteTool
         private readonly ShoppingOperationExecutor $operationExecutor,
         private readonly UcpMcpToolContext $toolContext,
         private readonly UcpCheckoutCompletionPreview $completionPreview,
+        private readonly UcpCheckoutCompletionPayment $completionPayment,
     ) {
     }
 
-    public function __invoke(string $id, bool $dryRun = true): string
+    public function __invoke(string $id, string $payload = '{}', bool $dryRun = true): string
     {
         try {
+            $requestPayload = $this->completionPayment->apply($this->toolContext->decodeObject($payload));
+
             return $this->toolContext->executeMutating(
                 'checkout.complete',
-                ['id' => $id],
+                ['id' => $id, 'payload' => $requestPayload],
                 fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.complete',
-                    [],
+                    $requestPayload,
                     $context,
                     $id,
                 )),
