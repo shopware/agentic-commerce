@@ -125,6 +125,14 @@ export const swSalesChannelDetailOverride = {
     },
 
     methods: {
+        createdComponent() {
+            this.$super('createdComponent');
+
+            if (this.isAgenticCommerce && this.productExport?.isNew()) {
+                this.onTemplateSelected('open_ai');
+            }
+        },
+
         loadEntityData() {
             const hasRouteId = Boolean(this.$route.params.id);
             const hasRouteTypeId = Boolean(this.$route.params.typeId);
