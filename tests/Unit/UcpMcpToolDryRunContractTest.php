@@ -83,6 +83,40 @@ final class UcpMcpToolDryRunContractTest extends TestCase
         self::assertSame('dryRun', end($names));
     }
 
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function payloadCarryingToolProvider(): iterable
+    {
+        foreach ([
+            'UcpCartCreateTool',
+            'UcpCartUpdateTool',
+            'UcpCheckoutCreateTool',
+            'UcpCheckoutUpdateTool',
+            // checkout.complete requires a `payment` object per UCP, so this tool
+            // needs somewhere to put it. Without a payload parameter every commit
+            // failed with `$.payment is required` and no order could be placed.
+            'UcpCheckoutCompleteTool',
+        ] as $tool) {
+            yield $tool => [$tool];
+        }
+    }
+
+    #[DataProvider('payloadCarryingToolProvider')]
+    #[Test]
+    public function testToolsWithARequestBodyDeclareAnOptionalStringPayload(string $tool): void
+    {
+        $parameter = $this->parameters($tool)['payload'] ?? null;
+
+        self::assertNotNull($parameter, \sprintf('%s sends a UCP request body and must expose it as a payload parameter.', $tool));
+
+        $type = $parameter->getType();
+        self::assertInstanceOf(\ReflectionNamedType::class, $type);
+        self::assertSame('string', $type->getName(), 'payload must be a string so the generated schema declares a JSON object string.');
+        self::assertTrue($parameter->isDefaultValueAvailable(), 'payload must be optional.');
+        self::assertSame('{}', $parameter->getDefaultValue(), 'payload must default to an empty JSON object.');
+    }
+
     #[DataProvider('readOnlyToolProvider')]
     #[Test]
     public function testReadOnlyToolsDoNotDeclareDryRun(string $tool): void
