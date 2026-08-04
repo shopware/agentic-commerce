@@ -10,7 +10,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request.')]
+#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
 /** @internal */
 #[Package('checkout')]
 final class UcpCheckoutUpdateTool
@@ -21,7 +21,7 @@ final class UcpCheckoutUpdateTool
     ) {
     }
 
-    public function __invoke(string $id, string $payload = '{}'): string
+    public function __invoke(string $id, string $payload = '{}', bool $dryRun = true): string
     {
         try {
             $requestPayload = $this->toolContext->decodeObject($payload);
@@ -35,9 +35,10 @@ final class UcpCheckoutUpdateTool
                     $context,
                     $id,
                 )),
+                $dryRun,
             );
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }
