@@ -352,15 +352,18 @@ that commit has a green `validation-gate`. Bump `composer.json` `version`, the a
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 
-- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is pinned with a caret on a
-  `0.0.x` version, which is **locked to that exact patch** (`^0.0.1` never resolves
-  `0.0.2`). Never merge release-bound code that references SDK symbols living only on
-  the SDK `main` branch or an unmerged SDK PR — CI tests against SDK `main` (moving)
-  and will pass, but production resolves the older *published* tag from Packagist and
-  fatals with `Class "…" not found`. Raising the floor means bumping **five** pins
-  together — `composer.json`, the two forced `versions` in `ci.yml`'s *Configure
-  private SDK path repositories* step, and the two in `bin/ci-smoke.sh` — while
-  leaving `UCP_SDK_REF` on `main` to keep the moving-main early-warning signal.
+- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is required as an explicit range,
+  `>=0.0.2 <0.1.0`, **not** a caret — a caret on `0.0.x` is locked to that exact patch
+  (`^0.0.2` never resolves `0.0.3`) and excluded every future release. The range lets
+  new `0.0.x` releases reach merchants without a plugin change, so SDK breakage can
+  arrive on its own; that is why CI must keep testing against the moving SDK `main`.
+  It still only *permits* a newer tag — an install with an existing lock resolves the
+  older one — so never merge release-bound code that references SDK symbols living
+  only on the SDK `main` branch or an unmerged SDK PR: CI passes against `main` while
+  such an install fatals with `Class "…" not found`. Depending on a new symbol means
+  raising the range's **lower bound** in `composer.json` and keeping the two forced
+  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two
+  in `bin/ci-smoke.sh` at or above it, while leaving `UCP_SDK_REF` on `main`.
 - **Migrations.** The runner never re-runs an applied migration. Never edit the
   effect of a migration already shipped in a tagged release (upgraded shops keep the
   old schema); add a new idempotent forward migration instead. Editing a migration
