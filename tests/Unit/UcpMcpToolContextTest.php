@@ -325,6 +325,24 @@ final class UcpMcpToolContextTest extends TestCase
         self::assertSame([], $context->decodeObject('  '));
     }
 
+    #[Test]
+    public function testDecodeObjectAcceptsTheEmptyObjectEveryToolDefaultsTo(): void
+    {
+        // Every UCP tool declares `string $payload = '{}'`, so this is the value
+        // that arrives whenever an agent omits the payload — which the tool
+        // descriptions explicitly invite ("Omit it to charge the sales channel
+        // default (invoice/offline) method, which needs nothing from the buyer").
+        //
+        // It used to throw `$.payload must be a JSON object, array given`, because
+        // json_decode('{}', true) yields [] and array_is_list([]) is true. The
+        // default failed its own validation, so checkout-complete could not be
+        // called without a payload at all.
+        $context = $this->toolContext($this->requestContext());
+
+        self::assertSame([], $context->decodeObject('{}'));
+        self::assertSame([], $context->decodeObject('  {}  '));
+    }
+
     /**
      * @return iterable<string, array{string, non-empty-string}>
      */

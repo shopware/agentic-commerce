@@ -223,7 +223,16 @@ final class UcpMcpToolContext
             throw new ValidationException('The payload parameter must be a JSON object string, for example {"key":"value"}.', ['$.payload is not valid JSON: '.$exception->getMessage()]);
         }
 
-        if (!\is_array($decoded) || array_is_list($decoded)) {
+        // `str_starts_with`, not `array_is_list`, because json_decode(..., true)
+        // flattens BOTH `{}` and `[]` to the same empty PHP array, and
+        // array_is_list([]) is true — so the list check rejected the empty JSON
+        // object. Every tool here declares `string $payload = '{}'`, which made
+        // that default fail its own validation: omitting the payload, the path
+        // the tool descriptions explicitly document ("Omit it to charge the sales
+        // channel default"), always answered `$.payload must be a JSON object,
+        // array given`. The raw string is the only thing that still distinguishes
+        // an object from an array at this point.
+        if (!\is_array($decoded) || !str_starts_with($payload, '{')) {
             throw new ValidationException('The payload parameter must be a JSON object string, for example {"key":"value"}.', ['$.payload must be a JSON object, '.get_debug_type($decoded).' given']);
         }
 
