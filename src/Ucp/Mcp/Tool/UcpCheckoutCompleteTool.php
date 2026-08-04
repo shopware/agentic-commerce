@@ -25,10 +25,6 @@ final class UcpCheckoutCompleteTool
     public function __invoke(string $id, bool $dryRun = true): string
     {
         try {
-            if ($dryRun) {
-                return $this->preview($id);
-            }
-
             return $this->toolContext->executeMutating(
                 'checkout.complete',
                 ['id' => $id],
@@ -38,6 +34,8 @@ final class UcpCheckoutCompleteTool
                     $context,
                     $id,
                 )),
+                $dryRun,
+                fn (RequestContext $context) => $this->preview($id, $context),
             );
         } catch (\Throwable $exception) {
             return $this->toolContext->failure($exception);
@@ -52,13 +50,17 @@ final class UcpCheckoutCompleteTool
      * webhook to the merchant, and a rollback does not recall an HTTP request. The
      * preview is therefore built from the read-only `checkout.get` path — the same
      * one shopware-ucp-checkout-get uses — plus the blockers its status implies.
+     *
+     * It is still handed to executeMutating() rather than called ahead of it, so a
+     * preview fails the same validation a commit would; and the context arrives from
+     * there already checked instead of being resolved again here.
      */
-    private function preview(string $id): string
+    private function preview(string $id, RequestContext $context): string
     {
         $checkout = $this->operationExecutor->execute(new ShoppingOperationRequest(
             'checkout.get',
             [],
-            $this->toolContext->requestContext(),
+            $context,
             $id,
         ));
 

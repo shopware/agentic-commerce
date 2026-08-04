@@ -65,10 +65,18 @@ final class UcpMcpToolContext
     }
 
     /**
+     * Single entry point for every mutating tool, dry run or not.
+     *
+     * A tool that cannot preview by rolling a transaction back passes $preview
+     * instead of branching before this method — see UcpCheckoutCompleteTool. Going
+     * through here is what keeps the validation below from being skipped on the
+     * exact path where skipping it matters most.
+     *
      * @param UcpMcpJsonObject                                $fingerprintInput
      * @param callable(RequestContext): UcpMcpOperationResult $execute
+     * @param (callable(RequestContext): string)|null         $preview          renders a read-only preview for a tool whose effects a rollback does not undo
      */
-    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false): string
+    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false, ?callable $preview = null): string
     {
         $context = $this->requestContext();
 
@@ -82,7 +90,9 @@ final class UcpMcpToolContext
             // Deliberately before claim(): a preview must not consume the
             // idempotency key, or the following real call would replay the
             // rolled-back preview instead of committing.
-            return $this->previewMutation($execute, $context);
+            return null !== $preview
+                ? $preview($context)
+                : $this->previewMutation($execute, $context);
         }
 
         if (null === $context->idempotencyKey) {
@@ -126,7 +136,9 @@ final class UcpMcpToolContext
      * Used where rolling a commit back is not enough to undo it — `checkout.complete`
      * synchronously POSTs an `order.created` webhook to the merchant, and no database
      * rollback recalls that. The tool reads current state instead and reports what a
-     * commit would do, so nothing outside the database is touched.
+     * commit would do, so nothing outside the database is touched. It is reached
+     * through executeMutating()'s $preview callback, not around it, so the same
+     * validation applies.
      *
      * @param UcpMcpOperationResult $data
      * @param list<string>          $blockers
@@ -153,8 +165,8 @@ final class UcpMcpToolContext
      * McpToolResponse::executeWithDryRun): the operation runs for real so the agent
      * gets genuine validation and a genuine result shape, then the transaction is
      * discarded. This only covers database state — see docs/mcp-dry-run.md for the
-     * side effects it cannot undo, which is why `checkout.complete` uses preview()
-     * instead.
+     * side effects it cannot undo, which is why `checkout.complete` supplies a
+     * preview() callback and takes this branch's other arm instead.
      *
      * @param callable(RequestContext): UcpMcpOperationResult $execute
      */

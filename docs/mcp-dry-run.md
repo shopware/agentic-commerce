@@ -50,7 +50,10 @@ tool in the catalogue that can take money.
 
 So `checkout-complete` previews instead of executing: it reads the checkout back
 through the same `checkout.get` path `shopware-ucp-checkout-get` uses, and reports
-what a commit would do:
+what a commit would do. It supplies that preview to
+`UcpMcpToolContext::executeMutating()` as a callback rather than branching before
+the call, so it is still the one entry point every mutating tool goes through —
+see [Idempotency](#idempotency):
 
 ```json
 {
@@ -98,6 +101,13 @@ a preview would mean the following real call replayed the rolled-back preview
 response instead of committing. Validation that a commit would perform still
 applies — a dry run with `idempotencyRequired` and no `Idempotency-Key` header
 fails exactly as a commit would.
+
+That holds for `checkout-complete` too, which is why its read-only preview is
+handed to `executeMutating()` instead of being run ahead of it. Both dry-run
+shapes sit behind the same check in the same method, so a tool cannot skip it by
+previewing differently — a bypass this tool did have once, on the one tool that
+can take money. Anything added later with its own preview shape belongs in that
+`$preview` callback for the same reason.
 
 ## Not in this repository
 

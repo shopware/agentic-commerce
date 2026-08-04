@@ -477,6 +477,76 @@ final class UcpMcpToolContextTest extends TestCase
     }
 
     #[Test]
+    public function testDryRunWithAPreviewStillRequiresAnIdempotencyKeyWhenConfigured(): void
+    {
+        // A tool that previews instead of rolling back — checkout.complete — must not
+        // buy itself an exemption from the check by taking its own dry-run branch.
+        $context = $this->toolContext($this->requestContext(idempotencyRequired: true));
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Idempotency key is required for mutating UCP requests.');
+
+        $context->executeMutating(
+            'checkout.complete',
+            ['id' => 'checkout-id'],
+            static function (): array {
+                self::fail('A dry run must not execute the operation.');
+            },
+            true,
+            static function (): string {
+                self::fail('A preview must fail the same validation a commit would.');
+            },
+        );
+    }
+
+    #[Test]
+    public function testDryRunUsesTheSuppliedPreviewInsteadOfARolledBackTransaction(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::never())->method('beginTransaction');
+
+        $requestContext = $this->requestContext(idempotencyRequired: false);
+
+        $result = $this->toolContext($requestContext, connection: $connection)->executeMutating(
+            'checkout.complete',
+            ['id' => 'checkout-id'],
+            static function (): array {
+                self::fail('A previewed operation must never run: its webhook cannot be rolled back.');
+            },
+            true,
+            static function (RequestContext $context) use ($requestContext): string {
+                self::assertSame($requestContext, $context, 'The preview must receive the checked context.');
+
+                return '{"success":true,"dryRun":true,"preview":{}}';
+            },
+        );
+
+        self::assertSame('{"success":true,"dryRun":true,"preview":{}}', $result);
+    }
+
+    #[Test]
+    public function testDryRunWithAPreviewNeverClaimsTheIdempotencyKey(): void
+    {
+        $idempotencyService = $this->createMock(IdempotencyServiceInterface::class);
+        $idempotencyService->expects(self::never())->method('claim');
+        $idempotencyService->expects(self::never())->method('complete');
+        $idempotencyService->expects(self::never())->method('abort');
+
+        $result = $this->toolContext(
+            $this->requestContext(idempotencyRequired: true, idempotencyKey: 'idem-key'),
+            idempotencyService: $idempotencyService,
+        )->executeMutating(
+            'checkout.complete',
+            ['id' => 'checkout-id'],
+            static fn (): array => ['completed' => true],
+            true,
+            static fn (): string => '{"previewed":true}',
+        );
+
+        self::assertSame('{"previewed":true}', $result);
+    }
+
+    #[Test]
     public function testDryRunRollsBackAndRethrowsWhenTheOperationFails(): void
     {
         $connection = $this->createMock(Connection::class);
