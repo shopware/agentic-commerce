@@ -31,7 +31,9 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Common\UcpErrorDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
@@ -211,6 +213,56 @@ final class ShopwareOrderGatewayTest extends TestCase
                 PlatformRequest::HEADER_CONTEXT_TOKEN => 'guest-context-token',
             ]),
         ));
+    }
+
+    #[Test]
+    public function testItRefusesAGuestOrderReadInUcpsVocabularyRatherThanShopwares(): void
+    {
+        // Without a customer and without the credentials of the session that placed the
+        // order, `OrderRoute` refuses with Shopware's `Customer is not logged in.` — a 403
+        // that reaches the agent as `invalid_request` / `recoverable`, so it retries a
+        // request no retry can fix. The refusal is right; only its vocabulary was wrong.
+        $orderId = '99999999999999999999999999999999';
+
+        $context = $this->createMock(SalesChannelContext::class);
+        $context->method('getCustomer')->willReturn(null);
+
+        $orderRoute = $this->createMock(AbstractOrderRoute::class);
+        $orderRoute->expects(static::never())->method('load');
+
+        $gateway = new ShopwareOrderGateway(
+            $this->uninitialized(SalesChannelContextResolver::class),
+            $this->createMock(AbstractCartOrderRoute::class),
+            $orderRoute,
+            new CheckoutSessionStore($this->createMock(SalesChannelContextPersister::class)),
+            new RequestStack(),
+        );
+
+        $metadataCases = [
+            'no checkout session at all' => null,
+            'a session that placed a different order' => ['orderId' => '11111111111111111111111111111111'],
+            'a session missing the deep link code' => [
+                'orderId' => $orderId,
+                'buyer' => ['email' => 'ada@example.com'],
+                'guestAddress' => ['street' => 'Main Street 1', 'zipcode' => '12345', 'city' => 'Berlin'],
+            ],
+        ];
+
+        foreach ($metadataCases as $case => $metadata) {
+            try {
+                $gateway->getOrderForSalesChannelContext($orderId, $context, $metadata);
+                self::fail(\sprintf('A guest order read with %s must be refused.', $case));
+            } catch (ResourceNotFoundException $exception) {
+                $descriptor = UcpErrorDescriptor::fromThrowable($exception);
+
+                self::assertSame('not_found', $descriptor->code, $case);
+                self::assertSame('unrecoverable', $descriptor->severity, $case);
+                self::assertFalse($descriptor->internal, $case);
+                // The two channels the specification points at for guest order state.
+                self::assertStringContainsString('permalink_url', $exception->getMessage(), $case);
+                self::assertStringContainsString('webhook', $exception->getMessage(), $case);
+            }
+        }
     }
 
     #[Test]
