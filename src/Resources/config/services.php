@@ -97,6 +97,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Http\ConfiguredUrlSafetyValidatorFactory;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
@@ -336,6 +337,11 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(UcpConfigService::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+
+    // Feeds the shop's per-channel/global UCP allowlists into the SDK's URL-safety
+    // validator; ReplaceSdkUrlSafetyValidatorPass swaps the SDK definition to this factory.
+    $services->set(ConfiguredUrlSafetyValidatorFactory::class)
+        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
 
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
