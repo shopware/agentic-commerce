@@ -244,10 +244,15 @@ final class CheckoutGuestAddressPayloadResolverTest extends TestCase
             ]),
         );
 
-        self::assertSame('Billing Street 2', $addresses['billing']['street'] ?? null);
-        self::assertSame('Hamburg', $addresses['billing']['city'] ?? null);
-        self::assertSame('Evaluation Street 1', $addresses['shipping']['street'] ?? null);
-        self::assertSame('Berlin', $addresses['shipping']['city'] ?? null);
+        $billing = $addresses['billing'];
+        $shipping = $addresses['shipping'];
+        self::assertNotNull($billing);
+        self::assertNotNull($shipping);
+
+        self::assertSame('Billing Street 2', $billing['street']);
+        self::assertSame('Hamburg', $billing['city']);
+        self::assertSame('Evaluation Street 1', $shipping['street']);
+        self::assertSame('Berlin', $shipping['city']);
     }
 
     #[Test]
