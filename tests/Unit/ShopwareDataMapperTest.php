@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\Error\Error;
 use Shopware\Core\Checkout\Cart\LineItem\LineItem;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
@@ -141,6 +142,49 @@ final class ShopwareDataMapperTest extends TestCase
         // rather than present-and-zero.
         self::assertNull($this->total($cart->totals, 'items_discount'));
         self::assertSame(1000, $this->total($cart->totals, 'subtotal'));
+    }
+
+    /**
+     * @param array<string, string> $expectedMessage
+     */
+    #[Test]
+    #[DataProvider('cartErrorLevelProvider')]
+    public function testCartErrorsAreMappedToTheThreeMessageTypesTheProtocolDefines(int $level, array $expectedMessage): void
+    {
+        $shopwareCart = $this->cartWithoutPromotion();
+        $shopwareCart->addErrors(new CartErrorFixture($level, 'Discount Summer Sale has been added', 'promotion-discount-added'));
+
+        $cart = (new ShopwareDataMapper())->toCart($shopwareCart, $this->salesChannelContext());
+
+        self::assertCount(1, $cart->messages);
+        self::assertSame($expectedMessage, $cart->messages[0]->toArray());
+    }
+
+    /**
+     * @return iterable<string, array{int, array<string, string>}>
+     */
+    public static function cartErrorLevelProvider(): iterable
+    {
+        // types/message.json is a oneOf whose branches pin `type` with a const of
+        // error, warning or info. Anything else matches no branch and takes the whole
+        // response down with it.
+        yield 'notice' => [Error::LEVEL_NOTICE, [
+            'type' => 'info',
+            'content' => 'Discount Summer Sale has been added',
+            'code' => 'promotion-discount-added',
+        ]];
+        yield 'warning' => [Error::LEVEL_WARNING, [
+            'type' => 'warning',
+            'content' => 'Discount Summer Sale has been added',
+            'code' => 'promotion-discount-added',
+        ]];
+        // Only message_error requires a severity.
+        yield 'error' => [Error::LEVEL_ERROR, [
+            'type' => 'error',
+            'content' => 'Discount Summer Sale has been added',
+            'severity' => 'recoverable',
+            'code' => 'promotion-discount-added',
+        ]];
     }
 
     #[Test]

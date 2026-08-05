@@ -80,7 +80,7 @@ export const swSalesChannelDetailOverride = {
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
-            return this.acl.can('ucp.viewer') && isTransactionalSalesChannelType(typeId);
+            return this.acl.can('ucp.viewer') && (isTransactionalSalesChannelType(typeId) || this.isAgenticCommerce);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
