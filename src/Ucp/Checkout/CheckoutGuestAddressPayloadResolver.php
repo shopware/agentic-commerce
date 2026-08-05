@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\FulfillmentSelection;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /** @internal */
 final class CheckoutGuestAddressPayloadResolver
@@ -16,24 +17,59 @@ final class CheckoutGuestAddressPayloadResolver
     }
 
     /**
+     * The billing address, which is the one Shopware cannot register a guest without.
+     *
+     * Kept as the single-address entry point it has always been, so callers that only
+     * need what gets registered do not have to know about the pair.
+     *
      * @param array<string, mixed>|null $metadata
      *
      * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
      */
-    public function resolve(?FulfillmentSelection $fulfillment, ?array $metadata = null): ?array
+    public function resolve(?FulfillmentSelection $fulfillment, ?array $metadata = null, ?PaymentInstrument $payment = null): ?array
     {
-        if (null !== $fulfillment) {
-            $payload = $this->normalize($fulfillment->extra);
-            if (null !== $payload) {
-                return $payload;
-            }
+        return $this->resolveAddresses($fulfillment, $metadata, $payment)['billing'];
+    }
+
+    /**
+     * Both addresses UCP can express, each from the place the protocol defines for it.
+     *
+     * | UCP source                                  | Shopware target   |
+     * |---------------------------------------------|-------------------|
+     * | `fulfillment.methods[].destinations[]`      | shipping address  |
+     * | `payment.instruments[].billing_address`     | billing address   |
+     *
+     * `context.json` names both concepts in one sentence — "Higher-resolution data
+     * (shipping address, billing address) supersedes context" — and both are a
+     * `postal_address`. They simply live in different objects, and the plugin used to
+     * read only the fulfillment one and register it as the BILLING address, leaving
+     * Shopware to default shipping to it. Correct when they are the same, wrong the
+     * moment an agent states them separately.
+     *
+     * Either one alone still fills both, because Shopware requires a billing address to
+     * register a guest at all and a digital cart has no destination to offer.
+     *
+     * @param array<string, mixed>|null $metadata
+     *
+     * @return array{billing: array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null, shipping: array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null}
+     */
+    public function resolveAddresses(?FulfillmentSelection $fulfillment, ?array $metadata = null, ?PaymentInstrument $payment = null): array
+    {
+        $shipping = null !== $fulfillment ? $this->normalize($fulfillment->extra) : null;
+        $billing = null !== $payment ? $this->fromPostalAddress($payment->billingAddress, '$.payment.instruments[0].billing_address') : null;
+
+        if (null === $shipping && \is_array($metadata)) {
+            $shipping = $this->sessionStore->guestShippingAddress($metadata);
         }
 
-        if (\is_array($metadata)) {
-            return $this->sessionStore->guestAddress($metadata);
+        if (null === $billing && \is_array($metadata)) {
+            $billing = $this->sessionStore->guestAddress($metadata);
         }
 
-        return null;
+        return [
+            'billing' => $billing ?? $shipping,
+            'shipping' => $shipping ?? $billing,
+        ];
     }
 
     /**

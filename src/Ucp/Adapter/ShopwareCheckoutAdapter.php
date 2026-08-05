@@ -54,12 +54,14 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $cartId, $request, $discountCodes, $context);
 
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $request->buyer);
+        $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, null, $request->payment);
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $request->buyer,
             $discountCodes,
-            guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment),
+            guestAddress: $addresses['billing'],
+            guestShippingAddress: $addresses['shipping'],
         );
 
         return $this->mapper->toCheckout(
@@ -155,13 +157,16 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         // uses it to decide whether it can settle or must hand off to a human.
         $paymentHandlerId = $request->payment->handlerId ?? $this->sessionStore->paymentHandlerId($metadata);
 
+        $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, $metadata, $request->payment);
+
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $buyer,
             $discountCodes,
-            guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment, $metadata),
+            guestAddress: $addresses['billing'],
             paymentHandlerId: $paymentHandlerId,
+            guestShippingAddress: $addresses['shipping'],
         );
 
         return $this->mapper->toCheckout(

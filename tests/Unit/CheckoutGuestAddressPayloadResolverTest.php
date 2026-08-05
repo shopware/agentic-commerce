@@ -12,6 +12,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\FulfillmentSelection;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /**
  * @internal
@@ -223,6 +224,71 @@ final class CheckoutGuestAddressPayloadResolverTest extends TestCase
             ], $exception->getViolations());
             self::assertStringContainsString('fulfillment.methods[].destinations[]', $exception->getMessage());
         }
+    }
+
+    #[Test]
+    public function testItReadsTheBillingAddressFromThePaymentInstrument(): void
+    {
+        // UCP has exactly two address slots and this is the second one:
+        // payment.instruments[].billing_address. The plugin used to register the
+        // FULFILLMENT address as Shopware's billing address, which is only right when
+        // the two happen to be identical.
+        $addresses = $this->resolver()->resolveAddresses(
+            new FulfillmentSelection('shipping', null, ['methods' => [['destinations' => [self::DESTINATION]]]]),
+            null,
+            new PaymentInstrument('delegated', 'com.shopware.invoice', [], [
+                'street_address' => 'Billing Street 2',
+                'address_locality' => 'Hamburg',
+                'postal_code' => '20095',
+                'address_country' => 'DE',
+            ]),
+        );
+
+        self::assertSame('Billing Street 2', $addresses['billing']['street'] ?? null);
+        self::assertSame('Hamburg', $addresses['billing']['city'] ?? null);
+        self::assertSame('Evaluation Street 1', $addresses['shipping']['street'] ?? null);
+        self::assertSame('Berlin', $addresses['shipping']['city'] ?? null);
+    }
+
+    #[Test]
+    public function testABillingAddressAloneFillsBothForACartWithNothingToShip(): void
+    {
+        // A digital cart has no fulfillment destination, so the instrument's billing
+        // address is the only address the protocol offers. Shopware still needs a
+        // billing address to register a guest, and no shipping address is required.
+        $addresses = $this->resolver()->resolveAddresses(null, null, new PaymentInstrument('delegated', 'com.shopware.invoice', [], [
+            'street_address' => 'Billing Street 2',
+            'address_locality' => 'Hamburg',
+            'postal_code' => '20095',
+            'address_country' => 'DE',
+        ]));
+
+        self::assertSame('Billing Street 2', $addresses['billing']['street'] ?? null);
+        self::assertSame($addresses['billing'], $addresses['shipping']);
+    }
+
+    #[Test]
+    public function testAShippingDestinationAloneStillFillsBoth(): void
+    {
+        // The behaviour every existing session relies on: one address, used for both.
+        $addresses = $this->resolver()->resolveAddresses(
+            new FulfillmentSelection('shipping', null, ['methods' => [['destinations' => [self::DESTINATION]]]]),
+        );
+
+        self::assertSame('Evaluation Street 1', $addresses['billing']['street'] ?? null);
+        self::assertSame($addresses['billing'], $addresses['shipping']);
+    }
+
+    #[Test]
+    public function testResolveStillReturnsTheBillingAddressForSingleAddressCallers(): void
+    {
+        $address = $this->resolver()->resolve(null, null, new PaymentInstrument('delegated', 'com.shopware.invoice', [], [
+            'street_address' => 'Billing Street 2',
+            'address_locality' => 'Hamburg',
+            'postal_code' => '20095',
+        ]));
+
+        self::assertSame('Billing Street 2', $address['street'] ?? null);
     }
 
     #[Test]

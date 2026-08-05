@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Customer\CustomerEntity;
@@ -15,6 +16,7 @@ use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
+#[CoversClass(CheckoutSessionManager::class)]
 final class CheckoutSessionManagerTest extends TestCase
 {
     #[Test]

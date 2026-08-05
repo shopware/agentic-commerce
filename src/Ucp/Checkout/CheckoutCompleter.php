@@ -73,6 +73,7 @@ final class CheckoutCompleter
                 $salesChannelContext,
                 $buyer,
                 $this->sessionManager->guestAddress($metadata),
+                $this->sessionManager->guestShippingAddress($metadata),
             );
 
             $config = $this->configService->getConfig($customerContext->getSalesChannelId());

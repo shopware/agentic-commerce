@@ -184,16 +184,21 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
+            public function guestShippingAddress(array $metadata): ?array
+            {
+                return null;
+            }
+
             public function guestAddress(array $metadata): ?array
             {
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?string $paymentHandlerId = null, ?array $guestShippingAddress = null): void
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?string $paymentHandlerId = null, ?array $guestShippingAddress = null): void
             {
                 ++$this->saveCalled;
             }
@@ -222,7 +227,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 return $this->customerContext;
             }
@@ -287,7 +292,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 return $this->customerContext;
             }
@@ -326,7 +331,7 @@ final class CheckoutCompleterTest extends TestCase
     private function nullProvisioner(): GuestCustomerContextProvisionerInterface
     {
         return new class implements GuestCustomerContextProvisionerInterface {
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
@@ -341,16 +346,21 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
+            public function guestShippingAddress(array $metadata): ?array
+            {
+                return null;
+            }
+
             public function guestAddress(array $metadata): ?array
             {
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?string $paymentHandlerId = null, ?array $guestShippingAddress = null): void
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?string $paymentHandlerId = null, ?array $guestShippingAddress = null): void
             {
             }
         };
