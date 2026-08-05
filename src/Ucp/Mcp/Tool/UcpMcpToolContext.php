@@ -5,18 +5,16 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Doctrine\DBAL\Connection;
+use Psr\Log\LoggerInterface;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
-use Ucp\Sdk\Exception\ConfigurationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
-use Ucp\Sdk\Exception\NegotiationException;
-use Ucp\Sdk\Exception\ResourceNotFoundException;
-use Ucp\Sdk\Exception\SignatureException;
 use Ucp\Sdk\Exception\UcpException;
-use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Common\UcpErrorDescriptor;
 use Ucp\Sdk\Model\IdempotencyRecord;
 use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
 use Ucp\Sdk\Model\RequestContext;
@@ -41,6 +39,7 @@ final class UcpMcpToolContext
         private readonly IdempotencyServiceInterface $idempotencyService,
         private readonly RequestStack $requestStack,
         private readonly Connection $connection,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -301,12 +300,30 @@ final class UcpMcpToolContext
      * recommends for tool-execution errors. Only UCP domain errors are surfaced
      * verbatim; anything else is reported generically so internals do not leak to
      * an unauthenticated MCP client.
+     *
+     * `code` and `severity` come from the same UcpErrorDescriptor the SDK's HTTP
+     * ExceptionListener uses, so the two transports cannot disagree about the same
+     * exception. Without them an agent could only read prose: an unreachable platform
+     * profile and a rejected signature were both `internal` here while REST answered
+     * 424 `agent_profile_unreachable` `recoverable` and 401 for the other.
+     *
+     * Every throwable is logged before it is flattened. The generic response is
+     * deliberate, but the exception used to vanish with it — a failure an operator
+     * could only reproduce by calling the same operation over REST, where the
+     * listener does not swallow it. Logging server-side leaks nothing to the client.
      */
     public function failure(\Throwable $exception): string
     {
-        $error = $exception instanceof UcpException
-            ? ['type' => $this->errorType($exception), 'message' => $exception->getMessage()]
-            : ['type' => 'internal', 'message' => 'The tool call failed unexpectedly.'];
+        $this->logger->error('UCP MCP tool call failed.', ['exception' => $exception]);
+
+        $descriptor = $this->describe($exception);
+
+        $error = [
+            'type' => $descriptor->type,
+            'message' => $descriptor->internal ? 'The tool call failed unexpectedly.' : $exception->getMessage(),
+            'code' => $descriptor->code,
+            'severity' => $descriptor->severity,
+        ];
 
         if ($exception instanceof ValidationException && [] !== $exception->getViolations()) {
             $error['violations'] = $exception->getViolations();
@@ -316,6 +333,33 @@ final class UcpMcpToolContext
             'success' => false,
             'error' => $error,
         ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Describes a throwable, including the Shopware ones that carry their own status.
+     *
+     * A Shopware domain exception is an `HttpExceptionInterface` rather than a
+     * `UcpException`, so `fromThrowable()` alone calls it internal and hides its
+     * message — which is how "Customer is not logged in." reached an agent as
+     * `internal: The tool call failed unexpectedly.` while the same operation over
+     * REST answered 403 with the sentence. A 4xx message is written for the caller
+     * and the SDK's HTTP listener already passes it through; this makes the MCP
+     * transport agree.
+     *
+     * 5xx is deliberately excluded: a server fault's message is written for an
+     * operator, and this client is unauthenticated.
+     */
+    private function describe(\Throwable $exception): UcpErrorDescriptor
+    {
+        if (
+            !$exception instanceof UcpException
+            && $exception instanceof HttpExceptionInterface
+            && $exception->getStatusCode() < 500
+        ) {
+            return UcpErrorDescriptor::forHttpStatus($exception->getStatusCode());
+        }
+
+        return UcpErrorDescriptor::fromThrowable($exception);
     }
 
     /**
@@ -349,20 +393,6 @@ final class UcpMcpToolContext
         }
 
         return $ids;
-    }
-
-    private function errorType(UcpException $exception): string
-    {
-        return match (true) {
-            $exception instanceof ValidationException => 'validation',
-            $exception instanceof SignatureException => 'signature',
-            $exception instanceof ResourceNotFoundException => 'not_found',
-            $exception instanceof IdempotencyConflictException => 'idempotency_conflict',
-            $exception instanceof NegotiationException => 'negotiation',
-            $exception instanceof UnsupportedCapabilityException => 'unsupported_capability',
-            $exception instanceof ConfigurationException => 'configuration',
-            default => 'ucp',
-        };
     }
 
     /**

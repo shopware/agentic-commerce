@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpMcpToolContext;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
+use Ucp\Sdk\Exception\AgentProfileException;
 use Ucp\Sdk\Exception\ConfigurationException;
 use Ucp\Sdk\Exception\IdempotencyConflictException;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
@@ -27,6 +33,7 @@ use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 use Ucp\Sdk\Service\IdempotencyServiceInterface;
 
 /** @internal */
+#[CoversClass(UcpMcpToolContext::class)]
 final class UcpMcpToolContextTest extends TestCase
 {
     #[Test]
@@ -44,6 +51,7 @@ final class UcpMcpToolContextTest extends TestCase
             $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack($request),
             $this->createMock(Connection::class),
+            new NullLogger(),
         );
 
         self::assertSame($expectedContext, $context->requestContext());
@@ -78,6 +86,7 @@ final class UcpMcpToolContextTest extends TestCase
                 content: 'body',
             )),
             $this->createMock(Connection::class),
+            new NullLogger(),
         );
 
         self::assertSame($expectedContext, $context->requestContext());
@@ -384,35 +393,92 @@ final class UcpMcpToolContextTest extends TestCase
             'error' => [
                 'type' => 'validation',
                 'message' => 'UCP-Agent header with a profile URI is required for UCP runtime requests.',
+                'code' => 'invalid_request',
+                'severity' => 'recoverable',
                 'violations' => ['$.headers.ucp-agent is required'],
             ],
         ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
     }
 
     /**
-     * @return iterable<string, array{\Throwable, string}>
+     * @return iterable<string, array{\Throwable, string, string, string}>
      */
     public static function failureTypeProvider(): iterable
     {
-        yield 'validation' => [new ValidationException('nope'), 'validation'];
-        yield 'signature' => [new SignatureException('nope'), 'signature'];
-        yield 'not found' => [new ResourceNotFoundException('nope'), 'not_found'];
-        yield 'idempotency conflict' => [new IdempotencyConflictException('nope'), 'idempotency_conflict'];
-        yield 'unsupported capability' => [new UnsupportedCapabilityException('nope'), 'unsupported_capability'];
-        yield 'configuration' => [new ConfigurationException('nope'), 'configuration'];
-        yield 'generic ucp' => [new UcpException('nope'), 'ucp'];
+        yield 'validation' => [new ValidationException('nope'), 'validation', 'invalid_request', 'recoverable'];
+        yield 'signature' => [new SignatureException('nope'), 'signature', 'signature_invalid', 'unrecoverable'];
+        yield 'not found' => [new ResourceNotFoundException('nope'), 'not_found', 'not_found', 'unrecoverable'];
+        yield 'idempotency conflict' => [new IdempotencyConflictException('nope'), 'idempotency_conflict', 'idempotency_conflict', 'unrecoverable'];
+        yield 'unsupported capability' => [new UnsupportedCapabilityException('nope'), 'unsupported_capability', 'capability_unsupported', 'unrecoverable'];
+        yield 'configuration' => [new ConfigurationException('nope'), 'configuration', 'server_misconfigured', 'unrecoverable'];
+        yield 'generic ucp' => [new UcpException('nope'), 'ucp', 'request_failed', 'unrecoverable'];
     }
 
     #[DataProvider('failureTypeProvider')]
     #[Test]
-    public function testFailureMapsUcpExceptionsToATypeAndKeepsTheMessage(\Throwable $exception, string $expectedType): void
+    public function testFailureMapsUcpExceptionsToATypeAndKeepsTheMessage(\Throwable $exception, string $expectedType, string $expectedCode, string $expectedSeverity): void
     {
         $result = $this->toolContext($this->requestContext())->failure($exception);
 
+        // `code` and `severity` come from the same descriptor the SDK's HTTP listener
+        // reads, so an agent gets the machine-readable part of the failure over MCP too
+        // rather than only prose it has to parse.
         self::assertSame([
             'success' => false,
-            'error' => ['type' => $expectedType, 'message' => 'nope'],
+            'error' => ['type' => $expectedType, 'message' => 'nope', 'code' => $expectedCode, 'severity' => $expectedSeverity],
         ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testFailureReportsAnUnreachableAgentProfileAsTheRecoverableFailureItIs(): void
+    {
+        $exception = AgentProfileException::unreachable('http://shop.localhost:8088/.well-known/ucp', new \RuntimeException('Connection refused.'));
+
+        $result = $this->toolContext($this->requestContext())->failure($exception);
+
+        // This is the failure the store suite spent a session on: over REST it answered
+        // 424 `agent_profile_unreachable` `recoverable`, over MCP it was `internal` with
+        // no code at all, so the two transports described the same exception differently.
+        $error = json_decode($result, true, flags: \JSON_THROW_ON_ERROR)['error'];
+        self::assertSame('agent_profile_unreachable', $error['code']);
+        self::assertSame('recoverable', $error['severity']);
+        self::assertStringContainsString('could not be fetched', $error['message']);
+    }
+
+    #[Test]
+    public function testFailurePassesThroughTheMessageOfAShopwareClientError(): void
+    {
+        // Shopware's own exceptions are HttpExceptionInterface, not UcpException, so
+        // they used to answer `internal` with the message hidden — which is how
+        // "Customer is not logged in." reached an agent as "The tool call failed
+        // unexpectedly." while the same operation over REST answered 403 and said so.
+        $result = $this->toolContext($this->requestContext())->failure(
+            new AccessDeniedHttpException('Customer is not logged in.'),
+        );
+
+        self::assertSame([
+            'success' => false,
+            'error' => [
+                'type' => 'request',
+                'message' => 'Customer is not logged in.',
+                'code' => 'invalid_request',
+                'severity' => 'recoverable',
+            ],
+        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testFailureStillHidesTheMessageOfAServerSideHttpException(): void
+    {
+        // A 4xx message is written for the caller; a 5xx one is written for an
+        // operator, and this client is unauthenticated.
+        $result = $this->toolContext($this->requestContext())->failure(
+            new ServiceUnavailableHttpException(null, 'Database "shop_prod" on db-01:3306 is not reachable.'),
+        );
+
+        $error = json_decode($result, true, flags: \JSON_THROW_ON_ERROR)['error'];
+        self::assertSame('internal', $error['type']);
+        self::assertSame('The tool call failed unexpectedly.', $error['message']);
     }
 
     #[Test]
@@ -422,8 +488,43 @@ final class UcpMcpToolContextTest extends TestCase
 
         self::assertSame([
             'success' => false,
-            'error' => ['type' => 'internal', 'message' => 'The tool call failed unexpectedly.'],
+            'error' => [
+                'type' => 'internal',
+                'message' => 'The tool call failed unexpectedly.',
+                'code' => 'internal_error',
+                'severity' => 'unrecoverable',
+            ],
         ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testFailureLogsTheThrowableItRefusesToShowTheClient(): void
+    {
+        $exception = new \RuntimeException('SQLSTATE[42S02]: table "secret" does not exist');
+        $logger = new CollectingLogger();
+
+        $result = $this->toolContext($this->requestContext(), logger: $logger)->failure($exception);
+
+        // The generic response is deliberate; the exception vanishing with it was not.
+        // Without this the only way to see the cause was to call the same operation over
+        // REST, where the SDK's listener does not swallow it.
+        self::assertSame('The tool call failed unexpectedly.', json_decode($result, true, flags: \JSON_THROW_ON_ERROR)['error']['message']);
+        self::assertCount(1, $logger->records);
+        self::assertSame('error', $logger->records[0]['level']);
+        self::assertSame('UCP MCP tool call failed.', $logger->records[0]['message']);
+        self::assertSame($exception, $logger->records[0]['context']['exception'] ?? null);
+    }
+
+    #[Test]
+    public function testFailureLogsDomainErrorsToo(): void
+    {
+        $logger = new CollectingLogger();
+
+        $this->toolContext($this->requestContext(), logger: $logger)->failure(new ValidationException('nope', ['$.id is required']));
+
+        // A domain error is the agent's to fix, but an operator watching a lane that
+        // "does nothing" still needs to see that a call arrived and why it was refused.
+        self::assertCount(1, $logger->records);
     }
 
     #[Test]
@@ -654,6 +755,7 @@ final class UcpMcpToolContextTest extends TestCase
         ?HttpRequestContextFactoryInterface $requestContextFactory = null,
         ?IdempotencyServiceInterface $idempotencyService = null,
         ?Connection $connection = null,
+        ?LoggerInterface $logger = null,
     ): UcpMcpToolContext {
         $request = Request::create('https://shop.example/ucp/mcp');
         $request->attributes->set(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE, $requestContext);
@@ -663,6 +765,7 @@ final class UcpMcpToolContextTest extends TestCase
             $idempotencyService ?? $this->createMock(IdempotencyServiceInterface::class),
             $this->requestStack($request),
             $connection ?? $this->createMock(Connection::class),
+            $logger ?? new NullLogger(),
         );
     }
 
