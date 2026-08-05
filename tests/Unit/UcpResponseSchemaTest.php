@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\Error\Error;
 use Shopware\Core\Checkout\Cart\LineItem\LineItem;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
 use Shopware\Core\Checkout\Cart\Price\Struct\CartPrice;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
+use Shopware\Core\Checkout\Promotion\Cart\PromotionCartAddedInformationError;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -42,6 +45,7 @@ use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
  *
  * @internal
  */
+#[CoversClass(ShopwareDataMapper::class)]
 final class UcpResponseSchemaTest extends TestCase
 {
     /**
@@ -134,12 +138,44 @@ final class UcpResponseSchemaTest extends TestCase
     private function cartWithPromotion(): Cart
     {
         $cart = $this->cartWithoutPromotion();
+        $promotion = $this->lineItem('line-2', LineItem::PROMOTION_LINE_ITEM_TYPE, 'Summer Sale', -2.0);
         $lineItems = $cart->getLineItems();
-        $lineItems->add($this->lineItem('line-2', LineItem::PROMOTION_LINE_ITEM_TYPE, 'Summer Sale', -2.0));
+        $lineItems->add($promotion);
         $cart->setLineItems($lineItems);
         $cart->setPrice(new CartPrice(8.0, 8.0, 8.0, new CalculatedTaxCollection(), new TaxRuleCollection(), CartPrice::TAX_STATE_GROSS));
 
+        // A cart that took a promotion really does carry this, and the fixture not
+        // carrying it is why the mapping's `type: cart_error` survived: applying a valid
+        // code leaves `promotion-discount-added` on the cart
+        // (PromotionCartAddedInformationError, LEVEL_NOTICE, persistent), and
+        // types/message.json admits only error, warning or info. Every case in both
+        // providers goes through this fixture, so the whole cart-and-checkout surface is
+        // covered rather than discount.apply alone.
+        $cart->addErrors(new PromotionCartAddedInformationError($promotion));
+
         return $cart;
+    }
+
+    /**
+     * @return iterable<string, array{int}>
+     */
+    public static function cartErrorLevelProvider(): iterable
+    {
+        yield 'notice' => [Error::LEVEL_NOTICE];
+        yield 'warning' => [Error::LEVEL_WARNING];
+        yield 'error' => [Error::LEVEL_ERROR];
+    }
+
+    #[DataProvider('cartErrorLevelProvider')]
+    #[Test]
+    public function testACartCarryingAnErrorOfAnyLevelValidatesAgainstItsResponseSchema(int $level): void
+    {
+        $shopwareCart = $this->cartWithoutPromotion();
+        $shopwareCart->addErrors(new CartErrorFixture($level, 'Something happened to this cart', 'cart-changed'));
+
+        $cart = (new ShopwareDataMapper())->toCart($shopwareCart, $this->salesChannelContext());
+
+        $this->assertValidates('cart.get.response', $cart, UcpCapability::Cart);
     }
 
     private function cartWithoutPromotion(): Cart
