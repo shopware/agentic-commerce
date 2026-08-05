@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Gateway;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\Error\Error;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
@@ -248,6 +249,23 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
+     * Shopware's cart errors, as the three message types UCP defines.
+     *
+     * `types/message.json` is a oneOf over message_error, message_warning and
+     * message_info, and each branch pins `type` with a `const`. A fourth spelling
+     * matches no branch, so a single cart error made the WHOLE response fail
+     * validation with `$ must match exactly one allowed schema` — which
+     * `ShoppingOperationExecutor::response()` then turns into a server error for an
+     * agent whose request was perfectly fine.
+     *
+     * That is not a rare shape: a successful `discount.apply` leaves
+     * `promotion-discount-added` on the cart (`PromotionCartAddedInformationError`,
+     * LEVEL_NOTICE, persistent), so applying a valid code failed by definition.
+     *
+     * Shopware's own three levels line up with UCP's three types, so the mapping is
+     * the level. `getMessageKey()` stays the code: error_code, warning_code and
+     * info_code are all freeform strings by specification.
+     *
      * @return list<Message>
      */
     private function mapCartMessages(Cart $cart): array
@@ -256,9 +274,18 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
         foreach ($cart->getErrors() as $error) {
             $messages[] = new Message(
-                'cart_error',
+                match ($error->getLevel()) {
+                    Error::LEVEL_ERROR => 'error',
+                    Error::LEVEL_WARNING => 'warning',
+                    default => 'info',
+                },
                 $error->getMessage(),
-                'error',
+                // Only message_error requires a severity, and `recoverable` is the
+                // honest one for a cart: the platform can change the line items or the
+                // code and retry. A `requires_*` severity would contribute
+                // `status: requires_escalation` and stall a checkout an agent could
+                // have fixed itself.
+                Error::LEVEL_ERROR === $error->getLevel() ? 'recoverable' : null,
                 $error->getMessageKey(),
             );
         }
