@@ -11,6 +11,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutPaymentNegotiator;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -41,6 +42,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         private readonly CheckoutCompleter $checkoutCompleter,
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly ContextTokenGenerator $contextTokenGenerator,
+        private readonly CheckoutPaymentNegotiator $paymentNegotiator,
     ) {
     }
 
@@ -148,12 +150,18 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $buyer = $request->buyer ?? $this->sessionStore->buyer($metadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
 
+        // Record the payment handler the client commits to (UCP PaymentInstrument),
+        // preserving an earlier commitment when this update omits it. completeCheckout
+        // uses it to decide whether it can settle or must hand off to a human.
+        $paymentHandlerId = $request->payment->handlerId ?? $this->sessionStore->paymentHandlerId($metadata);
+
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $buyer,
             $discountCodes,
             guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment, $metadata),
+            paymentHandlerId: $paymentHandlerId,
         );
 
         return $this->mapper->toCheckout(
@@ -180,6 +188,21 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
+
+        // Opt-in payment-method negotiation (default off): when the channel requires a
+        // committed payment method and the client committed none the shop can settle,
+        // there is no mutually-agreed method — hand off to the browser checkout via
+        // requires_escalation + continue_url and place NO order. Clients commit their
+        // handler via CheckoutUpdateRequest.payment; off by default (payment optional).
+        if ($this->paymentNegotiator->shouldEscalate($resolution->salesChannelId, $this->sessionStore->paymentHandlerId($metadata))) {
+            return $this->mapper->toCheckout(
+                $cart,
+                $salesChannelContext,
+                CheckoutStatus::RequiresEscalation,
+                $this->sessionStore->buyer($metadata),
+                $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
+            );
+        }
 
         return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
     }

@@ -27,8 +27,9 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?string $paymentHandlerId = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $paymentHandlerId);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
     }
@@ -46,8 +47,9 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?string $paymentHandlerId = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $paymentHandlerId);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -70,6 +72,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId,
         ?string $orderDeepLinkCode,
         ?array $guestAddress,
+        ?string $paymentHandlerId = null,
     ): array {
         $metadata = [
             'status' => $status,
@@ -94,6 +97,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
 
         if (null !== $guestAddress) {
             $metadata['guestAddress'] = $guestAddress;
+        }
+
+        if (null !== $paymentHandlerId && '' !== $paymentHandlerId) {
+            $metadata['paymentHandlerId'] = $paymentHandlerId;
         }
 
         return $metadata;
