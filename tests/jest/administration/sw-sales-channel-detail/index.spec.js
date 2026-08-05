@@ -26,6 +26,7 @@ global.Shopware = {
         productComparisonTypeId: 'product-comparison-type-id',
         storefrontSalesChannelTypeId: 'storefront-type-id',
         apiSalesChannelTypeId: 'api-type-id',
+        agenticCommerceTypeId: 'agentic-commerce-type-id',
     },
 };
 
@@ -94,11 +95,13 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
     it.each([
         ['Storefront', 'storefront-type-id'],
         ['Headless/API', 'api-type-id'],
-    ])('renders for transactional %s channels when ucp.viewer is granted', (_label, typeId) => {
+        ['Agentic Commerce', 'agentic-commerce-type-id'],
+    ])('renders agentic tab for %s channels when ucp.viewer is granted', (_label, typeId) => {
         const context = {
             acl: { can: jest.fn(() => true) },
             salesChannel: { typeId },
             $route: { params: {} },
+            isAgenticCommerce: typeId === 'agentic-commerce-type-id',
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
@@ -106,13 +109,13 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
 
     it.each([
         ['Product Comparison', 'product-comparison-type-id'],
-        ['Agentic Commerce', 'agentic-commerce-type-id'],
         ['an unknown', 'unknown-type-id'],
-    ])('does not render for %s channels', (_label, typeId) => {
+    ])('does not render agentic tab for %s channels', (_label, typeId) => {
         const context = {
             acl: { can: jest.fn(() => true) },
             salesChannel: { typeId },
             $route: { params: {} },
+            isAgenticCommerce: false,
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(false);
