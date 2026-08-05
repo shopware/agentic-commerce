@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\FulfillmentSelection;
 
 /**
@@ -125,6 +126,103 @@ final class CheckoutGuestAddressPayloadResolverTest extends TestCase
             'city' => 'Berlin',
             'countryCode' => 'DE',
         ], $address);
+    }
+
+    #[Test]
+    public function testItRejectsAPartialDestinationInsteadOfDroppingIt(): void
+    {
+        // Reported from the other side in shopware/agentic-commerce#131: returning null
+        // here made the plugin drop the address and refuse two steps later with a
+        // message about a different field. `postal_address` marks nothing required, so
+        // an incomplete one is schema-valid and only this layer can catch it.
+        try {
+            $this->resolve(['methods' => [[
+                'destinations' => [['id' => 'destination-1', 'postal_code' => '10115']],
+            ]]]);
+            self::fail('A partial address must not be silently dropped.');
+        } catch (ValidationException $exception) {
+            self::assertSame([
+                '$.fulfillment.methods[0].destinations[0].street_address is required',
+                '$.fulfillment.methods[0].destinations[0].address_locality is required',
+            ], $exception->getViolations());
+            self::assertStringContainsString('street_address, postal_code and address_locality', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function testItNamesTheDestinationItActuallyReadRatherThanAssumingTheFirst(): void
+    {
+        try {
+            $this->resolve(['methods' => [
+                // Selection only, so this method resolves nothing and the walk continues.
+                ['destinations' => [['id' => 'destination-0']]],
+                [
+                    'selected_destination_id' => 'destination-9',
+                    'destinations' => [self::DESTINATION, ['id' => 'destination-9', 'address_locality' => 'Hamburg']],
+                ],
+            ]]);
+            self::fail('A partial address must not be silently dropped.');
+        } catch (ValidationException $exception) {
+            // methods[1].destinations[1] — the one selected_destination_id points at.
+            self::assertSame([
+                '$.fulfillment.methods[1].destinations[1].street_address is required',
+                '$.fulfillment.methods[1].destinations[1].postal_code is required',
+            ], $exception->getViolations());
+        }
+    }
+
+    #[Test]
+    public function testItNamesTheNestedPathForARetailLocation(): void
+    {
+        try {
+            $this->resolve(['methods' => [[
+                'destinations' => [['id' => 'store-1', 'name' => 'Berlin Store', 'address' => ['postal_code' => '10115']]],
+            ]]]);
+            self::fail('A partial address must not be silently dropped.');
+        } catch (ValidationException $exception) {
+            self::assertSame([
+                '$.fulfillment.methods[0].destinations[0].address.street_address is required',
+                '$.fulfillment.methods[0].destinations[0].address.address_locality is required',
+            ], $exception->getViolations());
+        }
+    }
+
+    #[Test]
+    public function testItTreatsAnyPostalFieldAsEvidenceOfAnAttemptedAddress(): void
+    {
+        // No mapped field at all, but address_region is unambiguously an address
+        // attempt rather than a selection by id.
+        $this->expectException(ValidationException::class);
+
+        $this->resolve(['methods' => [[
+            'destinations' => [['id' => 'destination-1', 'address_region' => 'Berlin']],
+        ]]]);
+    }
+
+    #[Test]
+    public function testADestinationCarryingOnlyAnIdIsASelectionNotABrokenAddress(): void
+    {
+        // `shipping_destination` requires `id` and nothing else, so selecting a
+        // destination the business already offered looks exactly like this. Throwing
+        // here would break that pattern; it must fall through to the stored address.
+        self::assertNull($this->resolver()->resolve(new FulfillmentSelection('shipping', null, [
+            'methods' => [['type' => 'shipping', 'line_item_ids' => ['line-1'], 'destinations' => [['id' => 'destination-1']]]],
+        ])));
+    }
+
+    #[Test]
+    public function testItRejectsAPartialLegacyShippingAddress(): void
+    {
+        try {
+            $this->resolve(['shipping_address' => ['street' => 'Legacy Street 9']]);
+            self::fail('A partial address must not be silently dropped.');
+        } catch (ValidationException $exception) {
+            self::assertSame([
+                '$.fulfillment.shipping_address.zipcode is required',
+                '$.fulfillment.shipping_address.city is required',
+            ], $exception->getViolations());
+            self::assertStringContainsString('fulfillment.methods[].destinations[]', $exception->getMessage());
+        }
     }
 
     #[Test]
