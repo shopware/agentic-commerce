@@ -153,7 +153,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         // Record the payment handler the client commits to (UCP PaymentInstrument),
         // preserving an earlier commitment when this update omits it. completeCheckout
         // uses it to decide whether it can settle or must hand off to a human.
-        $paymentHandlerId = $request->payment?->handlerId ?? $this->sessionStore->paymentHandlerId($metadata);
+        $paymentHandlerId = $request->payment->handlerId ?? $this->sessionStore->paymentHandlerId($metadata);
 
         $this->sessionManager->save(
             $salesChannelContext,
