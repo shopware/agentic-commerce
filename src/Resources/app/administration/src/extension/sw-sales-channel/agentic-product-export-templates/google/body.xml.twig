@@ -26,7 +26,8 @@
     {%- endfor -%}
 {%- endif -%}
 {%- set hasVariantListing = productExport.includeVariants and (product.parentId or product.childCount > 0) -%}
-{%- set productUrl = seoUrl('frontend.detail.page', {'productId': product.id}) ~ '?referringSalesChannel=' ~ provider.referringSalesChannel -%}
+{%- set canonicalUrl = seoUrl('frontend.detail.page', {'productId': product.id}) -%}
+{%- set productUrl = canonicalUrl ~ '?referringSalesChannel=' ~ provider.referringSalesChannel -%}
 {%- if provider.affiliateCode -%}
     {%- set productUrl = productUrl ~ '&affiliateCode=' ~ provider.affiliateCode|url_encode -%}
 {%- endif -%}
@@ -163,6 +164,7 @@
     <title>{{ title|escape }}</title>
     <description>{{ description|escape }}</description>
     <link>{{ productUrl|escape }}</link>
+    <g:canonical_link>{{ canonicalUrl|escape }}</g:canonical_link>
     <g:image_link>{{ imageUrl|escape }}</g:image_link>
     {%- for additionalImageUrl in additionalImageUrls|slice(0, 10) %}
     <g:additional_image_link>{{ additionalImageUrl|escape }}</g:additional_image_link>
@@ -225,6 +227,32 @@
         {%- endif %}
         <g:price>0.00 {{ context.currency.isoCode }}</g:price>
     </g:shipping>
+    {%- endif %}
+    {%- for characteristic in agentic_essential_characteristics(product, context) %}
+    <g:product_detail>
+        <g:section_name>{{ characteristic.section|escape }}</g:section_name>
+        <g:attribute_name>{{ characteristic.name|escape }}</g:attribute_name>
+        <g:attribute_value>{{ characteristic.value|escape }}</g:attribute_value>
+    </g:product_detail>
+    {%- endfor %}
+    {%- set measurements = agentic_product_measurements(product) %}
+    {%- if measurements.weight %}
+    <g:product_weight>{{ measurements.weight.display|escape }}</g:product_weight>
+    {%- endif %}
+    {%- if measurements.length %}
+    <g:product_length>{{ measurements.length.display|escape }}</g:product_length>
+    {%- endif %}
+    {%- if measurements.width %}
+    <g:product_width>{{ measurements.width.display|escape }}</g:product_width>
+    {%- endif %}
+    {%- if measurements.height %}
+    <g:product_height>{{ measurements.height.display|escape }}</g:product_height>
+    {%- endif %}
+    {%- if measurements.unitPricingMeasure %}
+    <g:unit_pricing_measure>{{ measurements.unitPricingMeasure|escape }}</g:unit_pricing_measure>
+    {%- endif %}
+    {%- if measurements.unitPricingBaseMeasure %}
+    <g:unit_pricing_base_measure>{{ measurements.unitPricingBaseMeasure|escape }}</g:unit_pricing_base_measure>
     {%- endif %}
 </item>
 {%- endif -%}

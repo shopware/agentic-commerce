@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
+/** @internal */
 final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionStoreInterface
 {
     private const TABLE = 'swag_agentic_commerce_ucp_checkout_completion';
@@ -22,6 +23,7 @@ final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionSto
         $this->connection->insert(self::TABLE, [
             'checkout_id' => $checkoutId,
             'order_id' => Uuid::fromHexToBytes($orderId),
+            'order_version_id' => Uuid::fromHexToBytes(Defaults::LIVE_VERSION),
             'created_at' => (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT),
         ]);
     }
@@ -43,5 +45,24 @@ final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionSto
         $orderId = $row['order_id'] ?? null;
 
         return \is_string($orderId) && '' !== $orderId ? $orderId : null;
+    }
+
+    public function completedCheckoutId(string $orderId): ?string
+    {
+        $row = $this->connection->fetchAssociative(
+            \sprintf(
+                'SELECT checkout_id FROM `%s` WHERE order_id = :orderId',
+                self::TABLE,
+            ),
+            ['orderId' => Uuid::fromHexToBytes($orderId)],
+        );
+
+        if (false === $row) {
+            return null;
+        }
+
+        $checkoutId = $row['checkout_id'] ?? null;
+
+        return \is_string($checkoutId) && '' !== $checkoutId ? $checkoutId : null;
     }
 }

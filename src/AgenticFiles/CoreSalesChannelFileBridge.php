@@ -10,6 +10,7 @@ use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
+/** @internal */
 #[Package('discovery')]
 final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterface
 {
@@ -22,6 +23,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
     private const FILE_NAMES = [
         'llms.txt',
         'agents.md',
+        '.well-known/ai-catalog.json',
     ];
 
     public function __construct(

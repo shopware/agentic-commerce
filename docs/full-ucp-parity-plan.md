@@ -30,6 +30,7 @@ OAuth identity linking is implemented as an optional plugin-backed capability:
 - The plugin registers a Shopware-backed identity-linking adapter and advertises it only when `identity_linking` is enabled for the sales channel.
 - Authorization Code + PKCE S256 is supported. Authorization requires a logged-in Shopware customer context token so anonymous requests cannot mint identity-linked tokens.
 - Access and refresh tokens are stored sales-channel scoped in plugin tables.
+- Token retention is bounded by a daily scheduled task (`swag_agentic_commerce.ucp_oauth_token.cleanup`, handled by `CleanupExpiredOAuthTokensTaskHandler`). It purges expired and consumed authorization codes (TTL 10 min), expired access tokens (TTL 1 h), and expired refresh tokens (TTL 30 days) from the three `swag_agentic_commerce_ucp_oauth_*` tables. Revoked-but-unexpired refresh tokens are intentionally retained until their natural expiry so refresh-token reuse detection (family revocation) keeps working within the token lifetime; they are removed once expired. There is no separate audit-grace window — rows are purged as soon as they can no longer be used.
 - Checkout completion currently uses an existing Shopware customer only when the resolved sales-channel context already contains one; otherwise it creates a guest customer from `buyer.email`. It must not attach orders to an existing account by email match alone. Follow-up work should hydrate cart/checkout contexts from the OAuth-linked customer subject before falling back to guest checkout (see [#72](https://github.com/shopware/agentic-commerce/issues/72)).
 - Checkout completion uses a Symfony Lock (keyed `ucp.checkout.completion.{checkoutId}.{salesChannelId}`, TTL 300 s) as the in-flight mutex, and a DB-backed idempotency record in `swag_agentic_commerce_ucp_checkout_completion` keyed by `(checkout_id, sales_channel_id)` for completed-order replay. The lock auto-expires after TTL if the holding process crashes, so there are no permanently stuck locks. Concurrent requests that cannot acquire the lock receive a 422 and are told to retry. Idempotent replay is checked before lock acquisition (fast path) and again after acquisition (double-check against a race). Because `placeOrder()` is not idempotent, a TTL expiry while order placement is in flight can still cause a second request to place a duplicate order; the idempotency INSERT will fail with a unique-constraint error for the second `complete()` call, leaving the duplicate order orphaned in Shopware. Making `placeOrder()` idempotent is the correct long-term fix.
 
@@ -164,6 +165,22 @@ The top screenshots verify the lane transport summary. The security screenshots 
 - MCP and A2A now route the shopping operation matrix through the shared
   capability layer. Follow-up validation should target lane builds and real demo
   storefront data rather than adding protocol-specific business logic.
+- `checkout.complete` requires a `payment` object per spec (`checkout.json`
+  annotates it `ucp_request: {complete: "required"}`), and the MCP tool now sends
+  one. The instrument is not yet acted on: the SDK's
+  `CheckoutAdapterInterface::completeCheckout()` takes only an id and a context, so
+  completion charges the sales channel default (invoice/offline) method. Threading
+  payment into the adapter is an upstream SDK change.
+- Applied discounts are reported as a negative `items_discount` total. The spec's
+  richer `discounts.applied[]` breakdown (`discount.json` → `$defs.applied_discount`,
+  with per-target `allocations`) is not emitted yet: the SDK's `Cart` model has no
+  `discounts` field and no `extra` escape hatch, so cart responses cannot carry it.
+  `Checkout` does have `extra`, so checkout-only fidelity is possible ahead of the
+  SDK change.
+- `cart.update` requires the cart id inside the payload as well as on the tool
+  argument, because the SDK validates the raw payload rather than merging the
+  resource id first as it does for `cart.get`/`cart.cancel`. The tool description
+  documents the duplication; removing it is an upstream SDK change.
 
 ## QA-Only Surfaces
 

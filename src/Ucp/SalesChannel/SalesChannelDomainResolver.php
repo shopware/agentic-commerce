@@ -16,6 +16,8 @@ use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 /**
  * @phpstan-type DomainCandidate array{id: string, salesChannelId: string, url: string, languageId: string|null, currencyId: string|null}
+ *
+ * @internal
  */
 final class SalesChannelDomainResolver
 {

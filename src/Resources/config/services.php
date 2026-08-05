@@ -24,6 +24,7 @@ use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
+use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
 use Shopware\Core\System\Country\SalesChannel\CountryRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
@@ -32,7 +33,6 @@ use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
-use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileSyncSubscriber;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
@@ -42,7 +42,10 @@ use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportHydrator;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\AgenticCommerceProductExportProviderRegistry;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\GoogleProductExportProvider;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\OpenAiProductExportProvider;
+use Swag\AgenticCommerce\Content\ProductExport\Service\EssentialCharacteristicsResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Service\JsonlAwareProductExportRenderer;
+use Swag\AgenticCommerce\Content\ProductExport\Service\ProductMeasurementsResolver;
+use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportCriteriaSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\AgenticCommerceProductExportProviderContextSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Subscriber\JsonlContentTypeSubscriber;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\CustomerSalesChannelTrackingExtension;
@@ -51,6 +54,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension\SalesChannelPr
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingListener;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderDefinition;
+use Swag\AgenticCommerce\Content\ProductExport\Twig\AgenticProductExportExtension;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\GoogleProductExportValidator;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
@@ -75,6 +79,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
@@ -82,14 +87,18 @@ use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
+use Swag\AgenticCommerce\Ucp\Embedded\ShopwareEmbeddedPageRenderer;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
+use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
@@ -132,8 +141,17 @@ use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
+use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
 return static function (ContainerConfigurator $container): void {
+    $appUrlHost = parse_url((string) EnvironmentHelper::getVariable('APP_URL', ''), \PHP_URL_HOST);
+    $appUrlHost = \is_string($appUrlHost) ? rtrim(strtolower($appUrlHost), '.') : '';
+    $allowHttpLocalWebhookOverride = 'prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')
+        || 'localhost' === $appUrlHost
+        || str_ends_with($appUrlHost, '.localhost')
+        || '127.0.0.1' === $appUrlHost
+        || '::1' === $appUrlHost;
+
     $container->extension('ucp_sdk', [
         'version' => '2026-04-08',
         'signature_policy' => 'strict',
@@ -159,7 +177,12 @@ return static function (ContainerConfigurator $container): void {
         ->private();
 
     $services->load('Swag\\AgenticCommerce\\', __DIR__.'/../../*')
-        ->exclude([__DIR__.'/../../Resources']);
+        ->exclude([
+            __DIR__.'/../../Resources',
+            // Test-only helpers (issue #53): registered explicitly below, and only outside prod.
+            __DIR__.'/../../Ucp/Test',
+            __DIR__.'/../../Ucp/Command/SeedSmokeCatalogCommand.php',
+        ]);
 
     // DAL repositories are bound by service id, not type — named args required.
 
@@ -180,12 +203,6 @@ return static function (ContainerConfigurator $container): void {
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $services->set(RemoveLeadingSpacesTwigExtension::class);
     }
-
-    $services->set(SeedSmokeCatalogCommand::class)
-        ->arg('$productRepository', service('product.repository'))
-        ->arg('$taxRepository', service('tax.repository'))
-        ->arg('$appEnv', param('kernel.environment'))
-        ->arg('$smokeCatalogSeedEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_SMOKE_SEED'));
 
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
@@ -217,6 +234,9 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
     $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
 
+    $services->set(CheckoutWebhookUrlGuard::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
     $services->alias(CheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
@@ -230,6 +250,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(OrderCapabilityInterface::class, OrderCapability::class);
     $services->alias(IdentityLinkingCapabilityInterface::class, IdentityLinkingCapability::class);
     $services->alias(TokenizationCapabilityInterface::class, PaymentTokenizationCapability::class);
+    $services->alias(EmbeddedPageRendererInterface::class, ShopwareEmbeddedPageRenderer::class);
 
     // Capabilities that collect tagged adapters via iteration.
 
@@ -246,6 +267,14 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareInvoicePaymentHandler::class)
         ->tag('ucp_sdk.payment_handler');
+
+    // Scheduled tasks.
+    $services->set(CleanupExpiredOAuthTokensTask::class)
+        ->tag('shopware.scheduled.task');
+
+    // The handler needs the DAL repository wired by service id (not autowirable by type).
+    $services->set(CleanupExpiredOAuthTokensTaskHandler::class)
+        ->arg('$scheduledTaskRepository', service('scheduled_task.repository'));
 
     // Store API MCP tools.
 
@@ -273,20 +302,40 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments');
 
     $services->set(UcpAdminController::class)
-        ->tag('controller.service_arguments');
-
-    $services->set(WebhookCaptureStore::class)
-        ->arg('$projectDir', param('kernel.project_dir'));
-
-    $services->set(TestWebhookController::class)
-        ->arg('$appEnv', param('kernel.environment'))
-        ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
         ->tag('controller.service_arguments');
 
     $services->set(FallbackAgenticFileController::class)
         ->tag('controller.service_arguments');
 
+    // ── Test-only helpers (issue #53) ─────────────────────────────────────────
+    // Registered only outside prod so the webhook-capture endpoint, its capture/write store, and
+    // the smoke-catalog seeder never enter the production service graph. The matching test route
+    // is gated the same way in routes.php. Their feature flags + runtime guards remain as
+    // defense-in-depth.
+    if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
+        $services->set(WebhookCaptureStore::class)
+            ->arg('$projectDir', param('kernel.project_dir'));
+
+        $services->set(TestWebhookController::class)
+            ->arg('$appEnv', param('kernel.environment'))
+            ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
+            ->tag('controller.service_arguments');
+
+        $services->set(SeedSmokeCatalogCommand::class)
+            ->arg('$productRepository', service('product.repository'))
+            ->arg('$taxRepository', service('tax.repository'))
+            ->arg('$appEnv', param('kernel.environment'))
+            ->arg('$smokeCatalogSeedEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_SMOKE_SEED'));
+    }
+
     // Config layer.
+
+    $services->set(DoctrineDbalUcpConfigRepository::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+
+    $services->set(UcpConfigService::class)
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
@@ -298,8 +347,6 @@ return static function (ContainerConfigurator $container): void {
     $services->set(EmbeddedResponseListener::class)
         ->tag('kernel.event_listener', ['event' => 'kernel.request', 'method' => 'onKernelRequest', 'priority' => 10000])
         ->tag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onKernelResponse', 'priority' => -1024]);
-
-    $services->set(CoreSalesChannelFileSyncSubscriber::class);
 
     // ── Product export: entity definition override ────────────────────────────
 
@@ -324,6 +371,15 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
         ->tag('swag_agentic_commerce.product_export.provider');
 
+    // ── Product export: essential characteristics & measurements ─────────────
+
+    $services->set(EssentialCharacteristicsResolver::class)
+        ->arg('$customFieldRepository', service('custom_field.repository'));
+
+    $services->set(ProductMeasurementsResolver::class);
+
+    $services->set(AgenticProductExportExtension::class);
+
     // ── Product export: renderer decorator ───────────────────────────────────
 
     $services->set(JsonlAwareProductExportRenderer::class)
@@ -331,6 +387,8 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$inner', service('.inner'));
 
     // ── Product export: subscribers ───────────────────────────────────────────
+
+    $services->set(AgenticCommerceProductExportCriteriaSubscriber::class);
 
     $services->set(AgenticCommerceProductExportProviderContextSubscriber::class);
 
@@ -378,7 +436,13 @@ return static function (ContainerConfigurator $container): void {
     $services->set(AgenticCommerceSalesChannelTypeProtectionSubscriber::class)
         ->tag('kernel.event_subscriber');
 
-    // ── CompatConfigReader: fixes libxml2 2.13+ rejection of 6.5 XSD ─────────
+    // ── CompatConfigReader: works around libxml2 2.13+ rejection of the 6.5 XSD ─
+    //
+    // Registered unconditionally so the compiled DI container stays deterministic
+    // (a hard requirement for SaaS's cacheable container). CompatConfigReader
+    // decides at runtime which schema to use: the bundled 6.5-compat copy on 6.5,
+    // or core's real, current schema on 6.6+ (so newer core config such as
+    // basicInformation.xml — which adds <subtitle> in 6.7 — validates correctly).
 
     $services->set(ConfigReader::class, CompatConfigReader::class)
         ->public();

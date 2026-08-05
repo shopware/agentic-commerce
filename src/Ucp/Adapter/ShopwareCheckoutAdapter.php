@@ -27,6 +27,7 @@ use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 {
     public function __construct(

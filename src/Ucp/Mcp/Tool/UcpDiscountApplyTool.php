@@ -10,7 +10,8 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-discount-apply', title: 'UCP Discount Apply', description: 'Apply a discount code to a cart through the shared UCP discount capability.')]
+#[McpTool(name: 'shopware-ucp-discount-apply', title: 'UCP Discount Apply', description: 'Apply a discount code to a cart through the shared UCP discount capability. Always use dryRun=true (the default) to check whether the code would be accepted without persisting it, then set dryRun=false to commit.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpDiscountApplyTool
 {
@@ -20,7 +21,7 @@ final class UcpDiscountApplyTool
     ) {
     }
 
-    public function __invoke(string $cartId, string $code): string
+    public function __invoke(string $cartId, string $code, bool $dryRun = true): string
     {
         try {
             $requestPayload = ['cart_id' => $cartId, 'code' => $code];
@@ -28,14 +29,15 @@ final class UcpDiscountApplyTool
             return $this->toolContext->executeMutating(
                 'discount.apply',
                 $requestPayload,
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'discount.apply',
                     $requestPayload,
                     $context,
                 )),
+                $dryRun,
             );
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

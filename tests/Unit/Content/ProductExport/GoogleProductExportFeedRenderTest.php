@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Twig\Environment;
 use Twig\Extension\EscaperExtension;
 use Twig\Loader\ArrayLoader;
+use Twig\TwigFunction;
 
 /**
  * Renders the Google feed header the way core does (StringTemplateRenderer toggles
@@ -79,6 +80,82 @@ class GoogleProductExportFeedRenderTest extends TestCase
             self::DOMAIN_URL.'/store-api/product-export/'.self::ACCESS_KEY.'/'.self::FILE_NAME,
             $atomLink->getAttribute('href')
         );
+    }
+
+    public function testBodyEmitsCanonicalLinkWithoutTrackingParameters(): void
+    {
+        $body = $this->renderBody();
+
+        // Wrap the item fragment so it parses as a document and the g: prefix resolves.
+        $wrapped = '<rss xmlns:g="http://base.google.com/ns/1.0"><channel>'.$body.'</channel></rss>';
+
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $loaded = $dom->loadXML($wrapped);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        static::assertTrue(
+            $loaded && [] === $errors,
+            "Rendered body is not well-formed XML.\nXML:\n{$wrapped}\nErrors: ".var_export($errors, true)
+        );
+
+        $expectedCanonical = 'https://shop.test/detail/PROD-1';
+
+        // <link> carries the tracking parameter the shopper lands on.
+        $link = $dom->getElementsByTagNameNS('', 'link')->item(0)?->textContent;
+        static::assertSame($expectedCanonical.'?referringSalesChannel=sc-123', $link);
+
+        // <g:canonical_link> is the clean, parameter-free URL Google matches against the index.
+        $canonical = $dom->getElementsByTagNameNS('http://base.google.com/ns/1.0', 'canonical_link')->item(0)?->textContent;
+        static::assertSame($expectedCanonical, $canonical);
+        static::assertStringNotContainsString('referringSalesChannel', (string) $canonical);
+        static::assertStringNotContainsString('affiliateCode', (string) $canonical);
+        static::assertStringNotContainsString('campaignCode', (string) $canonical);
+    }
+
+    private function renderBody(): string
+    {
+        $body = $this->readTemplate('body.xml.twig');
+
+        $twig = new Environment(new ArrayLoader(['body' => $body]), ['autoescape' => 'html']);
+        $twig->addFunction(new TwigFunction(
+            'seoUrl',
+            static fn (string $route, array $params = []): string => 'https://shop.test/detail/'.($params['productId'] ?? '')
+        ));
+        $twig->addFunction(new TwigFunction('agentic_essential_characteristics', static fn (mixed $product, mixed $context): array => []));
+        $twig->addFunction(new TwigFunction('agentic_product_measurements', static fn (mixed $product): array => [
+            'weight' => null,
+            'length' => null,
+            'width' => null,
+            'height' => null,
+            'unitPricingMeasure' => null,
+            'unitPricingBaseMeasure' => null,
+        ]));
+
+        $data = [
+            'productExport' => ['includeVariants' => false],
+            'provider' => [
+                'referringSalesChannel' => 'sc-123',
+                'sellerName' => 'Acme',
+            ],
+            'product' => [
+                'id' => 'PROD-1',
+                'productNumber' => 'SW-1',
+                'name' => 'Test Product',
+                'translated' => ['name' => 'Test Product', 'description' => 'A product'],
+                'available' => true,
+                'calculatedPrice' => ['unitPrice' => 9.99],
+                'calculatedPrices' => ['count' => 0],
+                'cover' => ['media' => ['url' => 'https://shop.test/media/p1.jpg']],
+            ],
+            'context' => [
+                'currency' => ['isoCode' => 'EUR', 'itemRounding' => ['decimals' => 2]],
+            ],
+        ];
+
+        return $twig->render('body', $data);
     }
 
     private function renderFeed(string|false $strategy): string

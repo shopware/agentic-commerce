@@ -2,6 +2,11 @@
   "swagAgenticCommerce": {
     "modalGrid": {
       "agenticCommerceBadge": "Neu"
+    },
+    "salesChannelList": {
+      "columnUcp": "UCP",
+      "ucpExposed": "Bereitgestellt",
+      "ucpOff": "Aus"
     }
   },
   "sw-sales-channel": {
@@ -11,6 +16,36 @@
     "detail": {
       "agenticCommerce": {
         "tabIntegration": "Integration",
+        "tabAgenticCommerce": "Agentic Commerce",
+        "exportCardTitle": "Produktfeed-Export",
+        "ucp": {
+          "cardTitle": "UCP",
+          "cardIntro": "Lege fest, wie dieser Verkaufskanal KI-Agenten über das Universal Commerce Protocol (UCP) bereitgestellt wird: welche Fähigkeiten Agenten nutzen dürfen, wie Anfragen abgesichert werden und welches Profil sie finden.",
+          "exposeLabel": "Über UCP bereitstellen",
+          "unsavedTitle": "Ungespeicherte Änderungen",
+          "unsavedMessage": "Du hast ungespeicherte Änderungen. Prüfe den Vorschau-Tab und speichere dann den Verkaufskanal, um sie zu übernehmen.",
+          "subTabExposure": "Bereitstellung",
+          "subTabPreview": "Vorschau",
+          "profileDomainLabel": "Profil-Domain",
+          "profileDomainSingle": "Die einzige Domain des Kanals wird automatisch verwendet.",
+          "capabilitiesLabel": "Für Agenten freigegebene Funktionen",
+          "capabilityCatalogLabel": "Katalog durchsuchen",
+          "capabilityCatalogTooltip": "Agenten können Produkte, Listings und Preise lesen.",
+          "capabilityCartLabel": "Warenkorb",
+          "capabilityCartTooltip": "Agenten können einen Warenkorb erstellen und aktualisieren.",
+          "capabilityDiscountLabel": "Rabatte",
+          "capabilityDiscountTooltip": "Agenten können Aktions- und Rabattcodes anwenden.",
+          "capabilityCheckoutLabel": "Checkout",
+          "capabilityCheckoutTooltip": "Agenten können einen Checkout für den Kunden abschließen.",
+          "capabilityOrderLabel": "Bestellungen",
+          "capabilityOrderTooltip": "Agenten können den Bestellstatus nach dem Kauf lesen.",
+          "transportsLabel": "Transportwege",
+          "transportRestDescription": "REST – Standard-HTTP-API.",
+          "transportA2aDescription": "A2A – Agent-zu-Agent-Protokoll.",
+          "transportEmbeddedDescription": "Embedded – eingebettete In-Context-Oberfläche.",
+          "transportMcpDescription": "MCP – Model-Context-Protocol-Server.",
+          "previewLabel": "Profilvorschau"
+        },
         "openAiSettingsTitle": "OpenAI-Einstellungen",
         "googleSettingsTitle": "Google-Einstellungen",
         "buttonResetTemplate": "Auf Standard zurücksetzen",

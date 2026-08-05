@@ -16,49 +16,17 @@ done
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOPWARE_DIR="$(cd "$1" && pwd)"
 SDK_ROOT="${SDK_ROOT:-${PLUGIN_ROOT}/../ucp-php-sdk}"
-PLUGIN_ZIP="${CI_SMOKE_PLUGIN_ZIP:-}"
 SMOKE_MODE="${CI_SMOKE_MODE:-}"
 SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 
-detect_shopware_lane() {
-  if [[ "${SHOPWARE_REF:-}" == "6.5.x" || "${SHOPWARE_REF:-}" == "6.6.x" || "${SHOPWARE_REF:-}" == "trunk" ]]; then
-    printf '%s\n' "${SHOPWARE_REF}"
-    return 0
-  fi
-
-  if [[ -f "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/build.ts" ]]; then
-    printf 'trunk\n'
-    return 0
-  fi
-
-  if grep -q 'ADMIN_VITE' "${SHOPWARE_DIR}/src/Administration/Resources/app/administration/package.json" 2>/dev/null; then
-    printf '6.6.x\n'
-    return 0
-  fi
-
-  printf '6.5.x\n'
-}
+# Shared container/lane helpers: web, web_is_running, web_root_mount_type, db_query,
+# db_table_exists, lane_detect_compose_cmd, detect_base_url, detect_shopware_lane.
+# (web_container_id stays defined per-script where its flags differ.)
+# shellcheck source=bin/lib/lane.sh
+source "${PLUGIN_ROOT}/bin/lib/lane.sh"
 
 SHOPWARE_BRANCH="$(detect_shopware_lane)"
-
-plugin_composer_version() {
-  case "${SHOPWARE_BRANCH}" in
-    6.5.x)
-      printf '6.5.9999999-dev\n'
-      ;;
-    6.6.x)
-      printf '6.6.9999999-dev\n'
-      ;;
-    trunk)
-      printf '6.7.9999999-dev\n'
-      ;;
-    *)
-      printf 'dev-main\n'
-      ;;
-  esac
-}
-
-PLUGIN_COMPOSER_VERSION="$(plugin_composer_version)"
+PLUGIN_COMPOSER_VERSION="$(jq -er '.version' "${PLUGIN_ROOT}/composer.json")"
 
 if [[ -z "${SMOKE_MODE}" ]]; then
   if [[ -n "${CI:-}" ]]; then
@@ -97,11 +65,6 @@ if [[ "${SKIP_PLUGIN}" != "0" && "${SKIP_PLUGIN}" != "1" ]]; then
   exit 1
 fi
 
-if [[ "${SKIP_PLUGIN}" == "1" && -n "${PLUGIN_ZIP}" ]]; then
-  echo "CI_SMOKE_SKIP_PLUGIN cannot be combined with CI_SMOKE_PLUGIN_ZIP." >&2
-  exit 1
-fi
-
 if [[ "${SKIP_PLUGIN}" == "1" && "${BOOTSTRAP_ONLY}" != "1" ]]; then
   echo "CI_SMOKE_SKIP_PLUGIN requires CI_SMOKE_BOOTSTRAP_ONLY=1." >&2
   exit 1
@@ -116,31 +79,12 @@ if [[ ! -d "${SHOPWARE_DIR}" ]]; then
   exit 1
 fi
 
-if [[ -n "${PLUGIN_ZIP}" ]]; then
-  if ! command -v unzip >/dev/null 2>&1; then
-    echo "Required dependency 'unzip' is not available." >&2
-    exit 1
-  fi
-
-  if [[ ! -f "${PLUGIN_ZIP}" ]]; then
-    echo "Plugin zip not found at ${PLUGIN_ZIP}." >&2
-    exit 1
-  fi
-
-  PLUGIN_ZIP="$(cd "$(dirname "${PLUGIN_ZIP}")" && pwd)/$(basename "${PLUGIN_ZIP}")"
-elif [[ "${SKIP_PLUGIN}" != "1" && ! -d "${SDK_ROOT}" ]]; then
+if [[ "${SKIP_PLUGIN}" != "1" && ! -d "${SDK_ROOT}" ]]; then
   echo "SDK checkout not found at ${SDK_ROOT}." >&2
   exit 1
 fi
 
-if command -v docker >/dev/null 2>&1; then
-  compose_cmd=(docker compose)
-elif command -v podman >/dev/null 2>&1; then
-  compose_cmd=(podman compose)
-else
-  echo "Neither docker nor podman is available." >&2
-  exit 1
-fi
+read -ra compose_cmd <<< "$(lane_detect_compose_cmd)"
 
 if [[ ! -f "${SHOPWARE_DIR}/compose.yaml" ]]; then
   echo "Missing ${SHOPWARE_DIR}/compose.yaml. In CI, run bin/ci-write-compose.sh before bin/ci-smoke.sh." >&2
@@ -151,17 +95,6 @@ compose_files=("${SHOPWARE_DIR}/compose.yaml")
 if [[ -f "${SHOPWARE_DIR}/compose.override.yaml" ]]; then
   compose_files+=("${SHOPWARE_DIR}/compose.override.yaml")
 fi
-
-detect_base_url() {
-  local detected
-  detected="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' "${SHOPWARE_DIR}/compose.yaml" | head -n 1)"
-  if [[ -n "${detected}" ]]; then
-    printf '%s\n' "${detected}"
-    return 0
-  fi
-
-  printf 'http://localhost:8000\n'
-}
 
 BASE_URL="${BASE_URL:-$(detect_base_url)}"
 WEBHOOK_CAPTURE_URL="${WEBHOOK_CAPTURE_URL:-${BASE_URL}/_action/swag-agentic-commerce/test/webhooks}"
@@ -207,127 +140,47 @@ cleanup() {
   "${compose[@]}" down -v >/dev/null 2>&1 || true
 }
 
-trap cleanup EXIT
+write_composer_security_audit() {
+  local output_file="${CI_COMPOSER_AUDIT_OUTPUT:-}"
+  local temporary_file
+  local audit_status=0
 
-web() {
-  "${compose[@]}" exec -T web "$@"
-}
-
-web_container_id() {
-  "${compose[@]}" ps -a -q web
-}
-
-web_is_running() {
-  [[ -n "$("${compose[@]}" ps -q web)" ]]
-}
-
-web_root_mount_type() {
-  local web_id
-  web_id="$(web_container_id)"
-
-  if [[ -z "${web_id}" ]]; then
-    return 1
-  fi
-
-  "${container_runtime}" inspect \
-    --format '{{range .Mounts}}{{if eq .Destination "/var/www/html"}}{{.Type}}{{end}}{{end}}' \
-    "${web_id}"
-}
-
-db_query() {
-  "${compose[@]}" exec -T database mariadb -N -uroot -proot shopware -e "$1"
-}
-
-db_table_exists() {
-  local table_name="$1"
-  local result
-
-  result="$("${compose[@]}" exec -T database mariadb -N -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'shopware' AND table_name = '${table_name}';")"
-
-  [[ "${result}" == "1" ]]
-}
-
-assert_jq() {
-  local json="$1"
-  local message="$2"
-  local expression="$3"
-  shift 3
-
-  if ! printf '%s' "${json}" | jq -e "$@" "${expression}" >/dev/null; then
-    echo "${message}" >&2
-    printf '%s\n' "${json}" >&2
-    exit 1
-  fi
-}
-
-assert_contains() {
-  local content="$1"
-  local message="$2"
-  local expected="$3"
-
-  if [[ "${content}" != *"${expected}"* ]]; then
-    echo "${message}" >&2
-    printf '%s\n' "${content}" >&2
-    exit 1
-  fi
-}
-
-fetch_required_url() {
-  local url="$1"
-  local label="$2"
-  local headers_file="$3"
-  local body_file="$4"
-  local status
-
-  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "${url}")"
-  if [[ ! "${status}" =~ ^[0-9]{3}$ || "${status}" -lt 200 || "${status}" -ge 300 ]]; then
-    echo "Expected ${label} to return a 2xx response, got ${status}." >&2
-    echo "Response headers:" >&2
-    cat "${headers_file}" >&2
-    echo "Response body:" >&2
-    cat "${body_file}" >&2
-    exit 1
-  fi
-
-  cat "${body_file}"
-}
-
-curl_required() {
-  local label="$1"
-  shift
-
-  local headers_file
-  local body_file
-  local status
-  headers_file="$(mktemp)"
-  body_file="$(mktemp)"
-
-  status="$(curl -sS -D "${headers_file}" -o "${body_file}" -w '%{http_code}' "$@")"
-  if [[ ! "${status}" =~ ^[0-9]{3}$ || "${status}" -lt 200 || "${status}" -ge 300 ]]; then
-    echo "Expected ${label} to return a 2xx response, got ${status}." >&2
-    echo "Response headers:" >&2
-    cat "${headers_file}" >&2
-    echo "Response body:" >&2
-    cat "${body_file}" >&2
-    rm -f "${headers_file}" "${body_file}"
-    exit 1
-  fi
-
-  cat "${body_file}"
-  rm -f "${headers_file}" "${body_file}"
-}
-
-idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
-smoke_email="${idempotency_run_prefix}@example.com"
-
-next_idempotency_key() {
-  if command -v uuidgen >/dev/null 2>&1; then
-    printf '%s-%s' "${idempotency_run_prefix}" "$(uuidgen | tr '[:upper:]' '[:lower:]')"
+  if [[ -z "${output_file}" ]]; then
     return 0
   fi
 
-  printf '%s-%s' "${idempotency_run_prefix}" "$(openssl rand -hex 16)"
+  mkdir -p "$(dirname "${output_file}")"
+  temporary_file="$(mktemp "${output_file}.XXXXXX")"
+
+  if web sh -lc 'cd /var/www/html && composer audit --no-dev --format=json' >"${temporary_file}"; then
+    audit_status=0
+  else
+    audit_status=$?
+  fi
+
+  if [[ ! -s "${temporary_file}" ]]; then
+    if [[ "${audit_status}" -eq 0 ]]; then
+      printf '{"advisories":{},"abandoned":[]}\n' >"${temporary_file}"
+    else
+      printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" >"${temporary_file}"
+    fi
+  fi
+
+  mv "${temporary_file}" "${output_file}"
+  echo "Composer audit report written to ${output_file} (exit ${audit_status})."
 }
+
+trap cleanup EXIT
+
+# HTTP/assertion/JSON-RPC helpers (assert_jq, assert_contains, fetch_required_url,
+# curl_required, ucp_status, ucp_expect_status, ucp_jsonrpc, next_idempotency_key) come
+# from the shared smoke library so they stay in sync with bin/validate-ucp-store.sh.
+# shellcheck source=bin/lib/ucp-http.sh
+source "${PLUGIN_ROOT}/bin/lib/ucp-http.sh"
+
+idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
+smoke_email="${idempotency_run_prefix}@example.com"
+UCP_IDEMPOTENCY_PREFIX="${idempotency_run_prefix}"
 
 wait_for_capture() {
   local attempt
@@ -353,13 +206,6 @@ mkdir -p "${SHOPWARE_DIR}/custom/plugins"
 
 if [[ "${SKIP_PLUGIN}" == "1" ]]; then
   :
-elif [[ -n "${PLUGIN_ZIP}" ]]; then
-  unzip -q "${PLUGIN_ZIP}" -d "${SHOPWARE_DIR}/custom/plugins"
-  if [[ ! -d "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" ]]; then
-    echo "Plugin zip must contain a top-level SwagAgenticCommerce directory." >&2
-    exit 1
-  fi
-  chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce"
 else
   mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
   rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' --exclude='AGENTS.md' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
@@ -414,12 +260,10 @@ sync_custom_sources_into_web_volume() {
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/plugins/SwagAgenticCommerce'
     "${container_runtime}" cp "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/." "${web_id}:/var/www/html/custom/plugins/SwagAgenticCommerce"
   fi
-  if [[ "${SKIP_PLUGIN}" != "1" && -z "${PLUGIN_ZIP}" ]]; then
+  if [[ "${SKIP_PLUGIN}" != "1" ]]; then
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'mkdir -p /var/www/html/custom/ucp-php-sdk'
     "${container_runtime}" cp "${SHOPWARE_DIR}/custom/ucp-php-sdk/." "${web_id}:/var/www/html/custom/ucp-php-sdk"
     "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce /var/www/html/custom/ucp-php-sdk'
-  elif [[ "${SKIP_PLUGIN}" != "1" ]]; then
-    "${container_runtime}" exec -u 0 "${web_id}" sh -lc 'chown -R www-data:www-data /var/www/html/custom/plugins/SwagAgenticCommerce && chmod -R a+rwX /var/www/html/custom/plugins/SwagAgenticCommerce'
   fi
 }
 
@@ -462,12 +306,12 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
-if [[ "${SKIP_PLUGIN}" == "1" || -n "${PLUGIN_ZIP}" ]]; then
+if [[ "${SKIP_PLUGIN}" == "1" ]]; then
   web sh -lc 'cd /var/www/html \
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 fi
 
 if [[ ! -f "${SHOPWARE_DIR}/composer.lock" && "${SHOPWARE_BRANCH}" == "6.5.x" ]]; then
@@ -485,21 +329,17 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
     && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
     && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
-elif [[ -n "${PLUGIN_ZIP}" ]]; then
-  web sh -lc 'cd /var/www/html \
-    && { composer config --unset repositories.swag-agentic-commerce >/dev/null 2>&1 || true; } \
-    && { composer config --unset repositories.ucp-sdk-core >/dev/null 2>&1 || true; } \
-    && { composer config --unset repositories.ucp-sdk-symfony >/dev/null 2>&1 || true; } \
-    && { composer remove --no-update --no-interaction shopware/agentic-commerce shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
+    && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 else
   web sh -lc "cd /var/www/html \
     && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
-    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/ucp-php-sdk-core\":\"0.0.1\"}}}' \
-    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.1\"}}}' \
-    && { composer remove --no-update --no-interaction shopware/ucp-php-sdk-core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
+    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.2\"}}}' \
+    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.2\"}}}' \
+    && { composer remove --no-update --no-interaction ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
     && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 fi
+
+write_composer_security_audit
 
 # Composer may update core service definitions while a prod container compiled
 # for the previous checkout is still present. Remove it before booting console
@@ -520,11 +360,6 @@ web php <<'PHP'
 declare(strict_types=1);
 
 require '/var/www/html/vendor/autoload.php';
-
-$pluginAutoload = '/var/www/html/custom/plugins/SwagAgenticCommerce/vendor/autoload.php';
-if (is_file($pluginAutoload)) {
-    require_once $pluginAutoload;
-}
 
 $configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
 if (is_file($configPath)) {
@@ -579,24 +414,6 @@ foreach ([
 echo "UCP SDK storage schema is available on Shopware database.\n";
 PHP
 
-if [[ -n "${PLUGIN_ZIP}" ]]; then
-  web sh -lc 'cd /var/www/html \
-    && php bin/console bundle:dump \
-    && php bin/console feature:dump \
-    && php bin/console assets:install \
-    && rm -f public/bundles/administration/administration/sw-plugin-dev.json'
-
-  if ! web sh -lc 'test -f /var/www/html/public/bundles/swagagenticcommerce/administration/.vite/entrypoints.json'; then
-    echo "Zip-installed administration Vite entrypoints were not published to public/bundles." >&2
-    exit 1
-  fi
-
-  if ! web sh -lc 'test -f /var/www/html/public/bundles/swagagenticcommerce/administration/js/swag-agentic-commerce.js'; then
-    echo "Zip-installed legacy administration bootstrap was not published to public/bundles." >&2
-    exit 1
-  fi
-fi
-
 sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://localhost:%' ORDER BY sales_channel_id LIMIT 1;")"
 if [[ -z "${sales_channel_id}" ]]; then
   sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://%' ORDER BY sales_channel_id LIMIT 1;")"
@@ -626,7 +443,7 @@ web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.w
 web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.continueUrlTemplate "${BASE_URL}/checkout/confirm?checkoutId={checkoutId}" --salesChannelId="${sales_channel_id}"
 
 store_api_mcp_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo class_exists("Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController") ? "1" : "0";')"
-core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; $pluginAutoload = "/var/www/html/custom/plugins/SwagAgenticCommerce/vendor/autoload.php"; if (is_file($pluginAutoload)) { require_once $pluginAutoload; } echo (class_exists("Swag\\AgenticCommerce\\AgenticFiles\\CoreSalesChannelFileFeature") && Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass()) ? "1" : "0";')"
+core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo (class_exists("Swag\\AgenticCommerce\\AgenticFiles\\CoreSalesChannelFileFeature") && Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass()) ? "1" : "0";')"
 
 enabled_transports='["rest","a2a","embedded"]'
 expected_transports_json='["a2a","embedded","rest"]'
@@ -684,128 +501,39 @@ if [[ -z "${product_id}" || -z "${product_name}" ]]; then
   exit 1
 fi
 
-search_term="${product_name%% *}"
+ucp_agent_header="UCP-Agent: shopware-agentic-commerce-ci; profile=\"${BASE_URL}/.well-known/ucp\""
 
-profile_json="$(curl_required 'UCP profile' "${BASE_URL}/.well-known/ucp")"
-assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
-assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
-assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.ucp.payment_handlers | type == "object" and length == 0'
+# Smoke check stages live in named modules so a failing banner names the area. Catalog and cart
+# capability coverage lives in the functional suite; the checkout stage resolves the seeded
+# product itself and stays here only to drive the on-the-wire signed order webhook.
+# shellcheck source=bin/lib/smoke/discovery.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/discovery.sh"
+# shellcheck source=bin/lib/smoke/identity.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/identity.sh"
+# shellcheck source=bin/lib/smoke/checkout.sh
+source "${PLUGIN_ROOT}/bin/lib/smoke/checkout.sh"
 
-if [[ "${store_api_mcp_available}" == "1" ]]; then
-  assert_jq "${profile_json}" 'Expected MCP transport to point at the public UCP MCP endpoint.' '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint == $endpoint' --arg endpoint "${BASE_URL}/ucp/mcp"
-else
-  assert_jq "${profile_json}" 'Expected MCP transport to stay hidden when Store API MCP is unavailable.' '[.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp")] | length == 0'
+smoke_discovery
+smoke_identity
+smoke_checkout
+
+# Optionally run the functional suite inside the already-booted stack. These tests
+# boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) and drive UCP
+# routes through a real Symfony browser, rather than hitting the deployed HTTP stack. They use
+# Shopware core's test base classes, which are coupled to the lane's phpunit major
+# (6.5->9, 6.6->10, trunk->11), so they must run on the lane's OWN phpunit, not the plugin's
+# pinned .tools 10.5. The smoke stack installs Shopware --no-dev, so pull in the dev deps here:
+# bin/run.php then prefers the platform phpunit and tests/bootstrap.php registers the plugin's
+# src + Tests namespaces on the platform autoloader.
+if [[ "${CI_SMOKE_RUN_FUNCTIONAL:-0}" == "1" ]]; then
+  echo "Installing Shopware dev dependencies so the functional suite runs on the lane's own phpunit."
+  web composer install -d /var/www/html --no-interaction --no-progress --no-scripts
+  echo "Running functional suite (lane phpunit, booting test kernel)."
+  "${compose[@]}" exec -T \
+    -e SHOPWARE_PROJECT_DIR= \
+    -e APP_ENV=test \
+    -w /var/www/html/custom/plugins/SwagAgenticCommerce \
+    web php bin/run.php phpunit --testsuite functional
 fi
 
-if [[ "${core_agentic_files_available}" == "0" ]]; then
-  echo "Verifying fallback agentic discovery files."
-  llms_headers_file="$(mktemp)"
-  agents_headers_file="$(mktemp)"
-  llms_body_file="$(mktemp)"
-  agents_body_file="$(mktemp)"
-  llms_txt="$(fetch_required_url "${BASE_URL}/llms.txt" 'fallback /llms.txt' "${llms_headers_file}" "${llms_body_file}")"
-  agents_md="$(fetch_required_url "${BASE_URL}/agents.md" 'fallback /agents.md' "${agents_headers_file}" "${agents_body_file}")"
-
-  if ! grep -Eiq '^content-type:[[:space:]]*text/plain; charset=utf-8' "${llms_headers_file}"; then
-    echo "Expected fallback /llms.txt to use text/plain; charset=utf-8." >&2
-    cat "${llms_headers_file}" >&2
-    exit 1
-  fi
-
-  if ! grep -Eiq '^content-type:[[:space:]]*text/markdown; charset=utf-8' "${agents_headers_file}"; then
-    echo "Expected fallback /agents.md to use text/markdown; charset=utf-8." >&2
-    cat "${agents_headers_file}" >&2
-    exit 1
-  fi
-
-  assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include localization guidance.' '## Localization'
-  assert_contains "${llms_txt}" 'Expected fallback /llms.txt to include the UCP profile link.' '- [UCP profile](/.well-known/ucp)'
-  assert_contains "${agents_md}" 'Expected fallback /agents.md to include UCP agent guidance.' '## Agentic commerce via UCP'
-
-  localization_next_line="$(printf '%s\n' "${llms_txt}" | awk '/^## Localization$/ {getline; print; exit}')"
-  if [[ "${localization_next_line}" != "- Current language:"* ]]; then
-    echo "Expected fallback /llms.txt localization details to start immediately after the heading." >&2
-    printf '%s\n' "${llms_txt}" >&2
-    exit 1
-  fi
-
-  rm -f "${llms_headers_file}" "${agents_headers_file}" "${llms_body_file}" "${agents_body_file}"
-fi
-
-oauth_body_file="$(mktemp)"
-oauth_status="$(curl -sS -o "${oauth_body_file}" -w '%{http_code}' "${BASE_URL}/.well-known/oauth-authorization-server")"
-if [[ "${oauth_status}" != "501" ]]; then
-  echo "Expected OAuth metadata endpoint to return 501, got ${oauth_status}." >&2
-  cat "${oauth_body_file}" >&2
-  exit 1
-fi
-
-tokenize_body_file="$(mktemp)"
-tokenize_status="$(curl -sS -o "${tokenize_body_file}" -w '%{http_code}' -X POST "${BASE_URL}/ucp/v1/tokenize" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d '{"type":"tokenized","handler_id":"test","credential":{}}')"
-if [[ "${tokenize_status}" != "501" ]]; then
-  echo "Expected tokenization endpoint to return 501, got ${tokenize_status}." >&2
-  cat "${tokenize_body_file}" >&2
-  exit 1
-fi
-
-search_json="$(curl_required 'catalog.search' -X POST "${BASE_URL}/ucp/v1/catalog/search" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg query "${search_term}" '{query: $query, limit: 3}')")"
-assert_jq "${search_json}" 'Expected catalog.search to return between 1 and 3 products.' '.items | length > 0 and length <= 3'
-
-lookup_json="$(curl_required 'catalog.lookup' -X POST "${BASE_URL}/ucp/v1/catalog/lookup" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${product_id}" '{ids: [$id]}')")"
-assert_jq "${lookup_json}" 'Expected catalog.lookup to resolve exactly one product.' '.items | length == 1'
-
-resolved_product_id="$(printf '%s' "${lookup_json}" | jq -r '.items[0].id')"
-resolved_title="$(printf '%s' "${lookup_json}" | jq -r '.items[0].title')"
-resolved_price="$(printf '%s' "${lookup_json}" | jq -r '.items[0].price')"
-
-product_json="$(curl_required 'catalog.product' "${BASE_URL}/ucp/v1/catalog/product/${product_id}")"
-assert_jq "${product_json}" 'Expected catalog.product to resolve the looked-up product title.' '.title == $title' --arg title "${resolved_title}"
-
-cart_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}]}')"
-cart_json="$(curl_required 'cart.create' -X POST "${BASE_URL}/ucp/v1/carts" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_create_payload}")"
-assert_jq "${cart_json}" 'Expected cart.create to create one line item.' '.line_items | length == 1'
-cart_id="$(printf '%s' "${cart_json}" | jq -r '.id')"
-
-cart_get_json="$(curl_required 'cart.get' "${BASE_URL}/ucp/v1/carts/${cart_id}")"
-assert_jq "${cart_get_json}" 'Expected cart.get to return the cart id.' '.id != null and .id != ""'
-
-cart_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}]}')"
-cart_updated_json="$(curl_required 'cart.update' -X PATCH "${BASE_URL}/ucp/v1/carts/${cart_id}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${cart_update_payload}")"
-assert_jq "${cart_updated_json}" 'Expected cart.update to change the line-item quantity.' '.line_items[0].quantity == 2'
-
-cart_canceled_json="$(curl_required 'cart.cancel' -X POST "${BASE_URL}/ucp/v1/carts/${cart_id}/cancel" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
-assert_jq "${cart_canceled_json}" 'Expected cart.cancel to empty the cart.' '.line_items | length == 0'
-
-checkout_create_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 1}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
-checkout_json="$(curl_required 'checkout.create' -X POST "${BASE_URL}/ucp/v1/checkout-sessions" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_create_payload}")"
-assert_jq "${checkout_json}" 'Expected checkout.create to produce a ready-for-complete session.' '.status == "ready_for_complete"'
-checkout_id="$(printf '%s' "${checkout_json}" | jq -r '.id')"
-
-checkout_get_json="$(curl_required 'checkout.get' "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}")"
-assert_jq "${checkout_get_json}" 'Expected checkout.get to return the checkout session.' '.id != null and .id != ""'
-
-checkout_update_payload="$(jq -cn --arg id "${resolved_product_id}" --arg title "${resolved_title}" --arg email "${smoke_email}" --argjson price "${resolved_price}" '{line_items: [{item: {id: $id, title: $title, price: $price}, quantity: 2}], buyer: {email: $email, first_name: "Smoke", last_name: "Tester", phone_number: "+49123456789"}, fulfillment: {type: "shipping", extra: {shipping_address: {street: "Smoke Street 1", zipcode: "12345", city: "Berlin", country_code: "DE"}}}}')"
-checkout_updated_json="$(curl_required 'checkout.update' -X PATCH "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "${checkout_update_payload}")"
-assert_jq "${checkout_updated_json}" 'Expected checkout.update to change the checkout quantity.' '.line_items[0].quantity == 2'
-
-curl_required 'webhook capture clear' -X DELETE "${WEBHOOK_CAPTURE_URL}" >/dev/null
-checkout_complete_json="$(curl_required 'checkout.complete' -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json')"
-assert_jq "${checkout_complete_json}" 'Expected checkout.complete to create a Shopware order.' '.status == "completed" and .order.id != null and .order.id != ""'
-order_id="$(printf '%s' "${checkout_complete_json}" | jq -r '.order.id')"
-
-echo "Verifying secured order read."
-order_context_token="$(db_query "SELECT JSON_UNQUOTE(JSON_EXTRACT(payload, '$.swagAgenticCommerce.ucpCheckout.shopwareContextToken')) FROM sales_channel_api_context WHERE sales_channel_id = UNHEX('${sales_channel_id}') AND token = '${checkout_id}' LIMIT 1;")"
-if [[ -z "${order_context_token}" || "${order_context_token}" == "NULL" ]]; then
-  echo "Expected checkout metadata to contain a Shopware context token for secured order reads." >&2
-  exit 1
-fi
-
-order_json="$(curl_required 'order.read' "${BASE_URL}/ucp/v1/orders/${order_id}" -H "sw-context-token: ${order_context_token}")"
-assert_jq "${order_json}" 'Expected order.read to return the created order.' '.id == $orderId' --arg orderId "${order_id}"
-
-webhook_capture_json="$(wait_for_capture)"
-assert_jq "${webhook_capture_json}" 'Expected the captured webhook payload to reference the created order.' '.data.payload.order_id == $orderId' --arg orderId "${order_id}"
-assert_jq "${webhook_capture_json}" 'Expected the captured webhook request to include HTTP signature headers.' '.data.headers.signature != null and .data.headers["signature-input"] != null and .data.headers["content-digest"] != null'
-
-rm -f "${oauth_body_file}" "${tokenize_body_file}"
 echo "Smoke test passed for ${SHOPWARE_DIR}."

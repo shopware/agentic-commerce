@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 
+/** @internal */
 final class DoctrineDbalUcpOAuthStore
 {
     private const ACCESS_TOKEN_TTL = 3600;
@@ -16,6 +17,12 @@ final class DoctrineDbalUcpOAuthStore
     private const ACCESS_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_access_token';
     private const REFRESH_TOKEN_TTL = 2592000;
     private const REFRESH_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_refresh_token';
+
+    /**
+     * Upper bound of rows removed per DELETE so a large backlog cannot produce a single unbounded
+     * statement that locks the table and makes the cleanup task hang (see deleteExpiredTokens()).
+     */
+    private const DELETE_BATCH_SIZE = 1000;
 
     public function __construct(
         private readonly Connection $connection,
@@ -173,6 +180,53 @@ final class DoctrineDbalUcpOAuthStore
                 (string) $row['scope'],
             );
         });
+    }
+
+    /**
+     * Purges OAuth rows that can no longer be used and returns the number of deleted rows.
+     *
+     * Authorization codes are removed once expired or consumed. Access tokens are removed once
+     * expired. Refresh tokens are purged strictly by expiry: a revoked-but-unexpired row must be
+     * retained so refresh-token reuse detection (see refreshTokenSet()) keeps working within the
+     * token lifetime; expired rows can no longer trigger that path and are safe to delete.
+     */
+    public function deleteExpiredTokens(): int
+    {
+        $now = time();
+
+        $deleted = $this->deleteInBatches(
+            \sprintf('DELETE FROM `%s` WHERE expires_at < :now OR consumed_at IS NOT NULL LIMIT %d', self::CODE_TABLE, self::DELETE_BATCH_SIZE),
+            ['now' => $now],
+        );
+
+        $deleted += $this->deleteInBatches(
+            \sprintf('DELETE FROM `%s` WHERE expires_at < :now LIMIT %d', self::ACCESS_TOKEN_TABLE, self::DELETE_BATCH_SIZE),
+            ['now' => $now],
+        );
+
+        $deleted += $this->deleteInBatches(
+            \sprintf('DELETE FROM `%s` WHERE expires_at < :now LIMIT %d', self::REFRESH_TOKEN_TABLE, self::DELETE_BATCH_SIZE),
+            ['now' => $now],
+        );
+
+        return $deleted;
+    }
+
+    /**
+     * Runs a capped DELETE repeatedly until it clears fewer rows than the batch size, draining any
+     * backlog in bounded chunks instead of one table-locking statement that could hang the task.
+     *
+     * @param array<string, int|string> $params
+     */
+    private function deleteInBatches(string $sql, array $params): int
+    {
+        $deleted = 0;
+        do {
+            $affected = (int) $this->connection->executeStatement($sql, $params);
+            $deleted += $affected;
+        } while ($affected >= self::DELETE_BATCH_SIZE);
+
+        return $deleted;
     }
 
     private function revokeRefreshTokenFamily(string $salesChannelId, string $clientId, string $subject): void

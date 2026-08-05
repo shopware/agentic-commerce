@@ -17,6 +17,8 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Mirrors the JSONL-related error constants that Shopware 6.7.10+ adds to
  * {@see \Shopware\Core\Content\ProductExport\ProductExportException}.
+ *
+ * @internal
  */
 class AgenticProductExportException extends HttpException
 {

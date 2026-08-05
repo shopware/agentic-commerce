@@ -10,7 +10,8 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request.')]
+#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request. line_items is required and replaces the checkout contents rather than patching them, so resend every line you want to keep even when you only mean to change the buyer or the fulfillment address. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpCheckoutUpdateTool
 {
@@ -20,7 +21,7 @@ final class UcpCheckoutUpdateTool
     ) {
     }
 
-    public function __invoke(string $id, string $payload = '{}'): string
+    public function __invoke(string $id, string $payload = '{}', bool $dryRun = true): string
     {
         try {
             $requestPayload = $this->toolContext->decodeObject($payload);
@@ -28,15 +29,16 @@ final class UcpCheckoutUpdateTool
             return $this->toolContext->executeMutating(
                 'checkout.update',
                 ['id' => $id, 'payload' => $requestPayload],
-                fn (RequestContext $context): array => $this->operationExecutor->execute(new ShoppingOperationRequest(
+                fn (RequestContext $context) => $this->operationExecutor->execute(new ShoppingOperationRequest(
                     'checkout.update',
                     $requestPayload,
                     $context,
                     $id,
                 )),
+                $dryRun,
             );
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartOrderRoute;
@@ -34,6 +35,7 @@ use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[CoversClass(ShopwareOrderGateway::class)]
 final class ShopwareOrderGatewayTest extends TestCase
 {
     #[Test]
@@ -76,6 +78,7 @@ final class ShopwareOrderGatewayTest extends TestCase
                 self::assertArrayHasKey('currency', $criteria->getAssociations());
                 self::assertArrayHasKey('billingAddress', $criteria->getAssociations());
                 self::assertArrayHasKey('lineItems', $criteria->getAssociations());
+                self::assertArrayHasKey('stateMachineState', $criteria->getAssociations());
 
                 $orders = new OrderCollection([$order]);
 

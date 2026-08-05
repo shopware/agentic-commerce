@@ -11,16 +11,36 @@ use Ucp\Sdk\Enum\SignaturePolicy;
 use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 
+/** @internal */
 #[Package('framework')]
 final class UcpConfig
 {
     /**
-     * String allowlists mirror the scalar admin JSON/stored config contract
-     * across supported Shopware lanes.
-     *
      * @var list<string>
      */
-    private const PROFILE_URI_STRATEGIES = ['domain', 'config'];
+    private const CONFIG_KEYS = [
+        'active',
+        'ucpVersion',
+        'profileDomain',
+        'enabledCapabilities',
+        'enabledTransports',
+        'continueUrlTemplate',
+        'platformAllowlist',
+        'remoteProfileAllowlist',
+        'agentAllowlist',
+        'embeddedAllowedOrigins',
+        'embeddedFrameAncestors',
+        'discoveryBudget',
+        'catalogResultLimit',
+        'webhookUrlOverride',
+        'signaturePolicy',
+        'idempotencyRequired',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    private const IGNORED_LEGACY_KEYS = ['profileUriStrategy', 'customProfileUri'];
 
     /**
      * @var list<string>
@@ -44,8 +64,7 @@ final class UcpConfig
     public function __construct(
         public readonly bool $active = false,
         public readonly string $ucpVersion = UcpProtocol::VERSION,
-        public readonly string $profileUriStrategy = 'domain',
-        public readonly ?string $customProfileUri = null,
+        public readonly ?string $profileDomain = null,
         public readonly array $enabledCapabilities = [],
         public readonly array $enabledTransports = ['rest'],
         public readonly ?string $continueUrlTemplate = null,
@@ -63,29 +82,30 @@ final class UcpConfig
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param array<array-key, mixed> $payload
      */
-    public static function fromArray(array $payload): self
+    public static function fromArray(array $payload, bool $allowHttpLocalWebhookOverride = false): self
     {
-        $profileUriStrategy = self::profileUriStrategyValue($payload['profileUriStrategy'] ?? 'domain');
-        $customProfileUri = self::nullableHttpUrlValue($payload['customProfileUri'] ?? null, '$.customProfileUri');
-        if ('config' === $profileUriStrategy && null === $customProfileUri) {
-            throw self::invalid('$.customProfileUri', 'must be set when profileUriStrategy is "config"');
-        }
+        self::assertSupportedKeys($payload);
+
+        // Legacy keys profileUriStrategy/customProfileUri are intentionally ignored
+        // (redesign §10.5): the profile is always served from a configured channel
+        // domain, optionally pinned via profileDomain.
+        $profileDomain = self::nullableHttpUrlValue($payload['profileDomain'] ?? null, '$.profileDomain');
 
         $platformAllowlist = self::hostList($payload['platformAllowlist'] ?? null, '$.platformAllowlist');
         $remoteProfileAllowlist = self::hostList($payload['remoteProfileAllowlist'] ?? null, '$.remoteProfileAllowlist');
         $agentAllowlist = self::hostList($payload['agentAllowlist'] ?? null, '$.agentAllowlist');
         $webhookUrlOverride = self::nullableHttpUrlValue($payload['webhookUrlOverride'] ?? null, '$.webhookUrlOverride');
         if (null !== $webhookUrlOverride) {
+            self::assertWebhookUrlScheme($webhookUrlOverride, $allowHttpLocalWebhookOverride);
             self::assertWebhookHostAllowed($webhookUrlOverride, $agentAllowlist, $platformAllowlist);
         }
 
         return new self(
             self::boolValue($payload['active'] ?? null, false, '$.active'),
             self::ucpVersionValue($payload['ucpVersion'] ?? null),
-            $profileUriStrategy,
-            $customProfileUri,
+            $profileDomain,
             self::enabledCapabilityList($payload),
             self::enabledTransportList($payload),
             self::continueUrlTemplateValue($payload['continueUrlTemplate'] ?? null),
@@ -102,6 +122,21 @@ final class UcpConfig
         );
     }
 
+    public static function fromJson(string $json, bool $allowHttpLocalWebhookOverride = false): self
+    {
+        try {
+            $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw UcpConfigException::invalidJsonPayload();
+        }
+
+        if (!\is_array($decoded) || array_is_list($decoded)) {
+            throw self::invalid('$', 'must be a JSON object');
+        }
+
+        return self::fromArray($decoded, $allowHttpLocalWebhookOverride);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -110,8 +145,7 @@ final class UcpConfig
         return [
             'active' => $this->active,
             'ucpVersion' => $this->ucpVersion,
-            'profileUriStrategy' => $this->profileUriStrategy,
-            'customProfileUri' => $this->customProfileUri,
+            'profileDomain' => $this->profileDomain,
             'enabledCapabilities' => $this->enabledCapabilities,
             'enabledTransports' => $this->enabledTransports,
             'continueUrlTemplate' => $this->continueUrlTemplate,
@@ -130,8 +164,8 @@ final class UcpConfig
 
     public function resolveBaseUri(string $fallbackBaseUri): string
     {
-        if ('config' === $this->profileUriStrategy && null !== $this->customProfileUri && '' !== $this->customProfileUri) {
-            return rtrim($this->customProfileUri, '/');
+        if (null !== $this->profileDomain && '' !== $this->profileDomain) {
+            return rtrim($this->profileDomain, '/');
         }
 
         return rtrim($fallbackBaseUri, '/');
@@ -238,6 +272,24 @@ final class UcpConfig
         throw self::invalid($path, 'must be a boolean');
     }
 
+    /**
+     * @param array<array-key, mixed> $payload
+     */
+    private static function assertSupportedKeys(array $payload): void
+    {
+        foreach (array_keys($payload) as $key) {
+            if (!\is_string($key)) {
+                throw self::invalid(\sprintf('$[%d]', $key), 'must be a supported config field');
+            }
+
+            if (\in_array($key, self::CONFIG_KEYS, true) || \in_array($key, self::IGNORED_LEGACY_KEYS, true)) {
+                continue;
+            }
+
+            throw self::invalid('$.'.$key, 'must be a supported config field');
+        }
+    }
+
     private static function intValue(mixed $value, int $default, string $path): int
     {
         if (null === $value || '' === $value) {
@@ -278,23 +330,6 @@ final class UcpConfig
 
         if (UcpProtocol::VERSION !== $value) {
             throw self::invalid('$.ucpVersion', \sprintf('must be "%s"', UcpProtocol::VERSION));
-        }
-
-        return $value;
-    }
-
-    private static function profileUriStrategyValue(mixed $value): string
-    {
-        if (null === $value || '' === $value) {
-            return 'domain';
-        }
-
-        if (!\is_string($value)) {
-            throw self::invalid('$.profileUriStrategy', 'must be a string');
-        }
-
-        if (!\in_array($value, self::PROFILE_URI_STRATEGIES, true)) {
-            throw self::invalid('$.profileUriStrategy', 'must be one of "domain", "config"');
         }
 
         return $value;
@@ -655,6 +690,35 @@ final class UcpConfig
         if ([] !== $allowedHosts && !\in_array(self::normalizeHost($host, '$.webhookUrlOverride'), $allowedHosts, true)) {
             throw self::invalid('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist');
         }
+    }
+
+    private static function assertWebhookUrlScheme(string $webhookUrl, bool $allowHttpLocalWebhookOverride): void
+    {
+        $scheme = parse_url($webhookUrl, \PHP_URL_SCHEME);
+        if ('https' === $scheme) {
+            return;
+        }
+
+        if ($allowHttpLocalWebhookOverride && 'http' === $scheme && self::isLocalWebhookHost($webhookUrl)) {
+            return;
+        }
+
+        throw self::invalid('$.webhookUrlOverride', 'must use https');
+    }
+
+    private static function isLocalWebhookHost(string $webhookUrl): bool
+    {
+        $host = parse_url($webhookUrl, \PHP_URL_HOST);
+        if (!\is_string($host) || '' === $host) {
+            return false;
+        }
+
+        $host = self::normalizeHost($host, '$.webhookUrlOverride');
+
+        return 'localhost' === $host
+            || str_ends_with($host, '.localhost')
+            || '127.0.0.1' === $host
+            || '::1' === $host;
     }
 
     private static function invalid(string $path, string $message): UcpConfigException

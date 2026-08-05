@@ -37,6 +37,21 @@ exit($exitCode);
 
 function resolveBinary(string $pluginDir, string $binary): ?string
 {
+    // Inside a full Shopware install ("lane"), prefer the platform's PHPUnit so the
+    // running binary matches the single autoloader tests/bootstrap.php loads there.
+    // The plugin pins PHPUnit 10.5 (PHP 8.1) in .tools/vendor; on newer platforms
+    // (e.g. 6.7 ships PHPUnit 11.x) running .tools alongside the platform autoloader
+    // crashes, so defer to the platform binary. These roots mirror the lane
+    // autoload candidates in tests/bootstrap.php.
+    if ('phpunit' === $binary) {
+        foreach ([\dirname($pluginDir, 3), \dirname($pluginDir, 2)] as $laneRoot) {
+            $laneBinary = $laneRoot.'/vendor/bin/'.$binary;
+            if (is_dir($laneRoot) && is_file($laneBinary)) {
+                return $laneBinary;
+            }
+        }
+    }
+
     $pluginTooling = $pluginDir.'/.tools/vendor/bin/'.$binary;
     if (is_file($pluginTooling)) {
         return $pluginTooling;
@@ -105,6 +120,8 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
+        '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
+        '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
     ]);
 
@@ -157,17 +174,53 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
     }
 
     if (is_file($phpStanDir.'/common.neon')) {
-        return implode("\n", [
-            '    - '.$phpStanDir.'/common.neon',
-            '    - '.$phpStanDir.'/core-rules.neon',
-        ]);
+        return '    - '.$phpStanDir.'/common.neon';
     }
 
     return implode("\n", [
         '    - '.$phpStanDir.'/extension.neon',
         '    - '.$phpStanDir.'/rules.neon',
-        '    - '.$phpStanDir.'/core-rules.neon',
     ]);
+}
+
+function renderShopwarePhpstanParameters(string $coreDir): string
+{
+    if (!supportsConfigurableCoversRule($coreDir)) {
+        return '';
+    }
+
+    return implode("\n", [
+        '    shopware:',
+        '        allowedUnitTestClassNamespaces:',
+        '            - Swag\AgenticCommerce\Tests\Unit\\',
+        '            - Swag\AgenticCommerce\Tests\Integration\Migration\\',
+    ]);
+}
+
+function renderUnexpectedTestCoversIgnore(string $coreDir): string
+{
+    if (supportsConfigurableCoversRule($coreDir)) {
+        return '';
+    }
+
+    return implode("\n", [
+        '        # CoversClass on unit tests in subdirs — fixed by configurable covers namespaces in newer Shopware.',
+        '        -',
+        '            identifier: shopware.unexpectedTestCovers',
+        "            message: '#.+#'",
+    ]);
+}
+
+function supportsConfigurableCoversRule(string $coreDir): bool
+{
+    $commonConfig = $coreDir.'/DevOps/StaticAnalyze/PHPStan/common.neon';
+    if (!is_file($commonConfig)) {
+        return false;
+    }
+
+    $contents = file_get_contents($commonConfig);
+
+    return \is_string($contents) && str_contains($contents, 'allowedUnitTestClassNamespaces: list(string)');
 }
 
 function renderPhpstanAutoload(string $pluginDir, string $coreDir, string $tmpDir): string

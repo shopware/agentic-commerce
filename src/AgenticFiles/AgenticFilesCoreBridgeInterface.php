@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\AgenticFiles;
 
 use Shopware\Core\Framework\Log\Package;
 
+/** @internal */
 #[Package('discovery')]
 interface AgenticFilesCoreBridgeInterface
 {

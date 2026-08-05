@@ -22,6 +22,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
@@ -104,6 +105,30 @@ final class ShopwareCatalogGatewayTest extends TestCase
 
         self::assertSame([['product-a', 'product-b']], $criteriaIds);
         self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $products));
+
+        self::assertSame([['id' => 'product-a', 'match' => 'exact']], self::variantInputs($products[0]->extra));
+    }
+
+    #[Test]
+    public function testCatalogPricesUseTheSalesChannelCurrency(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'A', 19.99)],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('USD', $products[0]->currency);
+
+        $payload = $products[0]->toArray();
+        self::assertSame(['amount' => 1999, 'currency' => 'USD'], $payload['price_range']['min']);
+        self::assertSame(['amount' => 1999, 'currency' => 'USD'], $payload['variants'][0]['price'] ?? null);
     }
 
     private function gateway(
@@ -130,10 +155,33 @@ final class ShopwareCatalogGatewayTest extends TestCase
         );
     }
 
+    /**
+     * @param array<string, mixed> $extra
+     */
+    private static function variantInputs(array $extra): mixed
+    {
+        $variants = $extra['variants'] ?? null;
+        if (!\is_array($variants)) {
+            return null;
+        }
+
+        $variant = $variants[0] ?? null;
+        if (!\is_array($variant)) {
+            return null;
+        }
+
+        return $variant['inputs'] ?? null;
+    }
+
     private function createSalesChannelContext(): SalesChannelContext
     {
+        $currency = new CurrencyEntity();
+        $currency->setId('currency-id');
+        $currency->setIsoCode('USD');
+
         $context = $this->createMock(SalesChannelContext::class);
         $context->method('getSalesChannelId')->willReturn('sales-channel-id');
+        $context->method('getCurrency')->willReturn($currency);
 
         return $context;
     }

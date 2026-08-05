@@ -110,8 +110,7 @@ final class ProfilePreviewBuilderTest extends TestCase
             'shopwareVersion' => '6.7.0.0',
             'payload' => [
                 'active' => true,
-                'profileUriStrategy' => 'config',
-                'customProfileUri' => 'https://custom.example/',
+                'profileDomain' => 'https://custom.example/',
                 'enabledTransports' => ['rest', 'mcp'],
             ],
             'fallbackBaseUri' => 'https://merchant.example',

@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Customer;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Common\Buyer;
 
+/** @internal */
 interface GuestCustomerContextProvisionerInterface
 {
     /**

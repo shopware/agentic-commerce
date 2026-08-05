@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Provider;
 
+/** @internal */
 class AgenticCommerceProductExportProviderRegistry
 {
     /**

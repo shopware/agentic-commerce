@@ -13,7 +13,7 @@
     @update:process-success="saveFinish"
     @click.prevent="onSave"
 >
-    {{ $t('sw-sales-channel.detail.buttonSave') }}
+    {{ $t('global.default.save') }}
 </sw-button-process>
 {% endblock %}
 
@@ -28,21 +28,23 @@
 </sw-tabs-item>
 {% endblock %}
 
-{% block sw_sales_channel_detail_content_tab_product_comparison %}
-<sw-tabs-item
-    v-if="shouldRenderAgenticUi && !isLoading"
-    :route="{ name: 'sw.sales.channel.detail.agenticCommerceIntegration', params: { id: $route.params.id } }"
-    :title="$t('sw-sales-channel.detail.agenticCommerce.tabIntegration')"
->
-    {{ $t('sw-sales-channel.detail.agenticCommerce.tabIntegration') }}
-</sw-tabs-item>
+{% block sw_sales_channel_detail_content_tab_agentic_commerce_integration %}{% endblock %}
 
+{% block sw_sales_channel_detail_content_tab_product_comparison %}
 <sw-tabs-item
     v-if="shouldRenderAgenticUi && !isLoading && Boolean(salesChannel?.id)"
     :route="{ name: 'sw.sales.channel.detail.agenticCommerceStatistics', params: { id: $route.params.id } }"
     :title="$t('sw-sales-channel.detail.productExport.tabInsights')"
 >
     {{ $t('sw-sales-channel.detail.productExport.tabInsights') }}
+</sw-tabs-item>
+
+<sw-tabs-item
+    v-if="shouldRenderAgenticCommerceTab && !isLoading"
+    :route="{ name: 'sw.sales.channel.detail.agenticCommerce', params: { id: $route.params.id } }"
+    :title="$t('sw-sales-channel.detail.agenticCommerce.tabAgenticCommerce')"
+>
+    {{ $t('sw-sales-channel.detail.agenticCommerce.tabAgenticCommerce') }}
 </sw-tabs-item>
 
 {% parent %}

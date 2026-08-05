@@ -9,7 +9,8 @@ use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-catalog-lookup', title: 'UCP Catalog Lookup', description: 'Load products by id from the current Store API sales-channel catalog through the shared UCP catalog capability.')]
+#[McpTool(name: 'shopware-ucp-catalog-lookup', title: 'UCP Catalog Lookup', description: 'Load products by id from the current Store API sales-channel catalog through the shared UCP catalog capability. The ids parameter is a string, NOT an array: pass a JSON array string such as ["id-a","id-b"], or a single id, or a comma-separated list of ids.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpCatalogLookupTool
 {
@@ -28,7 +29,7 @@ final class UcpCatalogLookupTool
                 $this->toolContext->requestContext(),
             )));
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

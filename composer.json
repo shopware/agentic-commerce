@@ -1,17 +1,18 @@
 {
     "name": "shopware/agentic-commerce",
-    "description": "Shopware plugin for UCP and agentic commerce discovery",
+    "description": "Shopware plugin for agentic commerce discovery, product feeds, and Universal Commerce Protocol shopping flows",
+    "version": "1.1.1",
     "type": "shopware-platform-plugin",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "shopware AG"
+        }
+    ],
     "require": {
         "php": "^8.1",
-        "ucp-php-sdk/symfony-bundle": "^0.0.1@alpha",
-        "symfony/config": "^6.4 || ^7.0",
-        "symfony/dependency-injection": "^6.4 || ^7.0",
-        "symfony/http-foundation": "^6.4 || ^7.0",
-        "symfony/http-kernel": "^6.4 || ^7.0",
-        "symfony/lock": "^6.4 || ^7.0",
-        "symfony/routing": "^6.4 || ^7.0"
+        "shopware/core": "~6.5.0 || ~6.6.0 || ~6.7.0",
+        "ucp-php-sdk/symfony-bundle": ">=0.0.2 <0.1.0"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.88",
@@ -20,28 +21,8 @@
         "rector/rector": "^1.1",
         "roave/backward-compatibility-check": "^8.6"
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../ucp-php-sdk/packages/core",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "shopware/ucp-php-sdk-core": "0.0.1"
-                }
-            }
-        },
-        {
-            "type": "path",
-            "url": "../ucp-php-sdk/packages/symfony-bundle",
-            "options": {
-                "symlink": false,
-                "versions": {
-                    "ucp-php-sdk/symfony-bundle": "0.0.1"
-                }
-            }
-        }
-    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "Swag\\AgenticCommerce\\": "src/"
@@ -55,6 +36,7 @@
     "scripts": {
         "test": "@php bin/run.php phpunit --testsuite unit",
         "test:integration": "@php bin/run.php phpunit --testsuite integration",
+        "test:functional": "@php bin/run.php phpunit --testsuite functional",
         "phpstan": "@php bin/run.php phpstan analyse --memory-limit=1G -c phpstan.neon",
         "cs": "@php bin/run.php php-cs-fixer fix --config=.php-cs-fixer.dist.php --using-cache=no --dry-run --diff",
         "cs-fix": "@php bin/run.php php-cs-fixer fix --config=.php-cs-fixer.dist.php --using-cache=no",
@@ -75,13 +57,20 @@
             "en-GB": "Agentic Commerce"
         },
         "description": {
-            "de-DE": "UCP- und Agentic-Commerce-Plugin fuer Shopware",
-            "en-GB": "UCP and agentic commerce plugin for Shopware"
+            "de-DE": "Erweitert Shopware um Agentic Commerce mit KI-Produktfeeds, Discovery-Dokumenten, Analysen und Einkaufsabläufen auf Basis des Universal Commerce Protocol für KI-Agenten.",
+            "en-GB": "Adds Agentic Commerce capabilities to Shopware, including AI product feeds, merchant discovery documents, analytics, and Universal Commerce Protocol shopping flows for AI agents."
+        },
+        "manufacturerLink": {
+            "de-DE": "https://store.shopware.com/shopware-ag.html",
+            "en-GB": "https://store.shopware.com/en/shopware-ag.html"
+        },
+        "supportLink": {
+            "de-DE": "https://issues.shopware.com/",
+            "en-GB": "https://issues.shopware.com/"
         }
     },
     "suggest": {
-        "shopware/core": "Provided by the active Shopware lane during plugin runtime and integration testing.",
-        "shopware/storefront": "Provided by the active Shopware lane during plugin runtime and integration testing."
+        "shopware/storefront": "Enables storefront discovery documents and embedded commerce pages."
     },
     "config": {
         "sort-packages": true,
@@ -93,7 +82,5 @@
         "platform": {
             "php": "8.1.0"
         }
-    },
-    "minimum-stability": "alpha",
-    "prefer-stable": true
+    }
 }

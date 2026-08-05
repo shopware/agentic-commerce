@@ -10,6 +10,7 @@ use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 
+/** @internal */
 #[Package('framework')]
 final class SymfonyRequestContextFactory
 {

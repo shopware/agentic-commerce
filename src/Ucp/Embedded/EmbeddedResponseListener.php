@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 
+/** @internal */
 #[Package('checkout')]
 final class EmbeddedResponseListener
 {
@@ -39,7 +40,7 @@ final class EmbeddedResponseListener
             return;
         }
 
-        if (!\is_string($origin) || '' === $origin || !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
+        if (\is_string($origin) && '' !== $origin && !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
             $event->setResponse($this->forbidden('Embedded origin is not allowlisted for this sales channel.'));
 
             return;
@@ -91,12 +92,16 @@ final class EmbeddedResponseListener
         ], Response::HTTP_FORBIDDEN);
     }
 
-    private function preflight(string $origin, UcpConfig $config): Response
+    private function preflight(?string $origin, UcpConfig $config): Response
     {
         $response = new Response('', Response::HTTP_NO_CONTENT);
         $frameAncestors = [] !== $config->embeddedFrameAncestors ? $config->embeddedFrameAncestors : ["'self'"];
 
-        $response->headers->set('Access-Control-Allow-Origin', $origin);
+        // Origin-less OPTIONS requests (non-browser agents) get no CORS grant;
+        // the allow-origin header is only meaningful for an allowlisted origin.
+        if (\is_string($origin) && '' !== $origin) {
+            $response->headers->set('Access-Control-Allow-Origin', $origin);
+        }
         $response->headers->set('Access-Control-Allow-Methods', 'GET, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Accept');
         $response->headers->set('Content-Security-Policy', 'frame-ancestors '.implode(' ', $frameAncestors));

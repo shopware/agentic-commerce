@@ -14,6 +14,7 @@ use Ucp\Sdk\Model\Identity\OAuthTokenResponse;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class IdentityLinkingCapability implements IdentityLinkingCapabilityInterface
 {
     /** @var list<IdentityLinkingAdapterInterface>|null */

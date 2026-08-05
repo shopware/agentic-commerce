@@ -14,6 +14,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route(defaults: [PlatformRequest::ATTRIBUTE_ROUTE_SCOPE => [StorefrontRouteScope::ID], 'auth_required' => false])]
+/** @internal */
 #[Package('discovery')]
 final class FallbackAgenticFileController
 {
@@ -29,10 +30,17 @@ final class FallbackAgenticFileController
         return $this->render('llms.txt', $context);
     }
 
+    #[Route(path: '/AGENTS.md', name: 'swag_agentic_commerce.agents_md_canonical', methods: ['GET'])]
     #[Route(path: '/agents.md', name: 'swag_agentic_commerce.agents_md', methods: ['GET'])]
     public function agents(SalesChannelContext $context): Response
     {
         return $this->render('agents.md', $context);
+    }
+
+    #[Route(path: '/.well-known/ai-catalog.json', name: 'swag_agentic_commerce.ai_catalog', methods: ['GET'])]
+    public function aiCatalog(SalesChannelContext $context): Response
+    {
+        return $this->render('.well-known/ai-catalog.json', $context);
     }
 
     private function render(string $fileName, SalesChannelContext $context): Response

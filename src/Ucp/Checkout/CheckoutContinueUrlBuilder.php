@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 
+/** @internal */
 final class CheckoutContinueUrlBuilder implements CheckoutContinueUrlBuilderInterface
 {
     public function __construct(

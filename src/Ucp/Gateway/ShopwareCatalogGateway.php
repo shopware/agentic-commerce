@@ -15,6 +15,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareCatalogGateway
 {
     public function __construct(
@@ -49,7 +50,7 @@ final class ShopwareCatalogGateway
                 continue;
             }
 
-            $products[] = $this->mapper->toProduct($product);
+            $products[] = $this->mapper->toProduct($product, $context);
         }
 
         return \array_slice($products, 0, $limit);
@@ -72,13 +73,13 @@ final class ShopwareCatalogGateway
         $products = [];
 
         foreach ($response->getProducts() as $product) {
-            $products[$product->getId()] = $this->mapper->toProduct($product);
+            $products[$product->getId()] = $product;
         }
 
         $orderedProducts = [];
         foreach ($ids as $id) {
             if (isset($products[$id])) {
-                $orderedProducts[] = $products[$id];
+                $orderedProducts[] = $this->mapper->toProduct($products[$id], $context, $id);
             }
         }
 
@@ -98,7 +99,7 @@ final class ShopwareCatalogGateway
     ): \Ucp\Sdk\Model\Catalog\Product {
         $response = $this->productDetailRoute->load($id, new Request(), $context, new Criteria([$id]));
 
-        return $this->mapper->toProduct($response->getProduct());
+        return $this->mapper->toProduct($response->getProduct(), $context);
     }
 
     private function requestLimit(int $requestedLimit, string $salesChannelId): int

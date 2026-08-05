@@ -1,5 +1,13 @@
 import template from './sw-sales-channel-detail.html.twig';
+import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import {
+    defaultForm as ucpDefaultForm,
+    normalizeConfig as ucpNormalizeConfig,
+    buildConfigPayload as ucpBuildConfigPayload,
+} from '../../agentic-commerce/ucp-form-state';
+import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
+import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -12,11 +20,15 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
 
     provide() {
         return {
             swSalesChannelDetailGetAgenticCommerceExportConfig: () => this.agenticCommerceExportConfig,
+            // The UCP form state is owned by the page (not the tab view) so edits
+            // survive tab switches and persist through the page's global Save —
+            // mirroring how agenticCommerceExportConfig is handled.
+            swSalesChannelGetUcpState: () => this.ucpState,
         };
     },
 
@@ -24,6 +36,14 @@ export const swSalesChannelDetailOverride = {
         return {
             agenticCommerceExportConfig: [],
             previousTemplateName: null,
+            ucpState: {
+                loaded: false,
+                isLoading: false,
+                form: ucpDefaultForm(),
+                savedForm: ucpDefaultForm(),
+                meta: {},
+                preview: null,
+            },
         };
     },
 
@@ -35,6 +55,7 @@ export const swSalesChannelDetailOverride = {
         },
         'productExport.provider'() {
             this.detectCurrentTemplate();
+            this.syncExportFileName();
         },
     },
 
@@ -54,6 +75,12 @@ export const swSalesChannelDetailOverride = {
 
         shouldRenderAgenticUi() {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
+        },
+
+        shouldRenderAgenticCommerceTab() {
+            const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
+
+            return this.acl.can('ucp.viewer') && isTransactionalSalesChannelType(typeId);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -89,6 +116,14 @@ export const swSalesChannelDetailOverride = {
     },
 
     methods: {
+        createdComponent() {
+            this.$super('createdComponent');
+
+            if (this.isAgenticCommerce && this.productExport?.isNew()) {
+                this.onTemplateSelected('open_ai');
+            }
+        },
+
         loadEntityData() {
             const hasRouteId = Boolean(this.$route.params.id);
             const hasRouteTypeId = Boolean(this.$route.params.typeId);
@@ -128,9 +163,57 @@ export const swSalesChannelDetailOverride = {
 
                     this.generateAccessUrl();
                     this.loadAgenticCommerceExportConfig();
+                    this.loadUcpState();
 
                     this.isLoading = false;
                 });
+        },
+
+        async loadUcpState() {
+            if (!this.shouldRenderAgenticCommerceTab || !this.salesChannel?.id) {
+                return;
+            }
+
+            const salesChannelId = this.salesChannel.id;
+            this.ucpState.isLoading = true;
+
+            try {
+                const [salesChannelResponse, configResponse, previewResponse] = await Promise.all([
+                    this.ucpAdminApiService.getSalesChannel(salesChannelId),
+                    this.ucpAdminApiService.getConfig(salesChannelId),
+                    this.ucpAdminApiService.getProfilePreview(salesChannelId),
+                ]);
+
+                const form = ucpNormalizeConfig(configResponse.data.data || {});
+
+                this.ucpState.meta = salesChannelResponse.data.meta || {};
+                this.ucpState.form = form;
+                this.ucpState.savedForm = ucpNormalizeConfig(form);
+                this.ucpState.preview = previewResponse.data.data || null;
+                this.ucpState.loaded = true;
+            } catch (error) {
+                this.createNotificationError({ message: extractApiErrorMessage(error) });
+            } finally {
+                this.ucpState.isLoading = false;
+            }
+        },
+
+        // Persist the UCP config as part of the page's global Save. Returns false
+        // to abort the save flow (and the post-save reload) on error so the user
+        // can fix and retry. No-op for channels that never loaded UCP state.
+        async saveUcpState(salesChannelId) {
+            if (!this.ucpState.loaded || !salesChannelId) {
+                return true;
+            }
+
+            try {
+                await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(this.ucpState.form));
+                this.ucpState.savedForm = ucpNormalizeConfig(this.ucpState.form);
+                return true;
+            } catch (error) {
+                this.createNotificationError({ message: extractApiErrorMessage(error) });
+                return false;
+            }
         },
 
         onTemplateSelected(templateName) {
@@ -139,6 +222,13 @@ export const swSalesChannelDetailOverride = {
             }
 
             this.productComparison.selectedTemplate = { ...this.productComparison.templates[templateName] };
+
+            if (this.productExport.isNew()) {
+                this.productComparison.templateName = templateName;
+                this.onTemplateModalConfirm();
+                return;
+            }
+
             const contentChanged = Object.keys(this.productComparison.selectedTemplate).some((value) => {
                 return this.productExport[value] !== this.productComparison.selectedTemplate[value];
             });
@@ -175,6 +265,10 @@ export const swSalesChannelDetailOverride = {
             this.productComparison.selectedTemplate = null;
             this.previousTemplateName = null;
             this.productComparison.showTemplateModal = false;
+
+            if (this.productExport.isNew()) {
+                return;
+            }
 
             this.createNotificationInfo({
                 message: this.$t('sw-sales-channel.detail.productComparison.templates.message.template-applied-message'),
@@ -215,6 +309,12 @@ export const swSalesChannelDetailOverride = {
             );
 
             if (!configSaveSuccessful) {
+                return;
+            }
+
+            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave);
+
+            if (!ucpSaveSuccessful) {
                 return;
             }
 
@@ -300,6 +400,33 @@ export const swSalesChannelDetailOverride = {
 
             if (matchedTemplate) {
                 this.productComparison.templateName = matchedTemplate.name;
+            }
+        },
+
+        // Align the export filename extension and fileFormat with the active
+        // provider's registered template (the plugin's source of truth: jsonl for
+        // OpenAI, xml for Google), so the generated feed URL matches the format.
+        syncExportFileName() {
+            if (!this.productExport?.provider || !this.productExport?.fileName) {
+                return;
+            }
+
+            const registry = Shopware.Service('exportTemplateService').getProductExportTemplateRegistry();
+            const matchedTemplate = Object.values(registry).find((entry) => {
+                return entry.providerName === this.productExport.provider;
+            });
+
+            if (!matchedTemplate?.fileFormat) {
+                return;
+            }
+
+            const nextFileName = this.productExport.fileName.replace(/\.[^.]*$/, '') + '.' + matchedTemplate.fileFormat;
+            if (nextFileName !== this.productExport.fileName) {
+                this.productExport.fileName = nextFileName;
+            }
+
+            if (this.productExport.fileFormat !== matchedTemplate.fileFormat) {
+                this.productExport.fileFormat = matchedTemplate.fileFormat;
             }
         },
 

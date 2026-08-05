@@ -18,6 +18,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
+/** @internal */
 final class CheckoutCompleter
 {
     public function __construct(

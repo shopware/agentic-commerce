@@ -15,7 +15,9 @@ use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
+use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -24,8 +26,6 @@ use Ucp\Sdk\Symfony\Bridge\DoctrineDbal\SchemaBootstrapper;
 #[Package('framework')]
 final class SwagAgenticCommerce extends Plugin
 {
-    private const BUNDLED_SDK_MARKER = __DIR__.'/../.swag-agentic-commerce-bundled-sdk';
-
     /**
      * Mirror of Shopware\Core\Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE in 6.7.10+.
      * Stable UUID shared across all versions so sales channels survive plugin/core transitions.
@@ -48,6 +48,23 @@ final class SwagAgenticCommerce extends Plugin
             PassConfig::TYPE_BEFORE_OPTIMIZATION,
             1000,
         );
+
+        // Runs before the console command-loader pass so the SDK's generic
+        // signing-key commands are gone by the time command names are mapped,
+        // leaving the plugin's sales-channel-aware subclasses in their place.
+        $container->addCompilerPass(
+            new ReplaceSdkSigningKeyCommandsPass(),
+            PassConfig::TYPE_BEFORE_OPTIMIZATION,
+            10000,
+        );
+
+        // In the test environment, swap the SDK's HTTP agent-profile fetcher for a fixed,
+        // test-supplied one so the functional suite can negotiate the UCP handshake offline.
+        $container->addCompilerPass(
+            new TestAgentProfileFetcherCompilerPass(),
+            PassConfig::TYPE_BEFORE_OPTIMIZATION,
+            1000,
+        );
     }
 
     /**
@@ -55,8 +72,6 @@ final class SwagAgenticCommerce extends Plugin
      */
     public function getAdditionalBundles(AdditionalBundleParameters $parameters): array
     {
-        $this->loadBundledSdkAutoload();
-
         $bundleClass = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
         if (!class_exists($bundleClass)) {
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
@@ -97,7 +112,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function executeComposerCommands(): bool
     {
-        return !is_file(self::BUNDLED_SDK_MARKER);
+        return true;
     }
 
     /**
@@ -112,14 +127,6 @@ final class SwagAgenticCommerce extends Plugin
         ];
     }
 
-    private function loadBundledSdkAutoload(): void
-    {
-        $autoloadPath = __DIR__.'/../vendor/autoload.php';
-        if (is_file($autoloadPath)) {
-            require_once $autoloadPath;
-        }
-    }
-
     private function syncCoreAgenticFiles(): void
     {
         CoreSalesChannelFileBridge::syncActiveUcpSalesChannelsWithConnection(Kernel::getConnection());
@@ -127,8 +134,6 @@ final class SwagAgenticCommerce extends Plugin
 
     private function bootstrapSdkSchema(): void
     {
-        $this->loadBundledSdkAutoload();
-
         if (!class_exists(SchemaBootstrapper::class)) {
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
         }

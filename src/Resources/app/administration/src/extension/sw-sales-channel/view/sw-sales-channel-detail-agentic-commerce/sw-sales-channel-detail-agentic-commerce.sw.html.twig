@@ -1,0 +1,99 @@
+{% block sw_sales_channel_detail_agentic_commerce %}
+{# Legacy (Shopware 6.5) layout: stacked sw-card form, no in-card sub-tabs. #}
+<div class="sw-sales-channel-detail-agentic-commerce">
+    <sw-skeleton v-if="isUcpLoading" />
+
+    <template v-else>
+        <sw-alert v-if="isDirty" variant="warning">
+            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.unsavedMessage') }}
+        </sw-alert>
+
+        <sw-card
+            v-if="isTransactionalSalesChannel"
+            position-identifier="sw-sales-channel-detail-agentic-commerce-ucp"
+            :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle')"
+            :subtitle="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardIntro')"
+        >
+            <sw-switch-field
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
+                :disabled="!canEditConfig"
+                :value="isActive"
+                @change="setActive"
+            />
+
+            <sw-single-select
+                v-if="hasMultipleDomains"
+                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.profileDomainLabel')"
+                :options="profileDomainOptions"
+                :disabled="!canEditConfig"
+                :value="form.profileDomain"
+                @change="(value) => setValue('profileDomain', value)"
+            />
+
+            <div class="sw-sales-channel-detail-agentic-commerce__section">
+                <div class="sw-sales-channel-detail-agentic-commerce__option-grid">
+                    <div class="sw-sales-channel-detail-agentic-commerce__option-column">
+                        <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.capabilitiesLabel') }}
+                        </p>
+                        <div class="sw-sales-channel-detail-agentic-commerce__option-list">
+                            <sw-checkbox-field
+                                v-for="capability in readyCapabilities"
+                                :key="capability.value"
+                                class="sw-sales-channel-detail-agentic-commerce__option-item"
+                                :label="$t(capability.label)"
+                                :disabled="!canEditConfig || !isActive"
+                                :value="isCapabilityEnabled(capability.value)"
+                                @change="(checked) => updateCapability(capability.value, checked)"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="sw-sales-channel-detail-agentic-commerce__option-column">
+                        <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
+                        </p>
+                        <div class="sw-sales-channel-detail-agentic-commerce__option-list">
+                            <sw-checkbox-field
+                                v-for="transport in transportItems"
+                                :key="transport.value"
+                                class="sw-sales-channel-detail-agentic-commerce__option-item"
+                                :label="transport.label"
+                                :disabled="!canEditConfig || !isActive"
+                                :value="isTransportEnabled(transport.value)"
+                                @change="(checked) => updateTransport(transport.value, checked)"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </sw-card>
+
+        <sw-card
+            v-if="isTransactionalSalesChannel"
+            position-identifier="sw-sales-channel-detail-agentic-commerce-preview"
+            :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.previewLabel')"
+        >
+            <pre class="sw-sales-channel-detail-agentic-commerce__preview">{{ previewJson }}</pre>
+        </sw-card>
+
+        <sw-card
+            v-if="isAgenticCommerce"
+            position-identifier="sw-sales-channel-detail-agentic-commerce-export"
+            :title="$t('sw-sales-channel.detail.agenticCommerce.exportCardTitle')"
+        >
+            <sw-sales-channel-detail-agentic-commerce-integration
+                :sales-channel="salesChannel"
+                :product-export="productExport"
+                :product-comparison-access-url="productComparisonAccessUrl"
+                :is-loading="isLoading"
+            />
+        </sw-card>
+
+        <sw-sales-channel-detail-agentic-files
+            v-if="coreAgenticFilesAvailable"
+            :sales-channel="salesChannel"
+        />
+    </template>
+</div>
+{% endblock %}

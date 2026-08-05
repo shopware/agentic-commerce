@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Exception;
 
 use Shopware\Core\Framework\Log\Package;
 
+/** @internal */
 #[Package('framework')]
 final class SdkNotAvailableException extends \RuntimeException
 {

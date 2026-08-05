@@ -42,10 +42,52 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
     public function testItRejectsWebhookUrlsWithoutHttpHost(): void
     {
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('Webhook override URLs must use http or https and include a host.');
+        $this->expectExceptionMessage('Webhook override URLs must use https and include a host.');
 
         $this->guard->assertAllowed(
             'file:///etc/passwd',
+            new UcpConfig(agentAllowlist: ['agent.example']),
+            'sales-channel-id',
+        );
+    }
+
+    #[Test]
+    public function testItRejectsHttpWebhookUrls(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Webhook override URLs must use https and include a host.');
+
+        $this->guard->assertAllowed(
+            'http://agent.example/webhook',
+            new UcpConfig(agentAllowlist: ['agent.example']),
+            'sales-channel-id',
+        );
+    }
+
+    #[Test]
+    public function testItAllowsLocalHttpWebhookWhenExplicitlyEnabled(): void
+    {
+        $guard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class), true);
+
+        $guard->assertAllowed(
+            'http://sw66.localhost:8088/ucp/webhook',
+            new UcpConfig(agentAllowlist: ['sw66.localhost']),
+            'sales-channel-id',
+        );
+
+        self::addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function testItRejectsNonLocalHttpWebhookEvenWhenLocalHttpIsAllowed(): void
+    {
+        $guard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class), true);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Webhook override URLs must use https and include a host.');
+
+        $guard->assertAllowed(
+            'http://agent.example/webhook',
             new UcpConfig(agentAllowlist: ['agent.example']),
             'sales-channel-id',
         );

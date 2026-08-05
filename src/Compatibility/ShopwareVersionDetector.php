@@ -9,6 +9,7 @@ use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
 
+/** @internal */
 #[Package('framework')]
 final class ShopwareVersionDetector
 {
@@ -59,6 +60,32 @@ final class ShopwareVersionDetector
         // inactive, so treat flag activation as part of availability.
         // If the flag has been removed (graduated to always-on), assume available.
         return !Feature::has('MCP_SERVER') || Feature::isActive('MCP_SERVER');
+    }
+
+    public function needsRobotsTrackingAllowPatch(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        // The storefront robots.txt arrived in 6.7.1.0 and core emits this Allow itself from
+        // 6.7.13.0, so the plugin only needs to add it for the versions in between.
+        return version_compare($version, '6.7.1.0', '>=')
+            && version_compare($version, '6.7.13.0', '<');
+    }
+
+    public function needsSystemConfigXsdCompatPatch(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        // Shopware 6.5's core config.xsd uses a non-deterministic content model that
+        // libxml2 >= 2.13 rejects, breaking ALL system-config validation. The plugin
+        // ships a permissive copy and swaps it in on 6.5 only. From 6.6 core's schema
+        // is fixed and stays current (e.g. it adds <subtitle> in 6.7), so the bundled
+        // copy must NOT be used there or it wrongly rejects valid newer core config
+        // such as basicInformation.xml. Scoping to the 6.5 range also means an
+        // unknown/unresolvable version fails the check, so the frozen copy is never
+        // imposed speculatively.
+        return version_compare($version, '6.5.0.0', '>=')
+            && version_compare($version, '6.6.0.0', '<');
     }
 
     public function coreShipsAgenticCommerce(): bool

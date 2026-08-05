@@ -10,6 +10,7 @@ use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class OrderCapability implements OrderCapabilityInterface
 {
     public function __construct(
