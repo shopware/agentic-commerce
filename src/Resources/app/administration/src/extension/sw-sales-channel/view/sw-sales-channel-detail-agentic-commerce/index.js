@@ -12,6 +12,7 @@ import {
 import { READY_CAPABILITIES } from '../../agentic-commerce/ucp-capabilities';
 import { availableTransports } from '../../agentic-commerce/ucp-options';
 import { isPreviewDirty } from '../../agentic-commerce/ucp-profile-preview';
+import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Mixin, Defaults } = Shopware;
 
@@ -107,6 +108,9 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         },
         isAgenticCommerce() {
             return this.salesChannel?.typeId === Defaults.agenticCommerceTypeId;
+        },
+        isTransactionalSalesChannel() {
+            return isTransactionalSalesChannelType(this.salesChannel?.typeId);
         },
 
         // Core ships the Agentic files management view from 6.7; embed it when

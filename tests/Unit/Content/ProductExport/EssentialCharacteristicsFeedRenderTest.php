@@ -98,6 +98,18 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
         static::assertSame('cm', $row['dimensions_unit']);
     }
 
+    public function testOpenAiParentRowMarksListingWithVariantsWithoutVariantValues(): void
+    {
+        $output = $this->render('open-ai/body.json.twig', false, self::CHARACTERISTICS, self::MEASUREMENTS, 2);
+
+        $row = json_decode(trim($output), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertIsArray($row);
+        static::assertTrue($row['listing_has_variations']);
+        static::assertSame('product-id', $row['group_id']);
+        static::assertArrayNotHasKey('variant_dict', $row);
+    }
+
     public function testGoogleItemEmitsProductDetailElements(): void
     {
         $output = $this->render('google/body.xml.twig', 'html');
@@ -152,6 +164,7 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
         string|false $strategy,
         array $characteristics = self::CHARACTERISTICS,
         array $measurements = self::MEASUREMENTS,
+        int $childCount = 0,
     ): string {
         $source = trim($this->readTemplate($template));
         $name = str_replace('/', '_', $template).'_'.(false === $strategy ? 'raw' : $strategy);
@@ -168,13 +181,13 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
             static fn (mixed $product): array => $measurements
         ));
 
-        return $twig->render($name, $this->renderData());
+        return $twig->render($name, $this->renderData($childCount));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function renderData(): array
+    private function renderData(int $childCount = 0): array
     {
         return [
             'product' => [
@@ -186,7 +199,7 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
                 'media' => [],
                 'coverId' => 'cover-id',
                 'parentId' => null,
-                'childCount' => 0,
+                'childCount' => $childCount,
                 'productNumber' => 'SW-1',
                 'id' => 'product-id',
                 'manufacturer' => null,

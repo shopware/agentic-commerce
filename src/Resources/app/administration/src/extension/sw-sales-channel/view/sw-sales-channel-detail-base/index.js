@@ -90,6 +90,14 @@ export const swSalesChannelDetailBaseOverride = {
                 });
         },
 
+        templateSelectPlaceholder() {
+          if (this.isAgenticCommerce && this.productExport?.isNew()) {
+              return null;
+          }
+
+          return this.$t('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate');
+        },
+
         disabledCountries() {
             if (this.isAgenticCommerce) {
                 return [];
