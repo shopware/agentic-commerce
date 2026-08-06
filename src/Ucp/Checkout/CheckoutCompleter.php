@@ -109,7 +109,7 @@ final class CheckoutCompleter
                 $checkoutId,
                 $customerContext->getCurrency()->getIsoCode(),
                 $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
-                orderPermalinkUrl: $this->orderPermalinkBuilder->build($order->getId(), $requestContext),
+                orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
             );
         } finally {
             $lock->release();
@@ -129,7 +129,7 @@ final class CheckoutCompleter
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
-            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order->getId(), $requestContext),
+            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
         );
     }
 }

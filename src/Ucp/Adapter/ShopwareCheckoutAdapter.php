@@ -275,7 +275,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
-            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order->getId(), $context),
+            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $context),
         );
     }
 }

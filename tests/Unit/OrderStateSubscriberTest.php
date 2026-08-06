@@ -12,7 +12,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Framework\Context;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
-use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -32,6 +32,7 @@ final class OrderStateSubscriberTest extends TestCase
     private const ORDER_ID = '99999999999999999999999999999999';
     private const SALES_CHANNEL_ID = '22222222222222222222222222222222';
     private const CHECKOUT_ID = 'checkout-id';
+    private const DEEP_LINK_CODE = 'sQ3-deep-link-code_9';
 
     #[Test]
     public function testSubscribesToAllOrderStates(): void
@@ -50,6 +51,7 @@ final class OrderStateSubscriberTest extends TestCase
         $order = new OrderEntity();
         $order->setId(self::ORDER_ID);
         $order->setSalesChannelId(self::SALES_CHANNEL_ID);
+        $order->setDeepLinkCode(self::DEEP_LINK_CODE);
 
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
         $completionStore->expects(static::once())
@@ -57,16 +59,15 @@ final class OrderStateSubscriberTest extends TestCase
             ->with(self::ORDER_ID)
             ->willReturn(self::CHECKOUT_ID);
 
-        $continueUrlBuilder = $this->createMock(CheckoutContinueUrlBuilderInterface::class);
-        $continueUrlBuilder->expects(static::once())
-            ->method('build')
-            ->with(self::CHECKOUT_ID, self::SALES_CHANNEL_ID)
-            ->willReturn('https://shop.example/account/order/'.self::ORDER_ID);
+        // The webhook carries the same order URL the completion and the read return:
+        // Shopware's order page addressed by deep-link code, which is what core's own order
+        // mails link to and the one URL that works whether or not the buyer is logged in.
+        $permalinkBuilder = new OrderPermalinkBuilder();
 
         $mapper = $this->createMock(ShopwareDataMapperInterface::class);
         $mapper->expects(static::once())
             ->method('toOrderView')
-            ->with($order, 'https://shop.example/account/order/'.self::ORDER_ID, self::CHECKOUT_ID)
+            ->with($order, 'https://shop.example/account/order/'.self::DEEP_LINK_CODE, self::CHECKOUT_ID)
             ->willReturn(new OrderView(self::ORDER_ID, 'EUR', [], []));
 
         $publisher = $this->createMock(OrderWebhookPublisherInterface::class);
@@ -84,7 +85,7 @@ final class OrderStateSubscriberTest extends TestCase
 
         $subscriber = new OrderStateSubscriber(
             $completionStore,
-            $continueUrlBuilder,
+            $permalinkBuilder,
             $this->configService(new UcpConfig(
                 profileDomain: 'https://shop.example',
                 webhookUrlOverride: 'https://agent.example/webhook',
@@ -113,7 +114,7 @@ final class OrderStateSubscriberTest extends TestCase
 
         $subscriber = new OrderStateSubscriber(
             $completionStore,
-            $this->createMock(CheckoutContinueUrlBuilderInterface::class),
+            new OrderPermalinkBuilder(),
             $this->configService(new UcpConfig()),
             $this->createMock(ShopwareDataMapperInterface::class),
             $publisher,
