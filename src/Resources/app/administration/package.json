@@ -1,6 +1,6 @@
 {
     "name": "agentic-commerce-admin-tests",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Jest tests for the administration of SwagAgenticCommerce",
     "main": "index.js",
     "directories": {
