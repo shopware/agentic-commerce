@@ -97,11 +97,11 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, CheckoutStatus $status = CheckoutStatus::Completed): Checkout
     {
         return new Checkout(
             $checkoutId,
-            CheckoutStatus::Completed,
+            $status,
             $currencyCode,
             $this->mapOrderLineItems($order),
             $this->orderMoneySummary($order),

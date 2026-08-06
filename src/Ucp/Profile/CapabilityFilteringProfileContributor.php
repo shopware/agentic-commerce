@@ -64,7 +64,11 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
             $profile->version,
             $services,
             $capabilities,
-            \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
+            // Payment handlers describe how to pay and must be discoverable
+            // whenever the channel is active - independent of the tokenization
+            // capability. x402 is a delegated (non-tokenizing) handler, so gating
+            // advertisement on tokenization hid it entirely (payment_handlers: {}).
+            $config->active ? $profile->paymentHandlers : [],
             $profile->signingKeys,
             $profile->supportedVersions,
         );

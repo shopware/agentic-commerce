@@ -60,7 +60,7 @@ final class UcpCheckoutFlowTest extends TestCase
         $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => (object) []]);
         self::assertSame(Response::HTTP_OK, $complete->getStatusCode());
         $completed = $this->decode($complete);
-        self::assertSame('completed', $completed['status'], 'Expected checkout.complete to complete the session.');
+        self::assertSame('complete_in_progress', $completed['status'], 'Expected checkout.complete to leave the unpaid order awaiting settlement rather than marking it completed.');
         $orderId = $completed['order']['id'] ?? null;
         self::assertNotEmpty($orderId, 'Expected checkout.complete to create a Shopware order.');
 

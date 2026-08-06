@@ -145,7 +145,13 @@ export async function assertProfileTransports(profile, expectedTransports) {
     const transports = [...new Set((profileRoot.services?.['dev.ucp.shopping'] || []).map((entry) => entry.transport))].sort();
 
     expect(transports).toEqual([...expectedTransports].sort());
-    expect(profileRoot.payment_handlers || {}).toEqual({});
+
+    // Payment handlers are advertised whenever the sales channel is active. The
+    // invoice handler is a delegated (non-tokenizing) handler backed by the
+    // channel's default offline/invoice payment flow.
+    const paymentHandlers = profileRoot.payment_handlers || {};
+    expect(Object.keys(paymentHandlers)).toContain('com.shopware.invoice');
+    expect(paymentHandlers['com.shopware.invoice'][0].config.tokenization).toBe(false);
 }
 
 export async function readPublicProfile(apiContext) {

@@ -11,7 +11,7 @@ smoke_discovery() {
   profile_json="$(curl_required 'UCP profile' "${BASE_URL}/.well-known/ucp")"
   assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
   assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
-  assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.ucp.payment_handlers | type == "object" and length == 0'
+  assert_jq "${profile_json}" 'Expected the profile to advertise the delegated invoice payment handler while the sales channel is active.' '.ucp.payment_handlers | type == "object" and has("com.shopware.invoice") and .["com.shopware.invoice"][0].config.tokenization == false'
 
   if [[ "${store_api_mcp_available}" == "1" ]]; then
     assert_jq "${profile_json}" 'Expected MCP transport to point at the public UCP MCP endpoint.' '.ucp.services["dev.ucp.shopping"][] | select(.transport == "mcp") | .endpoint == $endpoint' --arg endpoint "${BASE_URL}/ucp/mcp"

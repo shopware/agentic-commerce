@@ -82,12 +82,20 @@ final class CheckoutCompleter
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
+            // An agent-only shop must not report a purchase as completed while it
+            // is unpaid: x402 settles out-of-band via the pay route (surfaced in
+            // extra.x402), so a freshly placed order is not yet paid. Reflect the
+            // real transaction state and let the agent settle, then re-complete.
+            $status = OrderPaymentState::isPaid($order)
+                ? CheckoutStatus::Completed
+                : CheckoutStatus::CompleteInProgress;
+
             $this->completionStore->complete($checkoutId, $order->getId());
 
             $this->sessionManager->saveForCheckoutId(
                 $checkoutId,
                 $customerContext,
-                CheckoutStatus::Completed->value,
+                $status->value,
                 $buyer,
                 orderId: $order->getId(),
                 orderDeepLinkCode: $order->getDeepLinkCode(),
@@ -108,6 +116,7 @@ final class CheckoutCompleter
                 $checkoutId,
                 $customerContext->getCurrency()->getIsoCode(),
                 $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
+                $status,
             );
         } finally {
             $lock->release();
@@ -122,11 +131,16 @@ final class CheckoutCompleter
     ): Checkout {
         $order = $this->orderGateway->getOrder($orderId, $requestContext);
 
+        $status = OrderPaymentState::isPaid($order)
+            ? CheckoutStatus::Completed
+            : CheckoutStatus::CompleteInProgress;
+
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            $status,
         );
     }
 }

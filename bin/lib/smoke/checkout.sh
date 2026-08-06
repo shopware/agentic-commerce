@@ -36,7 +36,9 @@ smoke_checkout() {
 
   curl_required 'webhook capture clear' -X DELETE "${WEBHOOK_CAPTURE_URL}" >/dev/null
   checkout_complete_json="$(curl_required 'checkout.complete' -X POST "${BASE_URL}/ucp/v1/checkout-sessions/${checkout_id}/complete" -H "${ucp_agent_header}" -H "Idempotency-Key: $(next_idempotency_key)" -H 'content-type: application/json' -d "$(jq -cn --arg id "${checkout_id}" '{id: $id, payment: {}}')")"
-  assert_jq "${checkout_complete_json}" 'Expected checkout.complete to create a Shopware order.' '.status == "completed" and .order.id != null and .order.id != ""'
+  # The offline/invoice flow places the order unpaid, so checkout.complete must
+  # report complete_in_progress (never "completed") while surfacing the created order.
+  assert_jq "${checkout_complete_json}" 'Expected checkout.complete to place an unpaid Shopware order awaiting settlement.' '.status == "complete_in_progress" and .order.id != null and .order.id != ""'
   order_id="$(printf '%s' "${checkout_complete_json}" | jq -r '.order.id')"
 
   echo "Verifying secured order read."

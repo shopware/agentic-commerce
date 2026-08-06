@@ -27,7 +27,7 @@ profile_json="$(curl -fsS "${PROFILE_URL}")"
 jq -e '.ucp.version | type == "string"' >/dev/null <<<"${profile_json}"
 jq -e '.ucp.services["dev.ucp.shopping"] | type == "array" and length >= 1' >/dev/null <<<"${profile_json}"
 jq -e '.ucp.capabilities | type == "object"' >/dev/null <<<"${profile_json}"
-jq -e '.ucp.payment_handlers | type == "object" and length == 0' >/dev/null <<<"${profile_json}"
+jq -e '.ucp.payment_handlers | type == "object" and has("com.shopware.invoice") and .["com.shopware.invoice"][0].config.tokenization == false' >/dev/null <<<"${profile_json}"
 
 echo "Profile transports:"
 jq -r '.ucp.services["dev.ucp.shopping"][].transport' <<<"${profile_json}" | sort -u
