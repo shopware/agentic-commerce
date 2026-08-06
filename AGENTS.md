@@ -353,8 +353,9 @@ README `Release` section for the full flow. Two recurring pitfalls have their ow
 subsections there — read them before the change, not after CI is green:
 
 - **SDK version floor.** `ucp-php-sdk/symfony-bundle` is required as an explicit range,
-  `>=0.0.2 <0.1.0`, **not** a caret — a caret on `0.0.x` is locked to that exact patch
-  (`^0.0.2` never resolves `0.0.3`) and excluded every future release. The range lets
+  currently `>=0.0.5 <0.1.0`, **not** a caret — a caret on `0.0.x` is locked to that exact
+  patch (the plugin's original `^0.0.2` never resolved `0.0.3`) and excluded every future
+  release. Read the lower bound out of `composer.json` rather than from here. The range lets
   new `0.0.x` releases reach merchants without a plugin change, so SDK breakage can
   arrive on its own; that is why CI must keep testing against the moving SDK `main`.
   It still only *permits* a newer tag — an install with an existing lock resolves the
