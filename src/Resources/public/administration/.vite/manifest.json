@@ -1,0 +1,11 @@
+{
+  "main.js": {
+    "file": "js/swag-agentic-commerce-7YUNASPU.js",
+    "name": "swag-agentic-commerce",
+    "src": "main.js",
+    "isEntry": true,
+    "css": [
+      "css/swag-agentic-commerce-OSEHCMA5.css"
+    ]
+  }
+}
