@@ -177,46 +177,53 @@ export const swSalesChannelDetailOverride = {
             const salesChannelId = this.salesChannel.id;
             this.ucpState.isLoading = true;
 
-            try {
-                // Settled, not all: the three responses answer independent questions, and
-                // `meta` is the one that must never be lost. It reports what the *platform*
-                // supports (e.g. whether this Shopware exposes a Store-API MCP server) and
-                // decides which transports are offered at all. Under Promise.all a failing
-                // preview or config call discarded it too, leaving meta `{}` — so the form
-                // quietly rendered as if the platform did not support MCP, which is
-                // indistinguishable from a shop that genuinely has it switched off.
-                const [salesChannelResult, configResult, previewResult] = await Promise.allSettled([
-                    this.ucpAdminApiService.getSalesChannel(salesChannelId),
-                    this.ucpAdminApiService.getConfig(salesChannelId),
-                    this.ucpAdminApiService.getProfilePreview(salesChannelId),
-                ]);
-
-                if ('fulfilled' === salesChannelResult.status) {
-                    this.ucpState.meta = salesChannelResult.value.data.meta || {};
+            // The three responses answer independent questions, so each is applied from its
+            // own handler the moment it arrives. Two reasons not to gate them on each other:
+            //
+            // - `meta` must never be lost. It reports what the *platform* supports (whether
+            //   this Shopware exposes a Store-API MCP server) and decides which transports are
+            //   offered at all. Discarding it because the preview call failed renders the form
+            //   as if the platform had no MCP — indistinguishable from a shop that has it
+            //   switched off, so the merchant sees a plausible wrong answer instead of an error.
+            // - A slow request must not hold back a fast one. Waiting for all three (either
+            //   Promise.all or allSettled) means one hanging request delays the others' data,
+            //   the error notification and the spinner reset.
+            let reported = false;
+            const report = (error) => {
+                if (reported) {
+                    return;
                 }
 
-                if ('fulfilled' === configResult.status) {
-                    const form = ucpNormalizeConfig(configResult.value.data.data || {});
-
-                    this.ucpState.form = form;
-                    this.ucpState.savedForm = ucpNormalizeConfig(form);
-                    this.ucpState.loaded = true;
-                }
-
-                if ('fulfilled' === previewResult.status) {
-                    this.ucpState.preview = previewResult.value.data.data || null;
-                }
-
-                // Report the first failure, as before. Whatever did load stays applied, so a
-                // broken preview no longer costs the merchant the rest of the form.
-                const failure = [salesChannelResult, configResult, previewResult]
-                    .find((result) => 'rejected' === result.status);
-
-                if (failure) {
-                    this.createNotificationError({ message: extractApiErrorMessage(failure.reason) });
-                }
-            } catch (error) {
+                reported = true;
+                // Stop the spinner with the first failure rather than leaving it turning until
+                // a request that may never settle finally does.
+                this.ucpState.isLoading = false;
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
+            };
+
+            try {
+                await Promise.all([
+                    this.ucpAdminApiService.getSalesChannel(salesChannelId).then((response) => {
+                        this.ucpState.meta = response.data.meta || {};
+                    }, report),
+
+                    this.ucpAdminApiService.getConfig(salesChannelId).then((response) => {
+                        const form = ucpNormalizeConfig(response.data.data || {});
+
+                        this.ucpState.form = form;
+                        this.ucpState.savedForm = ucpNormalizeConfig(form);
+                        // Only with the saved config is there something trustworthy to edit.
+                        this.ucpState.loaded = true;
+                    }, report),
+
+                    this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                        this.ucpState.preview = response.data.data || null;
+                    }, report),
+                ]);
+            } catch (error) {
+                // Every rejection is already absorbed by `report`, so this only catches a
+                // throw from one of the fulfilled handlers.
+                report(error);
             } finally {
                 this.ucpState.isLoading = false;
             }

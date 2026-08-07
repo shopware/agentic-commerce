@@ -45,6 +45,13 @@ function response(body) {
     return Promise.resolve({ data: body });
 }
 
+/** Lets already-settled promises run their handlers without advancing real time. */
+async function flushMicrotasks() {
+    for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+    }
+}
+
 function rejection(detail) {
     return Promise.reject({ response: { data: { errors: [{ detail }] } } });
 }
@@ -113,6 +120,34 @@ describe('loadUcpState — platform meta survives sibling failures', () => {
         expect(ctx.ucpState.loaded).toBe(true);
         expect(ctx.ucpState.isLoading).toBe(false);
         expect(ctx.createNotificationError).not.toHaveBeenCalled();
+    });
+
+    it('reports a rejection without waiting for a request that is still pending', async () => {
+        // The whole point of splitting the requests: a slow one must not hold back a fast
+        // one. Gating on all three (Promise.all or allSettled alike) delays the error and
+        // leaves the spinner turning until the slowest request finally settles.
+        let resolvePreview;
+        const pendingPreview = new Promise((resolve) => {
+            resolvePreview = resolve;
+        });
+
+        const ctx = buildContext({ config: rejection('config exploded'), preview: pendingPreview });
+
+        // Deliberately not awaited — the preview never settles yet.
+        const done = loadUcpState.call(ctx);
+        await flushMicrotasks();
+
+        expect(ctx.createNotificationError).toHaveBeenCalledTimes(1);
+        expect(ctx.ucpState.isLoading).toBe(false);
+        // The meta call resolved on its own, so the platform capabilities are already applied.
+        expect(ctx.ucpState.meta).toEqual(META);
+
+        // A late response is still applied rather than dropped.
+        resolvePreview({ data: { data: { profile: 'late' } } });
+        await done;
+
+        expect(ctx.ucpState.preview).toEqual({ profile: 'late' });
+        expect(ctx.createNotificationError).toHaveBeenCalledTimes(1);
     });
 
     it('always clears the loading flag, even when every request fails', async () => {
