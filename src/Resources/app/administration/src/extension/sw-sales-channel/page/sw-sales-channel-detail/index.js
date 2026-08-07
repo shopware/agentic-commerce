@@ -177,22 +177,53 @@ export const swSalesChannelDetailOverride = {
             const salesChannelId = this.salesChannel.id;
             this.ucpState.isLoading = true;
 
-            try {
-                const [salesChannelResponse, configResponse, previewResponse] = await Promise.all([
-                    this.ucpAdminApiService.getSalesChannel(salesChannelId),
-                    this.ucpAdminApiService.getConfig(salesChannelId),
-                    this.ucpAdminApiService.getProfilePreview(salesChannelId),
-                ]);
+            // The three responses answer independent questions, so each is applied from its
+            // own handler the moment it arrives. Two reasons not to gate them on each other:
+            //
+            // - `meta` must never be lost. It reports what the *platform* supports (whether
+            //   this Shopware exposes a Store-API MCP server) and decides which transports are
+            //   offered at all. Discarding it because the preview call failed renders the form
+            //   as if the platform had no MCP — indistinguishable from a shop that has it
+            //   switched off, so the merchant sees a plausible wrong answer instead of an error.
+            // - A slow request must not hold back a fast one. Waiting for all three (either
+            //   Promise.all or allSettled) means one hanging request delays the others' data,
+            //   the error notification and the spinner reset.
+            let reported = false;
+            const report = (error) => {
+                if (reported) {
+                    return;
+                }
 
-                const form = ucpNormalizeConfig(configResponse.data.data || {});
-
-                this.ucpState.meta = salesChannelResponse.data.meta || {};
-                this.ucpState.form = form;
-                this.ucpState.savedForm = ucpNormalizeConfig(form);
-                this.ucpState.preview = previewResponse.data.data || null;
-                this.ucpState.loaded = true;
-            } catch (error) {
+                reported = true;
+                // Stop the spinner with the first failure rather than leaving it turning until
+                // a request that may never settle finally does.
+                this.ucpState.isLoading = false;
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
+            };
+
+            try {
+                await Promise.all([
+                    this.ucpAdminApiService.getSalesChannel(salesChannelId).then((response) => {
+                        this.ucpState.meta = response.data.meta || {};
+                    }, report),
+
+                    this.ucpAdminApiService.getConfig(salesChannelId).then((response) => {
+                        const form = ucpNormalizeConfig(response.data.data || {});
+
+                        this.ucpState.form = form;
+                        this.ucpState.savedForm = ucpNormalizeConfig(form);
+                        // Only with the saved config is there something trustworthy to edit.
+                        this.ucpState.loaded = true;
+                    }, report),
+
+                    this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                        this.ucpState.preview = response.data.data || null;
+                    }, report),
+                ]);
+            } catch (error) {
+                // Every rejection is already absorbed by `report`, so this only catches a
+                // throw from one of the fulfilled handlers.
+                report(error);
             } finally {
                 this.ucpState.isLoading = false;
             }
