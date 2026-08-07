@@ -223,6 +223,25 @@ bin/ci-admin-smoke.sh /path/to/shopware-6-6-branch vite
 bin/ci-admin-smoke.sh /path/to/shopware-trunk vite
 ```
 
+A green lane build does **not** mean the released ZIP works. Lane builds compile the
+administration with that lane's own toolchain (webpack or Vite) from source. The ZIP
+instead ships a single pre-compiled bundle produced by shopware-cli's **esbuild**
+(`build.zip.assets.enable_es_build_for_admin` in `.shopware-extension.yml`), written to
+`Resources/public/administration/js/swag-agentic-commerce.js` with a `.vite/entrypoints.json`
+pointing at it — the one layout both discovery paths accept:
+
+| Lane | Reads | Injected as |
+| --- | --- | --- |
+| `6.5.x`, `6.6.x` | `administration/js/<technical-name>.js` | classic script |
+| `6.7+` | `administration/.vite/entrypoints.json` | `type="module"` |
+
+That is why the bundle must stay IIFE: a webpack bundle dies in module scope
+(`this` is `undefined`). Packaging is therefore validated separately, by the `zip-artifact`
+CI job running `bin/ci-assert-zip-admin-bundle.sh`. Run it locally against any zip before
+shipping. Changes under `src/Resources/app/administration/` must stay esbuild-compatible:
+no bare (`node_modules`) imports, no `.vue` SFCs, and no Vite-only import suffixes such as
+`?raw`.
+
 The script handles the important differences:
 
 - `6.5.x` rejects Vite and relaxes local Node engine checks for webpack

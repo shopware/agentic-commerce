@@ -9,6 +9,7 @@
 - Require `ucp-php-sdk` 0.0.5 or newer, and accept every later `0.0.x` release.
 - Show the Agentic Commerce tab only on sales channels that can actually sell, and fix tab, template-selection and save-button inconsistencies across Shopware 6.5, 6.6 and 6.7.
 - Mark parent listings that have variants correctly in the product feeds.
+- Fix the installable ZIP shipping an administration that never loaded: the packaged plugin now contains a real, compiled admin bundle that works on Shopware 6.5, 6.6 and 6.7 alike, so the Agentic Commerce tab appears after a plain upload-and-install without rebuilding anything in the shop.
 
 # 1.1.1
 

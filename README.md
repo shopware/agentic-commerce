@@ -108,8 +108,13 @@ Product feeds reuse Shopware's product export infrastructure on Agentic Commerce
 
 | Provider | Format | File format | Template source |
 | --- | --- | --- | --- |
-| `open-ai` | OpenAI product feed | JSONL, one JSON object per valid product row | `agentic-product-export-templates/open-ai/body.json.twig` |
-| `google` | Google Merchant Center feed | XML RSS item feed | `agentic-product-export-templates/google/*.xml.twig` |
+| `open-ai` | OpenAI product feed | JSONL, one JSON object per valid product row | `agentic-product-export-templates/open-ai/body.json.twig.js` |
+| `google` | Google Merchant Center feed | XML RSS item feed | `agentic-product-export-templates/google/*.xml.twig.js` |
+
+The templates are Twig, but they live in `.js` modules that export the template as a
+string. They must reach Shopware byte-exact — the OpenAI feed is JSONL, so newlines are
+significant — and every admin bundler treats a plain JS module identically, whereas an
+imported `.twig` file gets its whitespace collapsed by Shopware's Twig loader.
 
 The feed URL is the Shopware product export URL shown in the Agentic Commerce sales-channel detail. It must be publicly reachable by the feed consumer and is not signed by UCP. Product links in both feeds include `referringSalesChannel` and preserve configured affiliate/campaign codes so downstream orders and customers can be attributed to the Agentic Commerce channel.
 

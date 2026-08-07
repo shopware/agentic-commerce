@@ -9,6 +9,7 @@
 - Es wird `ucp-php-sdk` 0.0.5 oder neuer benötigt; alle späteren `0.0.x`-Releases sind erlaubt.
 - Der Agentic-Commerce-Tab erscheint nur in Verkaufskanälen, die tatsächlich verkaufen können. Inkonsistenzen bei Tabs, Template-Auswahl und Speichern-Button unter Shopware 6.5, 6.6 und 6.7 sind behoben.
 - Eltern-Artikel mit Varianten werden in den Produkt-Feeds korrekt gekennzeichnet.
+- Behoben: Das installierbare ZIP enthielt eine Administration, die nie geladen wurde. Das Paket enthält jetzt ein echtes, kompiliertes Admin-Bundle, das unter Shopware 6.5, 6.6 und 6.7 gleichermaßen funktioniert. Der Agentic-Commerce-Tab erscheint dadurch direkt nach dem Hochladen und Installieren, ohne dass im Shop etwas neu gebaut werden muss.
 
 # 1.1.1
 

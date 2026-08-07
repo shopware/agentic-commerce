@@ -1,4 +1,4 @@
-import body from './body.json.twig?raw';
+import body from './body.json.twig.js';
 
 Shopware.Service('exportTemplateService').registerProductExportTemplate({
     name: 'open_ai',

@@ -48,6 +48,11 @@ jobs:
           mv "SwagAgenticCommerce-${{ github.sha }}.zip" SwagAgenticCommerce.zip
           shopware-cli extension validate SwagAgenticCommerce.zip
 
+      # `extension validate` does not look at the compiled administration bundle, so it
+      # happily passes an archive whose admin assets are empty or self-referencing.
+      - name: Assert the zip ships a usable administration bundle
+        run: bin/ci-assert-zip-admin-bundle.sh SwagAgenticCommerce.zip
+
       - name: Unpack so the downloaded artifact is directly installable
         run: |
           mkdir -p dist

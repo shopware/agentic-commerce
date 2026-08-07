@@ -285,6 +285,26 @@ jobs:
         env:
           ADMIN_PATH: ${{ github.workspace }}/shopware/src/Administration/Resources/app/administration
 
+  # Packaging is release-blocking on its own: a zip can build, pass
+  # `shopware-cli extension validate`, install cleanly, and still ship an administration
+  # that never loads on any lane. Build the real artifact and inspect it. The esbuild
+  # asset build takes a few seconds, so this is cheap enough to gate every run.
+  zip-artifact:
+    runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install shopware-cli
+        uses: shopware/shopware-cli-action@v3
+      - name: Build the extension zip
+        run: shopware-cli extension zip . --git-commit "${{ github.sha }}" --release
+      - name: Assert the zip ships a usable administration bundle
+        run: bin/ci-assert-zip-admin-bundle.sh "SwagAgenticCommerce-${{ github.sha }}.zip"
+
   shopware-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -526,6 +546,7 @@ jobs:
       - shell-lint
       - php-quality
       - admin-static
+      - zip-artifact
       - shopware-matrix
       - mysql84-install
       - admin-matrix
@@ -538,6 +559,7 @@ jobs:
           SHELL_RESULT: ${{ needs.shell-lint.result }}
           PHP_RESULT: ${{ needs.php-quality.result }}
           ADMIN_STATIC_RESULT: ${{ needs.admin-static.result }}
+          ZIP_ARTIFACT_RESULT: ${{ needs.zip-artifact.result }}
           SHOPWARE_RESULT: ${{ needs.shopware-matrix.result }}
           MYSQL84_RESULT: ${{ needs.mysql84-install.result }}
           ADMIN_RESULT: ${{ needs.admin-matrix.result }}
@@ -563,6 +585,7 @@ jobs:
           for result in \
             "${PHP_RESULT}" \
             "${ADMIN_STATIC_RESULT}" \
+            "${ZIP_ARTIFACT_RESULT}" \
             "${SHOPWARE_RESULT}" \
             "${MYSQL84_RESULT}" \
             "${ADMIN_RESULT}" \
