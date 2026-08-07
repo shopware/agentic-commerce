@@ -28,6 +28,8 @@ use Twig\TwigFunction;
 #[CoversNothing]
 class EssentialCharacteristicsFeedRenderTest extends TestCase
 {
+    use AdminTemplateModuleTrait;
+
     private const TEMPLATE_DIR = __DIR__
         .'/../../../../src/Resources/app/administration/src/extension/sw-sales-channel'
         .'/agentic-product-export-templates';
@@ -236,10 +238,6 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
 
     private function readTemplate(string $name): string
     {
-        $contents = file_get_contents(self::TEMPLATE_DIR.'/'.$name);
-
-        static::assertIsString($contents);
-
-        return $contents;
+        return $this->readTemplateModule(self::TEMPLATE_DIR.'/'.$name.'.js');
     }
 }
