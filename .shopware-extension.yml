@@ -1,15 +1,25 @@
 compatibility_date: 2026-06-05
 build:
-  # This is the asset-build lane, not the plugin's runtime compatibility range.
-  # Vite output plus the legacy loader below is shared by all supported lanes.
-  shopwareVersionConstraint: ">=6.5.0 <6.8.0"
+  # The plugin's runtime compatibility range lives in composer.json (shopware/core).
+  # Deliberately no `shopwareVersionConstraint` here: shopware-cli resolves it to the
+  # *lowest* matching version and builds the admin with that version's toolchain, so
+  # ">=6.5.0 <6.8.0" silently produced a webpack bundle. 6.7 injects plugin JS as
+  # <script type="module">, where top-level `this` is undefined, and webpack's JSONP
+  # runtime dies there — the whole administration silently fails to load.
   zip:
     composer:
       enabled: true
     assets:
       enabled: true
-      after_hooks:
-        - mkdir -p src/Resources/public/administration/js && cp src/Resources/app/administration/src/public/js/swag-agentic-commerce.js src/Resources/public/administration/js/swag-agentic-commerce.js
+      # shopware-cli's built-in esbuild emits one artifact that both discovery paths find:
+      #   administration/js/swag-agentic-commerce.js   <- read by 6.5 and 6.6
+      #   administration/.vite/entrypoints.json        <- read by 6.7, points at the file above
+      # The output is IIFE, so it is valid both as a classic script (6.5/6.6) and as a
+      # module (6.7). It also skips cloning Shopware entirely, which is much faster.
+      #
+      # Do not add an after_hooks copy into administration/js/ — that path is now the
+      # real bundle, and overwriting it is what shipped an empty admin in 1.2.0.
+      enable_es_build_for_admin: true
     pack:
       excludes:
         paths:
