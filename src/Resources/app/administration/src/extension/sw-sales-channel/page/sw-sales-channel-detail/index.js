@@ -178,19 +178,43 @@ export const swSalesChannelDetailOverride = {
             this.ucpState.isLoading = true;
 
             try {
-                const [salesChannelResponse, configResponse, previewResponse] = await Promise.all([
+                // Settled, not all: the three responses answer independent questions, and
+                // `meta` is the one that must never be lost. It reports what the *platform*
+                // supports (e.g. whether this Shopware exposes a Store-API MCP server) and
+                // decides which transports are offered at all. Under Promise.all a failing
+                // preview or config call discarded it too, leaving meta `{}` — so the form
+                // quietly rendered as if the platform did not support MCP, which is
+                // indistinguishable from a shop that genuinely has it switched off.
+                const [salesChannelResult, configResult, previewResult] = await Promise.allSettled([
                     this.ucpAdminApiService.getSalesChannel(salesChannelId),
                     this.ucpAdminApiService.getConfig(salesChannelId),
                     this.ucpAdminApiService.getProfilePreview(salesChannelId),
                 ]);
 
-                const form = ucpNormalizeConfig(configResponse.data.data || {});
+                if ('fulfilled' === salesChannelResult.status) {
+                    this.ucpState.meta = salesChannelResult.value.data.meta || {};
+                }
 
-                this.ucpState.meta = salesChannelResponse.data.meta || {};
-                this.ucpState.form = form;
-                this.ucpState.savedForm = ucpNormalizeConfig(form);
-                this.ucpState.preview = previewResponse.data.data || null;
-                this.ucpState.loaded = true;
+                if ('fulfilled' === configResult.status) {
+                    const form = ucpNormalizeConfig(configResult.value.data.data || {});
+
+                    this.ucpState.form = form;
+                    this.ucpState.savedForm = ucpNormalizeConfig(form);
+                    this.ucpState.loaded = true;
+                }
+
+                if ('fulfilled' === previewResult.status) {
+                    this.ucpState.preview = previewResult.value.data.data || null;
+                }
+
+                // Report the first failure, as before. Whatever did load stays applied, so a
+                // broken preview no longer costs the merchant the rest of the form.
+                const failure = [salesChannelResult, configResult, previewResult]
+                    .find((result) => 'rejected' === result.status);
+
+                if (failure) {
+                    this.createNotificationError({ message: extractApiErrorMessage(failure.reason) });
+                }
             } catch (error) {
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
             } finally {
