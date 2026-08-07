@@ -73,9 +73,10 @@ final class UcpProfileLinkHeaderSubscriberTest extends TestCase
             $configRepository,
             $this->createStub(LegacyConfigStoreInterface::class),
         );
-        $domainResolver = new SalesChannelDomainResolver(new StaticEntityRepository([
-            new SalesChannelDomainCollection(null === $domain ? [] : [$domain]),
-        ]));
+        $domainResolver = new SalesChannelDomainResolver(StaticEntityRepository::of(
+            SalesChannelDomainCollection::class,
+            [new SalesChannelDomainCollection(null === $domain ? [] : [$domain])],
+        ));
 
         return new UcpProfileLinkHeaderSubscriber($configService, $domainResolver);
     }
