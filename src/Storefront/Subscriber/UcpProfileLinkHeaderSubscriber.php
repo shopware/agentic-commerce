@@ -25,7 +25,7 @@ final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
-            // Run after Shopware's CanonicalLinkListener so the UCP link is appended and not replaced.
+            // Run after Shopware's CanonicalLinkListener so that the UCP link is appended instead of replaced.
             BeforeSendResponseEvent::class => ['onBeforeSendResponse', -100],
         ];
     }
