@@ -87,6 +87,8 @@ final class FallbackAgenticFileRendererTest extends TestCase
 
     private function rendererFor(SalesChannelEntity $salesChannel): FallbackAgenticFileRenderer
     {
+        // A collection keys its members by unique identifier, so the entity needs an id.
+        $salesChannel->setId(Uuid::randomHex());
         $salesChannels = new SalesChannelCollection([$salesChannel]);
 
         $repository = $this->createMock(EntityRepository::class);
