@@ -141,6 +141,9 @@ final class FallbackAgenticFileRendererTest extends TestCase
     private function context(?string $domainId): SalesChannelContext
     {
         $context = $this->createMock(SalesChannelContext::class);
+        // getSalesChannelBaseUrl() loads the sales channel by id, and core rejects an empty
+        // criteria id, so a valid id is required even though the stubbed repository ignores it.
+        $context->method('getSalesChannelId')->willReturn(Uuid::randomHex());
         $context->method('getDomainId')->willReturn($domainId);
 
         return $context;
