@@ -60,6 +60,13 @@ final class FallbackAgenticFileRenderer
         };
     }
 
+    public function getSalesChannelBaseUrl(SalesChannelContext $salesChannelContext): ?string
+    {
+        $salesChannel = $this->loadSalesChannel($salesChannelContext);
+
+        return $this->resolveBaseUrl($salesChannel, $salesChannelContext);
+    }
+
     private function createFile(string $fileName): FallbackSalesChannelFile
     {
         $templatePath = 'files/'.self::FILE_FAMILY.'/'.$fileName.'.twig';

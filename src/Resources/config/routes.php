@@ -20,6 +20,8 @@ return static function (RoutingConfigurator $routes): void {
         $routes->import('../../Ucp/Test/Api/', 'attribute');
     }
 
+    $routes->import('../../AgenticFiles/ApiCatalog/ApiCatalogController.php', 'attribute');
+
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
     }

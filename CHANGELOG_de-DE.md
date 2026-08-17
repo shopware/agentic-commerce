@@ -1,3 +1,7 @@
+# 1.3.0
+
+- Exponierte Verkaufskanäle liefern `/.well-known/api-catalog` (RFC-9727-Linkset) aus, sodass ein Agent das UCP-Profil und den Store-API-Einstiegspunkt des Shops an einem standardisierten Ort findet; nicht exponierte Kanäle antworten mit 404.
+
 # 1.2.0
 
 - Die UCP-MCP-Tools unterstützen einen Trockenlauf (Dry Run) und liefern verwertbare Fehlermeldungen: Ein Agent erfährt, welches Feld falsch ist und warum, statt einen undurchsichtigen Fehler zu erhalten.

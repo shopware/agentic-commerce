@@ -4,15 +4,24 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
+use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 
-/** @internal */
+/**
+ * @internal
+ */
+#[CoversClass(FallbackAgenticFileRenderer::class)]
 final class FallbackAgenticFileRendererTest extends TestCase
 {
     public function testItBuildsContextFromCurrentDomain(): void
@@ -50,6 +59,53 @@ final class FallbackAgenticFileRendererTest extends TestCase
             'baseUrl' => null,
             'publisher' => null,
         ], $this->buildSalesChannelFileContext(new SalesChannelEntity(), $this->context(null)));
+    }
+
+    public function testGetSalesChannelBaseUrlResolvesTheCurrentDomain(): void
+    {
+        $salesChannelId = Uuid::randomHex();
+        $currentDomainId = Uuid::randomHex();
+        $salesChannel = $this->salesChannel([
+            $this->domain(Uuid::randomHex(), $salesChannelId, 'https://first.example.com/'),
+            $this->domain($currentDomainId, $salesChannelId, 'https://shop.example.com/en/'),
+        ]);
+
+        $renderer = $this->rendererFor($salesChannel);
+
+        static::assertSame(
+            'https://shop.example.com/en',
+            $renderer->getSalesChannelBaseUrl($this->context($currentDomainId)),
+        );
+    }
+
+    public function testGetSalesChannelBaseUrlReturnsNullWithoutDomains(): void
+    {
+        $renderer = $this->rendererFor($this->salesChannel([]));
+
+        static::assertNull($renderer->getSalesChannelBaseUrl($this->context(null)));
+    }
+
+    private function rendererFor(SalesChannelEntity $salesChannel): FallbackAgenticFileRenderer
+    {
+        $salesChannels = new SalesChannelCollection([$salesChannel]);
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->method('search')->willReturnCallback(
+            static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
+                'sales_channel',
+                $salesChannels->count(),
+                $salesChannels,
+                null,
+                $criteria,
+                $context,
+            ),
+        );
+
+        $renderer = (new \ReflectionClass(FallbackAgenticFileRenderer::class))->newInstanceWithoutConstructor();
+        (new \ReflectionProperty(FallbackAgenticFileRenderer::class, 'salesChannelRepository'))
+            ->setValue($renderer, $repository);
+
+        return $renderer;
     }
 
     /**
