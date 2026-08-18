@@ -8,6 +8,7 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -23,6 +24,7 @@ final class ApiCatalogController
     public function __construct(
         private readonly UcpConfigService $configService,
         private readonly ApiCatalogLinksetBuilder $linksetBuilder,
+        private readonly SalesChannelBaseUrlResolver $baseUrlResolver,
     ) {
     }
 
@@ -34,8 +36,17 @@ final class ApiCatalogController
             throw new NotFoundHttpException();
         }
 
-        $body = json_encode($this->linksetBuilder->build($context), \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR);
+        // An empty base URL yields valid root-relative references in both the body and the header.
+        $baseUrl = $this->baseUrlResolver->resolve($context) ?? '';
+        $catalogUrl = $baseUrl.ApiCatalogLinksetBuilder::API_CATALOG_PATH;
 
-        return new Response($body, Response::HTTP_OK, ['content-type' => self::CONTENT_TYPE]);
+        $body = json_encode($this->linksetBuilder->build($baseUrl), \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR);
+
+        return new Response($body, Response::HTTP_OK, [
+            'content-type' => self::CONTENT_TYPE,
+            // RFC 9727 §2 requires the HEAD (and, harmlessly, GET) response to carry a Link header
+            // with the `api-catalog` relation. HEAD resolves through this GET handler.
+            'link' => '<'.$catalogUrl.'>; rel="api-catalog"',
+        ]);
     }
 }

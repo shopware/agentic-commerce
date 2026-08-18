@@ -37,6 +37,7 @@ use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportHydrator;
@@ -197,6 +198,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelDomainResolverCacheInvalidator::class)
         ->arg('$cache', service('cache.object'))
         ->tag('kernel.event_subscriber');
+
+    $services->set(SalesChannelBaseUrlResolver::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));

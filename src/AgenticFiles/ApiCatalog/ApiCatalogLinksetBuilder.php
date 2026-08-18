@@ -6,8 +6,6 @@ namespace Swag\AgenticCommerce\AgenticFiles\ApiCatalog;
 
 use Shopware\Core\Framework\Api\ApiDefinition\DefinitionService;
 use Shopware\Core\Framework\Log\Package;
-use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 
 /**
  * Builds the RFC 9727 `/.well-known/api-catalog` document as an RFC 9264 linkset,
@@ -19,26 +17,20 @@ use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 final class ApiCatalogLinksetBuilder
 {
     /**
-     * Profile URI advertised on the linkset per RFC 9727 §4.1.
+     * Profile URI advertised on the linkset per RFC 9727 §4.2 (a SHOULD).
      */
     public const PROFILE_URI = 'https://www.rfc-editor.org/info/rfc9727';
 
-    private const API_CATALOG_PATH = '/.well-known/api-catalog';
-    private const UCP_PROFILE_PATH = '/.well-known/ucp';
+    public const API_CATALOG_PATH = '/.well-known/api-catalog';
 
-    public function __construct(
-        private readonly FallbackAgenticFileRenderer $fileRenderer,
-    ) {
-    }
+    private const UCP_PROFILE_PATH = '/.well-known/ucp';
 
     /**
      * @return array{linkset: list<array<string, mixed>>}
      */
-    public function build(SalesChannelContext $context): array
+    public function build(string $baseUrl): array
     {
-        // An unresolvable base URL yields valid root-relative URI references in the linkset.
-        $baseUrl = $this->fileRenderer->getSalesChannelBaseUrl($context) ?? '';
-
+        // An empty base URL yields valid root-relative URI references in the linkset.
         return [
             'linkset' => [
                 [

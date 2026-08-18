@@ -42,6 +42,10 @@ final class ApiCatalogControllerTest extends TestCase
             'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
             $response->headers->get('Content-Type'),
         );
+        static::assertSame(
+            '<https://shop.example.com/.well-known/api-catalog>; rel="api-catalog"',
+            $response->headers->get('Link'),
+        );
 
         $payload = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
 

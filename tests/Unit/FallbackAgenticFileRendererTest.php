@@ -6,17 +6,14 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
-use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 
 /**
  * @internal
@@ -61,61 +58,16 @@ final class FallbackAgenticFileRendererTest extends TestCase
         ], $this->buildSalesChannelFileContext(new SalesChannelEntity(), $this->context(null)));
     }
 
-    public function testGetSalesChannelBaseUrlResolvesTheCurrentDomain(): void
-    {
-        $salesChannelId = Uuid::randomHex();
-        $currentDomainId = Uuid::randomHex();
-        $salesChannel = $this->salesChannel([
-            $this->domain(Uuid::randomHex(), $salesChannelId, 'https://first.example.com/'),
-            $this->domain($currentDomainId, $salesChannelId, 'https://shop.example.com/en/'),
-        ]);
-
-        $renderer = $this->rendererFor($salesChannel);
-
-        static::assertSame(
-            'https://shop.example.com/en',
-            $renderer->getSalesChannelBaseUrl($this->context($currentDomainId)),
-        );
-    }
-
-    public function testGetSalesChannelBaseUrlReturnsNullWithoutDomains(): void
-    {
-        $renderer = $this->rendererFor($this->salesChannel([]));
-
-        static::assertNull($renderer->getSalesChannelBaseUrl($this->context(null)));
-    }
-
-    private function rendererFor(SalesChannelEntity $salesChannel): FallbackAgenticFileRenderer
-    {
-        // A collection keys its members by unique identifier, so the entity needs an id.
-        $salesChannel->setId(Uuid::randomHex());
-        $salesChannels = new SalesChannelCollection([$salesChannel]);
-
-        $repository = $this->createMock(EntityRepository::class);
-        $repository->method('search')->willReturnCallback(
-            static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
-                'sales_channel',
-                $salesChannels->count(),
-                $salesChannels,
-                null,
-                $criteria,
-                $context,
-            ),
-        );
-
-        $renderer = (new \ReflectionClass(FallbackAgenticFileRenderer::class))->newInstanceWithoutConstructor();
-        (new \ReflectionProperty(FallbackAgenticFileRenderer::class, 'salesChannelRepository'))
-            ->setValue($renderer, $repository);
-
-        return $renderer;
-    }
-
     /**
      * @return array{baseUrl: string|null, publisher: string|null}
      */
     private function buildSalesChannelFileContext(SalesChannelEntity $salesChannel, SalesChannelContext $context): array
     {
         $renderer = (new \ReflectionClass(FallbackAgenticFileRenderer::class))->newInstanceWithoutConstructor();
+        // resolveFromSalesChannel() is pure, so the resolver's repository is never touched here.
+        (new \ReflectionProperty(FallbackAgenticFileRenderer::class, 'baseUrlResolver'))
+            ->setValue($renderer, new SalesChannelBaseUrlResolver($this->createMock(EntityRepository::class)));
+
         $method = new \ReflectionMethod(FallbackAgenticFileRenderer::class, 'buildSalesChannelFileContext');
         $result = $method->invoke($renderer, $salesChannel, $context);
 
@@ -141,9 +93,6 @@ final class FallbackAgenticFileRendererTest extends TestCase
     private function context(?string $domainId): SalesChannelContext
     {
         $context = $this->createMock(SalesChannelContext::class);
-        // getSalesChannelBaseUrl() loads the sales channel by id, and core rejects an empty
-        // criteria id, so a valid id is required even though the stubbed repository ignores it.
-        $context->method('getSalesChannelId')->willReturn(Uuid::randomHex());
         $context->method('getDomainId')->willReturn($domainId);
 
         return $context;

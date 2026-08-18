@@ -18,7 +18,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\AgenticFiles\ApiCatalog\ApiCatalogController;
 use Swag\AgenticCommerce\AgenticFiles\ApiCatalog\ApiCatalogLinksetBuilder;
-use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -32,22 +32,26 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 #[CoversClass(ApiCatalogController::class)]
 final class ApiCatalogControllerTest extends TestCase
 {
-    public function testItServesALinksetForExposedSalesChannels(): void
+    public function testItServesALinksetWithApiCatalogLinkHeaderForExposedSalesChannels(): void
     {
         $salesChannelId = Uuid::randomHex();
-        $context = $this->context($salesChannelId);
 
         $controller = new ApiCatalogController(
             $this->configService(new UcpConfig(active: true)),
-            $this->builder($salesChannelId, 'https://shop.example.com/'),
+            new ApiCatalogLinksetBuilder(),
+            $this->baseUrlResolver($salesChannelId, 'https://shop.example.com/'),
         );
 
-        $response = $controller->apiCatalog($context);
+        $response = $controller->apiCatalog($this->context($salesChannelId));
 
         static::assertSame(Response::HTTP_OK, $response->getStatusCode());
         static::assertSame(
             'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
             $response->headers->get('Content-Type'),
+        );
+        static::assertSame(
+            '<https://shop.example.com/.well-known/api-catalog>; rel="api-catalog"',
+            $response->headers->get('Link'),
         );
 
         $payload = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
@@ -73,7 +77,8 @@ final class ApiCatalogControllerTest extends TestCase
 
         $controller = new ApiCatalogController(
             $this->configService(new UcpConfig(active: true)),
-            $this->builder($salesChannelId, 'https://shop.example.com/'),
+            new ApiCatalogLinksetBuilder(),
+            $this->baseUrlResolver($salesChannelId, 'https://shop.example.com/'),
         );
 
         $body = (string) $controller->apiCatalog($this->context($salesChannelId))->getContent();
@@ -88,7 +93,8 @@ final class ApiCatalogControllerTest extends TestCase
 
         $controller = new ApiCatalogController(
             $this->configService(new UcpConfig(active: false)),
-            $this->builder($salesChannelId, 'https://shop.example.com/'),
+            new ApiCatalogLinksetBuilder(),
+            $this->baseUrlResolver($salesChannelId, 'https://shop.example.com/'),
         );
 
         $this->expectException(NotFoundHttpException::class);
@@ -121,7 +127,7 @@ final class ApiCatalogControllerTest extends TestCase
         return new UcpConfigService($repository, $this->createMock(LegacyConfigStoreInterface::class));
     }
 
-    private function builder(string $salesChannelId, string $domainUrl): ApiCatalogLinksetBuilder
+    private function baseUrlResolver(string $salesChannelId, string $domainUrl): SalesChannelBaseUrlResolver
     {
         $domain = new SalesChannelDomainEntity();
         $domain->setId(Uuid::randomHex());
@@ -147,13 +153,7 @@ final class ApiCatalogControllerTest extends TestCase
             ),
         );
 
-        // The base URL is resolved by the (final) fallback renderer; inject a stubbed
-        // sales-channel repository via reflection so no Twig/router dependencies are needed.
-        $renderer = (new \ReflectionClass(FallbackAgenticFileRenderer::class))->newInstanceWithoutConstructor();
-        (new \ReflectionProperty(FallbackAgenticFileRenderer::class, 'salesChannelRepository'))
-            ->setValue($renderer, $repository);
-
-        return new ApiCatalogLinksetBuilder($renderer);
+        return new SalesChannelBaseUrlResolver($repository);
     }
 
     private function context(string $salesChannelId): SalesChannelContext
