@@ -13,7 +13,6 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
-use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\AgenticFiles\ApiCatalog\ApiCatalogController;
@@ -135,18 +134,14 @@ final class ApiCatalogControllerTest extends TestCase
         $domain->setLanguageId(Uuid::randomHex());
         $domain->setUrl($domainUrl);
 
-        $salesChannel = new SalesChannelEntity();
-        $salesChannel->setId($salesChannelId);
-        $salesChannel->setDomains(new SalesChannelDomainCollection([$domain]));
-
-        $salesChannels = new SalesChannelCollection([$salesChannel]);
+        $domains = new SalesChannelDomainCollection([$domain]);
 
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('search')->willReturnCallback(
             static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
-                'sales_channel',
-                $salesChannels->count(),
-                $salesChannels,
+                'sales_channel_domain',
+                $domains->count(),
+                $domains,
                 null,
                 $criteria,
                 $context,
@@ -159,8 +154,11 @@ final class ApiCatalogControllerTest extends TestCase
     private function context(string $salesChannelId): SalesChannelContext
     {
         $context = $this->createMock(SalesChannelContext::class);
+        // A sales channel without a domains association forces the resolver to load the current
+        // domain by id, so the context must expose a (non-null) domain id.
+        $context->method('getSalesChannel')->willReturn(new SalesChannelEntity());
         $context->method('getSalesChannelId')->willReturn($salesChannelId);
-        $context->method('getDomainId')->willReturn(null);
+        $context->method('getDomainId')->willReturn(Uuid::randomHex());
         $context->method('getContext')->willReturn(Context::createDefaultContext());
 
         return $context;

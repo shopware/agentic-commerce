@@ -200,7 +200,7 @@ return static function (ContainerConfigurator $container): void {
         ->tag('kernel.event_subscriber');
 
     $services->set(SalesChannelBaseUrlResolver::class)
-        ->arg('$salesChannelRepository', service('sales_channel.repository'));
+        ->arg('$domainRepository', service('sales_channel_domain.repository'));
 
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));

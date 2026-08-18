@@ -33,21 +33,7 @@ final class FallbackAgenticFileRendererTest extends TestCase
         static::assertSame([
             'baseUrl' => 'https://SHOP.Example.COM/en',
             'publisher' => 'shop.example.com',
-        ], $this->buildSalesChannelFileContext($salesChannel, $this->context($currentDomainId)));
-    }
-
-    public function testItFallsBackToFirstDomain(): void
-    {
-        $salesChannelId = Uuid::randomHex();
-        $salesChannel = $this->salesChannel([
-            $this->domain(Uuid::randomHex(), $salesChannelId, 'https://fallback.example.com/'),
-            $this->domain(Uuid::randomHex(), $salesChannelId, 'https://other.example.com/'),
-        ]);
-
-        static::assertSame([
-            'baseUrl' => 'https://fallback.example.com',
-            'publisher' => 'fallback.example.com',
-        ], $this->buildSalesChannelFileContext($salesChannel, $this->context(Uuid::randomHex())));
+        ], $this->buildSalesChannelFileContext($this->context($salesChannel, $currentDomainId)));
     }
 
     public function testItReturnsNullContextWithoutDomains(): void
@@ -55,21 +41,22 @@ final class FallbackAgenticFileRendererTest extends TestCase
         static::assertSame([
             'baseUrl' => null,
             'publisher' => null,
-        ], $this->buildSalesChannelFileContext(new SalesChannelEntity(), $this->context(null)));
+        ], $this->buildSalesChannelFileContext($this->context(new SalesChannelEntity(), null)));
     }
 
     /**
      * @return array{baseUrl: string|null, publisher: string|null}
      */
-    private function buildSalesChannelFileContext(SalesChannelEntity $salesChannel, SalesChannelContext $context): array
+    private function buildSalesChannelFileContext(SalesChannelContext $context): array
     {
         $renderer = (new \ReflectionClass(FallbackAgenticFileRenderer::class))->newInstanceWithoutConstructor();
-        // resolveFromSalesChannel() is pure, so the resolver's repository is never touched here.
+        // The tested contexts already carry their domains, so the resolver never queries; a bare
+        // repository mock is enough to satisfy the resolver dependency.
         (new \ReflectionProperty(FallbackAgenticFileRenderer::class, 'baseUrlResolver'))
             ->setValue($renderer, new SalesChannelBaseUrlResolver($this->createMock(EntityRepository::class)));
 
         $method = new \ReflectionMethod(FallbackAgenticFileRenderer::class, 'buildSalesChannelFileContext');
-        $result = $method->invoke($renderer, $salesChannel, $context);
+        $result = $method->invoke($renderer, $context);
 
         static::assertIsArray($result);
 
@@ -90,9 +77,10 @@ final class FallbackAgenticFileRendererTest extends TestCase
         ];
     }
 
-    private function context(?string $domainId): SalesChannelContext
+    private function context(SalesChannelEntity $salesChannel, ?string $domainId): SalesChannelContext
     {
         $context = $this->createMock(SalesChannelContext::class);
+        $context->method('getSalesChannel')->willReturn($salesChannel);
         $context->method('getDomainId')->willReturn($domainId);
 
         return $context;

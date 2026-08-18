@@ -45,7 +45,7 @@ final class FallbackAgenticFileRenderer
             'context' => $context,
             'salesChannel' => $salesChannel,
             'salesChannelFile' => $file,
-            'salesChannelFileContext' => $this->buildSalesChannelFileContext($salesChannel, $context),
+            'salesChannelFileContext' => $this->buildSalesChannelFileContext($context),
             'cmsPageRouteName' => $this->cmsPageRouteName(),
         ]);
 
@@ -102,9 +102,9 @@ final class FallbackAgenticFileRenderer
     /**
      * @return array{baseUrl: string|null, publisher: string|null}
      */
-    private function buildSalesChannelFileContext(SalesChannelEntity $salesChannel, SalesChannelContext $context): array
+    private function buildSalesChannelFileContext(SalesChannelContext $context): array
     {
-        $baseUrl = $this->baseUrlResolver->resolveFromSalesChannel($salesChannel, $context);
+        $baseUrl = $this->baseUrlResolver->resolve($context);
 
         return [
             'baseUrl' => $baseUrl,

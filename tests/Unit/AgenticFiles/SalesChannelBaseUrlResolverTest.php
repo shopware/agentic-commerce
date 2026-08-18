@@ -13,7 +13,6 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
-use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
@@ -24,7 +23,7 @@ use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 #[CoversClass(SalesChannelBaseUrlResolver::class)]
 final class SalesChannelBaseUrlResolverTest extends TestCase
 {
-    public function testItResolvesTheCurrentDomain(): void
+    public function testItUsesTheDomainsAlreadyLoadedOnTheContextWithoutQuerying(): void
     {
         $salesChannelId = Uuid::randomHex();
         $currentDomainId = Uuid::randomHex();
@@ -33,43 +32,67 @@ final class SalesChannelBaseUrlResolverTest extends TestCase
             $this->domain($currentDomainId, $salesChannelId, 'https://shop.example.com/en/'),
         ]);
 
-        $resolver = $this->resolver($salesChannel);
+        // Domains are present on the context, so the repository must not be touched.
+        $resolver = $this->resolverWithoutRepositoryAccess();
 
         static::assertSame(
             'https://shop.example.com/en',
-            $resolver->resolve($this->context($salesChannelId, $currentDomainId)),
+            $resolver->resolve($this->context($salesChannel, $currentDomainId)),
         );
     }
 
-    public function testItFallsBackToTheFirstDomainWhenNoDomainMatchesTheContext(): void
+    public function testItLoadsTheCurrentDomainWhenTheContextDomainsDoNotContainIt(): void
     {
         $salesChannelId = Uuid::randomHex();
+        $currentDomainId = Uuid::randomHex();
+
+        // The context carries a domain, but not the one the request came in on.
         $salesChannel = $this->salesChannel($salesChannelId, [
-            $this->domain(Uuid::randomHex(), $salesChannelId, 'https://fallback.example.com/'),
             $this->domain(Uuid::randomHex(), $salesChannelId, 'https://other.example.com/'),
         ]);
 
-        $resolver = $this->resolver($salesChannel);
+        $resolver = $this->resolverLoading(new SalesChannelDomainCollection([
+            $this->domain($currentDomainId, $salesChannelId, 'https://shop.example.com/'),
+        ]));
 
         static::assertSame(
-            'https://fallback.example.com',
-            $resolver->resolve($this->context($salesChannelId, Uuid::randomHex())),
+            'https://shop.example.com',
+            $resolver->resolve($this->context($salesChannel, $currentDomainId)),
         );
+    }
+
+    public function testItLoadsTheCurrentDomainWhenTheContextDidNotCarryDomains(): void
+    {
+        $salesChannelId = Uuid::randomHex();
+        $domainId = Uuid::randomHex();
+        $domains = new SalesChannelDomainCollection([
+            $this->domain($domainId, $salesChannelId, 'https://shop.example.com/'),
+        ]);
+
+        // The context's sales channel has no domains association (null), triggering the lazy load.
+        $resolver = $this->resolverLoading($domains);
+
+        static::assertSame(
+            'https://shop.example.com',
+            $resolver->resolve($this->context(new SalesChannelEntity(), $domainId)),
+        );
+    }
+
+    public function testItReturnsNullWhenDomainsAreNotLoadedAndNoDomainIdIsPresent(): void
+    {
+        // No domains on the context and no domain id to load one by: nothing to query, nothing to resolve.
+        $resolver = $this->resolverWithoutRepositoryAccess();
+
+        static::assertNull($resolver->resolve($this->context(new SalesChannelEntity(), null)));
     }
 
     public function testItReturnsNullWhenTheSalesChannelHasNoDomains(): void
     {
-        $salesChannelId = Uuid::randomHex();
-        $resolver = $this->resolver($this->salesChannel($salesChannelId, []));
+        $salesChannel = $this->salesChannel(Uuid::randomHex(), []);
 
-        static::assertNull($resolver->resolve($this->context($salesChannelId, null)));
-    }
+        $resolver = $this->resolverWithoutRepositoryAccess();
 
-    public function testResolveFromSalesChannelReturnsNullForNullSalesChannel(): void
-    {
-        $resolver = new SalesChannelBaseUrlResolver($this->createMock(EntityRepository::class));
-
-        static::assertNull($resolver->resolveFromSalesChannel(null, $this->context(Uuid::randomHex(), null)));
+        static::assertNull($resolver->resolve($this->context($salesChannel, null)));
     }
 
     /**
@@ -95,16 +118,22 @@ final class SalesChannelBaseUrlResolverTest extends TestCase
         return $domain;
     }
 
-    private function resolver(SalesChannelEntity $salesChannel): SalesChannelBaseUrlResolver
+    private function resolverWithoutRepositoryAccess(): SalesChannelBaseUrlResolver
     {
-        $salesChannels = new SalesChannelCollection([$salesChannel]);
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->expects(static::never())->method('search');
 
+        return new SalesChannelBaseUrlResolver($repository);
+    }
+
+    private function resolverLoading(SalesChannelDomainCollection $domains): SalesChannelBaseUrlResolver
+    {
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('search')->willReturnCallback(
             static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
-                'sales_channel',
-                $salesChannels->count(),
-                $salesChannels,
+                'sales_channel_domain',
+                $domains->count(),
+                $domains,
                 null,
                 $criteria,
                 $context,
@@ -114,10 +143,11 @@ final class SalesChannelBaseUrlResolverTest extends TestCase
         return new SalesChannelBaseUrlResolver($repository);
     }
 
-    private function context(string $salesChannelId, ?string $domainId): SalesChannelContext
+    private function context(SalesChannelEntity $salesChannel, ?string $domainId): SalesChannelContext
     {
         $context = $this->createMock(SalesChannelContext::class);
-        $context->method('getSalesChannelId')->willReturn($salesChannelId);
+        $context->method('getSalesChannel')->willReturn($salesChannel);
+        $context->method('getSalesChannelId')->willReturn(Uuid::randomHex());
         $context->method('getDomainId')->willReturn($domainId);
         $context->method('getContext')->willReturn(Context::createDefaultContext());
 

@@ -7,15 +7,14 @@ namespace Swag\AgenticCommerce\AgenticFiles;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
-use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 
 /**
- * Resolves the absolute base URL of the current sales-channel domain, preferring the domain the
- * request came in on and falling back to the sales channel's first domain. Shared by the agentic
- * file renderer and the API catalog, so neither has to re-implement the domain-pick logic.
+ * Resolves the absolute base URL of the domain the request came in on, reusing the domains already
+ * loaded onto the context when present and otherwise loading just that domain. Shared by the agentic
+ * file renderer and the API catalog, so neither has to re-implement the lookup.
  *
  * @internal
  */
@@ -23,49 +22,41 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 final class SalesChannelBaseUrlResolver
 {
     /**
-     * @param EntityRepository<SalesChannelCollection> $salesChannelRepository
+     * @param EntityRepository<SalesChannelDomainCollection> $domainRepository
      */
     public function __construct(
-        private readonly EntityRepository $salesChannelRepository,
+        private readonly EntityRepository $domainRepository,
     ) {
     }
 
     public function resolve(SalesChannelContext $context): ?string
     {
-        return $this->resolveFromSalesChannel($this->loadSalesChannel($context), $context);
+        $domain = $this->resolveFromDomains($context) ?? $this->loadCurrentDomain($context);
+
+        return null !== $domain ? rtrim($domain->getUrl(), '/') : null;
     }
 
-    public function resolveFromSalesChannel(?SalesChannelEntity $salesChannel, SalesChannelContext $context): ?string
+    private function resolveFromDomains(SalesChannelContext $context): ?SalesChannelDomainEntity
     {
-        $domains = $salesChannel?->getDomains();
-        if (null === $domains || 0 === $domains->count()) {
+        $domainId = $context->getDomainId();
+        $domains = $context->getSalesChannel()->getDomains();
+
+        if (null === $domainId || null === $domains || 0 === $domains->count()) {
             return null;
         }
 
-        $domainId = $context->getDomainId();
-        if (null !== $domainId) {
-            $domain = $domains->get($domainId);
-            if ($domain instanceof SalesChannelDomainEntity) {
-                return rtrim($domain->getUrl(), '/');
-            }
-        }
-
-        $domain = $domains->first();
-
-        return $domain instanceof SalesChannelDomainEntity ? rtrim($domain->getUrl(), '/') : null;
+        return $domains->get($domainId);
     }
 
-    private function loadSalesChannel(SalesChannelContext $context): ?SalesChannelEntity
+    private function loadCurrentDomain(SalesChannelContext $context): ?SalesChannelDomainEntity
     {
-        $criteria = (new Criteria([$context->getSalesChannelId()]))
-            ->addAssociation('domains')
-            ->setLimit(1);
+        $domainId = $context->getDomainId();
+        if (null === $domainId) {
+            return null;
+        }
 
-        $salesChannel = $this->salesChannelRepository
-            ->search($criteria, $context->getContext())
-            ->getEntities()
-            ->first();
+        $criteria = (new Criteria([$domainId]))->setLimit(1);
 
-        return $salesChannel instanceof SalesChannelEntity ? $salesChannel : null;
+        return $this->domainRepository->search($criteria, $context->getContext())->getEntities()->first();
     }
 }
