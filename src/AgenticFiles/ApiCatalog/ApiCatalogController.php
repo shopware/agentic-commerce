@@ -19,6 +19,12 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Package('discovery')]
 final class ApiCatalogController
 {
+    // RFC 9727 mandates the RFC 9264 `application/linkset+json` media type with a `profile`
+    // parameter. This is a dedicated controller precisely because the core sales-channel-file
+    // mechanism derives the content type from the file extension (Symfony MimeTypes): the
+    // extensionless `/.well-known/api-catalog` would fall back to `text/plain`, and even a
+    // `.json`-suffixed path could only ever yield `application/json` — never the linkset type or
+    // its profile parameter. So it is set explicitly here.
     private const CONTENT_TYPE = 'application/linkset+json; profile="'.ApiCatalogLinksetBuilder::PROFILE_URI.'"';
 
     public function __construct(
