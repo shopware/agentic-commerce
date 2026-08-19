@@ -174,6 +174,7 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
         $twig = new Environment(new ArrayLoader([$name => $source]));
         $twig->getExtension(EscaperExtension::class)->setDefaultStrategy($strategy);
         $twig->addFunction(new TwigFunction('seoUrl', static fn (): string => 'https://shop.test/detail'));
+        $twig->addFunction(new TwigFunction('entitySeoUrl', static fn (): string => 'https://shop.test/detail'));
         $twig->addFunction(new TwigFunction(
             'agentic_essential_characteristics',
             static fn (mixed $product, mixed $context): array => $characteristics
