@@ -1,3 +1,7 @@
+# 1.3.0
+
+- Serve `/.well-known/api-catalog` (RFC 9727 linkset) on exposed sales channels, so an agent can discover the shop's UCP profile and Store API entry point from one standardised location; unexposed channels return 404.
+
 # 1.2.0
 
 - Add a dry-run mode and actionable error messages to the UCP MCP tools, so an agent that gets a request wrong is told which field and why instead of receiving an opaque failure.
