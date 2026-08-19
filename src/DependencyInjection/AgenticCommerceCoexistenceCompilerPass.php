@@ -20,6 +20,10 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
  * ones wired. When core is absent the pass is a no-op and the plugin provides
  * the feature standalone.
  *
+ * It additionally removes plugin backport services that core supersedes on newer
+ * versions (see {@see self::SUPERSEDED_BACKPORTS}), independently of the Agentic
+ * Commerce feature probe.
+ *
  * @internal
  */
 class AgenticCommerceCoexistenceCompilerPass implements CompilerPassInterface
@@ -37,6 +41,15 @@ class AgenticCommerceCoexistenceCompilerPass implements CompilerPassInterface
 
     private const PRODUCT_EXPORT_DEFINITION = 'Shopware\\Core\\Content\\ProductExport\\ProductExportDefinition';
 
+    /**
+     * Backport services that core supersedes on newer versions, keyed by the core service that
+     * indicates the feature is available natively (removed from the container when core ships it).
+     */
+    private const SUPERSEDED_BACKPORTS = [
+        // Core registers the `entitySeoUrl` Twig function from 6.7.14 onwards.
+        'Shopware\\Core\\Framework\\Adapter\\Twig\\Extension\\EntitySeoUrlFunctionExtension' => 'Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension',
+    ];
+
     private const PLUGIN_DATA_LAYER_SERVICES = [
         'Swag\\AgenticCommerce\\Content\\ProductExport\\AgenticProductExportHydrator',
         'Swag\\AgenticCommerce\\Content\\ProductExport\\Tracking\\SalesChannelTrackingOrderDefinition',
@@ -50,6 +63,14 @@ class AgenticCommerceCoexistenceCompilerPass implements CompilerPassInterface
 
     public function process(ContainerBuilder $container): void
     {
+        // Superseded backports are versioned independently of the Agentic Commerce feature, so they
+        // are handled before (and regardless of) the core feature probe below.
+        foreach (self::SUPERSEDED_BACKPORTS as $coreServiceId => $backportServiceId) {
+            if ($container->hasDefinition($coreServiceId) && $container->hasDefinition($backportServiceId)) {
+                $container->removeDefinition($backportServiceId);
+            }
+        }
+
         if (!$container->hasDefinition(self::CORE_FEATURE_PROBE)) {
             return;
         }

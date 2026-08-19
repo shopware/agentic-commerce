@@ -24,6 +24,9 @@ class AgenticCommerceCoexistenceCompilerPassTest extends TestCase
     private const CORE_PROBE = 'Shopware\\Core\\Content\\ProductExport\\Tracking\\SalesChannelTrackingListener';
     private const PRODUCT_EXPORT_DEFINITION = 'Shopware\\Core\\Content\\ProductExport\\ProductExportDefinition';
 
+    private const CORE_ENTITY_SEO_URL = 'Shopware\\Core\\Framework\\Adapter\\Twig\\Extension\\EntitySeoUrlFunctionExtension';
+    private const PLUGIN_ENTITY_SEO_URL_BACKPORT = 'Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension';
+
     /** @var list<string> */
     private const CORE_BEHAVIOR = [
         self::CORE_PROBE,
@@ -116,6 +119,34 @@ class AgenticCommerceCoexistenceCompilerPassTest extends TestCase
         foreach (self::PLUGIN_BEHAVIOR as $id) {
             static::assertTrue($container->hasDefinition($id), "Expected plugin behavior service {$id} to remain");
         }
+    }
+
+    public function testRemovesEntitySeoUrlBackportWhenCoreShipsIt(): void
+    {
+        $container = new ContainerBuilder();
+        // Deliberately without the core feature probe: superseded backports are handled independently.
+        $container->setDefinition(self::CORE_ENTITY_SEO_URL, new Definition(\stdClass::class));
+        $container->setDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT, new Definition(\stdClass::class));
+
+        (new AgenticCommerceCoexistenceCompilerPass())->process($container);
+
+        static::assertFalse(
+            $container->hasDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT),
+            'Expected the entitySeoUrl backport to be removed when core ships the function',
+        );
+    }
+
+    public function testKeepsEntitySeoUrlBackportWhenCoreDoesNotShipIt(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT, new Definition(\stdClass::class));
+
+        (new AgenticCommerceCoexistenceCompilerPass())->process($container);
+
+        static::assertTrue(
+            $container->hasDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT),
+            'Expected the entitySeoUrl backport to remain when core does not ship the function',
+        );
     }
 
     public function testPassIsIdempotentWhenSomeServicesAreAlreadyMissing(): void
