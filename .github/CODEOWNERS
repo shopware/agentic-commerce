@@ -1,0 +1,24 @@
+/src/AgenticFiles/ @shopware/product-cc-discovery
+/src/Content/ProductExport/ @shopware/product-cc-discovery
+/src/Storefront/ @shopware/product-cc-discovery
+/src/Ucp/Twig/UcpAgenticFilesExtension.php @shopware/product-cc-discovery
+
+/src/Migration/Migration1773824493AddProviderColumnToProductExport.php @shopware/product-cc-discovery
+/src/Migration/Migration1773928850AddSalesChannelTrackingTables.php @shopware/product-cc-discovery
+/src/Migration/Migration1778146739AddSalesChannelTrackingCustomerPrivilege.php @shopware/product-cc-discovery
+
+/src/Resources/config/googleProductExport.xml @shopware/product-cc-discovery
+/src/Resources/config/openAiProductExport.xml @shopware/product-cc-discovery
+/src/Resources/views/files/agentic/ @shopware/product-cc-discovery
+/src/Resources/views/agentic-commerce/includes/ucp-agents.md.twig @shopware/product-cc-discovery
+/src/Resources/views/agentic-commerce/includes/ucp-llms.txt.twig @shopware/product-cc-discovery
+
+/src/Resources/app/administration/src/module/sw-export-channel-tracking/ @shopware/product-cc-discovery
+/src/Resources/app/administration/src/extension/sw-customer/ @shopware/product-cc-discovery
+/src/Resources/app/administration/src/extension/sw-sales-channel/agentic-product-export-templates/ @shopware/product-cc-discovery
+/src/Resources/app/administration/src/extension/sw-sales-channel/component/sw-agentic-commerce-tracking-config/ @shopware/product-cc-discovery
+
+/tests/Unit/Content/ProductExport/ @shopware/product-cc-discovery
+/tests/Unit/Storefront/ @shopware/product-cc-discovery
+/tests/Unit/FallbackAgenticFileRendererTest.php @shopware/product-cc-discovery
+/tests/Unit/UcpAgenticFilesExtensionTest.php @shopware/product-cc-discovery
