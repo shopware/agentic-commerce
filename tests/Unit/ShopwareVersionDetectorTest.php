@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 
 /** @internal */
+#[CoversClass(ShopwareVersionDetector::class)]
 final class ShopwareVersionDetectorTest extends TestCase
 {
     #[Test]

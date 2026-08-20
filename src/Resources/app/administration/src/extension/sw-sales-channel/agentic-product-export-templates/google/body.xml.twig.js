@@ -34,7 +34,8 @@ export default `{%- set title = product.translated.name|default(product.name)|de
     {%- endfor -%}
 {%- endif -%}
 {%- set hasVariantListing = productExport.includeVariants and (product.parentId or product.childCount > 0) -%}
-{%- set canonicalUrl = seoUrl('frontend.detail.page', {'productId': product.id}) -%}
+{#- @deprecated tag:v2.0.0 - remove 3rd argument 'productId' once min. required Shopware version >= 6.7.14 -#}
+{%- set canonicalUrl = entitySeoUrl('product', product.id, 'productId') -%}
 {%- set productUrl = canonicalUrl ~ '?referringSalesChannel=' ~ provider.referringSalesChannel -%}
 {%- if provider.affiliateCode -%}
     {%- set productUrl = productUrl ~ '&affiliateCode=' ~ provider.affiliateCode|url_encode -%}
