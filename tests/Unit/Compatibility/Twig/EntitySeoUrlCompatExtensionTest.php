@@ -81,7 +81,10 @@ final class EntitySeoUrlCompatExtensionTest extends TestCase
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->once())
             ->method('warning')
-            ->with(static::isString(), ['entityName' => 'unknown_entity']);
+            ->with(
+                'No SEO URL route registered for entity "{entityName}"; the product export URL will be empty.',
+                ['entityName' => 'unknown_entity'],
+            );
 
         $extension = new EntitySeoUrlCompatExtension($registry, $seoUrlFunctionExtension, $logger);
 
