@@ -1,3 +1,7 @@
+# next version
+
+- Produktlinks in den OpenAI- und Google-Produktfeeds werden für Headless-Verkaufskanäle ab Shopware 6.7.14 nun korrekt aufgelöst, sodass Agenten funktionierende Produkt-URLs erhalten; auf älteren Shopware-Versionen funktionieren die Feeds unverändert weiter.
+
 # 1.3.0
 
 - Exponierte Verkaufskanäle liefern `/.well-known/api-catalog` (RFC-9727-Linkset) aus, sodass ein Agent das UCP-Profil und den Store-API-Einstiegspunkt des Shops an einem standardisierten Ort findet; nicht exponierte Kanäle antworten mit 404.

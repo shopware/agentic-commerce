@@ -18,7 +18,7 @@ use Twig\TwigFunction;
 /**
  * @internal
  *
- * @deprecated Backport of core's `entitySeoUrl` Twig function for Shopware < 6.7.14. From 6.7.14 core
+ * @deprecated tag:v2.0.0 - Backport of core's `entitySeoUrl` Twig function for Shopware < 6.7.14. From 6.7.14 core
  * registers `entitySeoUrl` itself and {@see \Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass}
  * removes this service, so the backport is only ever active on older versions. Drop this class once the
  * plugin's minimum supported Shopware version is >= 6.7.14.

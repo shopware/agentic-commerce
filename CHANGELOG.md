@@ -1,3 +1,7 @@
+# next version
+
+- Product links in the OpenAI and Google product feeds now resolve correctly for headless sales channels on Shopware 6.7.14 and newer, so agents receive working product URLs; the feeds keep working unchanged on earlier Shopware versions.
+
 # 1.3.0
 
 - Serve `/.well-known/api-catalog` (RFC 9727 linkset) on exposed sales channels, so an agent can discover the shop's UCP profile and Store API entry point from one standardised location; unexposed channels return 404.
