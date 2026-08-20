@@ -11,6 +11,7 @@ namespace Swag\AgenticCommerce\Tests\Unit\DependencyInjection;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Compatibility\Twig\EntitySeoUrlCompatExtension;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -25,7 +26,6 @@ class AgenticCommerceCoexistenceCompilerPassTest extends TestCase
     private const PRODUCT_EXPORT_DEFINITION = 'Shopware\\Core\\Content\\ProductExport\\ProductExportDefinition';
 
     private const CORE_ENTITY_SEO_URL = 'Shopware\\Core\\Framework\\Adapter\\Twig\\Extension\\EntitySeoUrlFunctionExtension';
-    private const PLUGIN_ENTITY_SEO_URL_BACKPORT = 'Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension';
 
     /** @var list<string> */
     private const CORE_BEHAVIOR = [
@@ -126,12 +126,12 @@ class AgenticCommerceCoexistenceCompilerPassTest extends TestCase
         $container = new ContainerBuilder();
         // Deliberately without the core feature probe: superseded backports are handled independently.
         $container->setDefinition(self::CORE_ENTITY_SEO_URL, new Definition(\stdClass::class));
-        $container->setDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT, new Definition(\stdClass::class));
+        $container->setDefinition(EntitySeoUrlCompatExtension::class, new Definition(\stdClass::class));
 
         (new AgenticCommerceCoexistenceCompilerPass())->process($container);
 
         static::assertFalse(
-            $container->hasDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT),
+            $container->hasDefinition(EntitySeoUrlCompatExtension::class),
             'Expected the entitySeoUrl backport to be removed when core ships the function',
         );
     }
@@ -139,12 +139,12 @@ class AgenticCommerceCoexistenceCompilerPassTest extends TestCase
     public function testKeepsEntitySeoUrlBackportWhenCoreDoesNotShipIt(): void
     {
         $container = new ContainerBuilder();
-        $container->setDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT, new Definition(\stdClass::class));
+        $container->setDefinition(EntitySeoUrlCompatExtension::class, new Definition(\stdClass::class));
 
         (new AgenticCommerceCoexistenceCompilerPass())->process($container);
 
         static::assertTrue(
-            $container->hasDefinition(self::PLUGIN_ENTITY_SEO_URL_BACKPORT),
+            $container->hasDefinition(EntitySeoUrlCompatExtension::class),
             'Expected the entitySeoUrl backport to remain when core does not ship the function',
         );
     }

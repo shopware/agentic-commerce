@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\DependencyInjection;
 
+use Swag\AgenticCommerce\Compatibility\Twig\EntitySeoUrlCompatExtension;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
@@ -47,7 +48,7 @@ class AgenticCommerceCoexistenceCompilerPass implements CompilerPassInterface
      */
     private const SUPERSEDED_BACKPORTS = [
         // Core registers the `entitySeoUrl` Twig function from 6.7.14 onwards.
-        'Shopware\\Core\\Framework\\Adapter\\Twig\\Extension\\EntitySeoUrlFunctionExtension' => 'Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension',
+        'Shopware\\Core\\Framework\\Adapter\\Twig\\Extension\\EntitySeoUrlFunctionExtension' => EntitySeoUrlCompatExtension::class,
     ];
 
     private const PLUGIN_DATA_LAYER_SERVICES = [

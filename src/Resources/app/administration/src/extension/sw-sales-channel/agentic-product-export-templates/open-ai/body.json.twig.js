@@ -35,7 +35,7 @@ export default `{% set title = product.translated.name|default(product.name)|def
 {% endif %}
 {% set hasVariants = product.parentId or product.childCount > 0 %}
 {% set isConcreteVariant = product.parentId %}
-{#- @deprecated 3rd argument 'productId' can be removed once minimum required Shopware version is >= 6.7.14. -#}
+{#- @deprecated tag:v2.0.0 - remove 3rd argument 'productId' once min. required Shopware version >= 6.7.14 -#}
 {% set productUrl = entitySeoUrl('product', product.id, 'productId') ~ '?referringSalesChannel=' ~ provider.referringSalesChannel %}
 {% if provider.affiliateCode %}
     {% set productUrl = productUrl ~ '&affiliateCode=' ~ provider.affiliateCode|url_encode %}

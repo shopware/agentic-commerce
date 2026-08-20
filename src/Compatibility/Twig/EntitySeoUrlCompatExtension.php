@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Compatibility\Twig;
 
+use Psr\Log\LoggerInterface;
 use Shopware\Core\Content\Seo\SeoUrlRoute\SeoUrlRouteRegistry;
 use Shopware\Core\Framework\Adapter\Twig\Extension\SeoUrlFunctionExtension;
 use Shopware\Core\Framework\Log\Package;
@@ -34,6 +35,7 @@ final class EntitySeoUrlCompatExtension extends AbstractExtension
     public function __construct(
         private readonly SeoUrlRouteRegistry $seoUrlRouteRegistry,
         private readonly SeoUrlFunctionExtension $seoUrlFunctionExtension,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -51,6 +53,11 @@ final class EntitySeoUrlCompatExtension extends AbstractExtension
         $route = $this->seoUrlRouteRegistry->findByDefinition($entityName)[0] ?? null;
 
         if (null === $route) {
+            $this->logger->warning(
+                'No SEO URL route registered for entity "{entityName}"; the product export URL will be empty.',
+                ['entityName' => $entityName],
+            );
+
             return '';
         }
 
