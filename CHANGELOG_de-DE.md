@@ -1,6 +1,8 @@
 # next version
 
 - Produktlinks in den OpenAI- und Google-Produktfeeds werden für Headless-Verkaufskanäle ab Shopware 6.7.14 nun korrekt aufgelöst, sodass Agenten funktionierende Produkt-URLs erhalten; auf älteren Shopware-Versionen funktionieren die Feeds unverändert weiter.
+- Die Admin-Übersetzungen liegen jetzt in länder-agnostischen Dateien (`de.json`, `en.json`) gemäß aktueller Shopware-Core-Konvention; ein Kompatibilitäts-Loader hält sie auf Shopware-Versionen vor 6.7.3 funktionsfähig.
+- Admin-Texte überarbeitet: durchgängige Großschreibung der Du-Anrede und ein eindeutigeres „Total"-Label in der englischen Statistik-Zusammenfassung.
 
 # 1.3.0
 

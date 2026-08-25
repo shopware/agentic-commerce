@@ -11,11 +11,10 @@
   },
   "sw-sales-channel": {
     "modal": {
-      "messageNoProductStreams": "Um Produktvergleiche oder Agentic-Commerce-Verkaufskanäle zu erstellen, musst Du zunächst eine dynamische Produktgruppe erstellen."
+      "messageNoProductStreams": "Um Produktvergleichs- oder Agentic-Commerce-Verkaufskanäle zu erstellen, musst Du zunächst eine dynamische Produktgruppe erstellen."
     },
     "detail": {
       "agenticCommerce": {
-        "tabIntegration": "Integration",
         "tabAgenticCommerce": "Agentic Commerce",
         "exportCardTitle": "Produktfeed-Export",
         "ucp": {

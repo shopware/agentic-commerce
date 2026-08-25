@@ -39,6 +39,7 @@ use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Compatibility\Snippet\CountryAgnosticSnippetFinder;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportHydrator;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\AgenticCommerceProductExportProviderRegistry;
@@ -123,6 +124,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalid
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
@@ -211,6 +213,16 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
+
+    // Priority < 0 keeps this outside CachedSnippetFinder — see the class docblock.
+    $services->set(CountryAgnosticSnippetFinder::class)
+        ->decorate(
+            'Shopware\\Administration\\Snippet\\SnippetFinder',
+            null,
+            -100,
+            ContainerInterface::IGNORE_ON_INVALID_REFERENCE,
+        )
+        ->arg('$inner', service('.inner'));
 
     $services->set(ShopwareCatalogGateway::class)
         ->arg('$productListRoute', service(ProductListRoute::class));

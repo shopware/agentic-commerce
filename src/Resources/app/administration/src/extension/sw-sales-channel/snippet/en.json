@@ -11,11 +11,10 @@
   },
   "sw-sales-channel": {
     "modal": {
-      "messageNoProductStreams": "In order to use product comparisons or agentic commerce sales channels, a dynamic product group has to be created first."
+      "messageNoProductStreams": "In order to create product comparison or agentic commerce sales channels, a dynamic product group has to be created first."
     },
     "detail": {
       "agenticCommerce": {
-        "tabIntegration": "Integration",
         "tabAgenticCommerce": "Agentic Commerce",
         "exportCardTitle": "Product feed export",
         "ucp": {
