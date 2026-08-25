@@ -11,11 +11,10 @@
   },
   "sw-sales-channel": {
     "modal": {
-      "messageNoProductStreams": "In order to use product comparisons or agentic commerce sales channels, a dynamic product group has to be created first."
+      "messageNoProductStreams": "In order to create product comparison or agentic commerce sales channels, a dynamic product group has to be created first."
     },
     "detail": {
       "agenticCommerce": {
-        "tabIntegration": "Integration",
         "tabAgenticCommerce": "Agentic Commerce",
         "exportCardTitle": "Product feed export",
         "ucp": {
@@ -65,7 +64,7 @@
               "cardTitle": "OpenAI connection",
               "introduction": {
                 "title": "How to: Setup and connection",
-                "description": "This Sales Channel generates a JSONL product feed so your products can appear in ChatGPT search results. To do this, you have to apply as a merchant and share the feed URL with OpenAI. Everything else is explained in the step by step guide below."
+                "description": "This Sales Channel generates a JSONL product feed so your products can appear in ChatGPT search results. To do this, you have to apply as a merchant and share the feed URL with OpenAI. Everything else is explained in the step-by-step guide below."
               },
               "stepByStep": "<li>Apply as a merchant at <a href=\"https://chatgpt.com/merchants/\" target=\"_blank\" rel=\"noopener noreferrer\">chatgpt.com/merchants</a></li><li>Copy the export URL (below) and share it with OpenAI according to the <a href=\"https://developers.openai.com/commerce/product-feeds\" target=\"_blank\" rel=\"noopener noreferrer\">Product feeds docs</a></li><li>Make sure the export URL is publicly accessible</li>"
             },
@@ -88,7 +87,7 @@
           "turnoverCardHeadline": "Referred turnover",
           "numbers": "Count",
           "totalTurnover": "Turnover",
-          "summary": "Summary",
+          "summary": "Total",
           "dateRanges": {
             "180Days": "Last 180 days",
             "30Days": "Last 30 days",

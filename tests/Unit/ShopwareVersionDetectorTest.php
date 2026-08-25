@@ -41,6 +41,16 @@ final class ShopwareVersionDetectorTest extends TestCase
     }
 
     #[Test]
+    public function testItNeedsTheCountryAgnosticSnippetCompatOnlyBeforeSixSevenThree(): void
+    {
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.5.8.0'))->needsCountryAgnosticSnippetCompat());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.6.10.0'))->needsCountryAgnosticSnippetCompat());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.2.2'))->needsCountryAgnosticSnippetCompat());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.3.0'))->needsCountryAgnosticSnippetCompat());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.9999999-dev'))->needsCountryAgnosticSnippetCompat());
+    }
+
+    #[Test]
     public function testItNeedsTheSystemConfigXsdCompatPatchOnlyOnSixFive(): void
     {
         self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.5.0.0'))->needsSystemConfigXsdCompatPatch());

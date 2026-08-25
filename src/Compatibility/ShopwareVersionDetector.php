@@ -88,6 +88,18 @@ final class ShopwareVersionDetector
             && version_compare($version, '6.6.0.0', '<');
     }
 
+    /**
+     * The admin SnippetFinder only matches full-locale filenames (de-DE.json)
+     * before 6.7.3.0. The plugin ships country-agnostic filenames (de.json),
+     * which core picks up natively from 6.7.3.0 on.
+     */
+    public function needsCountryAgnosticSnippetCompat(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        return version_compare($version, '6.7.3.0', '<');
+    }
+
     public function coreShipsAgenticCommerce(): bool
     {
         // Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE is defined in 6.7.10–6.7.11 only.
