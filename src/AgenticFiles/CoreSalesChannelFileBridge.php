@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
 
 /** @internal */
 #[Package('discovery')]
@@ -106,8 +107,13 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
      */
     private function loadActiveUcpSalesChannelIds(): array
     {
+        // Bypasses UcpConfigService, so the type gate has to be applied here too.
         $rows = $this->connection->fetchAllAssociative(\sprintf(
-            'SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, config_json FROM `%s`',
+            'SELECT LOWER(HEX(config.sales_channel_id)) AS sales_channel_id,
+                    LOWER(HEX(sales_channel.type_id)) AS type_id,
+                    config.config_json
+             FROM `%s` AS config
+             INNER JOIN sales_channel ON sales_channel.id = config.sales_channel_id',
             self::UCP_CONFIG_TABLE,
         ));
 
@@ -115,6 +121,10 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         foreach ($rows as $row) {
             $config = json_decode((string) ($row['config_json'] ?? '{}'), true);
             if (!\is_array($config) || ($config['active'] ?? false) !== true) {
+                continue;
+            }
+
+            if (!SalesChannelTypeClass::forTypeId((string) ($row['type_id'] ?? ''))->isTransactional()) {
                 continue;
             }
 

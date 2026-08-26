@@ -6,6 +6,7 @@
 
 # 1.3.0
 
+- UCP lässt sich nur noch in Verkaufskanälen aktivieren, die tatsächlich verkaufen können: Storefront und Headless. Produktfeed-Kanäle werden für UCP nicht mehr angeboten und lassen sich weder über die API noch über die Konsole aktivieren. Ein Feed-Kanal, in dem UCP zuvor aktiviert war, gilt jetzt als deaktiviert und bewirbt so keinen Shop, in dem ein Agent nichts kaufen kann.
 - Exponierte Verkaufskanäle liefern `/.well-known/api-catalog` (RFC-9727-Linkset) aus, sodass ein Agent das UCP-Profil und den Store-API-Einstiegspunkt des Shops an einem standardisierten Ort findet; nicht exponierte Kanäle antworten mit 404.
 
 # 1.2.0

@@ -7,8 +7,11 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
+use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 
@@ -205,6 +208,130 @@ final class UcpConfigServiceTest extends TestCase
         ], 'sales-channel-a');
 
         static::assertSame('http://sw66.localhost:8088/ucp/webhook', $config->webhookUrlOverride);
+    }
+
+    public function testItServesAStoredActiveConfigAsDisabledForAnIneligibleSalesChannel(): void
+    {
+        $repository = new InMemoryUcpConfigRepository([
+            'feed-channel' => UcpConfig::fromArray([
+                'active' => true,
+                'signaturePolicy' => 'log',
+                'enabledCapabilities' => ['catalog'],
+            ]),
+        ]);
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+
+        $config = $service->getConfig('feed-channel');
+
+        static::assertFalse($config->active);
+        static::assertSame('log', $config->signaturePolicy);
+        static::assertSame(['catalog'], $config->enabledCapabilities);
+        $stored = $repository->find('feed-channel');
+        static::assertNotNull($stored);
+        static::assertTrue($stored->active);
+    }
+
+    public function testItNeitherBackfillsNorEnablesCoreAgenticFilesForAnIneligibleSalesChannel(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(
+            static fn (string $key): mixed => 'SwagAgenticCommerce.config.active' === $key ? true : null,
+        );
+        $bridge = new RecordingAgenticFilesCoreBridge();
+        $service = new UcpConfigService($repository, $legacyStore, $bridge, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+
+        $config = $service->getConfig('feed-channel');
+
+        static::assertFalse($config->active);
+        static::assertSame([], $bridge->enabledSalesChannelIds);
+        static::assertNull($repository->find('feed-channel'));
+    }
+
+    public function testItRefusesToActivateUcpForAnIneligibleSalesChannel(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+
+        try {
+            $service->saveConfig(['active' => true], 'feed-channel');
+            static::fail('Activating UCP on a channel that cannot sell must be refused.');
+        } catch (UcpConfigException $exception) {
+            static::assertSame(UcpConfigException::SALES_CHANNEL_TYPE_NOT_SUPPORTED, $exception->getErrorCode());
+        }
+
+        static::assertNull($repository->find('feed-channel'));
+    }
+
+    public function testItStillStoresAnInactiveConfigForAnIneligibleSalesChannel(): void
+    {
+        $repository = new InMemoryUcpConfigRepository([
+            'feed-channel' => UcpConfig::fromArray(['active' => true]),
+        ]);
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+
+        $config = $service->saveConfig(['active' => false], 'feed-channel');
+
+        static::assertFalse($config->active);
+        $stored = $repository->find('feed-channel');
+        static::assertNotNull($stored);
+        static::assertFalse($stored->active);
+    }
+
+    public function testItDisablesIneligibleSalesChannelsInBulkWithOneLookup(): void
+    {
+        $repository = new InMemoryUcpConfigRepository([
+            'storefront-channel' => UcpConfig::fromArray(['active' => true]),
+            'feed-channel' => UcpConfig::fromArray(['active' => true]),
+        ]);
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+
+        $typeResolver = $this->createMock(AbstractSalesChannelTypeResolver::class);
+        $typeResolver->expects(static::once())
+            ->method('resolveMany')
+            ->willReturnCallback(static fn (array $salesChannelIds): array => array_combine(
+                $salesChannelIds,
+                array_map(
+                    static fn (string $salesChannelId): SalesChannelTypeClass => 'storefront-channel' === $salesChannelId
+                        ? SalesChannelTypeClass::Storefront
+                        : SalesChannelTypeClass::ProductComparison,
+                    $salesChannelIds,
+                ),
+            ));
+
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $typeResolver);
+        $configs = $service->getConfigs(['storefront-channel', 'feed-channel']);
+
+        static::assertTrue($configs['storefront-channel']->active);
+        static::assertFalse($configs['feed-channel']->active);
+    }
+
+    public function testItSkipsTheSalesChannelLookupForAnInactiveConfig(): void
+    {
+        $repository = new InMemoryUcpConfigRepository([
+            'storefront-channel' => UcpConfig::fromArray(['active' => false]),
+        ]);
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $typeResolver = $this->createMock(AbstractSalesChannelTypeResolver::class);
+        $typeResolver->expects(static::never())->method('resolve');
+
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $typeResolver);
+
+        static::assertFalse($service->getConfig('storefront-channel')->active);
+    }
+
+    private function typeResolver(SalesChannelTypeClass $class): AbstractSalesChannelTypeResolver
+    {
+        $typeResolver = $this->createMock(AbstractSalesChannelTypeResolver::class);
+        $typeResolver->method('resolve')->willReturn($class);
+        $typeResolver->method('resolveMany')->willReturnCallback(
+            static fn (array $salesChannelIds): array => array_fill_keys($salesChannelIds, $class),
+        );
+
+        return $typeResolver;
     }
 }
 

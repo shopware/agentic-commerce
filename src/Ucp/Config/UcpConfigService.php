@@ -6,6 +6,8 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
+use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 
 /** @internal */
@@ -42,6 +44,7 @@ final class UcpConfigService
         private readonly ?AgenticFilesCoreBridgeInterface $agenticFilesCoreBridge = null,
         private readonly ?UcpSigningKeyService $signingKeyService = null,
         private readonly bool $allowHttpLocalWebhookOverride = false,
+        private readonly ?AbstractSalesChannelTypeResolver $salesChannelTypeResolver = null,
     ) {
     }
 
@@ -53,11 +56,16 @@ final class UcpConfigService
 
         $config = $this->repository->find($salesChannelId);
         if (null !== $config) {
-            return $config;
+            // Short-circuiting on `active` keeps the lookup off the storefront render path.
+            return $config->active && !$this->isEligible($salesChannelId) ? $config->disabled() : $config;
         }
 
         $legacyPayload = $this->legacyPayload($salesChannelId);
         $config = UcpConfig::fromArray($legacyPayload, $this->allowHttpLocalWebhookOverride);
+
+        if ($config->active && !$this->isEligible($salesChannelId)) {
+            return $config->disabled();
+        }
 
         if ($this->hasLegacyValues($legacyPayload)) {
             // Compatibility bridge for legacy SystemConfig-backed setups,
@@ -86,6 +94,12 @@ final class UcpConfigService
         }
 
         $configs = $this->repository->findMany($salesChannelIds);
+
+        // findMany() bypasses getConfig(), so the gate has to be applied here too.
+        $activeIds = array_keys(array_filter($configs, static fn (UcpConfig $config): bool => $config->active));
+        foreach ($this->ineligibleIds($activeIds) as $salesChannelId) {
+            $configs[$salesChannelId] = $configs[$salesChannelId]->disabled();
+        }
 
         foreach ($salesChannelIds as $salesChannelId) {
             if (isset($configs[$salesChannelId])) {
@@ -123,6 +137,11 @@ final class UcpConfigService
         $merged = array_merge($this->getConfig($salesChannelId)->toArray(), $payload);
         $config = UcpConfig::fromArray($merged, $this->allowHttpLocalWebhookOverride);
 
+        // Only an explicit `active: true` is refused, so a stale row can still be switched off.
+        if ($config->active && !$this->isEligible($salesChannelId)) {
+            throw UcpConfigException::salesChannelTypeCannotBeActivated($salesChannelId);
+        }
+
         $this->repository->save($salesChannelId, $config);
 
         if ($config->active) {
@@ -131,6 +150,29 @@ final class UcpConfigService
         }
 
         return $config;
+    }
+
+    private function isEligible(string $salesChannelId): bool
+    {
+        return null === $this->salesChannelTypeResolver
+            || $this->salesChannelTypeResolver->resolve($salesChannelId)->isTransactional();
+    }
+
+    /**
+     * @param list<string> $salesChannelIds
+     *
+     * @return list<string>
+     */
+    private function ineligibleIds(array $salesChannelIds): array
+    {
+        if ([] === $salesChannelIds || null === $this->salesChannelTypeResolver) {
+            return [];
+        }
+
+        return array_keys(array_filter(
+            $this->salesChannelTypeResolver->resolveMany($salesChannelIds),
+            static fn (SalesChannelTypeClass $class): bool => !$class->isTransactional(),
+        ));
     }
 
     /**

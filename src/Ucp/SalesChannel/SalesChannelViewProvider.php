@@ -7,10 +7,12 @@ namespace Swag\AgenticCommerce\Ucp\SalesChannel;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsAnyFilter;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
 
 /** @internal */
 #[Package('framework')]
@@ -30,6 +32,7 @@ final class SalesChannelViewProvider
     public function all(Context $context): array
     {
         $criteria = new Criteria();
+        $criteria->addFilter(new EqualsAnyFilter('typeId', SalesChannelTypeClass::transactionalTypeIds()));
         $criteria->addAssociation('domains');
 
         $channels = $this->salesChannelRepository->search($criteria, $context)->getEntities();

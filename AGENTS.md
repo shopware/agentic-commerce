@@ -275,6 +275,10 @@ The script handles the important differences:
 - Sales-channel UCP config lives in the plugin table
   `swag_agentic_commerce_ucp_config`. `SystemConfig` is only a legacy fallback
   and read-through backfill path; do not add new UCP settings there.
+- Gate sales-channel features on the transactional allowlist in
+  `SalesChannelTypeClass`, never on a denylist of feed types — unknown and
+  third-party types are then excluded by construction, so neither version probing
+  nor another vendor's type id belongs here.
 - Keep REST, A2A, embedded, and MCP on the shared SDK operation/capability
   layer. Shopware-specific MCP code is limited to the `/ucp/mcp` proxy and Store
   API MCP tool registrations.
