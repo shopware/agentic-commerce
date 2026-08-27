@@ -26,16 +26,13 @@ final class Migration1780328112CreateUcpConfigTableTest extends TestCase
     protected function setUp(): void
     {
         $this->connection = KernelLifecycleManager::getConnection();
-        $this->dropUcpTables();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->dropUcpTables();
     }
 
     public function testMigrationCanRunTwice(): void
     {
+        // Never drop in tearDown: later suites read these tables, so the schema must be left migrated.
+        $this->dropUcpTables();
+
         foreach (array_keys($this->ucpTablesWithSalesChannelForeignKeys()) as $table) {
             static::assertFalse($this->tableExists($table));
         }
