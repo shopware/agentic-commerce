@@ -32,6 +32,14 @@
 
 {% block sw_sales_channel_detail_content_tab_product_comparison %}
 <sw-tabs-item
+    v-if="isAgenticCommerce && !isLoading"
+    :route="{ name: 'sw.sales.channel.detail.agenticCommerceIntegration', params: { id: $route.params.id } }"
+    :title="$t('sw-sales-channel.detail.agenticCommerce.tabIntegration')"
+>
+    {{ $t('sw-sales-channel.detail.agenticCommerce.tabIntegration') }}
+</sw-tabs-item>
+
+<sw-tabs-item
     v-if="shouldRenderAgenticUi && !isLoading && Boolean(salesChannel?.id)"
     :route="{ name: 'sw.sales.channel.detail.agenticCommerceStatistics', params: { id: $route.params.id } }"
     :title="$t('sw-sales-channel.detail.productExport.tabInsights')"

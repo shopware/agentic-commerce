@@ -138,22 +138,6 @@
         </mt-card>
         {% endblock %}
 
-        {% block sw_sales_channel_detail_agentic_commerce_export_card %}
-        {# Product feed export — only relevant for Agentic Commerce channels. #}
-        <mt-card
-            v-if="isAgenticCommerce"
-            position-identifier="sw-sales-channel-detail-agentic-commerce-export"
-            :title="$t('sw-sales-channel.detail.agenticCommerce.exportCardTitle')"
-        >
-            <sw-sales-channel-detail-agentic-commerce-integration
-                :sales-channel="salesChannel"
-                :product-export="productExport"
-                :product-comparison-access-url="productComparisonAccessUrl"
-                :is-loading="isLoading"
-            />
-        </mt-card>
-        {% endblock %}
-
         {% block sw_sales_channel_detail_agentic_commerce_files_card %}
         {# Reuse the core Agentic files management component (it ships its own
            card + File/Status/Description table + pagination) when core

@@ -16,7 +16,6 @@
     "detail": {
       "agenticCommerce": {
         "tabAgenticCommerce": "Agentic Commerce",
-        "exportCardTitle": "Product feed export",
         "ucp": {
           "cardTitle": "UCP",
           "cardIntro": "Configure how this sales channel is exposed to AI agents over the Universal Commerce Protocol (UCP): which capabilities agents may use, how requests are secured, and which profile they discover.",
@@ -77,7 +76,8 @@
               "stepByStep": "<li>Create a Merchant Center account at <a href=\"https://merchants.google.com\" target=\"_blank\" rel=\"noopener noreferrer\">merchants.google.com</a> and verify your online store URL</li><li>In Merchant Center, open <em>Settings &rsaquo; Data sources</em> and click <em>Add product source</em></li><li>Choose <em>File</em>, then <em>Add a scheduled fetch from a URL</em>, and paste the export URL (below) as the file URL</li><li>Make sure the export URL is publicly reachable (no authentication required)</li><li>Review the <a href=\"https://support.google.com/merchants/answer/7052112\" target=\"_blank\" rel=\"noopener noreferrer\">Google product data specification</a> and adjust attributes if needed</li>"
             }
           }
-        }
+        },
+        "tabIntegration": "Integration"
       },
       "productExport": {
         "tabInsights": "Statistics",
