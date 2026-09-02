@@ -413,6 +413,21 @@ Steps:
 - Serve the same parent page from a **non-allowlisted** origin and open it.
   Expected: the browser blocks the frame via the `frame-ancestors` CSP
   directive and logs a CSP violation in the console; no bridge messages flow.
+- Check the token-hygiene headers and the CTA on the embedded response. The
+  embedded URL contains the cart/checkout context token, so it must not reach
+  shared caches, search indexes, or a third-party `Referer`:
+
+  ```bash
+  curl -sD- -o/dev/null "$BASE/ucp/embedded/checkout/$TOKEN" \
+    | grep -iE 'cache-control|referrer-policy|x-robots-tag'
+  curl -s "$BASE/ucp/embedded/checkout/$TOKEN" | grep -o 'rel="[^"]*"'
+  ```
+
+  Expected: `cache-control: no-store, private`, `referrer-policy: no-referrer`,
+  `x-robots-tag: noindex, nofollow`, and the continue-checkout CTA carrying
+  `rel="noopener noreferrer"`. The same request with no `Origin` header must
+  still return `200` — browsers omit `Origin` on iframe navigations, so a `403`
+  here would break the feature in every browser.
 
 ### 2. Real MCP client
 

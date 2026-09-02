@@ -40,6 +40,13 @@ final class EmbeddedResponseListener
             return;
         }
 
+        // A present-but-non-allowlisted Origin is rejected. An absent Origin is not
+        // a denial signal: browsers omit the header on iframe and top-level GET
+        // navigations, which is exactly how the embedded surface is loaded. Framing
+        // is enforced by the frame-ancestors CSP set in onKernelResponse(), cross-origin
+        // reads by the Access-Control-Allow-Origin grant, and the payload itself by
+        // possession of the cart/checkout token in the URL. Denying origin-less
+        // requests here would 403 every real browser load of this feature.
         if (\is_string($origin) && '' !== $origin && !\in_array($origin, $config->embeddedAllowedOrigins, true)) {
             $event->setResponse($this->forbidden('Embedded origin is not allowlisted for this sales channel.'));
 
@@ -68,6 +75,13 @@ final class EmbeddedResponseListener
         $vary = array_filter(array_map('trim', explode(',', $response->headers->get('Vary', ''))));
         $vary[] = 'Origin';
         $response->headers->set('Vary', implode(', ', array_values(array_unique($vary))));
+
+        // The embedded URL carries the cart/checkout token and the body carries buyer
+        // PII, so keep the page out of shared caches, search indexes, and Referer
+        // headers on outbound navigations (e.g. the continue-checkout CTA).
+        $response->headers->set('Cache-Control', 'no-store, private');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
 
         if (\is_string($origin) && \in_array($origin, $config->embeddedAllowedOrigins, true)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);
