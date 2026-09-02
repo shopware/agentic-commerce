@@ -1,0 +1,15 @@
+name: Release prep alert
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+    paths: ['composer.json']
+  push:
+    branches: [main]
+    paths: ['composer.json']
+
+jobs:
+  notify:
+    uses: shopware/github-actions/.github/workflows/version-bump-notify.yml@main
+    secrets:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
