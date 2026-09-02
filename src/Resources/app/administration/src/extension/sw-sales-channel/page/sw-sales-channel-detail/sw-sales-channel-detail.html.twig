@@ -28,6 +28,7 @@
 </sw-tabs-item>
 {% endblock %}
 
+{% block sw_sales_channel_detail_content_tab_product_export_insights %}{% endblock %}
 {% block sw_sales_channel_detail_content_tab_agentic_commerce_integration %}{% endblock %}
 
 {% block sw_sales_channel_detail_content_tab_product_comparison %}
@@ -40,8 +41,8 @@
 </sw-tabs-item>
 
 <sw-tabs-item
-    v-if="shouldRenderAgenticUi && !isLoading && Boolean(salesChannel?.id)"
-    :route="{ name: 'sw.sales.channel.detail.agenticCommerceStatistics', params: { id: $route.params.id } }"
+    v-if="isAgenticCommerce && !isLoading && Boolean(salesChannel?.id)"
+    :route="{ name: agenticCommerceStatisticsRoute, params: { id: $route.params.id } }"
     :title="$t('sw-sales-channel.detail.productExport.tabInsights')"
 >
     {{ $t('sw-sales-channel.detail.productExport.tabInsights') }}

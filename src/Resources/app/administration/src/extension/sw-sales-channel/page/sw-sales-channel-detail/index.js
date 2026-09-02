@@ -77,6 +77,12 @@ export const swSalesChannelDetailOverride = {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
         },
 
+        agenticCommerceStatisticsRoute() {
+            return coreShipsAgenticCommerce
+                ? 'sw.sales.channel.detail.productExportInsights'
+                : 'sw.sales.channel.detail.agenticCommerceStatistics';
+        },
+
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
