@@ -11,37 +11,51 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsAnyFilter;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 
 /** @internal */
 #[CoversClass(SalesChannelViewProvider::class)]
 final class SalesChannelViewProviderTest extends TestCase
 {
-    public function testItOffersOnlySalesChannelsUcpCanRunOn(): void
+    private const PARTNER_TYPE_ID = '9ce0868f406d47d98cfe4b281e62f098';
+
+    public function testItOffersTheSalesChannelsTheResolverClassifiesAsTransactional(): void
     {
-        $repository = $this->salesChannelRepository(static function (Criteria $criteria): void {
-            $typeFilters = array_values(array_filter(
-                $criteria->getFilters(),
-                static fn (object $filter): bool => $filter instanceof EqualsAnyFilter && 'typeId' === $filter->getField(),
-            ));
+        $repository = $this->salesChannelRepository(
+            static function (Criteria $criteria): void {
+                static::assertSame([], $criteria->getFilters());
+                static::assertArrayHasKey('domains', $criteria->getAssociations());
+            },
+            channels: [
+                ['storefront-channel', Defaults::SALES_CHANNEL_TYPE_STOREFRONT],
+                ['feed-channel', Defaults::SALES_CHANNEL_TYPE_PRODUCT_COMPARISON],
+                ['partner-channel', self::PARTNER_TYPE_ID],
+            ],
+        );
 
-            static::assertCount(1, $typeFilters);
-            static::assertSame(
-                [Defaults::SALES_CHANNEL_TYPE_STOREFRONT, Defaults::SALES_CHANNEL_TYPE_API],
-                $typeFilters[0]->getValue(),
-            );
-            static::assertArrayHasKey('domains', $criteria->getAssociations());
-        });
+        $provider = new SalesChannelViewProvider($repository, new StaticSalesChannelTypeResolver(SalesChannelTypeClass::Other, [
+            'storefront-channel' => SalesChannelTypeClass::Storefront,
+            'feed-channel' => SalesChannelTypeClass::ProductComparison,
+            'partner-channel' => SalesChannelTypeClass::Storefront,
+        ]));
 
-        $provider = new SalesChannelViewProvider($repository);
         $salesChannels = $provider->all(Context::createDefaultContext());
 
-        static::assertSame(['storefront-channel'], array_column($salesChannels, 'id'));
+        static::assertSame(
+            ['storefront-channel', 'partner-channel'],
+            array_map(static fn (SalesChannelView $salesChannel): string => $salesChannel->id, $salesChannels),
+        );
+        static::assertContainsOnlyInstancesOf(SalesChannelView::class, $salesChannels);
+        foreach ($salesChannels as $salesChannel) {
+            static::assertTrue($salesChannel->transactional);
+        }
     }
 
     public function testItReturnsASingleSalesChannelWithItsDomains(): void
@@ -53,24 +67,41 @@ final class SalesChannelViewProviderTest extends TestCase
                 static::assertSame(1, $criteria->getLimit());
             },
             withDomain: true,
-        ));
+        ), $this->resolver());
 
         $salesChannel = $provider->get('storefront-channel', Context::createDefaultContext());
 
         static::assertNotNull($salesChannel);
-        static::assertSame('storefront-channel', $salesChannel['id']);
-        static::assertSame(Defaults::SALES_CHANNEL_TYPE_STOREFRONT, $salesChannel['typeId']);
-        static::assertSame([[
-            'id' => 'domain-id',
-            'url' => 'https://shop.example',
-            'languageId' => 'language-id',
-            'currencyId' => 'currency-id',
-        ]], $salesChannel['domains']);
+        static::assertSame([
+            'id' => 'storefront-channel',
+            'name' => 'Storefront-channel',
+            'typeId' => Defaults::SALES_CHANNEL_TYPE_STOREFRONT,
+            'transactional' => true,
+            'domains' => [[
+                'id' => 'domain-id',
+                'url' => 'https://shop.example',
+                'languageId' => 'language-id',
+                'currencyId' => 'currency-id',
+            ]],
+        ], $salesChannel->jsonSerialize());
+    }
+
+    public function testItReportsASingleSalesChannelTheResolverClassifiesAsFeed(): void
+    {
+        $provider = new SalesChannelViewProvider(
+            $this->salesChannelRepository(static function (): void {}),
+            $this->resolver(SalesChannelTypeClass::ProductComparison),
+        );
+
+        $salesChannel = $provider->get('storefront-channel', Context::createDefaultContext());
+
+        static::assertNotNull($salesChannel);
+        static::assertFalse($salesChannel->transactional);
     }
 
     public function testItReturnsNullForAnUnknownSalesChannel(): void
     {
-        $provider = new SalesChannelViewProvider($this->emptySalesChannelRepository());
+        $provider = new SalesChannelViewProvider($this->emptySalesChannelRepository(), $this->resolver());
 
         static::assertNull($provider->get('does-not-exist', Context::createDefaultContext()));
     }
@@ -82,23 +113,28 @@ final class SalesChannelViewProviderTest extends TestCase
                 static::assertSame(['storefront-channel'], $criteria->getIds());
             },
             withDomain: true,
-        ));
+        ), $this->resolver());
 
         static::assertSame('https://shop.example', $provider->firstDomainUrl('storefront-channel'));
     }
 
     public function testItHasNoFirstDomainUrlWithoutADomain(): void
     {
-        $provider = new SalesChannelViewProvider($this->salesChannelRepository(static function (): void {}));
+        $provider = new SalesChannelViewProvider($this->salesChannelRepository(static function (): void {}), $this->resolver());
 
         static::assertNull($provider->firstDomainUrl('storefront-channel'));
     }
 
     public function testItHasNoFirstDomainUrlForAnUnknownSalesChannel(): void
     {
-        $provider = new SalesChannelViewProvider($this->emptySalesChannelRepository());
+        $provider = new SalesChannelViewProvider($this->emptySalesChannelRepository(), $this->resolver());
 
         static::assertNull($provider->firstDomainUrl('does-not-exist'));
+    }
+
+    private function resolver(SalesChannelTypeClass $class = SalesChannelTypeClass::Storefront): StaticSalesChannelTypeResolver
+    {
+        return new StaticSalesChannelTypeResolver($class);
     }
 
     /**
@@ -124,26 +160,35 @@ final class SalesChannelViewProviderTest extends TestCase
     }
 
     /**
-     * @param callable(Criteria): void $assertCriteria
+     * @param callable(Criteria): void          $assertCriteria
+     * @param list<array{0: string, 1: string}> $channels       id and type id per sales channel
      *
      * @return EntityRepository<SalesChannelCollection>
      */
-    private function salesChannelRepository(callable $assertCriteria, bool $withDomain = false): EntityRepository
-    {
-        $salesChannel = new SalesChannelEntity();
-        $salesChannel->setId('storefront-channel');
-        $salesChannel->setUniqueIdentifier('storefront-channel');
-        $salesChannel->setName('Storefront');
-        $salesChannel->setTypeId(Defaults::SALES_CHANNEL_TYPE_STOREFRONT);
+    private function salesChannelRepository(
+        callable $assertCriteria,
+        bool $withDomain = false,
+        array $channels = [['storefront-channel', Defaults::SALES_CHANNEL_TYPE_STOREFRONT]],
+    ): EntityRepository {
+        $salesChannels = [];
+        foreach ($channels as [$id, $typeId]) {
+            $salesChannel = new SalesChannelEntity();
+            $salesChannel->setId($id);
+            $salesChannel->setUniqueIdentifier($id);
+            $salesChannel->setName(ucfirst($id));
+            $salesChannel->setTypeId($typeId);
 
-        if ($withDomain) {
-            $domain = new SalesChannelDomainEntity();
-            $domain->setId('domain-id');
-            $domain->setUniqueIdentifier('domain-id');
-            $domain->setUrl('https://shop.example');
-            $domain->setLanguageId('language-id');
-            $domain->setCurrencyId('currency-id');
-            $salesChannel->setDomains(new SalesChannelDomainCollection([$domain]));
+            if ($withDomain) {
+                $domain = new SalesChannelDomainEntity();
+                $domain->setId('domain-id');
+                $domain->setUniqueIdentifier('domain-id');
+                $domain->setUrl('https://shop.example');
+                $domain->setLanguageId('language-id');
+                $domain->setCurrencyId('currency-id');
+                $salesChannel->setDomains(new SalesChannelDomainCollection([$domain]));
+            }
+
+            $salesChannels[] = $salesChannel;
         }
 
         $repository = $this->createMock(EntityRepository::class);
@@ -151,13 +196,13 @@ final class SalesChannelViewProviderTest extends TestCase
             ->expects(static::once())
             ->method('search')
             ->willReturnCallback(
-                static function (Criteria $criteria, Context $context) use ($assertCriteria, $salesChannel): EntitySearchResult {
+                static function (Criteria $criteria, Context $context) use ($assertCriteria, $salesChannels): EntitySearchResult {
                     $assertCriteria($criteria);
 
                     return new EntitySearchResult(
                         'sales_channel',
-                        1,
-                        new SalesChannelCollection([$salesChannel]),
+                        \count($salesChannels),
+                        new SalesChannelCollection($salesChannels),
                         null,
                         $criteria,
                         $context,

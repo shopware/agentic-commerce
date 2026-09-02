@@ -69,14 +69,4 @@ final class SalesChannelTypeClassTest extends TestCase
 
         static::assertSame([SalesChannelTypeClass::Other], $unclaimed);
     }
-
-    public function testTheTransactionalTypeIdsMatchTheTransactionalCases(): void
-    {
-        $fromIds = array_map(
-            static fn (string $typeId): SalesChannelTypeClass => SalesChannelTypeClass::forTypeId($typeId),
-            SalesChannelTypeClass::transactionalTypeIds(),
-        );
-
-        static::assertSame([SalesChannelTypeClass::Storefront, SalesChannelTypeClass::Headless], $fromIds);
-    }
 }

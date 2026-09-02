@@ -114,6 +114,19 @@ final class SalesChannelTypeResolverTest extends TestCase
         static::assertSame([], (new SalesChannelTypeResolver($repository))->resolveMany([]));
     }
 
+    public function testItReadsAgainAfterAReset(): void
+    {
+        $resolver = new SalesChannelTypeResolver($this->repository(
+            ['storefront-a' => Defaults::SALES_CHANNEL_TYPE_STOREFRONT],
+            expectedReads: 2,
+        ));
+
+        $resolver->resolve('storefront-a');
+        $resolver->reset();
+
+        static::assertSame(SalesChannelTypeClass::Storefront, $resolver->resolve('storefront-a'));
+    }
+
     public function testTheCoreImplementationCannotBeDecorated(): void
     {
         $this->expectException(DecorationPatternException::class);

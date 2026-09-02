@@ -13,9 +13,10 @@ use Shopware\Core\Framework\Log\Package;
 
 /**
  * Resolves what a sales channel *is*, so features can decide what they offer on
- * it. Decorate this to classify a sales-channel type this plugin does not know —
- * an unresolved channel is {@see SalesChannelTypeClass::Other} and every feature
- * gating on it stays closed.
+ * it. An unresolved channel is {@see SalesChannelTypeClass::Other} and every
+ * feature gating on it stays closed.
+ *
+ * @internal
  */
 #[Package('discovery')]
 abstract class AbstractSalesChannelTypeResolver

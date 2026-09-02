@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -21,6 +22,7 @@ final class CheckoutWebhookUrlGuardTest extends TestCase
     {
         $this->guard = new CheckoutWebhookUrlGuard(new SalesChannelViewProvider(
             $this->createMock(EntityRepository::class),
+            new StaticSalesChannelTypeResolver(),
         ));
     }
 

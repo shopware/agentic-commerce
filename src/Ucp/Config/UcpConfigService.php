@@ -38,6 +38,9 @@ final class UcpConfigService
         'idempotencyRequired',
     ];
 
+    /**
+     * @param ?AbstractSalesChannelTypeResolver $salesChannelTypeResolver null skips the type gate
+     */
     public function __construct(
         private readonly UcpConfigRepositoryInterface $repository,
         private readonly LegacyConfigStoreInterface $legacyConfigStore,

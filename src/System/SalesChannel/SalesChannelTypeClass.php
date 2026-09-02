@@ -14,8 +14,9 @@ use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
 /**
- * An unknown type lands on {@see self::Other} and joins neither group, so every
- * feature gating on this fails closed.
+ * Built-in classification and the default of {@see AbstractSalesChannelTypeResolver};
+ * consumers resolve through that, not through this map. An unknown type lands on
+ * {@see self::Other} and joins neither group, so every feature gating on this fails closed.
  *
  * @internal
  */
@@ -47,16 +48,5 @@ enum SalesChannelTypeClass
     public function isProductExport(): bool
     {
         return self::ProductComparison === $this || self::AgenticCommerce === $this;
-    }
-
-    /**
-     * @return list<string>
-     */
-    public static function transactionalTypeIds(): array
-    {
-        return [
-            Defaults::SALES_CHANNEL_TYPE_STOREFRONT,
-            Defaults::SALES_CHANNEL_TYPE_API,
-        ];
     }
 }

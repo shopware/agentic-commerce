@@ -16,6 +16,7 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Results are cached on the instance, not in a shared cache: a channel's
@@ -24,7 +25,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
  * @internal
  */
 #[Package('discovery')]
-final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver
+final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver implements ResetInterface
 {
     /**
      * @var array<string, SalesChannelTypeClass>
@@ -42,6 +43,11 @@ final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver
     public function getDecorated(): AbstractSalesChannelTypeResolver
     {
         throw new DecorationPatternException(self::class);
+    }
+
+    public function reset(): void
+    {
+        $this->resolved = [];
     }
 
     public function resolve(string $salesChannelId): SalesChannelTypeClass

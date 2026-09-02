@@ -110,7 +110,7 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
             return this.salesChannel?.typeId === Defaults.agenticCommerceTypeId;
         },
         isTransactionalSalesChannel() {
-            return isTransactionalSalesChannelType(this.salesChannel?.typeId);
+            return isTransactionalSalesChannelType(this.salesChannel?.typeId) || this.ucpState.transactional === true;
         },
 
         // Core ships the Agentic files management view from 6.7; embed it when

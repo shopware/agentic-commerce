@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
+use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
 
 /** @internal */
@@ -30,6 +31,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
     public function __construct(
         private readonly Connection $connection,
         private readonly CoreSalesChannelFileFeature $feature,
+        private readonly ?AbstractSalesChannelTypeResolver $salesChannelTypeResolver = null,
     ) {
     }
 
@@ -117,23 +119,27 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
             self::UCP_CONFIG_TABLE,
         ));
 
-        $salesChannelIds = [];
+        $typeIdBySalesChannelId = [];
         foreach ($rows as $row) {
             $config = json_decode((string) ($row['config_json'] ?? '{}'), true);
             if (!\is_array($config) || ($config['active'] ?? false) !== true) {
                 continue;
             }
 
-            if (!SalesChannelTypeClass::forTypeId((string) ($row['type_id'] ?? ''))->isTransactional()) {
-                continue;
-            }
-
             $salesChannelId = (string) ($row['sales_channel_id'] ?? '');
             if (Uuid::isValid($salesChannelId)) {
-                $salesChannelIds[] = $salesChannelId;
+                $typeIdBySalesChannelId[$salesChannelId] = (string) ($row['type_id'] ?? '');
             }
         }
 
-        return array_values(array_unique($salesChannelIds));
+        // Without a container (install) the built-in classification stands in for the resolver.
+        $typeClassBySalesChannelId = null === $this->salesChannelTypeResolver
+            ? array_map(SalesChannelTypeClass::forTypeId(...), $typeIdBySalesChannelId)
+            : $this->salesChannelTypeResolver->resolveMany(array_keys($typeIdBySalesChannelId));
+
+        return array_keys(array_filter(
+            $typeClassBySalesChannelId,
+            static fn (SalesChannelTypeClass $typeClass): bool => $typeClass->isTransactional(),
+        ));
     }
 }

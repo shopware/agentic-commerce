@@ -15,6 +15,8 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 use Swag\AgenticCommerce\Tests\Unit\UcpSigningKeyServiceTestSigningKeyManager;
 use Swag\AgenticCommerce\Tests\Unit\UcpSigningKeyServiceTestTenantRepository;
 use Swag\AgenticCommerce\Ucp\Command\InteractsWithSalesChannelTenant;
@@ -135,7 +137,10 @@ class UcpSigningKeyCommandTenantTest extends TestCase
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('search')->willReturn($searchResult);
 
-        return new SalesChannelResolver(new SalesChannelViewProvider($repository));
+        return new SalesChannelResolver(new SalesChannelViewProvider(
+            $repository,
+            new StaticSalesChannelTypeResolver(SalesChannelTypeClass::Storefront),
+        ));
     }
 
     private function salesChannel(string $id, string $name): SalesChannelEntity
