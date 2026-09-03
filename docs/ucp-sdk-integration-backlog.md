@@ -178,32 +178,24 @@ in the first release and a deprecation notice.
 
 **Effort.** S · **Depends on.** SDK `T7`
 
-## P5 — `fix(capability): reconcile capability ids with the SDK`
+## ~~P5 — reconcile capability ids with the SDK~~ — withdrawn, premise false
 
-**Why.** We publish ids the SDK does not know:
+Written on the claim that the SDK publishes `dev.ucp.common.identity` while we
+publish `dev.ucp.common.identity_linking`, making the SDK "the side that is
+wrong". **Verified false**: there is no bare `dev.ucp.common.identity` anywhere in
+the SDK, and both of its example apps already publish
+`dev.ucp.common.identity_linking`. Our `UcpCapabilityCatalog.php:27` agrees with
+it and with upstream. Nothing to reconcile.
 
-| Ours (`src/Ucp/Capability/UcpCapabilityCatalog.php`) | SDK `UcpCapability` enum |
-|---|---|
-| `dev.ucp.shopping.catalog` (`:22`) | `dev.ucp.shopping.catalog.search`, `.lookup`, `.product` |
-| **`dev.ucp.common.identity_linking`** (`:27`) | `dev.ucp.common.identity` — **we are right, the SDK is wrong** |
-| `dev.ucp.shopping.payment_tokenization` (`:28`) | not in the enum |
+The corresponding SDK task (`T9`) is withdrawn for the same reason; see its entry
+in that repository's backlog for the evidence.
 
-SDK `T9` fixes the identity id in favour of the value we already publish, so that
-half becomes verification rather than change. **The catalog granularity mismatch
-is the live one** — negotiation is name-keyed today, so it is worth checking
-whether `dev.ucp.shopping.catalog` matches anything at all on the SDK side.
-
-**Files.** `src/Ucp/Capability/UcpCapabilityCatalog.php:22-28`;
-`src/Ucp/Profile/CapabilityFilteringProfileContributor.php:36,67`;
-`tests/Unit/UcpCapabilityCatalogTest.php:53,68,71`;
-`bin/lib/smoke/discovery.sh:12-19` (hardcoded sorted capability key list);
-`bin/validate-ucp-store.sh`.
-
-**Acceptance.** Every capability we publish is one the SDK negotiator recognises,
-proven by a functional test that asserts the negotiated set equals the published
-set.
-
-**Effort.** S · **Depends on.** SDK `T9`
+What remains real, and is not this: we publish `dev.ucp.shopping.catalog`
+(singular) while the SDK's `UcpCapability` enum knows
+`dev.ucp.shopping.catalog.search`, `.lookup` and `.product`. Negotiation is
+name-keyed today, so it is worth checking whether that name matches anything at
+all on the SDK side — but that is a question about capability granularity, and it
+belongs with `P9`, once SDK `T20` makes negotiation version-aware and strict.
 
 ## P6 — `feat(admin): render keys[] in the profile preview`
 
