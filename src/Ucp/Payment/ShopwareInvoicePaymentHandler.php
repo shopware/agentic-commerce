@@ -8,6 +8,7 @@ use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\RequestContext;
+use Swag\AgenticCommerce\Ucp\UcpProtocol;
 
 /** @internal */
 final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
@@ -22,7 +23,7 @@ final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
         return new PaymentHandlerDescriptor(
             $this->id(),
             $this->id(),
-            '2026-04-08',
+            UcpProtocol::VERSION,
             'https://developer.shopware.com/ucp/payment-handlers/invoice',
             'https://ucp.dev/schemas/payments/delegate-payment.json',
             ['https://ucp.dev/schemas/shopping/types/invoice_payment_instrument.json'],

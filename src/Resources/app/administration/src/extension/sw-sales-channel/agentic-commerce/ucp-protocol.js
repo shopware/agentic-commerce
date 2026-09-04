@@ -1,1 +1,1 @@
-export const UCP_VERSION = '2026-04-08';
+export const UCP_VERSION = '2026-08-25';
