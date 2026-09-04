@@ -1,6 +1,6 @@
-import header from './header.xml.twig?raw';
-import body from './body.xml.twig?raw';
-import footer from './footer.xml.twig?raw';
+import header from './header.xml.twig.js';
+import body from './body.xml.twig.js';
+import footer from './footer.xml.twig.js';
 
 Shopware.Service('exportTemplateService').registerProductExportTemplate({
     name: 'google',

@@ -223,6 +223,25 @@ bin/ci-admin-smoke.sh /path/to/shopware-6-6-branch vite
 bin/ci-admin-smoke.sh /path/to/shopware-trunk vite
 ```
 
+A green lane build does **not** mean the released ZIP works. Lane builds compile the
+administration with that lane's own toolchain (webpack or Vite) from source. The ZIP
+instead ships a single pre-compiled bundle produced by shopware-cli's **esbuild**
+(`build.zip.assets.enable_es_build_for_admin` in `.shopware-extension.yml`), written to
+`Resources/public/administration/js/swag-agentic-commerce.js` with a `.vite/entrypoints.json`
+pointing at it — the one layout both discovery paths accept:
+
+| Lane | Reads | Injected as |
+| --- | --- | --- |
+| `6.5.x`, `6.6.x` | `administration/js/<technical-name>.js` | classic script |
+| `6.7+` | `administration/.vite/entrypoints.json` | `type="module"` |
+
+That is why the bundle must stay IIFE: a webpack bundle dies in module scope
+(`this` is `undefined`). Packaging is therefore validated separately, by the `zip-artifact`
+CI job running `bin/ci-assert-zip-admin-bundle.sh`. Run it locally against any zip before
+shipping. Changes under `src/Resources/app/administration/` must stay esbuild-compatible:
+no bare (`node_modules`) imports, no `.vue` SFCs, and no Vite-only import suffixes such as
+`?raw`.
+
 The script handles the important differences:
 
 - `6.5.x` rejects Vite and relaxes local Node engine checks for webpack
@@ -352,15 +371,19 @@ that commit has a green `validation-gate`. Bump `composer.json` `version`, the a
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 
-- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is pinned with a caret on a
-  `0.0.x` version, which is **locked to that exact patch** (`^0.0.1` never resolves
-  `0.0.2`). Never merge release-bound code that references SDK symbols living only on
-  the SDK `main` branch or an unmerged SDK PR — CI tests against SDK `main` (moving)
-  and will pass, but production resolves the older *published* tag from Packagist and
-  fatals with `Class "…" not found`. Raising the floor means bumping **five** pins
-  together — `composer.json`, the two forced `versions` in `ci.yml`'s *Configure
-  private SDK path repositories* step, and the two in `bin/ci-smoke.sh` — while
-  leaving `UCP_SDK_REF` on `main` to keep the moving-main early-warning signal.
+- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is required as an explicit range,
+  currently `>=0.0.5 <0.1.0`, **not** a caret — a caret on `0.0.x` is locked to that exact
+  patch (the plugin's original `^0.0.2` never resolved `0.0.3`) and excluded every future
+  release. Read the lower bound out of `composer.json` rather than from here. The range lets
+  new `0.0.x` releases reach merchants without a plugin change, so SDK breakage can
+  arrive on its own; that is why CI must keep testing against the moving SDK `main`.
+  It still only *permits* a newer tag — an install with an existing lock resolves the
+  older one — so never merge release-bound code that references SDK symbols living
+  only on the SDK `main` branch or an unmerged SDK PR: CI passes against `main` while
+  such an install fatals with `Class "…" not found`. Depending on a new symbol means
+  raising the range's **lower bound** in `composer.json` and keeping the two forced
+  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two
+  in `bin/ci-smoke.sh` at or above it, while leaving `UCP_SDK_REF` on `main`.
 - **Migrations.** The runner never re-runs an applied migration. Never edit the
   effect of a migration already shipped in a tagged release (upgraded shops keep the
   old schema); add a new idempotent forward migration instead. Editing a migration

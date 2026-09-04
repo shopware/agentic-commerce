@@ -9,8 +9,10 @@
         </sw-alert>
 
         <sw-card
+            v-if="isTransactionalSalesChannel"
             position-identifier="sw-sales-channel-detail-agentic-commerce-ucp"
             :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle')"
+            :subtitle="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardIntro')"
         >
             <sw-switch-field
                 :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
@@ -68,6 +70,7 @@
         </sw-card>
 
         <sw-card
+            v-if="isTransactionalSalesChannel"
             position-identifier="sw-sales-channel-detail-agentic-commerce-preview"
             :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.previewLabel')"
         >

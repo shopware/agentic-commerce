@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Gateway;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\Error\Error;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
@@ -120,7 +121,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
     {
         return new Checkout(
             $checkoutId,
@@ -133,7 +134,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $this->mapOrderBuyer($order),
             $continueUrl,
             $order->getCreatedAt()?->format(\DATE_ATOM),
-            new OrderConfirmation($order->getId(), $continueUrl),
+            // `order.permalink_url` is a required, absolute URI in the UCP response
+            // schema; fall back to the continue URL only when a permalink is not
+            // supplied. A null permalink makes the response fail SDK validation.
+            new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl),
         );
     }
 
@@ -204,6 +208,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $payload = [];
 
         foreach ($lineItems as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                continue;
+            }
+
             $label = $lineItem->getLabel() ?: ($lineItem->getReferencedId() ?? $lineItem->getId());
             $payload[] = $this->lineItem(
                 $lineItem->getReferencedId() ?? $lineItem->getId(),
@@ -222,6 +230,24 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
+     * Decides whether a Shopware line belongs in `totals` instead of `line_items`.
+     *
+     * A promotion (and a credit, and a custom negative line) carries a negative unit
+     * price. UCP has no such thing: `LineItem::toArray()` emits a per-line
+     * `{"type": "subtotal"}` entry, and `types/total.json` constrains `subtotal` to
+     * `minimum: 0`. Emitting one therefore made the whole response fail its own
+     * schema — `discount.apply` most visibly, but equally `cart.get`, `cart.update`,
+     * `checkout.get` and `checkout.update` whenever a promotion sat in the cart.
+     *
+     * The spec models these as a negative `items_discount` total instead, which is
+     * where mapDiscountTotal() puts them.
+     */
+    private function isDiscountLine(?float $unitPrice): bool
+    {
+        return null !== $unitPrice && $unitPrice < 0.0;
+    }
+
+    /**
      * @return list<LineItem>
      */
     private function mapOrderLineItems(OrderEntity $order): array
@@ -229,6 +255,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $payload = [];
 
         foreach ($order->getLineItems() ?? [] as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                continue;
+            }
+
             $payload[] = $this->lineItem(
                 $lineItem->getReferencedId() ?? $lineItem->getIdentifier(),
                 $lineItem->getLabel(),
@@ -246,6 +276,23 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
+     * Shopware's cart errors, as the three message types UCP defines.
+     *
+     * `types/message.json` is a oneOf over message_error, message_warning and
+     * message_info, and each branch pins `type` with a `const`. A fourth spelling
+     * matches no branch, so a single cart error made the WHOLE response fail
+     * validation with `$ must match exactly one allowed schema` — which
+     * `ShoppingOperationExecutor::response()` then turns into a server error for an
+     * agent whose request was perfectly fine.
+     *
+     * That is not a rare shape: a successful `discount.apply` leaves
+     * `promotion-discount-added` on the cart (`PromotionCartAddedInformationError`,
+     * LEVEL_NOTICE, persistent), so applying a valid code failed by definition.
+     *
+     * Shopware's own three levels line up with UCP's three types, so the mapping is
+     * the level. `getMessageKey()` stays the code: error_code, warning_code and
+     * info_code are all freeform strings by specification.
+     *
      * @return list<Message>
      */
     private function mapCartMessages(Cart $cart): array
@@ -254,9 +301,18 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
         foreach ($cart->getErrors() as $error) {
             $messages[] = new Message(
-                'cart_error',
+                match ($error->getLevel()) {
+                    Error::LEVEL_ERROR => 'error',
+                    Error::LEVEL_WARNING => 'warning',
+                    default => 'info',
+                },
                 $error->getMessage(),
-                'error',
+                // Only message_error requires a severity, and `recoverable` is the
+                // honest one for a cart: the platform can change the line items or the
+                // code and retry. A `requires_*` severity would contribute
+                // `status: requires_escalation` and stall a checkout an agent could
+                // have fixed itself.
+                Error::LEVEL_ERROR === $error->getLevel() ? 'recoverable' : null,
                 $error->getMessageKey(),
             );
         }
@@ -284,11 +340,19 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
      */
     private function cartMoneySummary(Cart $cart): array
     {
+        $itemsDiscount = 0.0;
+        foreach ($cart->getLineItems() as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                $itemsDiscount += $lineItem->getPrice()?->getTotalPrice() ?? 0.0;
+            }
+        }
+
         return $this->moneySummary(
             $cart->getPrice()->getPositionPrice(),
             $cart->getShippingCosts()->getTotalPrice(),
             $cart->getPrice()->getTotalPrice(),
             $cart->getPrice()->getCalculatedTaxes(),
+            $itemsDiscount,
         );
     }
 
@@ -297,31 +361,59 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
      */
     private function orderMoneySummary(OrderEntity $order): array
     {
+        $itemsDiscount = 0.0;
+        foreach ($order->getLineItems() ?? [] as $lineItem) {
+            if ($this->isDiscountLine($lineItem->getPrice()?->getUnitPrice())) {
+                $itemsDiscount += $lineItem->getPrice()?->getTotalPrice() ?? 0.0;
+            }
+        }
+
         return $this->moneySummary(
             $order->getPrice()->getPositionPrice(),
             $order->getShippingCosts()->getTotalPrice(),
             $order->getPrice()->getTotalPrice(),
             $order->getPrice()->getCalculatedTaxes(),
+            $itemsDiscount,
         );
     }
 
     /**
+     * Builds the UCP totals breakdown.
+     *
+     * `$positionPrice` is Shopware's sum over every position, discounts included, so
+     * it is already net of the promotion. UCP wants the two reported separately —
+     * a non-negative `subtotal` (types/total.json: `minimum: 0`) plus a strictly
+     * negative `items_discount` (`exclusiveMaximum: 0`) — so the discount is added
+     * back out of the subtotal and reported on its own. `subtotal + items_discount`
+     * therefore returns to `$positionPrice`.
+     *
+     * `items_discount` is omitted entirely when nothing was discounted: zero would
+     * violate `exclusiveMaximum: 0`.
+     *
      * @param CalculatedTaxCollection $taxes
+     * @param float                   $itemsDiscount sum of the excluded discount lines, zero or negative
      *
      * @return list<Money>
      */
     private function moneySummary(
-        float $subtotal,
+        float $positionPrice,
         float $shipping,
         float $total,
         iterable $taxes,
+        float $itemsDiscount = 0.0,
     ): array {
-        return [
-            new Money('subtotal', $subtotal),
+        $summary = [
+            new Money('subtotal', $positionPrice - $itemsDiscount),
             new Money('fulfillment', $shipping),
             new Money('total', $total),
             new Money('tax', $this->totalTax($taxes)),
         ];
+
+        if ($itemsDiscount < 0.0) {
+            $summary[] = new Money('items_discount', $itemsDiscount);
+        }
+
+        return $summary;
     }
 
     /**

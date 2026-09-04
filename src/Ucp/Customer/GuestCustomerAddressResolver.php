@@ -27,23 +27,28 @@ final class GuestCustomerAddressResolver
      */
     public function resolve(SalesChannelContext $context, ?array $guestAddress): array
     {
+        // The paths below name the property the agent can actually set. They used to
+        // name `fulfillment.shipping_address`, which is not a property of
+        // checkout.create, checkout.update or checkout.complete in any UCP version —
+        // so the one error that says what is missing pointed at a field nothing could
+        // fill, and reading it as a schema defect cost a day.
         if (null === $guestAddress) {
-            throw new ValidationException('Checkout session is missing fulfillment.shipping_address; set it on checkout create or update before completion.', ['$.checkout_session.fulfillment.shipping_address is required']);
+            throw new ValidationException('Checkout session has no shipping address; set fulfillment.methods[].destinations[] on checkout create or update before completion.', ['$.fulfillment.methods[0].destinations[0].street_address is required']);
         }
 
         $missingFields = [];
-        foreach (['street', 'zipcode', 'city'] as $field) {
+        foreach (['street' => 'street_address', 'zipcode' => 'postal_code', 'city' => 'address_locality'] as $field => $property) {
             if (!isset($guestAddress[$field]) || !\is_string($guestAddress[$field]) || '' === $guestAddress[$field]) {
-                $missingFields[] = '$.checkout_session.fulfillment.shipping_address.'.$field;
+                $missingFields[] = '$.fulfillment.methods[0].destinations[0].'.$property;
             }
         }
 
         if (!isset($guestAddress['countryId']) && !isset($guestAddress['countryCode'])) {
-            $missingFields[] = '$.checkout_session.fulfillment.shipping_address.country_code';
+            $missingFields[] = '$.fulfillment.methods[0].destinations[0].address_country';
         }
 
         if ([] !== $missingFields) {
-            throw new ValidationException('Checkout session has an incomplete fulfillment.shipping_address; set a complete address before completion.', $missingFields);
+            throw new ValidationException('Checkout session has an incomplete shipping address; set a complete destination before completion.', $missingFields);
         }
 
         return [
@@ -70,7 +75,7 @@ final class GuestCustomerAddressResolver
 
         $country = $this->countryRoute->load(new Request(), $criteria, $context)->getCountries()->first();
         if (null === $country) {
-            throw new ValidationException(\sprintf('Unknown country code "%s" stored on the checkout session.', $countryCode), ['$.checkout_session.fulfillment.shipping_address.country_code is invalid']);
+            throw new ValidationException(\sprintf('Unknown country code "%s" stored on the checkout session.', $countryCode), ['$.fulfillment.methods[0].destinations[0].address_country is invalid']);
         }
 
         /** @var string $countryId */

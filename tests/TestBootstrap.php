@@ -78,7 +78,6 @@ $classLoader = (new TestBootstrapper())
     ->setProjectDir($projectDir)
     ->setLoadEnvFile(true)
     ->addCallingPlugin()
-    ->setForceInstallPlugins(true)
     ->bootstrap()
     ->getClassLoader();
 

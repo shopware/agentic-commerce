@@ -7,6 +7,7 @@ import {
     buildConfigPayload as ucpBuildConfigPayload,
 } from '../../agentic-commerce/ucp-form-state';
 import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
+import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -76,20 +77,10 @@ export const swSalesChannelDetailOverride = {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
         },
 
-        // The consolidated "Agentic Commerce" tab (UCP card + feature cards) is
-        // broader than the product-export surface: UCP config is the plugin's own
-        // feature and applies to any exposable channel (Storefront / Headless /
-        // Agentic Commerce), but not the native Product Comparison type.
-        //
-        // It is intentionally NOT gated on `coreShipsAgenticCommerce`: that guard
-        // suppresses the plugin's duplicate product-export integration when core
-        // ships its own, but UCP configuration is unique to this plugin and must
-        // stay reachable regardless. The embedded Product Feed export card keeps
-        // its own `isAgenticCommerce` gate.
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
-            return this.acl.can('ucp.viewer') && Boolean(typeId) && typeId !== Defaults.productComparisonTypeId;
+            return this.acl.can('ucp.viewer') && (isTransactionalSalesChannelType(typeId) || this.isAgenticCommerce);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -125,6 +116,14 @@ export const swSalesChannelDetailOverride = {
     },
 
     methods: {
+        createdComponent() {
+            this.$super('createdComponent');
+
+            if (this.isAgenticCommerce && this.productExport?.isNew()) {
+                this.onTemplateSelected('open_ai');
+            }
+        },
+
         loadEntityData() {
             const hasRouteId = Boolean(this.$route.params.id);
             const hasRouteTypeId = Boolean(this.$route.params.typeId);
@@ -178,22 +177,53 @@ export const swSalesChannelDetailOverride = {
             const salesChannelId = this.salesChannel.id;
             this.ucpState.isLoading = true;
 
-            try {
-                const [salesChannelResponse, configResponse, previewResponse] = await Promise.all([
-                    this.ucpAdminApiService.getSalesChannel(salesChannelId),
-                    this.ucpAdminApiService.getConfig(salesChannelId),
-                    this.ucpAdminApiService.getProfilePreview(salesChannelId),
-                ]);
+            // The three responses answer independent questions, so each is applied from its
+            // own handler the moment it arrives. Two reasons not to gate them on each other:
+            //
+            // - `meta` must never be lost. It reports what the *platform* supports (whether
+            //   this Shopware exposes a Store-API MCP server) and decides which transports are
+            //   offered at all. Discarding it because the preview call failed renders the form
+            //   as if the platform had no MCP — indistinguishable from a shop that has it
+            //   switched off, so the merchant sees a plausible wrong answer instead of an error.
+            // - A slow request must not hold back a fast one. Waiting for all three (either
+            //   Promise.all or allSettled) means one hanging request delays the others' data,
+            //   the error notification and the spinner reset.
+            let reported = false;
+            const report = (error) => {
+                if (reported) {
+                    return;
+                }
 
-                const form = ucpNormalizeConfig(configResponse.data.data || {});
-
-                this.ucpState.meta = salesChannelResponse.data.meta || {};
-                this.ucpState.form = form;
-                this.ucpState.savedForm = ucpNormalizeConfig(form);
-                this.ucpState.preview = previewResponse.data.data || null;
-                this.ucpState.loaded = true;
-            } catch (error) {
+                reported = true;
+                // Stop the spinner with the first failure rather than leaving it turning until
+                // a request that may never settle finally does.
+                this.ucpState.isLoading = false;
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
+            };
+
+            try {
+                await Promise.all([
+                    this.ucpAdminApiService.getSalesChannel(salesChannelId).then((response) => {
+                        this.ucpState.meta = response.data.meta || {};
+                    }, report),
+
+                    this.ucpAdminApiService.getConfig(salesChannelId).then((response) => {
+                        const form = ucpNormalizeConfig(response.data.data || {});
+
+                        this.ucpState.form = form;
+                        this.ucpState.savedForm = ucpNormalizeConfig(form);
+                        // Only with the saved config is there something trustworthy to edit.
+                        this.ucpState.loaded = true;
+                    }, report),
+
+                    this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                        this.ucpState.preview = response.data.data || null;
+                    }, report),
+                ]);
+            } catch (error) {
+                // Every rejection is already absorbed by `report`, so this only catches a
+                // throw from one of the fulfilled handlers.
+                report(error);
             } finally {
                 this.ucpState.isLoading = false;
             }
@@ -223,6 +253,13 @@ export const swSalesChannelDetailOverride = {
             }
 
             this.productComparison.selectedTemplate = { ...this.productComparison.templates[templateName] };
+
+            if (this.productExport.isNew()) {
+                this.productComparison.templateName = templateName;
+                this.onTemplateModalConfirm();
+                return;
+            }
+
             const contentChanged = Object.keys(this.productComparison.selectedTemplate).some((value) => {
                 return this.productExport[value] !== this.productComparison.selectedTemplate[value];
             });
@@ -259,6 +296,10 @@ export const swSalesChannelDetailOverride = {
             this.productComparison.selectedTemplate = null;
             this.previousTemplateName = null;
             this.productComparison.showTemplateModal = false;
+
+            if (this.productExport.isNew()) {
+                return;
+            }
 
             this.createNotificationInfo({
                 message: this.$t('sw-sales-channel.detail.productComparison.templates.message.template-applied-message'),

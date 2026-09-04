@@ -108,8 +108,13 @@ Product feeds reuse Shopware's product export infrastructure on Agentic Commerce
 
 | Provider | Format | File format | Template source |
 | --- | --- | --- | --- |
-| `open-ai` | OpenAI product feed | JSONL, one JSON object per valid product row | `agentic-product-export-templates/open-ai/body.json.twig` |
-| `google` | Google Merchant Center feed | XML RSS item feed | `agentic-product-export-templates/google/*.xml.twig` |
+| `open-ai` | OpenAI product feed | JSONL, one JSON object per valid product row | `agentic-product-export-templates/open-ai/body.json.twig.js` |
+| `google` | Google Merchant Center feed | XML RSS item feed | `agentic-product-export-templates/google/*.xml.twig.js` |
+
+The templates are Twig, but they live in `.js` modules that export the template as a
+string. They must reach Shopware byte-exact — the OpenAI feed is JSONL, so newlines are
+significant — and every admin bundler treats a plain JS module identically, whereas an
+imported `.twig` file gets its whitespace collapsed by Shopware's Twig loader.
 
 The feed URL is the Shopware product export URL shown in the Agentic Commerce sales-channel detail. It must be publicly reachable by the feed consumer and is not signed by UCP. Product links in both feeds include `referringSalesChannel` and preserve configured affiliate/campaign codes so downstream orders and customers can be attributed to the Agentic Commerce channel.
 
@@ -222,18 +227,23 @@ Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `S
 
 ### Bumping the SDK version floor
 
-The plugin requires `ucp-php-sdk/symfony-bundle` with a caret constraint on a `0.0.x` version. **A caret on a `0.0.x` version is locked to that exact patch** — `^0.0.1` resolves to `>=0.0.1 <0.0.2`, so it will never pick up `0.0.2`. Raising the floor is therefore a deliberate, coordinated step, not an automatic upgrade.
+The plugin requires `ucp-php-sdk/symfony-bundle` as an explicit range — currently `>=0.0.5 <0.1.0`, though `composer.json` is the authority on the lower bound and this page is not — written out rather than as a caret. **A caret on a `0.0.x` version is locked to that exact patch**: the plugin's original `^0.0.2` meant `>=0.0.2 <0.0.3`, so it never picked up `0.0.3` and excluded every future release by construction. The range keeps the guard that matters (`<0.1.0`, since a pre-1.0 project breaks things on the minor) while letting new `0.0.x` releases in. The SDK hit the same bug in its own `symfony-bundle` → `core` requirement and fixed it the same way in 0.0.3.
+
+Two consequences follow, and they pull in opposite directions:
+
+- **A new SDK release now reaches merchants without a plugin change.** `0.0.x` carries no compatibility promise, so a breaking SDK patch can land in production on its own. That is what makes the moving-`main` CI signal below load-bearing rather than nice to have.
+- **The range permits a newer tag; it does not guarantee one.** An install with an existing `composer.lock`, or one resolved before a tag was published, still runs the older `0.0.x`. So the range is not a substitute for raising the floor.
 
 When plugin code starts using SDK symbols introduced in a newer SDK tag (a new model, enum, or constructor argument):
 
-1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — production and any `^0.0.x` consumer will resolve the older published tag that lacks them, and the plugin will fatal with `Class "…" not found`.
-2. **Bump all five pins together**, or Composer resolution breaks (a path repo whose forced version is below the new floor no longer satisfies the constraint):
-   - `composer.json` — the `ucp-php-sdk/symfony-bundle` require constraint.
-   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`).
+1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — anyone who resolved before that tag existed gets the older release that lacks them, and the plugin fatals with `Class "…" not found`.
+2. **Raise the lower bound, and keep the forced versions at or above it.** Requiring a symbol means requiring the tag that introduced it — widen-and-hope does not do that:
+   - `composer.json` — the lower bound of the `ucp-php-sdk/symfony-bundle` range, e.g. `>=0.0.5 <0.1.0` for a symbol introduced in 0.0.5, leaving the `<0.1.0` upper bound alone.
+   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version below the new lower bound no longer satisfies the constraint and resolution breaks.
    - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines.
-3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the raised floor. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
+3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the raised bound. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal, which now also guards the `0.0.x` releases that reach merchants by themselves.
 
-> **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against the published tag the plugin actually pins. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json` pins that tag or newer.
+> **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against whichever published tag an install actually resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json`'s lower bound is that tag or newer.
 
 ### Migrations and releases
 
@@ -268,7 +278,7 @@ The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane
 
 Runtime dependencies are installed through the active Shopware lane's root `composer.json`. The plugin's source `composer.json` is the public metadata source of truth for plugin-owned dependencies: it requires the public `ucp-php-sdk/symfony-bundle` Packagist package, and SDK core is resolved transitively by that bundle. Shopware packages are provided by the active lane. Release packages therefore do not embed a plugin-local vendor tree.
 
-Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories force the SDK to the current version floor (kept in step with `composer.json` — see *Bumping the SDK version floor* above), and the plugin path repository exposes the release version from `composer.json` so Shopware's plugin lifecycle resolves the same package version during `plugin:install`.
+Local lanes and CI still configure path repositories for the public SDK checkout so compatibility can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories force the SDK to a version that must satisfy the `composer.json` range — at or above its lower bound (see *Bumping the SDK version floor* above), and the plugin path repository exposes the release version from `composer.json` so Shopware's plugin lifecycle resolves the same package version during `plugin:install`.
 
 `bin/ci-smoke.sh` supports two execution modes:
 
