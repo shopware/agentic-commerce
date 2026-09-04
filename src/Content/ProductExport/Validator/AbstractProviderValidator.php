@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Validator;
 use Shopware\Core\Content\ProductExport\Error\ErrorCollection;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Content\ProductExport\Validator\ValidatorInterface;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportException;
 
 /**
@@ -24,6 +25,7 @@ use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportException;
  *
  * @internal
  */
+#[Package('discovery')]
 abstract class AbstractProviderValidator implements ValidatorInterface
 {
     public function __construct(

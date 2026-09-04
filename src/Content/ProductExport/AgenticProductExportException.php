@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Content\ProductExport;
 
 use Shopware\Core\Framework\HttpException;
+use Shopware\Core\Framework\Log\Package;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -20,6 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * @internal
  */
+#[Package('discovery')]
 class AgenticProductExportException extends HttpException
 {
     public const JSONL_MALFORMED_LINE_EXCEPTION = 'PRODUCT_EXPORT__JSONL_MALFORMED_LINE_EXCEPTION';

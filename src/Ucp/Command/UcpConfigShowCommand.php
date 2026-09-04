@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Command;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -16,6 +17,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'ucp:config:show',
     description: 'Prints the resolved UCP config for a sales channel.',
 )]
+#[Package('framework')]
 final class UcpConfigShowCommand extends Command
 {
     public function __construct(

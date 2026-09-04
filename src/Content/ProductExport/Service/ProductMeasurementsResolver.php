@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Content\ProductExport\Service;
 
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
+use Shopware\Core\Framework\Log\Package;
 
 /**
  * Resolves a product's "Measurements & packaging" fields into feed-ready values.
@@ -23,6 +24,7 @@ use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
  *
  * @internal
  */
+#[Package('discovery')]
 final class ProductMeasurementsResolver
 {
     private const MM_PER_CM = 10.0;

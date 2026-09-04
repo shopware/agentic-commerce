@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
@@ -16,6 +17,7 @@ use Ucp\Sdk\Model\Identity\OAuthTokenResponse;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('framework')]
 final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
 {
     /**

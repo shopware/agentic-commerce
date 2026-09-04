@@ -6,9 +6,11 @@ namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
 /** @internal */
+#[Package('framework')]
 final class DoctrineDbalUcpOAuthStore
 {
     private const ACCESS_TOKEN_TTL = 3600;

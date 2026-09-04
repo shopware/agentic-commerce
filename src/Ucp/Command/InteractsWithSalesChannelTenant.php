@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Command;
 
+use Shopware\Core\Framework\Log\Package;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -25,6 +26,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * {@see InteractsWithSigningKeyTenant::resolveTenantIdentifier()} are overridden
  * here so the SDK's own `execute()` transparently scopes to a sales channel.
  */
+#[Package('framework')]
 trait InteractsWithSalesChannelTenant
 {
     protected SalesChannelResolver $salesChannelResolver;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Contract\CatalogCapabilityInterface;
 use Ucp\Sdk\Model\Catalog\CatalogLookupRequest;
@@ -15,6 +16,7 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('inventory')]
 final class CatalogCapability implements CatalogCapabilityInterface
 {
     public function __construct(

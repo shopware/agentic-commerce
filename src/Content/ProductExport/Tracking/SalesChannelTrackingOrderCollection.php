@@ -10,12 +10,14 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Content\ProductExport\Tracking;
 
 use Shopware\Core\Framework\DataAbstractionLayer\EntityCollection;
+use Shopware\Core\Framework\Log\Package;
 
 /**
  * @extends EntityCollection<SalesChannelTrackingOrderEntity>
  *
  * @internal
  */
+#[Package('after-sales')]
 class SalesChannelTrackingOrderCollection extends EntityCollection
 {
     protected function getExpectedClass(): string

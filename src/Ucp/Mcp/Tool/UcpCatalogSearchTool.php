@@ -11,7 +11,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-catalog-search', title: 'UCP Catalog Search', description: 'Search the current Store API sales-channel catalog through the same UCP catalog capability used by REST, A2A, and embedded flows.')]
 /** @internal */
-#[Package('checkout')]
+#[Package('inventory')]
 final class UcpCatalogSearchTool
 {
     public function __construct(

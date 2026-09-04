@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Command;
 
 use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -25,6 +26,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'ucp:config:validate',
     description: 'Checks each sales channel\'s UCP config for readiness and security issues.',
 )]
+#[Package('framework')]
 final class UcpConfigValidateCommand extends Command
 {
     public function __construct(

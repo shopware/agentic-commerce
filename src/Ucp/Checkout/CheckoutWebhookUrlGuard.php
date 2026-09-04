@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Ucp\Sdk\Exception\ValidationException;
 
 /** @internal */
+#[Package('checkout')]
 final class CheckoutWebhookUrlGuard
 {
     public function __construct(

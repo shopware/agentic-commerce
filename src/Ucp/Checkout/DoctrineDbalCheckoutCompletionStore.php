@@ -6,9 +6,11 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
 /** @internal */
+#[Package('checkout')]
 final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionStoreInterface
 {
     private const TABLE = 'swag_agentic_commerce_ucp_checkout_completion';
