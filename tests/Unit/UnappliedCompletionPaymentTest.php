@@ -45,7 +45,7 @@ final class UnappliedCompletionPaymentTest extends TestCase
     #[Test]
     public function itWarnsNamingTheHandlerTheAgentAskedFor(): void
     {
-        $logger = new CollectingCompletionLogger();
+        $logger = $this->collectingLogger();
 
         (new UnappliedCompletionPayment($logger))->apply(
             $this->instrument(),
@@ -67,7 +67,7 @@ final class UnappliedCompletionPaymentTest extends TestCase
     #[Test]
     public function itStaysSilentWhenTheAgentSentNoInstrument(): void
     {
-        $logger = new CollectingCompletionLogger();
+        $logger = $this->collectingLogger();
 
         (new UnappliedCompletionPayment($logger))->apply(
             null,
@@ -108,18 +108,26 @@ final class UnappliedCompletionPaymentTest extends TestCase
 
         return $context;
     }
-}
-
-final class CollectingCompletionLogger extends AbstractLogger
-{
-    /** @var list<array{level: string, message: string, context: array<string, mixed>}> */
-    public array $records = [];
 
     /**
-     * @param array<string, mixed> $context
+     * Anonymous so the file holds one class: the repository forbids a second, and a
+     * throwaway recorder does not need a name.
+     *
+     * @return AbstractLogger&object{records: list<array{level: string, message: string, context: array<string, mixed>}>}
      */
-    public function log(mixed $level, string|\Stringable $message, array $context = []): void
+    private function collectingLogger(): AbstractLogger
     {
-        $this->records[] = ['level' => (string) $level, 'message' => (string) $message, 'context' => $context];
+        return new class extends AbstractLogger {
+            /** @var list<array{level: string, message: string, context: array<string, mixed>}> */
+            public array $records = [];
+
+            /**
+             * @param array<string, mixed> $context
+             */
+            public function log(mixed $level, string|\Stringable $message, array $context = []): void
+            {
+                $this->records[] = ['level' => (string) $level, 'message' => (string) $message, 'context' => $context];
+            }
+        };
     }
 }

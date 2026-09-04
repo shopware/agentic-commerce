@@ -46,6 +46,14 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
         );
 
         $capabilities = array_intersect_key($profile->capabilities, array_flip($enabledDescriptors));
+
+        // `dev.ucp.shopping.payment_tokenization` is not a capability any release defines. At
+        // 2026-08-25 tokenization is a payment *handler* concern -- handlers/tokenization
+        // /openapi.json -- so publishing it advertised something no peer can negotiate on,
+        // the same defect the catalog ids had. The switch itself stays: it is what decides
+        // whether this business publishes payment handlers at all, which is a real question
+        // with a real answer. It just is not a capability id.
+        unset($capabilities[UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION]);
         $capabilities = $this->withAdditionalDescriptors($capabilities, $enabledDescriptors);
         $capabilities = $this->withPrunedDiscountExtension($capabilities);
         $services = $profile->services;
