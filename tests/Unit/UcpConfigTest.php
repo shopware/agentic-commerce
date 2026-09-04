@@ -111,7 +111,8 @@ final class UcpConfigTest extends TestCase
         self::assertSame('strict', $config->signaturePolicy);
         self::assertSame(50, $config->catalogResultLimit);
         self::assertSame([
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_CART,
             UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT,
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
@@ -147,7 +148,8 @@ final class UcpConfigTest extends TestCase
         ]);
 
         self::assertSame([
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING,
             UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
         ], $config->runtimeEnabledCapabilityDescriptors());
@@ -254,7 +256,8 @@ final class UcpConfigTest extends TestCase
     {
         $defaultCapabilities = UcpCapabilityCatalog::defaultConfigKeys();
         $defaultDescriptors = [
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_CART,
             UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT,
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
@@ -333,7 +336,8 @@ final class UcpConfigTest extends TestCase
                 'allowedProfileHosts' => ['merchant.example'],
                 'allowedAgentDomains' => ['merchant.example'],
                 'enabledCapabilities' => [
-                    UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+                    UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
                     UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
                 ],
                 'transports' => ['rest', 'a2a'],
