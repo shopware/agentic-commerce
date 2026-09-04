@@ -78,11 +78,17 @@ export const swSalesChannelDetailOverride = {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
         },
 
+        agenticCommerceStatisticsRoute() {
+            return coreShipsAgenticCommerce
+                ? 'sw.sales.channel.detail.productExportInsights'
+                : 'sw.sales.channel.detail.agenticCommerceStatistics';
+        },
+
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
             return this.acl.can('ucp.viewer')
-                && (isTransactionalSalesChannelType(typeId) || this.isAgenticCommerce || this.ucpState.transactional);
+                && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.

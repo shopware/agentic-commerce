@@ -96,13 +96,12 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
     it.each([
         ['Storefront', 'storefront-type-id'],
         ['Headless/API', 'api-type-id'],
-        ['Agentic Commerce', 'agentic-commerce-type-id'],
     ])('renders agentic tab for %s channels when ucp.viewer is granted', (_label, typeId) => {
         const context = {
             acl: { can: jest.fn(() => true) },
             salesChannel: { typeId },
             $route: { params: {} },
-            isAgenticCommerce: typeId === 'agentic-commerce-type-id',
+            isAgenticCommerce: false,
             ucpState: { transactional: false },
         };
 
@@ -110,6 +109,7 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
     });
 
     it.each([
+        ['Agentic Commerce', 'agentic-commerce-type-id'],
         ['Product Comparison', 'product-comparison-type-id'],
         ['an unknown', 'unknown-type-id'],
     ])('does not render agentic tab for %s channels', (_label, typeId) => {
