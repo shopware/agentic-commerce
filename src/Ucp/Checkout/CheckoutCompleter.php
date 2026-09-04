@@ -107,7 +107,7 @@ final class CheckoutCompleter
             if (null !== $config->webhookUrlOverride) {
                 $this->orderWebhookPublisher->publish(
                     $config->webhookUrlOverride,
-                    new OrderWebhookPayload('order.created', $order->getId(), [
+                    new OrderWebhookPayload(event: 'order.created', orderId: $order->getId(), payload: [
                         'order' => $this->mapper->toOrderView($order)->toArray(),
                     ]),
                     $requestContext,

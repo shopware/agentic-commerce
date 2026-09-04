@@ -33,7 +33,7 @@ final class CatalogCapability implements CatalogCapabilityInterface
         // that negotiated only one of them must not reach the other through this class.
         CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH, 'Catalog search capability is disabled for this sales channel.');
 
-        return new CatalogSearchResponse($this->adapter->search($request, $context));
+        return new CatalogSearchResponse(items: $this->adapter->search($request, $context));
     }
 
     public function lookup(CatalogLookupRequest $request, RequestContext $context): array

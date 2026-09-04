@@ -146,11 +146,11 @@ final class UcpCapabilityCatalog
         }
 
         return new CapabilityDescriptor(
-            $name,
-            UcpProtocol::VERSION,
-            $definition['specUrl'] ?? UcpProtocol::specificationUrl($definition['path']),
-            $definition['schemaUrl'] ?? UcpProtocol::schemaUrl($definition['path']),
-            $definition['extends'] ?? null,
+            name: $name,
+            version: UcpProtocol::VERSION,
+            specUrl: $definition['specUrl'] ?? UcpProtocol::specificationUrl($definition['path']),
+            schemaUrl: $definition['schemaUrl'] ?? UcpProtocol::schemaUrl($definition['path']),
+            extends: $definition['extends'] ?? null,
         );
     }
 
