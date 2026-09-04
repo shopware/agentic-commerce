@@ -23,7 +23,12 @@ const Shopware = {
     },
     Classes: { ShopwareError: class {} },
     Context: { api: {} },
-    Defaults: { agenticCommerceTypeId: 'agentic-type-id' },
+    Defaults: {
+        storefrontSalesChannelTypeId: 'storefront-type-id',
+        apiSalesChannelTypeId: 'api-type-id',
+        productComparisonTypeId: 'product-comparison-type-id',
+        agenticCommerceTypeId: 'agentic-type-id',
+    },
 };
 
 global.Shopware = Shopware;
@@ -56,10 +61,18 @@ function rejection(detail) {
     return Promise.reject({ response: { data: { errors: [{ detail }] } } });
 }
 
-function buildContext({ salesChannel, config, preview } = {}) {
+function buildContext({
+    salesChannel,
+    config,
+    preview,
+    typeId = 'agentic-type-id',
+    shouldRenderAgenticCommerceTab = true,
+    canView = true,
+} = {}) {
     return {
-        shouldRenderAgenticCommerceTab: true,
-        salesChannel: { id: 'sales-channel-id', typeId: 'agentic-type-id' },
+        shouldRenderAgenticCommerceTab,
+        acl: { can: jest.fn(() => canView) },
+        salesChannel: { id: 'sales-channel-id', typeId },
         ucpState: {
             loaded: false,
             isLoading: false,
@@ -67,6 +80,7 @@ function buildContext({ salesChannel, config, preview } = {}) {
             savedForm: {},
             meta: {},
             preview: null,
+            transactional: false,
         },
         ucpAdminApiService: {
             getSalesChannel: jest.fn(() => salesChannel ?? response({ data: {}, meta: META })),
@@ -161,5 +175,56 @@ describe('loadUcpState — platform meta survives sibling failures', () => {
 
         expect(ctx.ucpState.isLoading).toBe(false);
         expect(ctx.createNotificationError).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('loadUcpState — types the plugin does not know are classified by the backend', () => {
+    it('asks nothing for a feed type it knows', async () => {
+        const ctx = buildContext({ typeId: 'product-comparison-type-id', shouldRenderAgenticCommerceTab: false });
+
+        await loadUcpState.call(ctx);
+
+        expect(ctx.ucpAdminApiService.getSalesChannel).not.toHaveBeenCalled();
+        expect(ctx.ucpAdminApiService.getConfig).not.toHaveBeenCalled();
+        expect(ctx.ucpAdminApiService.getProfilePreview).not.toHaveBeenCalled();
+    });
+
+    it('loads the tab once the backend classifies an unknown type as transactional', async () => {
+        const ctx = buildContext({
+            typeId: 'partner-type-id',
+            shouldRenderAgenticCommerceTab: false,
+            salesChannel: response({ data: { transactional: true }, meta: META }),
+        });
+
+        await loadUcpState.call(ctx);
+
+        expect(ctx.ucpState.transactional).toBe(true);
+        expect(ctx.ucpState.meta).toEqual(META);
+        expect(ctx.ucpState.loaded).toBe(true);
+        expect(ctx.ucpAdminApiService.getConfig).toHaveBeenCalledTimes(1);
+        expect(ctx.ucpAdminApiService.getProfilePreview).toHaveBeenCalledTimes(1);
+        expect(ctx.createNotificationError).not.toHaveBeenCalled();
+    });
+
+    it('stops after the sales-channel view when the backend does not classify an unknown type as transactional', async () => {
+        const ctx = buildContext({ typeId: 'partner-type-id', shouldRenderAgenticCommerceTab: false });
+
+        await loadUcpState.call(ctx);
+
+        expect(ctx.ucpAdminApiService.getSalesChannel).toHaveBeenCalledTimes(1);
+        expect(ctx.ucpAdminApiService.getConfig).not.toHaveBeenCalled();
+        expect(ctx.ucpAdminApiService.getProfilePreview).not.toHaveBeenCalled();
+        expect(ctx.ucpState.transactional).toBe(false);
+        expect(ctx.ucpState.loaded).toBe(false);
+        expect(ctx.ucpState.isLoading).toBe(false);
+        expect(ctx.createNotificationError).not.toHaveBeenCalled();
+    });
+
+    it('never asks the backend without ucp.viewer', async () => {
+        const ctx = buildContext({ typeId: 'partner-type-id', shouldRenderAgenticCommerceTab: false, canView: false });
+
+        await loadUcpState.call(ctx);
+
+        expect(ctx.ucpAdminApiService.getSalesChannel).not.toHaveBeenCalled();
     });
 });

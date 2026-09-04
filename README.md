@@ -38,7 +38,7 @@ UCP provides the transaction contract for agentic shopping. The plugin exposes l
 
 Current responsibilities:
 
-- Configure UCP per sales channel.
+- Configure UCP per sales channel — Storefront and Headless only. Every other type, product feed channels included, is refused: the card is hidden, the Admin API and `ucp:config:set` return an error, and a stale `active` flag reads as off.
 - Store sales-channel UCP config in the plugin-owned `swag_agentic_commerce_ucp_config` table. Legacy `SystemConfig` values are read only as a compatibility fallback and backfilled into the table when found.
 - Publish `/.well-known/ucp` with only capabilities and transports that are usable on the current Shopware line.
 - Expose REST, A2A (`/.well-known/agent-card.json`, `/ucp/a2a`), embedded (`/ucp/embedded/*`), and trunk/6.7 MCP (`/ucp/mcp`) flows through shared capability adapters.
@@ -53,7 +53,7 @@ UCP is administered from the CLI for everything except the per-channel Exposure 
 
 | Command | Purpose |
 | --- | --- |
-| `ucp:channels` | List sales channels, their ids and UCP exposure (`exposed` / `off`). |
+| `ucp:channels` | List the UCP-capable sales channels, their ids and UCP exposure (`exposed` / `off`). |
 | `ucp:config:show --sales-channel=…` | Print the resolved UCP config for a channel. |
 | `ucp:config:set --sales-channel=… …` | Set the non-UI config fields (below). Only the options you pass change; the rest is preserved by a merge, so admin-managed Exposure fields are never reset. |
 | `ucp:signing-keys:{generate,list,show-public,retire,delete} --sales-channel=…` | Manage a channel's signing keys — thin subclasses of the SDK commands that map `--sales-channel` to the SDK tenant. |

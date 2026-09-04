@@ -86,6 +86,7 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
             acl: { can: jest.fn(() => false) },
             salesChannel: { typeId: 'storefront-type-id' },
             $route: { params: {} },
+            ucpState: { transactional: false },
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(false);
@@ -101,6 +102,7 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
             salesChannel: { typeId },
             $route: { params: {} },
             isAgenticCommerce: false,
+            ucpState: { transactional: false },
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
@@ -116,8 +118,21 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
             salesChannel: { typeId },
             $route: { params: {} },
             isAgenticCommerce: false,
+            ucpState: { transactional: false },
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(false);
+    });
+
+    it('renders agentic tab for a type the backend resolver classified as transactional', () => {
+        const context = {
+            acl: { can: jest.fn(() => true) },
+            salesChannel: { typeId: 'partner-type-id' },
+            $route: { params: {} },
+            isAgenticCommerce: false,
+            ucpState: { transactional: true },
+        };
+
+        expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
     });
 });

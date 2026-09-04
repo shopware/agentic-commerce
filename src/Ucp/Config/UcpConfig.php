@@ -162,6 +162,19 @@ final class UcpConfig
         ];
     }
 
+    /**
+     * Rebuilt via fromArray() so a new field cannot be dropped here; permissive
+     * webhook validation so a stored local override cannot make disabling throw.
+     */
+    public function disabled(): self
+    {
+        if (!$this->active) {
+            return $this;
+        }
+
+        return self::fromArray([...$this->toArray(), 'active' => false], true);
+    }
+
     public function resolveBaseUri(string $fallbackBaseUri): string
     {
         if (null !== $this->profileDomain && '' !== $this->profileDomain) {
