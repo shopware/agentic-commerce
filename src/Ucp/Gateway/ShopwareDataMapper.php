@@ -138,7 +138,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     /**
      * @return list<Message>
      *
-     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/message_info.json
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/main/packages/core/resources/schema/pinned/2026-08-25/schemas/shopping/types/message_info.json
      */
     private function mapOrderMessages(OrderEntity $order): array
     {
@@ -153,8 +153,8 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     /**
      * @return list<Adjustment>
      *
-     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/order.json
-     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/44a2b038726ecc5a78d5b7ccb90570ae27a66c3c/packages/core/resources/schema/pinned/2026-04-08/schemas/shopping/types/adjustment.json
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/main/packages/core/resources/schema/pinned/2026-08-25/schemas/shopping/order.json
+     * @see https://github.com/agentic-commerce-alliance/ucp-php-sdk/blob/main/packages/core/resources/schema/pinned/2026-08-25/schemas/shopping/types/adjustment.json
      */
     private function mapOrderAdjustments(OrderEntity $order): array
     {
