@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
 use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
@@ -15,6 +16,7 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('framework')]
 final class IdentityLinkingCapability implements IdentityLinkingCapabilityInterface
 {
     /** @var list<IdentityLinkingAdapterInterface>|null */
