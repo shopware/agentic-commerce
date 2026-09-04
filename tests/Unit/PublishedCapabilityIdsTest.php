@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
@@ -26,6 +27,7 @@ use Ucp\Sdk\Enum\UcpCapability;
  * fulfillment or buyer consent -- so this is one-directional: everything published must be
  * known, not everything known must be published.
  */
+#[CoversClass(UcpCapabilityCatalog::class)]
 final class PublishedCapabilityIdsTest extends TestCase
 {
     /**
