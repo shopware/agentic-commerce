@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
@@ -220,7 +220,7 @@ final class UcpConfigServiceTest extends TestCase
             ]),
         ]);
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
-        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClassification::ProductComparison));
 
         $config = $service->getConfig('feed-channel');
 
@@ -240,7 +240,7 @@ final class UcpConfigServiceTest extends TestCase
             static fn (string $key): mixed => 'SwagAgenticCommerce.config.active' === $key ? true : null,
         );
         $bridge = new RecordingAgenticFilesCoreBridge();
-        $service = new UcpConfigService($repository, $legacyStore, $bridge, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+        $service = new UcpConfigService($repository, $legacyStore, $bridge, null, false, $this->typeResolver(SalesChannelTypeClassification::ProductComparison));
 
         $config = $service->getConfig('feed-channel');
 
@@ -253,7 +253,7 @@ final class UcpConfigServiceTest extends TestCase
     {
         $repository = new InMemoryUcpConfigRepository();
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
-        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClassification::ProductComparison));
 
         try {
             $service->saveConfig(['active' => true], 'feed-channel');
@@ -271,7 +271,7 @@ final class UcpConfigServiceTest extends TestCase
             'feed-channel' => UcpConfig::fromArray(['active' => true]),
         ]);
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
-        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClass::ProductComparison));
+        $service = new UcpConfigService($repository, $legacyStore, null, null, false, $this->typeResolver(SalesChannelTypeClassification::ProductComparison));
 
         $config = $service->saveConfig(['active' => false], 'feed-channel');
 
@@ -295,9 +295,9 @@ final class UcpConfigServiceTest extends TestCase
             ->willReturnCallback(static fn (array $salesChannelIds): array => array_combine(
                 $salesChannelIds,
                 array_map(
-                    static fn (string $salesChannelId): SalesChannelTypeClass => 'storefront-channel' === $salesChannelId
-                        ? SalesChannelTypeClass::Storefront
-                        : SalesChannelTypeClass::ProductComparison,
+                    static fn (string $salesChannelId): SalesChannelTypeClassification => 'storefront-channel' === $salesChannelId
+                        ? SalesChannelTypeClassification::Storefront
+                        : SalesChannelTypeClassification::ProductComparison,
                     $salesChannelIds,
                 ),
             ));
@@ -323,7 +323,7 @@ final class UcpConfigServiceTest extends TestCase
         static::assertFalse($service->getConfig('storefront-channel')->active);
     }
 
-    private function typeResolver(SalesChannelTypeClass $class): AbstractSalesChannelTypeResolver
+    private function typeResolver(SalesChannelTypeClassification $class): AbstractSalesChannelTypeResolver
     {
         $typeResolver = $this->createMock(AbstractSalesChannelTypeResolver::class);
         $typeResolver->method('resolve')->willReturn($class);

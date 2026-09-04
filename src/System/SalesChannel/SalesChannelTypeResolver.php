@@ -28,7 +28,7 @@ use Symfony\Contracts\Service\ResetInterface;
 final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver implements ResetInterface
 {
     /**
-     * @var array<string, SalesChannelTypeClass>
+     * @var array<string, SalesChannelTypeClassification>
      */
     private array $resolved = [];
 
@@ -50,9 +50,9 @@ final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver im
         $this->resolved = [];
     }
 
-    public function resolve(string $salesChannelId): SalesChannelTypeClass
+    public function resolve(string $salesChannelId): SalesChannelTypeClassification
     {
-        return $this->resolveMany([$salesChannelId])[$salesChannelId] ?? SalesChannelTypeClass::Other;
+        return $this->resolveMany([$salesChannelId])[$salesChannelId] ?? SalesChannelTypeClassification::Other;
     }
 
     public function resolveMany(array $salesChannelIds): array
@@ -68,7 +68,7 @@ final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver im
 
         $classes = [];
         foreach (array_unique($salesChannelIds) as $salesChannelId) {
-            $classes[$salesChannelId] = $this->resolved[$salesChannelId] ?? SalesChannelTypeClass::Other;
+            $classes[$salesChannelId] = $this->resolved[$salesChannelId] ?? SalesChannelTypeClassification::Other;
         }
 
         return $classes;
@@ -80,7 +80,7 @@ final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver im
     private function read(array $salesChannelIds): void
     {
         foreach ($salesChannelIds as $salesChannelId) {
-            $this->resolved[$salesChannelId] = SalesChannelTypeClass::Other;
+            $this->resolved[$salesChannelId] = SalesChannelTypeClassification::Other;
         }
 
         $salesChannels = $this->salesChannelRepository
@@ -92,7 +92,7 @@ final class SalesChannelTypeResolver extends AbstractSalesChannelTypeResolver im
                 continue;
             }
 
-            $this->resolved[$salesChannel->getId()] = SalesChannelTypeClass::forTypeId($salesChannel->getTypeId());
+            $this->resolved[$salesChannel->getId()] = SalesChannelTypeClassification::forTypeId($salesChannel->getTypeId());
         }
     }
 }

@@ -276,7 +276,7 @@ The script handles the important differences:
   `swag_agentic_commerce_ucp_config`. `SystemConfig` is only a legacy fallback
   and read-through backfill path; do not add new UCP settings there.
 - Gate sales-channel features through `AbstractSalesChannelTypeResolver`, never
-  on a denylist of feed types and never on `SalesChannelTypeClass::forTypeId()`
+  on a denylist of feed types and never on `SalesChannelTypeClassification::forTypeId()`
   directly: the enum's built-in map is the resolver's default and an unresolved
   type stays `Other`. Unknown types are excluded by construction, so neither
   version probing nor another vendor's type id belongs here. Both classes are

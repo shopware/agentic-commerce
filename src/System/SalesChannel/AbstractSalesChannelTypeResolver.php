@@ -13,7 +13,7 @@ use Shopware\Core\Framework\Log\Package;
 
 /**
  * Resolves what a sales channel *is*, so features can decide what they offer on
- * it. An unresolved channel is {@see SalesChannelTypeClass::Other} and every
+ * it. An unresolved channel is {@see SalesChannelTypeClassification::Other} and every
  * feature gating on it stays closed.
  *
  * @internal
@@ -23,12 +23,12 @@ abstract class AbstractSalesChannelTypeResolver
 {
     abstract public function getDecorated(): self;
 
-    abstract public function resolve(string $salesChannelId): SalesChannelTypeClass;
+    abstract public function resolve(string $salesChannelId): SalesChannelTypeClassification;
 
     /**
      * @param list<string> $salesChannelIds
      *
-     * @return array<string, SalesChannelTypeClass>
+     * @return array<string, SalesChannelTypeClassification>
      */
     abstract public function resolveMany(array $salesChannelIds): array;
 }

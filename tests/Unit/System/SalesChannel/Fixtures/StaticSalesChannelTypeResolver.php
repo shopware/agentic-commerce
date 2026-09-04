@@ -6,16 +6,16 @@ namespace Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures;
 
 use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 
 /** @internal */
 final class StaticSalesChannelTypeResolver extends AbstractSalesChannelTypeResolver
 {
     /**
-     * @param array<string, SalesChannelTypeClass> $classes
+     * @param array<string, SalesChannelTypeClassification> $classes
      */
     public function __construct(
-        private readonly SalesChannelTypeClass $default = SalesChannelTypeClass::Other,
+        private readonly SalesChannelTypeClassification $default = SalesChannelTypeClassification::Other,
         private readonly array $classes = [],
     ) {
     }
@@ -25,7 +25,7 @@ final class StaticSalesChannelTypeResolver extends AbstractSalesChannelTypeResol
         throw new DecorationPatternException(self::class);
     }
 
-    public function resolve(string $salesChannelId): SalesChannelTypeClass
+    public function resolve(string $salesChannelId): SalesChannelTypeClassification
     {
         return $this->classes[$salesChannelId] ?? $this->default;
     }

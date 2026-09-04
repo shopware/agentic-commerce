@@ -14,7 +14,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeResolver;
 
 /** @internal */
@@ -28,15 +28,15 @@ final class SalesChannelTypeResolverTest extends TestCase
             'feed-channel' => Defaults::SALES_CHANNEL_TYPE_PRODUCT_COMPARISON,
         ]));
 
-        static::assertSame(SalesChannelTypeClass::Storefront, $resolver->resolve('storefront-channel'));
-        static::assertSame(SalesChannelTypeClass::ProductComparison, $resolver->resolve('feed-channel'));
+        static::assertSame(SalesChannelTypeClassification::Storefront, $resolver->resolve('storefront-channel'));
+        static::assertSame(SalesChannelTypeClassification::ProductComparison, $resolver->resolve('feed-channel'));
     }
 
     public function testAnUnknownSalesChannelIdIsOther(): void
     {
         $resolver = new SalesChannelTypeResolver($this->repository([]));
 
-        static::assertSame(SalesChannelTypeClass::Other, $resolver->resolve('does-not-exist'));
+        static::assertSame(SalesChannelTypeClassification::Other, $resolver->resolve('does-not-exist'));
     }
 
     public function testAThirdPartySalesChannelTypeIsOther(): void
@@ -45,7 +45,7 @@ final class SalesChannelTypeResolverTest extends TestCase
             'social-channel' => '9ce0868f406d47d98cfe4b281e62f098',
         ]));
 
-        static::assertSame(SalesChannelTypeClass::Other, $resolver->resolve('social-channel'));
+        static::assertSame(SalesChannelTypeClassification::Other, $resolver->resolve('social-channel'));
     }
 
     public function testItAsksForTheGivenIdsOnly(): void
@@ -58,8 +58,8 @@ final class SalesChannelTypeResolverTest extends TestCase
         ));
 
         static::assertSame([
-            'storefront-channel' => SalesChannelTypeClass::Storefront,
-            'feed-channel' => SalesChannelTypeClass::Other,
+            'storefront-channel' => SalesChannelTypeClassification::Storefront,
+            'feed-channel' => SalesChannelTypeClassification::Other,
         ], $resolver->resolveMany(['storefront-channel', 'feed-channel']));
     }
 
@@ -70,10 +70,10 @@ final class SalesChannelTypeResolverTest extends TestCase
             expectedReads: 1,
         ));
 
-        static::assertSame(SalesChannelTypeClass::Storefront, $resolver->resolve('storefront-channel'));
-        static::assertSame(SalesChannelTypeClass::Storefront, $resolver->resolve('storefront-channel'));
+        static::assertSame(SalesChannelTypeClassification::Storefront, $resolver->resolve('storefront-channel'));
+        static::assertSame(SalesChannelTypeClassification::Storefront, $resolver->resolve('storefront-channel'));
         static::assertSame(
-            ['storefront-channel' => SalesChannelTypeClass::Storefront],
+            ['storefront-channel' => SalesChannelTypeClassification::Storefront],
             $resolver->resolveMany(['storefront-channel', 'storefront-channel']),
         );
     }
@@ -82,8 +82,8 @@ final class SalesChannelTypeResolverTest extends TestCase
     {
         $resolver = new SalesChannelTypeResolver($this->repository([], expectedReads: 1));
 
-        static::assertSame(SalesChannelTypeClass::Other, $resolver->resolve('feed-channel'));
-        static::assertSame(SalesChannelTypeClass::Other, $resolver->resolve('feed-channel'));
+        static::assertSame(SalesChannelTypeClassification::Other, $resolver->resolve('feed-channel'));
+        static::assertSame(SalesChannelTypeClassification::Other, $resolver->resolve('feed-channel'));
     }
 
     public function testItReadsOnlyTheIdsItHasNotSeenYet(): void
@@ -124,7 +124,7 @@ final class SalesChannelTypeResolverTest extends TestCase
         $resolver->resolve('storefront-a');
         $resolver->reset();
 
-        static::assertSame(SalesChannelTypeClass::Storefront, $resolver->resolve('storefront-a'));
+        static::assertSame(SalesChannelTypeClassification::Storefront, $resolver->resolve('storefront-a'));
     }
 
     public function testTheCoreImplementationCannotBeDecorated(): void

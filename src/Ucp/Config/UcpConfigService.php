@@ -7,7 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 
 /** @internal */
@@ -174,7 +174,7 @@ final class UcpConfigService
 
         return array_keys(array_filter(
             $this->salesChannelTypeResolver->resolveMany($salesChannelIds),
-            static fn (SalesChannelTypeClass $class): bool => !$class->isTransactional(),
+            static fn (SalesChannelTypeClassification $class): bool => !$class->isTransactional(),
         ));
     }
 

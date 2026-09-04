@@ -10,7 +10,7 @@ use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 
 /** @internal */
 #[Package('discovery')]
@@ -133,13 +133,13 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         }
 
         // Without a container (install) the built-in classification stands in for the resolver.
-        $typeClassBySalesChannelId = null === $this->salesChannelTypeResolver
-            ? array_map(SalesChannelTypeClass::forTypeId(...), $typeIdBySalesChannelId)
+        $typeClassificationBySalesChannelId = null === $this->salesChannelTypeResolver
+            ? array_map(SalesChannelTypeClassification::forTypeId(...), $typeIdBySalesChannelId)
             : $this->salesChannelTypeResolver->resolveMany(array_keys($typeIdBySalesChannelId));
 
         return array_keys(array_filter(
-            $typeClassBySalesChannelId,
-            static fn (SalesChannelTypeClass $typeClass): bool => $typeClass->isTransactional(),
+            $typeClassificationBySalesChannelId,
+            static fn (SalesChannelTypeClassification $typeClassification): bool => $typeClassification->isTransactional(),
         ));
     }
 }

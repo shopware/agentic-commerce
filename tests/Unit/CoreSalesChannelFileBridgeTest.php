@@ -10,7 +10,7 @@ use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 
 /** @internal */
@@ -134,9 +134,9 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
         $bridge = new CoreSalesChannelFileBridge(
             $connection,
             new CoreSalesChannelFileFeature([self::class]),
-            new StaticSalesChannelTypeResolver(SalesChannelTypeClass::Other, [
-                $storefrontChannelId => SalesChannelTypeClass::ProductComparison,
-                $partnerChannelId => SalesChannelTypeClass::Storefront,
+            new StaticSalesChannelTypeResolver(SalesChannelTypeClassification::Other, [
+                $storefrontChannelId => SalesChannelTypeClassification::ProductComparison,
+                $partnerChannelId => SalesChannelTypeClassification::Storefront,
             ]),
         );
 

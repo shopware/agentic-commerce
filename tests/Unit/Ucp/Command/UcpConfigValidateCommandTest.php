@@ -15,7 +15,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 use Swag\AgenticCommerce\Tests\Unit\UcpSigningKeyServiceTestSigningKeyManager;
 use Swag\AgenticCommerce\Tests\Unit\UcpSigningKeyServiceTestTenantRepository;
@@ -112,7 +112,7 @@ class UcpConfigValidateCommandTest extends TestCase
 
         $viewProvider = new SalesChannelViewProvider(
             $this->salesChannelRepository(),
-            new StaticSalesChannelTypeResolver(SalesChannelTypeClass::Storefront),
+            new StaticSalesChannelTypeResolver(SalesChannelTypeClassification::Storefront),
         );
         $signingKeyService = new UcpSigningKeyService(
             new UcpSigningKeyServiceTestTenantRepository(),

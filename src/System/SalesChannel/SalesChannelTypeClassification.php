@@ -21,7 +21,7 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  * @internal
  */
 #[Package('discovery')]
-enum SalesChannelTypeClass
+enum SalesChannelTypeClassification
 {
     case Storefront;
     case Headless;

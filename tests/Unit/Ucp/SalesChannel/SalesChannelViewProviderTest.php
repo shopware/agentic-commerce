@@ -15,7 +15,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -40,10 +40,10 @@ final class SalesChannelViewProviderTest extends TestCase
             ],
         );
 
-        $provider = new SalesChannelViewProvider($repository, new StaticSalesChannelTypeResolver(SalesChannelTypeClass::Other, [
-            'storefront-channel' => SalesChannelTypeClass::Storefront,
-            'feed-channel' => SalesChannelTypeClass::ProductComparison,
-            'partner-channel' => SalesChannelTypeClass::Storefront,
+        $provider = new SalesChannelViewProvider($repository, new StaticSalesChannelTypeResolver(SalesChannelTypeClassification::Other, [
+            'storefront-channel' => SalesChannelTypeClassification::Storefront,
+            'feed-channel' => SalesChannelTypeClassification::ProductComparison,
+            'partner-channel' => SalesChannelTypeClassification::Storefront,
         ]));
 
         $salesChannels = $provider->all(Context::createDefaultContext());
@@ -90,7 +90,7 @@ final class SalesChannelViewProviderTest extends TestCase
     {
         $provider = new SalesChannelViewProvider(
             $this->salesChannelRepository(static function (): void {}),
-            $this->resolver(SalesChannelTypeClass::ProductComparison),
+            $this->resolver(SalesChannelTypeClassification::ProductComparison),
         );
 
         $salesChannel = $provider->get('storefront-channel', Context::createDefaultContext());
@@ -132,7 +132,7 @@ final class SalesChannelViewProviderTest extends TestCase
         static::assertNull($provider->firstDomainUrl('does-not-exist'));
     }
 
-    private function resolver(SalesChannelTypeClass $class = SalesChannelTypeClass::Storefront): StaticSalesChannelTypeResolver
+    private function resolver(SalesChannelTypeClassification $class = SalesChannelTypeClassification::Storefront): StaticSalesChannelTypeResolver
     {
         return new StaticSalesChannelTypeResolver($class);
     }

@@ -12,7 +12,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
-use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClass;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 
 /** @internal */
 #[Package('discovery')]
@@ -36,17 +36,17 @@ final class SalesChannelViewProvider
         $criteria->addAssociation('domains');
 
         $salesChannels = $this->salesChannelRepository->search($criteria, $context)->getEntities();
-        $typeClassBySalesChannelId = $this->salesChannelTypeResolver->resolveMany(array_values($salesChannels->getIds()));
+        $typeClassificationBySalesChannelId = $this->salesChannelTypeResolver->resolveMany(array_values($salesChannels->getIds()));
         $payload = [];
 
         foreach ($salesChannels as $salesChannel) {
             /** @var SalesChannelEntity $salesChannel */
-            $typeClass = $typeClassBySalesChannelId[$salesChannel->getId()] ?? SalesChannelTypeClass::Other;
-            if (!$typeClass->isTransactional()) {
+            $typeClassification = $typeClassificationBySalesChannelId[$salesChannel->getId()] ?? SalesChannelTypeClassification::Other;
+            if (!$typeClassification->isTransactional()) {
                 continue;
             }
 
-            $payload[] = $this->view($salesChannel, $typeClass);
+            $payload[] = $this->view($salesChannel, $typeClassification);
         }
 
         return $payload;
@@ -82,7 +82,7 @@ final class SalesChannelViewProvider
         return $domains?->first()?->getUrl();
     }
 
-    private function view(SalesChannelEntity $salesChannel, SalesChannelTypeClass $typeClass): SalesChannelView
+    private function view(SalesChannelEntity $salesChannel, SalesChannelTypeClassification $typeClassification): SalesChannelView
     {
         $domains = [];
         foreach ($salesChannel->getDomains() ?? [] as $domain) {
@@ -99,7 +99,7 @@ final class SalesChannelViewProvider
             $salesChannel->getId(),
             $salesChannel->getName(),
             $salesChannel->getTypeId(),
-            $typeClass->isTransactional(),
+            $typeClassification->isTransactional(),
             $domains,
         );
     }
