@@ -17,6 +17,8 @@ use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /** @internal */
 final class CheckoutCompleter
@@ -33,6 +35,7 @@ final class CheckoutCompleter
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
+        private readonly CompletionPaymentApplierInterface $completionPaymentApplier,
     ) {
     }
 
@@ -45,6 +48,7 @@ final class CheckoutCompleter
         Cart $cart,
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
+        ?PaymentInstrument $paymentInstrument = null,
     ): Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
 
@@ -80,6 +84,12 @@ final class CheckoutCompleter
             if (null !== $config->webhookUrlOverride) {
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
             }
+
+            $customerContext = $this->completionPaymentApplier->apply(
+                $paymentInstrument,
+                $customerContext,
+                $requestContext,
+            );
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 

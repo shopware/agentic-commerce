@@ -34,6 +34,7 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 
 /**
  * @internal
@@ -107,6 +108,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -149,6 +151,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $this->expectExceptionObject(new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.'));
@@ -262,6 +265,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $orderWebhookPublisher,
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -316,6 +320,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         try {

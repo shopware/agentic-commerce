@@ -146,6 +146,9 @@ use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
+use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
 
 return static function (ContainerConfigurator $container): void {
     $appUrlHost = parse_url((string) EnvironmentHelper::getVariable('APP_URL', ''), \PHP_URL_HOST);
@@ -254,9 +257,17 @@ return static function (ContainerConfigurator $container): void {
     $services->set(CheckoutWebhookUrlGuard::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
+    // Completion keeps charging the sales channel default until something is registered
+    // under this interface. Replacing it is the whole integration: alias your own service
+    // here and the instrument reaches it. See docs/completion-payment.md.
+    $services->set(UnappliedCompletionPayment::class)
+        ->arg('$logger', service('logger')->nullOnInvalid());
+    $services->alias(CompletionPaymentApplierInterface::class, UnappliedCompletionPayment::class);
+
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
     $services->alias(CheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
+    $services->alias(PaymentAwareCheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
     $services->alias(DiscountAdapterInterface::class, ShopwareDiscountAdapter::class);
     $services->alias(OrderAdapterInterface::class, ShopwareOrderAdapter::class);
 
