@@ -361,24 +361,23 @@ declare(strict_types=1);
 
 require '/var/www/html/vendor/autoload.php';
 
-$configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
-if (is_file($configPath)) {
-    $configContents = (string) file_get_contents($configPath);
-    if (str_contains($configContents, 'sqlite:')) {
-        fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
-        exit(1);
-    }
+// The packages/ucp_sdk.yaml this used to guard is gone: it duplicated services.php, which
+// is the only place the SDK is configured now. The sqlite and resolve() checks it carried
+// live on below, against the file that survived.
 
-    if (str_contains($configContents, 'resolve:DATABASE_URL')) {
+$servicesConfigPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/services.php';
+if (is_file($servicesConfigPath)) {
+    $servicesContents = (string) file_get_contents($servicesConfigPath);
+
+    if (str_contains($servicesContents, "env('DATABASE_URL')->resolve()")) {
         fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
         exit(1);
     }
-}
 
-$servicesConfigPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/services.php';
-if (is_file($servicesConfigPath) && str_contains((string) file_get_contents($servicesConfigPath), "env('DATABASE_URL')->resolve()")) {
-    fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
-    exit(1);
+    if (str_contains($servicesContents, 'sqlite:')) {
+        fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+        exit(1);
+    }
 }
 
 $connectionFactory = 'Ucp\\Sdk\\Symfony\\Bridge\\DoctrineDbal\\ConnectionFactory';
