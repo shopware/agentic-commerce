@@ -29,21 +29,25 @@ final class CatalogCapability implements CatalogCapabilityInterface
 
     public function search(CatalogSearchRequest $request, RequestContext $context): CatalogSearchResponse
     {
-        CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG, 'Catalog capability is disabled for this sales channel.');
+        // Guarded per operation now that search and lookup are separate capabilities. A peer
+        // that negotiated only one of them must not reach the other through this class.
+        CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH, 'Catalog search capability is disabled for this sales channel.');
 
         return new CatalogSearchResponse($this->adapter->search($request, $context));
     }
 
     public function lookup(CatalogLookupRequest $request, RequestContext $context): array
     {
-        CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG, 'Catalog capability is disabled for this sales channel.');
+        CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP, 'Catalog lookup capability is disabled for this sales channel.');
 
         return $this->adapter->lookup($request, $context);
     }
 
     public function getProduct(CatalogProductRequest $request, RequestContext $context): Product
     {
-        CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG, 'Catalog capability is disabled for this sales channel.');
+        // Product detail is the lookup capability, not a third one: both of its schemas come
+        // from catalog_lookup.json, which is why no release defines an id for it.
+        CapabilityGuard::assertEnabled($context, UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP, 'Catalog lookup capability is disabled for this sales channel.');
 
         return $this->adapter->getProduct($request, $context);
     }

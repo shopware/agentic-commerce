@@ -16,7 +16,8 @@ final class UcpCapabilityCatalogTest extends TestCase
     public function testItMapsConfigKeysToDescriptorNames(): void
     {
         self::assertSame([
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_ORDER,
             UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING,
             UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
