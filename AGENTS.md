@@ -373,8 +373,8 @@ The script handles the important differences:
 ## Releases
 
 Store releases run from `main` HEAD via `.github/workflows/store-release.yml` after
-that commit has a green `validation-gate`. Bump `composer.json` `version`, the admin
-`package.json` + lock, and both changelogs (`# <version>`) in the release PR. See the
+that commit has a green `validation-gate`. Bump `composer.json` `version` and both
+changelogs (`# <version>`) in the release PR. See the
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 
