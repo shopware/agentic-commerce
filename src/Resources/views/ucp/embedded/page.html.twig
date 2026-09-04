@@ -86,7 +86,7 @@
 
             {% block ucp_embedded_cta %}
             {% if data.continue_url is defined and data.continue_url is not empty %}
-                <a class="cta" target="_top" rel="noopener" href="{{ data.continue_url }}">Continue checkout</a>
+                <a class="cta" target="_top" rel="noopener noreferrer" href="{{ data.continue_url }}">Continue checkout</a>
             {% endif %}
             {% endblock %}
         </div>
@@ -108,7 +108,7 @@
         }, targetOrigin);
     }
     window.addEventListener('message', (event) => {
-        if (event.origin !== targetOrigin && targetOrigin !== window.location.origin) {
+        if (event.origin !== targetOrigin) {
             return;
         }
         const data = event.data || {};
