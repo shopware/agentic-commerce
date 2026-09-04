@@ -25,7 +25,7 @@ use Ucp\Sdk\Repository\PlatformProfileCacheRepositoryInterface;
 
 #[Route(defaults: [PlatformRequest::ATTRIBUTE_ROUTE_SCOPE => [ApiRouteScope::ID]])]
 /** @internal */
-#[Package('checkout')]
+#[Package('framework')]
 final class UcpAdminController
 {
     public function __construct(

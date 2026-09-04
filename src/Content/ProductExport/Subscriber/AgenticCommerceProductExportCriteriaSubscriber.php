@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Content\ProductExport\Subscriber;
 
 use Shopware\Core\Content\ProductExport\Event\ProductExportProductCriteriaEvent;
+use Shopware\Core\Framework\Log\Package;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
@@ -23,6 +24,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  *
  * @internal
  */
+#[Package('discovery')]
 final class AgenticCommerceProductExportCriteriaSubscriber implements EventSubscriberInterface
 {
     private const AGENTIC_PROVIDERS = ['open-ai', 'google'];

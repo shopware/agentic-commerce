@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\System\SystemConfig;
 
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 
@@ -31,6 +32,7 @@ use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
  *
  * @internal
  */
+#[Package('framework')]
 class CompatConfigReader extends ConfigReader
 {
     public function __construct(?ShopwareVersionDetector $versionDetector = null)

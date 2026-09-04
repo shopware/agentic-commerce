@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Ucp\Sdk\Adapter\CartAdapterInterface;
@@ -13,6 +14,7 @@ use Ucp\Sdk\Model\Cart\CartUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class ShopwareCartAdapter implements CartAdapterInterface
 {
     public function __construct(

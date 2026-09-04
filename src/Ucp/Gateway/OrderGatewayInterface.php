@@ -6,10 +6,12 @@ namespace Swag\AgenticCommerce\Ucp\Gateway;
 
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('after-sales')]
 interface OrderGatewayInterface
 {
     public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity;

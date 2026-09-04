@@ -9,7 +9,10 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Provider;
 
+use Shopware\Core\Framework\Log\Package;
+
 /** @internal */
+#[Package('discovery')]
 class AgenticCommerceProductExportProviderRegistry
 {
     /**

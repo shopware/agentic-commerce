@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Order;
 
 use Shopware\Core\Checkout\Order\Event\OrderStateMachineStateChangeEvent;
 use Shopware\Core\Checkout\Order\OrderStates;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -16,6 +17,7 @@ use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
 /** @internal */
+#[Package('after-sales')]
 final class OrderStateSubscriber implements EventSubscriberInterface
 {
     public function __construct(

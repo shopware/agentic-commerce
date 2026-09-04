@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Service;
 use GuzzleHttp\Psr7\Uri;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Content\ProductExport\Service\ProductExportRendererInterface;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
@@ -28,6 +29,7 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  *
  * @internal
  */
+#[Package('discovery')]
 class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
 {
     public function __construct(

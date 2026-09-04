@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Command;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -17,6 +18,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
     name: 'ucp:config:set',
     description: 'Sets the non-UI UCP config fields (signature policy, allowlists, delivery) for a sales channel.',
 )]
+#[Package('framework')]
 final class UcpConfigSetCommand extends Command
 {
     /**

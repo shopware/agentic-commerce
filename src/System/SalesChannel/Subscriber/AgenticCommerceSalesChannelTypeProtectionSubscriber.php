@@ -11,6 +11,7 @@ namespace Swag\AgenticCommerce\System\SalesChannel\Subscriber;
 
 use Shopware\Core\Framework\DataAbstractionLayer\Write\Command\DeleteCommand;
 use Shopware\Core\Framework\DataAbstractionLayer\Write\Validation\PreWriteValidationEvent;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelType\SalesChannelTypeDefinition;
 use Shopware\Core\System\SalesChannel\Exception\DefaultSalesChannelTypeCannotBeDeleted;
@@ -25,6 +26,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  *
  * @internal
  */
+#[Package('discovery')]
 class AgenticCommerceSalesChannelTypeProtectionSubscriber implements EventSubscriberInterface
 {
     public function __construct(private readonly ShopwareVersionDetector $versionDetector)

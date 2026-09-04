@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\StringField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
+use Shopware\Core\Framework\Log\Package;
 
 /**
  * Adds the `provider` field to {@see ProductExportDefinition} so the DAL of
@@ -26,6 +27,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
  *
  * @internal
  */
+#[Package('discovery')]
 class AgenticProductExportDefinition extends ProductExportDefinition
 {
     public function getHydratorClass(): string

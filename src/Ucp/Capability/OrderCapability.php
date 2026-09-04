@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Adapter\OrderAdapterInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Model\Order\OrderView;
@@ -11,6 +12,7 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('after-sales')]
 final class OrderCapability implements OrderCapabilityInterface
 {
     public function __construct(
