@@ -40,13 +40,14 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         $imageUrl = $cover?->getMedia()?->getUrl();
         $price = $product instanceof SalesChannelProductEntity ? $product->getCalculatedPrice()->getUnitPrice() : 0.0;
         $currency = $context->getCurrency()->getIsoCode();
+        $description = $this->plainDescription($product);
         $extra = [];
 
         if (null !== $lookupInputId) {
             $extra['variants'] = [[
                 'id' => $product->getId(),
                 'title' => $name,
-                'description' => ['plain' => $name],
+                'description' => ['plain' => $description ?? $name],
                 'price' => ['amount' => (int) round($price * 100), 'currency' => $currency],
                 'inputs' => [['id' => $lookupInputId, 'match' => 'exact']],
             ]];
@@ -60,7 +61,30 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             // @phpstan-ignore-next-line argument.type -- SDK schema requires lookup inputs, but Product::$extra is typed too narrowly.
             $extra,
             $currency,
+            description: $description,
         );
+    }
+
+    /**
+     * Extracts a plain-text product description, translation-aware and stripped of the
+     * storefront HTML, so agents receive readable copy rather than markup. Returns null
+     * when the product has no description, leaving the SDK to fall back to the title.
+     */
+    private function plainDescription(ProductEntity $product): ?string
+    {
+        $description = $product->getTranslation('description');
+        if (!\is_string($description) || '' === $description) {
+            $description = $product->getDescription();
+        }
+
+        if (!\is_string($description) || '' === $description) {
+            return null;
+        }
+
+        $plain = html_entity_decode(strip_tags($description), \ENT_QUOTES | \ENT_HTML5);
+        $plain = trim(preg_replace('/\s+/', ' ', $plain) ?? $plain);
+
+        return '' !== $plain ? $plain : null;
     }
 
     public function toCart(Cart $cart, SalesChannelContext $context): \Ucp\Sdk\Model\Cart\Cart
