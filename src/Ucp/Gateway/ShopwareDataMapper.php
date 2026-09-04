@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Gateway;
 
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\Error\Error;
+use Shopware\Core\Checkout\Cart\LineItem\LineItem as ShopwareLineItem;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
@@ -22,6 +23,7 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Common\LineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
+use Ucp\Sdk\Model\Common\MonetaryAmount;
 use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\Adjustment;
 use Ucp\Sdk\Model\Order\OrderView;
@@ -66,11 +68,12 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     public function toCart(Cart $cart, SalesChannelContext $context): \Ucp\Sdk\Model\Cart\Cart
     {
         return new \Ucp\Sdk\Model\Cart\Cart(
-            $cart->getToken() ?: $context->getToken(),
-            $this->mapShopwareLineItems($cart->getLineItems()),
-            $context->getCurrency()->getIsoCode(),
-            $this->cartMoneySummary($cart),
-            $this->mapCartMessages($cart),
+            id: $cart->getToken() ?: $context->getToken(),
+            lineItems: $this->mapShopwareLineItems($cart->getLineItems()),
+            currency: $context->getCurrency()->getIsoCode(),
+            totals: $this->cartMoneySummary($cart),
+            messages: $this->mapCartMessages($cart),
+            extra: $this->discountExtra($cart, $context),
         );
     }
 
@@ -204,6 +207,69 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
         return $payload;
     }
+
+    /**
+     * The applied-discount breakdown, in `discounts.applied[]`.
+     *
+     * Until now a discounted cart reported only a negative `items_discount` total, so an
+     * agent could see that something had been taken off and never what: no code, no name,
+     * no per-discount amount. `discount.json` models exactly that list, and the capability
+     * this plugin publishes is the one that defines it, so advertising the capability while
+     * withholding the breakdown was an odd place to stop.
+     *
+     * Shopware has no discount concept of its own here -- a promotion is a line item with a
+     * negative unit price, which is the same test `isDiscountLine()` already uses to keep
+     * those lines out of `lineItems`. So this reads the same lines it excludes, rather than
+     * introducing a second notion of what a discount is.
+     *
+     * @return array<string, mixed>
+     */
+    private function discountExtra(Cart $cart, SalesChannelContext $context): array
+    {
+        $applied = [];
+
+        foreach ($cart->getLineItems() as $lineItem) {
+            $price = $lineItem->getPrice();
+            if (!$this->isDiscountLine($price?->getUnitPrice())) {
+                continue;
+            }
+
+            // Positive: the schema asks for the discount amount, not its effect on the
+            // total, and `items_discount` already carries the sign.
+            $entry = [
+                'title' => $lineItem->getLabel() ?? $lineItem->getId(),
+                'amount' => MonetaryAmount::fromMajorUnits(
+                    abs($price?->getTotalPrice() ?? 0.0),
+                    $context->getCurrency()->getIsoCode(),
+                )->minorUnits,
+            ];
+
+            $code = $this->discountCode($lineItem);
+            if (null !== $code) {
+                $entry['code'] = $code;
+            }
+
+            // A promotion with no code was applied by a merchant rule rather than by the
+            // agent, which is what `automatic` means.
+            $entry['automatic'] = null === $code;
+
+            $applied[] = $entry;
+        }
+
+        if ([] === $applied) {
+            return [];
+        }
+
+        return ['discounts' => ['applied' => $applied]];
+    }
+
+    private function discountCode(ShopwareLineItem $lineItem): ?string
+    {
+        $code = $lineItem->getPayloadValue('code');
+
+        return \is_string($code) && '' !== $code ? $code : null;
+    }
+
 
     /**
      * Decides whether a Shopware line belongs in `totals` instead of `line_items`.
