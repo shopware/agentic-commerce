@@ -212,7 +212,7 @@ final class UcpMcpProxyControllerTest extends TestCase
                 public function resolve(HttpRequest $request): RuntimeConfiguration
                 {
                     return new RuntimeConfiguration(
-                        '2026-04-08',
+                        '2026-08-25',
                         'https://shop.example',
                         SignaturePolicy::Log,
                         true,
@@ -442,7 +442,7 @@ final class UcpMcpProxyControllerTest extends TestCase
     private function sdkConfiguration(int $maxRequestBodyBytes = 1048576): UcpSdkConfiguration
     {
         return new UcpSdkConfiguration(
-            '2026-04-08',
+            '2026-08-25',
             null,
             [],
             'strict',

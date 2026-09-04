@@ -160,7 +160,7 @@ trait UcpFlowTestBehaviour
         $storeApiMcp = $container->get(ShopwareVersionDetector::class)->supportsStoreApiMcp();
 
         return $container->get(ProfileBuilderInterface::class)->build(new ProfileBuildInput(
-            $config->ucpVersion,
+            $config::ucpVersion(),
             $config->resolveBaseUri($this->ucpDomain),
             $config->runtimeTransports($storeApiMcp),
             transportEndpoints: $config->transportEndpoints($this->ucpDomain, $storeApiMcp),

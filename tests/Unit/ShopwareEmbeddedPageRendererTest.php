@@ -60,7 +60,7 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
         $runtimeConfigurationResolver
             ->method('resolve')
             ->willReturnCallback(static fn (HttpRequest $request): RuntimeConfiguration => new RuntimeConfiguration(
-                '2026-04-08',
+                '2026-08-25',
                 'https://'.(parse_url($request->absoluteUri, \PHP_URL_HOST) ?: 'shop.example'),
             ));
 

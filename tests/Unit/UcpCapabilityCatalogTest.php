@@ -50,7 +50,7 @@ final class UcpCapabilityCatalogTest extends TestCase
         self::assertSame(UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT, $descriptor->name);
         self::assertSame(UcpProtocol::VERSION, $descriptor->version);
         self::assertSame('https://ucp.dev/specification/checkout/', $descriptor->specUrl);
-        self::assertSame('https://ucp.dev/2026-04-08/schemas/shopping/checkout.json', $descriptor->schemaUrl);
+        self::assertSame('https://ucp.dev/2026-08-25/schemas/shopping/checkout.json', $descriptor->schemaUrl);
         self::assertSame([
             UcpCapabilityCatalog::DESCRIPTOR_CART,
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
@@ -65,9 +65,9 @@ final class UcpCapabilityCatalogTest extends TestCase
 
         self::assertSame(UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING, $identity->name);
         self::assertSame('https://ucp.dev/specification/identity-linking/', $identity->specUrl);
-        self::assertSame('https://ucp.dev/2026-04-08/schemas/identity/oauth.json', $identity->schemaUrl);
+        self::assertSame('https://ucp.dev/2026-08-25/schemas/identity/oauth.json', $identity->schemaUrl);
         self::assertSame(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $tokenization->name);
         self::assertSame('https://ucp.dev/specification/payment-token-exchange/', $tokenization->specUrl);
-        self::assertSame('https://ucp.dev/2026-04-08/schemas/shopping/payment-tokenization.json', $tokenization->schemaUrl);
+        self::assertSame('https://ucp.dev/2026-08-25/schemas/shopping/payment-tokenization.json', $tokenization->schemaUrl);
     }
 }

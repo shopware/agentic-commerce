@@ -791,7 +791,7 @@ final class UcpMcpToolContextTest extends TestCase
             'shop.example',
             idempotencyKey: $idempotencyKey,
             runtimeConfiguration: new RuntimeConfiguration(
-                '2026-04-08',
+                '2026-08-25',
                 'https://shop.example',
                 idempotencyRequired: $idempotencyRequired,
             ),
