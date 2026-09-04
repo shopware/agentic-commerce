@@ -151,6 +151,12 @@ The top screenshots verify the lane transport summary. The security screenshots 
 
 ## Remaining Runtime Gaps
 
+For the UCP SDK upgrade to protocol version `2026-08-25` and the plugin-side
+work it implies, see [ucp-sdk-integration-backlog.md](ucp-sdk-integration-backlog.md).
+Note that the SDK repository also has a `docs/full-ucp-parity-plan.md` with
+different content: that one covers the SDK transport model, this one covers the
+Shopware support matrix.
+
 - Payment tokenization stays hidden/unsupported by default until a real
   PSP-backed tokenizing payment handler is registered and enabled per sales
   channel. See
@@ -169,18 +175,27 @@ The top screenshots verify the lane transport summary. The security screenshots 
   annotates it `ucp_request: {complete: "required"}`), and the MCP tool now sends
   one. The instrument is not yet acted on: the SDK's
   `CheckoutAdapterInterface::completeCheckout()` takes only an id and a context, so
-  completion charges the sales channel default (invoice/offline) method. Threading
-  payment into the adapter is an upstream SDK change.
+  completion charges the sales channel default (invoice/offline) method.
+  **This is not blocked upstream.** The SDK has exposed
+  `Ucp\Sdk\Contract\PaymentAwareCheckoutCapabilityInterface` and
+  `Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface` since 0.0.3, both with
+  `completeCheckoutFromRequest(CheckoutCompleteRequest, RequestContext)`. We
+  implement neither. Tracked as `P12` in
+  [ucp-sdk-integration-backlog.md](ucp-sdk-integration-backlog.md).
 - Applied discounts are reported as a negative `items_discount` total. The spec's
   richer `discounts.applied[]` breakdown (`discount.json` → `$defs.applied_discount`,
-  with per-target `allocations`) is not emitted yet: the SDK's `Cart` model has no
-  `discounts` field and no `extra` escape hatch, so cart responses cannot carry it.
-  `Checkout` does have `extra`, so checkout-only fidelity is possible ahead of the
-  SDK change.
+  with per-target `allocations`) is not emitted yet.
+  **This is not blocked upstream.** The SDK `Cart` model does have an `extra`
+  escape hatch (`packages/core/src/Model/Cart/Cart.php`, added in 0.0.3), so cart
+  responses can carry the breakdown today, as can `Checkout`. Tracked as `P13` in
+  [ucp-sdk-integration-backlog.md](ucp-sdk-integration-backlog.md).
 - `cart.update` requires the cart id inside the payload as well as on the tool
   argument, because the SDK validates the raw payload rather than merging the
   resource id first as it does for `cart.get`/`cart.cancel`. The tool description
-  documents the duplication; removing it is an upstream SDK change.
+  documents the duplication. **UCP `2026-08-25` resolves this**: it standardises
+  `cart.id` as omitted in update requests, so the duplication goes away with the
+  SDK version bump. Tracked as `P14` in
+  [ucp-sdk-integration-backlog.md](ucp-sdk-integration-backlog.md).
 
 ## QA-Only Surfaces
 
