@@ -70,12 +70,12 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
         }
 
         return new PlatformProfile(
-            $profile->version,
-            $services,
-            $capabilities,
-            \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
-            $profile->signingKeys,
-            $profile->supportedVersions,
+            version: $profile->version,
+            services: $services,
+            capabilities: $capabilities,
+            paymentHandlers: \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
+            signingKeys: $profile->signingKeys,
+            supportedVersions: $profile->supportedVersions,
         );
     }
 
@@ -103,12 +103,12 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
 
         $capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT] = array_map(
             static fn (CapabilityDescriptor $descriptor): CapabilityDescriptor => new CapabilityDescriptor(
-                $descriptor->name,
-                $descriptor->version,
-                $descriptor->specUrl,
-                $descriptor->schemaUrl,
-                $extends,
-                $descriptor->config,
+                name: $descriptor->name,
+                version: $descriptor->version,
+                specUrl: $descriptor->specUrl,
+                schemaUrl: $descriptor->schemaUrl,
+                extends: $extends,
+                config: $descriptor->config,
             ),
             $capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT],
         );

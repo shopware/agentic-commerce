@@ -21,13 +21,13 @@ final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
     public function describe(RequestContext $context): PaymentHandlerDescriptor
     {
         return new PaymentHandlerDescriptor(
-            $this->id(),
-            $this->id(),
-            UcpProtocol::VERSION,
-            'https://developer.shopware.com/ucp/payment-handlers/invoice',
-            'https://ucp.dev/schemas/payments/delegate-payment.json',
-            ['https://ucp.dev/schemas/shopping/types/invoice_payment_instrument.json'],
-            [
+            id: $this->id(),
+            name: $this->id(),
+            version: UcpProtocol::VERSION,
+            specUrl: 'https://developer.shopware.com/ucp/payment-handlers/invoice',
+            configSchema: 'https://ucp.dev/schemas/payments/delegate-payment.json',
+            instrumentSchemas: ['https://ucp.dev/schemas/shopping/types/invoice_payment_instrument.json'],
+            config: [
                 'tokenization' => false,
                 'description' => 'Uses the sales channel default invoice/offline payment flow. No raw credential tokenization is performed.',
             ],

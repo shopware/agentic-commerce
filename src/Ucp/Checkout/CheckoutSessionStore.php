@@ -86,10 +86,10 @@ final class CheckoutSessionStore
         }
 
         return new Buyer(
-            isset($buyer['email']) && \is_string($buyer['email']) ? $buyer['email'] : null,
-            isset($buyer['firstName']) && \is_string($buyer['firstName']) ? $buyer['firstName'] : null,
-            isset($buyer['lastName']) && \is_string($buyer['lastName']) ? $buyer['lastName'] : null,
-            isset($buyer['phoneNumber']) && \is_string($buyer['phoneNumber']) ? $buyer['phoneNumber'] : null,
+            email: isset($buyer['email']) && \is_string($buyer['email']) ? $buyer['email'] : null,
+            firstName: isset($buyer['firstName']) && \is_string($buyer['firstName']) ? $buyer['firstName'] : null,
+            lastName: isset($buyer['lastName']) && \is_string($buyer['lastName']) ? $buyer['lastName'] : null,
+            phoneNumber: isset($buyer['phoneNumber']) && \is_string($buyer['phoneNumber']) ? $buyer['phoneNumber'] : null,
         );
     }
 

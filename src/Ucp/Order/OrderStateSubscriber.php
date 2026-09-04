@@ -60,7 +60,7 @@ final class OrderStateSubscriber implements EventSubscriberInterface
 
         $this->webhookPublisher->publish(
             $config->webhookUrlOverride,
-            new OrderWebhookPayload('order.updated', $order->getId(), [
+            new OrderWebhookPayload(event: 'order.updated', orderId: $order->getId(), payload: [
                 'order' => $this->mapper->toOrderView($order, $permalinkUrl, $checkoutId)->toArray(),
             ]),
             $requestContext,

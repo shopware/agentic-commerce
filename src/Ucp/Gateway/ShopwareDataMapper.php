@@ -55,13 +55,13 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         }
 
         return new Product(
-            $product->getId(),
-            $name,
-            $price,
-            \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
+            id: $product->getId(),
+            title: $name,
+            price: $price,
+            imageUrl: \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
             // @phpstan-ignore-next-line argument.type -- SDK schema requires lookup inputs, but Product::$extra is typed too narrowly.
-            $extra,
-            $currency,
+            extra: $extra,
+            currency: $currency,
         );
     }
 
@@ -86,51 +86,52 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         ?OrderEntity $order = null,
     ): Checkout {
         return new Checkout(
-            $cart->getToken() ?: $context->getToken(),
-            $status,
-            $context->getCurrency()->getIsoCode(),
-            $this->mapShopwareLineItems($cart->getLineItems()),
-            $this->cartMoneySummary($cart),
-            $this->mapCartMessages($cart),
-            null !== $continueUrl ? [new Link('continue', $continueUrl, 'Continue checkout')] : [],
-            $buyer,
-            $continueUrl,
-            null,
-            null !== $order ? new OrderConfirmation($order->getId(), $continueUrl) : null,
+            id: $cart->getToken() ?: $context->getToken(),
+            status: $status,
+            currency: $context->getCurrency()->getIsoCode(),
+            lineItems: $this->mapShopwareLineItems($cart->getLineItems()),
+            totals: $this->cartMoneySummary($cart),
+            messages: $this->mapCartMessages($cart),
+            links: null !== $continueUrl ? [new Link('continue', $continueUrl, 'Continue checkout')] : [],
+            buyer: $buyer,
+            continueUrl: $continueUrl,
+            order: null !== $order ? new OrderConfirmation($order->getId(), $continueUrl) : null,
         );
     }
 
     public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
     {
         return new Checkout(
-            $checkoutId,
-            CheckoutStatus::Completed,
-            $currencyCode,
-            $this->mapOrderLineItems($order),
-            $this->orderMoneySummary($order),
-            [],
-            null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : [],
-            $this->mapOrderBuyer($order),
-            $continueUrl,
-            $order->getCreatedAt()?->format(\DATE_ATOM),
+            id: $checkoutId,
+            status: CheckoutStatus::Completed,
+            currency: $currencyCode,
+            lineItems: $this->mapOrderLineItems($order),
+            totals: $this->orderMoneySummary($order),
+            messages: [],
+            links: null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : [],
+            buyer: $this->mapOrderBuyer($order),
+            continueUrl: $continueUrl,
+            // The order's creation time used to be passed here positionally, and slot ten is
+            // `expiresAt` -- so a completed checkout advertised an expiry in the past. A
+            // completed checkout does not expire, so the field is omitted.
             // `order.permalink_url` is a required, absolute URI in the UCP response
             // schema; fall back to the continue URL only when a permalink is not
             // supplied. A null permalink makes the response fail SDK validation.
-            new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl),
+            order: new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl),
         );
     }
 
     public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
     {
         return new OrderView(
-            $order->getId(),
-            $order->getCurrency()?->getIsoCode() ?? 'EUR',
-            $this->mapOrderLineItems($order),
-            $this->orderMoneySummary($order),
-            $this->mapOrderMessages($order),
-            null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
-            $this->mapOrderBuyer($order),
-            $order->getCreatedAt()?->format(\DATE_ATOM),
+            id: $order->getId(),
+            currency: $order->getCurrency()?->getIsoCode() ?? 'EUR',
+            lineItems: $this->mapOrderLineItems($order),
+            totals: $this->orderMoneySummary($order),
+            messages: $this->mapOrderMessages($order),
+            links: null !== $permalinkUrl ? [new Link('self', $permalinkUrl, 'Order details')] : [],
+            buyer: $this->mapOrderBuyer($order),
+            createdAt: $order->getCreatedAt()?->format(\DATE_ATOM),
             checkoutId: $checkoutId,
             permalinkUrl: $permalinkUrl,
             fulfillment: ['expectations' => [], 'events' => []],
@@ -146,9 +147,9 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     private function mapOrderMessages(OrderEntity $order): array
     {
         return match ($order->getStateMachineState()?->getTechnicalName()) {
-            OrderStates::STATE_OPEN => [new Message('info', 'The order is open.', code: 'order_open')],
-            OrderStates::STATE_IN_PROGRESS => [new Message('info', 'The merchant is processing this order.', code: 'order_in_progress')],
-            OrderStates::STATE_COMPLETED => [new Message('info', 'The merchant completed this order.', code: 'order_completed')],
+            OrderStates::STATE_OPEN => [new Message(type: 'info', content: 'The order is open.', code: 'order_open')],
+            OrderStates::STATE_IN_PROGRESS => [new Message(type: 'info', content: 'The merchant is processing this order.', code: 'order_in_progress')],
+            OrderStates::STATE_COMPLETED => [new Message(type: 'info', content: 'The merchant completed this order.', code: 'order_completed')],
             default => [],
         };
     }
@@ -343,19 +344,19 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
 
         foreach ($cart->getErrors() as $error) {
             $messages[] = new Message(
-                match ($error->getLevel()) {
+                type: match ($error->getLevel()) {
                     Error::LEVEL_ERROR => 'error',
                     Error::LEVEL_WARNING => 'warning',
                     default => 'info',
                 },
-                $error->getMessage(),
+                content: $error->getMessage(),
                 // Only message_error requires a severity, and `recoverable` is the
                 // honest one for a cart: the platform can change the line items or the
                 // code and retry. A `requires_*` severity would contribute
                 // `status: requires_escalation` and stall a checkout an agent could
                 // have fixed itself.
-                Error::LEVEL_ERROR === $error->getLevel() ? 'recoverable' : null,
-                $error->getMessageKey(),
+                severity: Error::LEVEL_ERROR === $error->getLevel() ? 'recoverable' : null,
+                code: $error->getMessageKey(),
             );
         }
 
@@ -370,10 +371,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         }
 
         return new Buyer(
-            $orderCustomer->getEmail(),
-            $orderCustomer->getFirstName(),
-            $orderCustomer->getLastName(),
-            $order->getBillingAddress()?->getPhoneNumber(),
+            email: $orderCustomer->getEmail(),
+            firstName: $orderCustomer->getFirstName(),
+            lastName: $orderCustomer->getLastName(),
+            phoneNumber: $order->getBillingAddress()?->getPhoneNumber(),
         );
     }
 
@@ -445,14 +446,14 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         float $itemsDiscount = 0.0,
     ): array {
         $summary = [
-            new Money('subtotal', $positionPrice - $itemsDiscount),
-            new Money('fulfillment', $shipping),
-            new Money('total', $total),
-            new Money('tax', $this->totalTax($taxes)),
+            new Money(type: 'subtotal', amount: $positionPrice - $itemsDiscount),
+            new Money(type: 'fulfillment', amount: $shipping),
+            new Money(type: 'total', amount: $total),
+            new Money(type: 'tax', amount: $this->totalTax($taxes)),
         ];
 
         if ($itemsDiscount < 0.0) {
-            $summary[] = new Money('items_discount', $itemsDiscount);
+            $summary[] = new Money(type: 'items_discount', amount: $itemsDiscount);
         }
 
         return $summary;
@@ -470,12 +471,12 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         array $metadata,
     ): LineItem {
         return new LineItem(
-            $id,
-            $label,
-            $unitPrice,
-            $quantity,
-            \is_string($coverUrl) && '' !== $coverUrl ? $coverUrl : null,
-            $metadata,
+            id: $id,
+            title: $label,
+            price: $unitPrice,
+            quantity: $quantity,
+            imageUrl: \is_string($coverUrl) && '' !== $coverUrl ? $coverUrl : null,
+            extra: $metadata,
         );
     }
 
