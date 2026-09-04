@@ -1,4 +1,3 @@
-import { UCP_VERSION } from './ucp-protocol.js';
 
 /**
  * Default UCP config form state — the Exposure-tab surface only.
@@ -14,7 +13,6 @@ import { UCP_VERSION } from './ucp-protocol.js';
 export function defaultForm() {
     return {
         active: false,
-        ucpVersion: UCP_VERSION,
         profileDomain: null,
         enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
         enabledTransports: ['rest'],
