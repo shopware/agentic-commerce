@@ -1,5 +1,10 @@
 # Full UCP Parity Plan
 
+> **Not the SDK's file of the same name.** `ucp-php-sdk` also carries a
+> `docs/full-ucp-parity-plan.md`, with different content — that one records the SDK's
+> MCP-proxy architectural decision. This one is the plugin's parity status. Check which
+> repository you are in before editing either.
+
 ## Summary
 
 The plugin targets UCP parity with the Shopware 6.7 UCP work while keeping the admin UI simpler than the original PR. The implementation is split across three codebases:
