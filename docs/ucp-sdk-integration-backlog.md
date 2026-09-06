@@ -485,6 +485,43 @@ backlog. Cross-reference explicitly.
 
 ---
 
+## P18 — readiness for `symfony/mcp-bundle` 0.13 / `mcp/sdk` 0.8 (shopware/shopware#19963)
+
+**Why.** Trunk pins `symfony/mcp-bundle ~0.11` and `mcp/sdk ^0.7`. shopware/shopware#19963
+moves both to 0.13 / 0.8, replaces file-based discovery with container registration, and
+declares the two MCP servers natively. The plugin's thirteen UCP tools ride on that machinery
+through the `shopware.store_api_mcp.tool` tag, so the bump is the kind of change that breaks a
+consumer silently.
+
+**Tested 2026-09-06** on the trunk lane with the PR's five commits rebased onto current trunk
+(local branch `test/mcp-bundle-0.13-on-trunk` in the shopware-trunk checkout), `mcp/sdk` 0.8.1
+and bundle 0.13.0 vendored, all four sibling MCP extensions active:
+
+| Check | Result |
+| --- | --- |
+| Container compiles and boots with SwagAgenticCommerce, SwagMcpDevTools, SwagMcpMerchantTools, SwagMcpExampleBundle | yes |
+| Admin `/api/_mcp`: session minted, discovery tools, every extension toolset listed, a dev-tools call succeeds | yes |
+| Store API `/store-api/_mcp` and `/ucp/mcp`: handshake, fresh session lists the thirteen UCP tools under their spec names | yes |
+| `search_catalog` and `create_cart` reach the UCP executor and answer in band (refused by the strict signature policy, as they should be unsigned) | yes |
+| Conformance agent against the store | identical to 0.7: 32 passed, same two remaining findings |
+| Plugin unit suite against the 0.8 vendor | 615 tests, green |
+
+The new pass still remaps `shopware.store_api_mcp.tool` to the SDK tag and assigns those services
+to the Store API server, and the `discovery` group still drives the fresh-session list, so the
+MCP fix above needs no change for the bump. `SwagMcpAdminUsers` did not appear because it is not
+installed in the lane, not because of the bump.
+
+**One thing the bump makes visible.** `mcp/sdk` 0.8 validates tool arguments against the declared
+schema, so `create_cart` with an *object* `payload` is refused with `-32602 Expected string`. The
+four write tools still take a JSON-string `payload`, the workaround from the `mcp/sdk` 0.5 days
+recorded in `docs/mcp-sdk-upgrade.md`. Trunk has been at 0.7 since July, so the documented
+"how to upgrade later" -- typed object payloads via `#[Schema]` -- is possible now and is what
+the skipped e2e test `exposes object payload schemas for MCP write tools` waits for. It changes
+the argument shape agents send, so it is its own PR with a CHANGELOG entry, not a rider on the
+bump.
+
+**Effort.** S for the check (done) · M for the typed payloads · **Depends on.** shopware#19963 landing
+
 ## Cross-repo ordering
 
 ```
