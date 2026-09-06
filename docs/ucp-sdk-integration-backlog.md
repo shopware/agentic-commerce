@@ -417,60 +417,34 @@ duplication.
 
 ## P15 — `test(conformance): run the UCP conformance suite against a real store`
 
-**Status (2026-09-06).** Run once, by hand, with `shopware/ucp-conformance-agent` 0.1.0 against
-the local trunk lane serving `2026-08-25` from the SDK integration branch -- first against the
-Storefront channel, then against the Music channel (578 visible products) because the first
-has two. Both graded **F with 3 MUST failures**, 21 passed, from the same set:
+**Status (2026-09-06).** Run by hand with `shopware/ucp-conformance-agent` 0.1.0 against the
+local trunk lane serving `2026-08-25` from the SDK integration branch: the Storefront channel
+first, then the Music channel (578 visible products) because the first has two. Both graded
+**F with 3 MUST failures** before the fixes. The same set on both:
 
-| Finding | Ours? | Where |
+| Finding | Ours? | What happened |
 | --- | --- | --- |
-| `catalog.search` with `{"query": ""}` returns no products | **yes** | `ShopwareCatalogGateway::search()` hands the empty term to `ProductSearchRoute`, which matches nothing. The pinned `catalog_search.json` makes `query` optional free text, so an empty query is a valid request that should list. Fall back to a listing route when the term is empty. This also blocks the A6 error-discipline check |
-| `cart.get` with an unknown id answers HTTP 200 with a fabricated empty cart | **yes** | The cart id is a Shopware context token; `ShopwareCartGateway::getCart()` resolves a context for any token and `loadCart()` creates a cart on demand. The same defect the SDK example app had, fixed there in ucp-php-sdk#173. Needs a not-found answer for a token no UCP cart was ever created under |
-| MCP `tools/list` advertises only `shopware-tool-search`, `shopware-toolset-enable`, `shopware-toolsets-list` | **yes** | Two halves. The Store API MCP gates tools behind toolsets an agent has to enable first, which a spec-following agent never does. And the UCP tools are named `shopware-ucp-*` where the pinned `services/shopping/mcp.openrpc.json` names them `create_cart`, `search_catalog`, `create_checkout`, `complete_checkout`, `get_order` and so on |
+| `cart.get` with an unknown id answered HTTP 200 with a fabricated empty cart | **yes** | The cart id is a Shopware context token; `ShopwareCartGateway` resolved a context for any token and created a cart on demand. Fixed: `cart.create` registers its token in the `sales_channel_api_context` payload the checkout session already uses, and get/update/discount/cancel answer `not_found` for any other token. The same defect the SDK example app had (ucp-php-sdk#173) |
+| MCP `tools/list` advertised only `shopware-tool-search`, `shopware-toolset-enable`, `shopware-toolsets-list` | **yes** | Two halves: the tools were named `shopware-ucp-*` where the pinned `mcp.openrpc.json` names them `create_cart`, `search_catalog`, `complete_checkout` and so on, and they sat in a toolset an agent had to enable first. Fixed: spec names, and `#[McpToolGroup('discovery')]` puts them on a fresh session's list. Guarded by a test that reads the pinned OpenRPC document |
+| "Empty catalog" on `catalog.search` | **no** | The agent declares an umbrella `dev.ucp.shopping.catalog` that no release defines (agent#5), so negotiation excludes both catalog operations and the store answers a `capabilities_incompatible` envelope with HTTP 200, which the agent reads as an empty product list. Reproduced by hand: with the two real ids in the agent profile, an empty query lists 20 products. While chasing it, a real latent defect surfaced and is fixed too: `ShopwareCatalogGateway` handed an empty term to Shopware's search route, which matches nothing, where the spec's optional free-text `query` asks for a listing |
 | Profile not over HTTPS | no | loopback artefact |
 
-Everything else passed: discovery, cache policy, `keys[]`, the default ES256 signature shape,
-the optional web-bot-auth, ES384 and EdDSA shapes, A2A, unsigned and tampered refusals, and the
-idempotency conflict. The signature lane that graded the example app F in September grades the
-real store clean.
+After the fixes, with the agent profile carrying the two real catalog ids: **32 passed**, and the
+whole shopping journey runs through to completion. What remains is one design-level MUST:
+*"profile advertises no payment_handlers, yet completion requires $.payment"*. That is the
+documented decision to publish no handler until a real PSP-backed one exists (P12), and the agent
+is right that a completable checkout has to advertise at least one. It moves money, so it is a
+decision for checkout and a provider, not a fix.
 
-**Running it needs two environment facts** that are not obvious. The agent-profile URL must be
+**Running it needs three environment facts** that are not obvious. The agent-profile URL must be
 served from a *local development host* (`127.0.0.1`, `localhost`, `::1`): plain http from
 `host.containers.internal` is refused even with profile-fetching development mode on, by design.
 So the profile is served from inside the web container (`php -S 127.0.0.1:9911`) and that host is
-added to the channel's `platformAllowlist` for the run. And the lane's development mode comes
-from `config/packages/zzz-mcp-evals-ucp.yaml`, not from an environment variable. Config was
-restored after the run.
-
-**Why.** Upstream publishes a language-agnostic conformance suite
-([Universal-Commerce-Protocol/conformance](https://github.com/Universal-Commerce-Protocol/conformance),
-pytest, runs against any live UCP merchant server). The SDK is adopting it against
-its example app (SDK `T12`). **We are the more valuable target** — a real
-Shopware store is the actual product — and we already have most of the harness:
-docker-compose lanes generated by `bin/ci-write-compose.sh` across 6.5.x, 6.6.x
-and trunk, plus `bin/validate-ucp-store.sh`, `bin/lib/smoke/discovery.sh` and
-`SeedSmokeCatalogCommand`.
-
-**Design.** Reuse the fixture-config shape from SDK `T12`
-(`conformance_input.json` plus `test_fixtures.json`, owned here because they
-describe *our* store). Clone the suite at a pinned tag rather than vendoring — a
-pytest tree in this repo would drag Python into phpstan, php-cs-fixer and the ZIP
-build. Seed via `SeedSmokeCatalogCommand`; note it is currently excluded from the
-service load (`services.php:178-189`) and non-prod gated. Land advisory
-(`continue-on-error: true`, matching the existing advisory lanes), then promote
-per module.
-
-**Files.** new `.github/workflows/conformance.yml`; new
-`bin/ci-conformance.sh`; new `tests/conformance/{conformance_input.json,test_fixtures.json,README.md}`;
-`bin/ci-write-compose.sh`; `src/Ucp/Command/SeedSmokeCatalogCommand.php`
-(out-of-stock and discount fixtures, mirroring SDK `T11`);
-new `docs/conformance.md`.
-
-**Acceptance.** The suite runs against a booted store in at least one Shopware
-lane and uploads a JUnit artifact with a per-module summary. `docs/conformance.md`
-records the promotion procedure and the current allowlist.
-
-**Effort.** L · **Depends on.** SDK `T12` (for the fixture-config shape), `P4`
+added to the channel's `platformAllowlist` for the run. The lane's development mode comes from
+`config/packages/zzz-mcp-evals-ucp.yaml`, not from an environment variable. And the SDK caches the
+fetched agent profile in `ucp_platform_profile_cache` and the intersection in
+`ucp_negotiation_sessions`, so a changed agent profile is not seen until both are purged. Channel
+config was restored after the run.
 
 ## P16 — `chore: de-duplicate the ucp_sdk config`
 
