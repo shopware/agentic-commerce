@@ -43,4 +43,16 @@ final class UcpCatalogFlowTest extends TestCase
         $resolved = $productBody['product'] ?? $productBody;
         self::assertSame('Kernel Test Album', $resolved['title']);
     }
+
+    public function testAnEmptyQueryReturnsProductsRatherThanAnEmptyCatalog(): void
+    {
+        $this->configureUcpRuntime();
+        $productId = $this->seedStorefrontProduct('Kernel Test Album');
+
+        $search = $this->ucpRequest('POST', '/ucp/v1/catalog/search', ['query' => '']);
+        self::assertSame(Response::HTTP_OK, $search->getStatusCode());
+        $products = $this->decode($search)['products'] ?? [];
+        self::assertNotEmpty($products, 'An empty query is a valid UCP request and must list the catalog, not answer with nothing.');
+        self::assertContains($productId, array_column($products, 'id'));
+    }
 }
