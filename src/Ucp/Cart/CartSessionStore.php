@@ -35,7 +35,7 @@ final class CartSessionStore
             $context->getToken(),
             [
                 self::PAYLOAD_KEY => [
-                    self::CART_KEY => ['createdAt' => (new \DateTimeImmutable())->format(\DATE_ATOM)],
+                    self::CART_KEY => ['registered' => true],
                 ],
             ],
             $context->getSalesChannelId(),
