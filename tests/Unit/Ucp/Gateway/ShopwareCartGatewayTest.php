@@ -27,10 +27,12 @@ use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartItemUpdate
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartLoadRoute;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\StaticSalesChannelContextService;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareDiscountAdapter;
+use Swag\AgenticCommerce\Ucp\Cart\CartSessionStore;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
@@ -249,6 +251,63 @@ final class ShopwareCartGatewayTest extends TestCase
         ]], $addRoute->addedPayloads[0]);
     }
 
+    /**
+     * A UCP cart id is a Shopware context token, and Shopware resolves a context and an empty
+     * cart for any token it is shown. An external conformance agent asked for a cart nobody had
+     * created and was handed a fresh one under the guessed id, HTTP 200. The protocol answer is
+     * not_found.
+     */
+    public function testReadingACartNobodyCreatedIsNotFound(): void
+    {
+        $loadRoute = new RecordingCartLoadRoute(new Cart('guessed-token'));
+        $gateway = $this->gateway(new Cart('guessed-token'), loadRoute: $loadRoute, persister: $this->unknownCartPersister());
+
+        $this->expectException(ResourceNotFoundException::class);
+
+        try {
+            $gateway->getCart('guessed-token', new RequestContext('shop.test'));
+        } finally {
+            self::assertSame([], $loadRoute->loadedTokens, 'An unknown cart must be refused before Shopware is asked to create one.');
+        }
+    }
+
+    public function testUpdatingApplyingToOrCancellingACartNobodyCreatedIsNotFound(): void
+    {
+        $requestContext = new RequestContext('shop.test');
+        $calls = [
+            static fn (ShopwareCartGateway $gateway) => $gateway->updateCart('guessed-token', [], [], $requestContext),
+            static fn (ShopwareCartGateway $gateway) => $gateway->applyDiscountCode('guessed-token', 'SAVE10', $requestContext),
+            static fn (ShopwareCartGateway $gateway) => $gateway->cancelCart('guessed-token', $requestContext),
+        ];
+
+        foreach ($calls as $call) {
+            $gateway = $this->gateway(new Cart('guessed-token'), persister: $this->unknownCartPersister());
+            $refused = false;
+            try {
+                $call($gateway);
+            } catch (ResourceNotFoundException) {
+                $refused = true;
+            }
+            self::assertTrue($refused, 'Every operation on an unknown cart id must answer not_found.');
+        }
+    }
+
+    public function testCreatingACartRegistersItsTokenSoLaterReadsFindIt(): void
+    {
+        $saved = [];
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturn([]);
+        $persister->method('save')->willReturnCallback(static function (string $token, array $parameters) use (&$saved): void {
+            $saved[$token] = $parameters;
+        });
+        $gateway = $this->gateway(new Cart('fresh-token'), persister: $persister);
+
+        $gateway->createCart('fresh-token', [$this->ucpLineItem('product-a', 1)], [], new RequestContext('shop.test'));
+
+        self::assertArrayHasKey('fresh-token', $saved);
+        self::assertArrayHasKey('ucpCart', $saved['fresh-token']['swagAgenticCommerce']);
+    }
+
     private function gateway(
         Cart $cart,
         ?RecordingCartItemAddRoute $addRoute = null,
@@ -256,6 +315,7 @@ final class ShopwareCartGatewayTest extends TestCase
         ?RecordingCartItemUpdateRoute $updateRoute = null,
         ?RecordingCartDeleteRoute $deleteRoute = null,
         ?RecordingCartLoadRoute $loadRoute = null,
+        ?SalesChannelContextPersister $persister = null,
     ): ShopwareCartGateway {
         $salesChannelContext = $this->createSalesChannelContext($cart->getToken());
 
@@ -268,7 +328,29 @@ final class ShopwareCartGatewayTest extends TestCase
             $deleteRoute ?? new RecordingCartDeleteRoute(),
             new ShopwareDataMapper(),
             new ShopwareVersionDetector(versionOverride: '6.6.0.0'),
+            new CartSessionStore($persister ?? $this->knownCartPersister()),
         );
+    }
+
+    /**
+     * The default for these tests: every token was handed out by cart.create, which is what the
+     * existing tests assume. The refusal path has its own tests below.
+     */
+    private function knownCartPersister(): SalesChannelContextPersister
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturnCallback(static fn (string $token): array => ['token' => $token, 'expired' => false]);
+
+        return $persister;
+    }
+
+    private function unknownCartPersister(): SalesChannelContextPersister
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturn([]);
+        $persister->expects(self::never())->method('save');
+
+        return $persister;
     }
 
     private function createSalesChannelContext(string $token): SalesChannelContext
