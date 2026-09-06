@@ -31,7 +31,7 @@ final class UcpCheckoutCompletionPreview
             // Completing an already completed checkout replays the existing order
             // instead of placing a second one, so it does not block a commit.
             CheckoutStatus::Completed->value => [],
-            CheckoutStatus::Incomplete->value => ['Checkout is incomplete: finish it with shopware-ucp-checkout-update before completing.'],
+            CheckoutStatus::Incomplete->value => ['Checkout is incomplete: finish it with update_checkout before completing.'],
             CheckoutStatus::RequiresEscalation->value => ['Checkout requires escalation and cannot be completed by an agent.'],
             CheckoutStatus::CompleteInProgress->value => ['Another completion for this checkout is already in flight; retry once it finishes.'],
             CheckoutStatus::Canceled->value => ['Checkout is canceled and can no longer be completed.'],

@@ -63,3 +63,11 @@ __SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__
             paths:
                 - src/Storefront/Robots
                 - tests/Unit/Storefront/Robots
+        # #[McpToolGroup] is trunk-only (Store API MCP, experimental until 6.8). It is what puts the
+        # UCP tools on a fresh MCP session's tools/list there; on 6.5/6.6 the Store API MCP does not
+        # exist, the attribute is never reflected, and only the class-not-found report remains.
+        -
+            message: '#Shopware\\Core\\Framework\\Mcp\\Attribute\\McpToolGroup#'
+            paths:
+                - src/Ucp/Mcp/Tool
+                - tests/Unit/UcpMcpToolNamesTest.php
