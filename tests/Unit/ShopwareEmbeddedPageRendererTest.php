@@ -111,6 +111,26 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
         self::assertStringContainsString('Checkout session', $response->getContent() ?: '');
         self::assertStringContainsString('ready_for_complete', $response->getContent() ?: '');
         self::assertStringContainsString('href="https://shop.example/checkout/confirm"', $response->getContent() ?: '');
+        // The embedded URL carries the checkout token; without noreferrer, clicking the
+        // CTA leaks it to the continue_url host, which is not restricted to our domain.
+        self::assertStringContainsString('rel="noopener noreferrer"', $response->getContent() ?: '');
+    }
+
+    #[Test]
+    public function testItPinsTheInboundBridgeGuardToTheTargetOrigin(): void
+    {
+        $request = Request::create('https://shop.example/ucp/embedded/cart/cart-id');
+        $request->attributes->set('ucp_request_context', new RequestContext('shop.example'));
+
+        $response = $this->renderer->render('cart', 'cart-id', $request);
+
+        self::assertNotNull($response);
+        $content = $response->getContent() ?: '';
+        // A single-clause guard. An `|| targetOrigin === window.location.origin` style
+        // escape hatch disables the check entirely on origin-less loads, which are the
+        // common case, so assert the exact shape.
+        self::assertStringContainsString('if (event.origin !== targetOrigin) {', $content);
+        self::assertStringNotContainsString('targetOrigin !== window.location.origin', $content);
     }
 
     #[Test]

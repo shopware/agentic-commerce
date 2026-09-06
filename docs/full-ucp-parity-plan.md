@@ -165,9 +165,13 @@ Shopware support matrix.
   is implemented but remains opt-in per sales channel.
 - Embedded now renders plugin-owned cart/checkout bridge pages with CSP,
   explicit allowed-origin validation, and `postMessage` ready/state messages.
-  Missing `embeddedAllowedOrigins` or non-allowlisted `Origin` headers return a
-  controlled `403`. Follow-up UX work should focus on visual polish and deeper
-  storefront theme integration, not transport correctness.
+  Missing `embeddedAllowedOrigins`, or an `Origin` header that is present but not
+  allowlisted, return a controlled `403`; an absent `Origin` is intentionally
+  allowed through because browsers omit it on iframe and top-level `GET`
+  navigations, with framing enforced by `frame-ancestors` and the payload
+  authorized by the cart/checkout token in the URL. Follow-up UX work should
+  focus on visual polish and deeper storefront theme integration, not transport
+  correctness.
 - MCP and A2A now route the shopping operation matrix through the shared
   capability layer. Follow-up validation should target lane builds and real demo
   storefront data rather than adding protocol-specific business logic.

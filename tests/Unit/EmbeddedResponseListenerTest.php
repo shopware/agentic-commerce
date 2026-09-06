@@ -20,6 +20,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
+use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 
 /** @internal */
@@ -96,8 +97,16 @@ final class EmbeddedResponseListenerTest extends TestCase
         self::assertFalse($event->hasResponse());
     }
 
+    /**
+     * Load-bearing invariant, not an oversight: browsers omit the `Origin` header on
+     * iframe and top-level GET navigations, which is how the embedded surface is
+     * actually loaded. Turning an absent `Origin` into a 403 would break every real
+     * browser load of this feature. Cross-origin framing is enforced by the
+     * frame-ancestors CSP, cross-origin reads by Access-Control-Allow-Origin, and the
+     * payload by possession of the cart/checkout token in the URL.
+     */
     #[Test]
-    public function testItAllowsSameOriginRequestsWithNoOriginHeader(): void
+    public function testItAllowsOriginLessRequestsBecauseBrowsersOmitOriginOnNavigations(): void
     {
         $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example']);
 
@@ -160,5 +169,57 @@ final class EmbeddedResponseListenerTest extends TestCase
         self::assertTrue($event->hasResponse());
         self::assertSame(Response::HTTP_NO_CONTENT, $event->getResponse()->getStatusCode());
         self::assertFalse($event->getResponse()->headers->has('Access-Control-Allow-Origin'));
+    }
+
+    #[Test]
+    public function testItSetsTokenHygieneHeadersOnEmbeddedResponses(): void
+    {
+        $this->config = new UcpConfig(
+            active: true,
+            embeddedAllowedOrigins: ['https://assistant.example'],
+            embeddedFrameAncestors: ['https://assistant.example'],
+        );
+
+        $request = Request::create(
+            'https://shop.example/ucp/embedded/checkout/checkout-id',
+            server: ['HTTP_ORIGIN' => 'https://assistant.example'],
+        );
+        $response = new Response('<html></html>');
+        $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+
+        $this->listener->onKernelResponse(new ResponseEvent(
+            $this->kernel,
+            $request,
+            HttpKernelInterface::MAIN_REQUEST,
+            $response,
+        ));
+
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
+        self::assertSame('noindex, nofollow', $response->headers->get('X-Robots-Tag'));
+        self::assertSame('Origin', $response->headers->get('Vary'));
+        self::assertSame('frame-ancestors https://assistant.example', $response->headers->get('Content-Security-Policy'));
+        self::assertFalse($response->headers->has('X-Frame-Options'));
+        self::assertSame('https://assistant.example', $response->headers->get('Access-Control-Allow-Origin'));
+    }
+
+    #[Test]
+    public function testItSetsTokenHygieneHeadersOnOriginLessEmbeddedResponses(): void
+    {
+        $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example']);
+
+        $response = new Response('<html></html>');
+
+        $this->listener->onKernelResponse(new ResponseEvent(
+            $this->kernel,
+            Request::create('https://shop.example/ucp/embedded/checkout/checkout-id'),
+            HttpKernelInterface::MAIN_REQUEST,
+            $response,
+        ));
+
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
+        self::assertSame('noindex, nofollow', $response->headers->get('X-Robots-Tag'));
+        self::assertFalse($response->headers->has('Access-Control-Allow-Origin'));
     }
 }
