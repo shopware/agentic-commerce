@@ -417,6 +417,31 @@ duplication.
 
 ## P15 — `test(conformance): run the UCP conformance suite against a real store`
 
+**Status (2026-09-06).** Run once, by hand, with `shopware/ucp-conformance-agent` 0.1.0 against
+the local trunk lane serving `2026-08-25` from the SDK integration branch -- first against the
+Storefront channel, then against the Music channel (578 visible products) because the first
+has two. Both graded **F with 3 MUST failures**, 21 passed, from the same set:
+
+| Finding | Ours? | Where |
+| --- | --- | --- |
+| `catalog.search` with `{"query": ""}` returns no products | **yes** | `ShopwareCatalogGateway::search()` hands the empty term to `ProductSearchRoute`, which matches nothing. The pinned `catalog_search.json` makes `query` optional free text, so an empty query is a valid request that should list. Fall back to a listing route when the term is empty. This also blocks the A6 error-discipline check |
+| `cart.get` with an unknown id answers HTTP 200 with a fabricated empty cart | **yes** | The cart id is a Shopware context token; `ShopwareCartGateway::getCart()` resolves a context for any token and `loadCart()` creates a cart on demand. The same defect the SDK example app had, fixed there in ucp-php-sdk#173. Needs a not-found answer for a token no UCP cart was ever created under |
+| MCP `tools/list` advertises only `shopware-tool-search`, `shopware-toolset-enable`, `shopware-toolsets-list` | **yes** | Two halves. The Store API MCP gates tools behind toolsets an agent has to enable first, which a spec-following agent never does. And the UCP tools are named `shopware-ucp-*` where the pinned `services/shopping/mcp.openrpc.json` names them `create_cart`, `search_catalog`, `create_checkout`, `complete_checkout`, `get_order` and so on |
+| Profile not over HTTPS | no | loopback artefact |
+
+Everything else passed: discovery, cache policy, `keys[]`, the default ES256 signature shape,
+the optional web-bot-auth, ES384 and EdDSA shapes, A2A, unsigned and tampered refusals, and the
+idempotency conflict. The signature lane that graded the example app F in September grades the
+real store clean.
+
+**Running it needs two environment facts** that are not obvious. The agent-profile URL must be
+served from a *local development host* (`127.0.0.1`, `localhost`, `::1`): plain http from
+`host.containers.internal` is refused even with profile-fetching development mode on, by design.
+So the profile is served from inside the web container (`php -S 127.0.0.1:9911`) and that host is
+added to the channel's `platformAllowlist` for the run. And the lane's development mode comes
+from `config/packages/zzz-mcp-evals-ucp.yaml`, not from an environment variable. Config was
+restored after the run.
+
 **Why.** Upstream publishes a language-agnostic conformance suite
 ([Universal-Commerce-Protocol/conformance](https://github.com/Universal-Commerce-Protocol/conformance),
 pytest, runs against any live UCP merchant server). The SDK is adopting it against
