@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
 use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
-use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
+use Ucp\Sdk\Contract\PaymentAwareCheckoutCapabilityInterface;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
-use Ucp\Sdk\Contract\PaymentAwareCheckoutCapabilityInterface;
-use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 
 /** @internal */
 final class CheckoutCapability implements PaymentAwareCheckoutCapabilityInterface

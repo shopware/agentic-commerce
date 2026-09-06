@@ -115,6 +115,7 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
 
         return $capabilities;
     }
+
     /**
      * Publish the descriptors a single capability class cannot report.
      *
