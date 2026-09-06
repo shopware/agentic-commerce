@@ -131,6 +131,38 @@ final class ShopwareCatalogGatewayTest extends TestCase
         self::assertSame(['amount' => 1999, 'currency' => 'USD'], $payload['variants'][0]['price'] ?? null);
     }
 
+    /**
+     * UCP's `query` is optional free text. Shopware's search route answers an empty term with
+     * nothing, so an agent opening with a blank search -- which the conformance agent does --
+     * was told the shop had no products. An empty query lists the catalog instead.
+     */
+    public function testAnEmptyQueryListsTheCatalogInsteadOfSearchingForNothing(): void
+    {
+        $products = [
+            $this->product('product-a', 'A', 10.0),
+            $this->product('product-b', 'B', 20.0),
+        ];
+        $searchRoute = $this->createMock(AbstractProductSearchRoute::class);
+        $searchRoute->expects(self::never())->method('load');
+        $criteriaSeen = null;
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use (&$criteriaSeen, $products): ProductListResponse {
+                $criteriaSeen = $criteria;
+
+                return $this->listResponse($products, $criteria);
+            },
+        );
+        $gateway = $this->gateway(50, searchRoute: $searchRoute, listRoute: $listRoute);
+
+        $listed = $gateway->search('   ', 2, new RequestContext('shop.test'));
+
+        self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $listed));
+        self::assertInstanceOf(Criteria::class, $criteriaSeen);
+        self::assertSame(2, $criteriaSeen->getLimit());
+        self::assertSame(['name', 'id'], array_map(static fn ($sorting) => $sorting->getField(), $criteriaSeen->getSorting()), 'A listing without a term needs a stable order to page over.');
+    }
+
     private function gateway(
         int $catalogResultLimit,
         ?AbstractProductSearchRoute $searchRoute = null,

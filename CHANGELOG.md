@@ -1,5 +1,6 @@
 # next version
 
+- Answer a UCP catalog search with an empty query by listing the catalog instead of returning no products. `query` is optional free text in the specification, and an agent opening with a blank search was being told the shop had nothing to sell.
 - Product links in the OpenAI and Google product feeds now resolve correctly for headless sales channels on Shopware 6.7.14 and newer, so agents receive working product URLs; the feeds keep working unchanged on earlier Shopware versions.
 - Store the administration translations in country-agnostic files (`de.json`, `en.json`) following the current Shopware core convention; a compatibility loader keeps them working on Shopware versions before 6.7.3.
 - Polish the administration texts: consistent capitalisation of the informal German address and a clearer "Total" label in the English statistics summary.
