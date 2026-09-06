@@ -154,6 +154,8 @@ public API.
 
 ## P4 — `feat(routing): follow the SDK catalog-product route change`
 
+**Status (2026-09-06).** Verified on a trunk store consuming the SDK integration branch: once SDK `T7` (#143) is in the vendored SDK, `POST /ucp/v1/catalog/product` answers through the imported routes with no plugin change. It answered 404 while the integration branch lacked #143, which is what made this worth checking rather than assuming. The `legacy_routes.catalog_product_get` decision stays as recommended: on for one plugin minor.
+
 **Why.** SDK `T7` adds `POST /ucp/v1/catalog/product` (the shape the upstream
 OpenAPI document has defined at both protocol versions) and moves the
 non-conformant `GET /ucp/v1/catalog/product/{id}` behind
@@ -198,6 +200,8 @@ all on the SDK side — but that is a question about capability granularity, and
 belongs with `P9`, once SDK `T20` makes negotiation version-aware and strict.
 
 ## P6 — `feat(admin): render keys[] in the profile preview`
+
+**Status (2026-09-06).** No change needed. The admin renders the preview as opaque JSON (`JSON.stringify(preview)`) and reads no key names; the only `signingKeys` reference in plugin source is the PHP property, which the SDK kept. No e2e fixture asserts on `signing_keys`.
 
 **Why.** SDK `T16` changes the profile's JSON key from `signing_keys` to `keys`.
 The PHP property stays `$signingKeys`, so PHP-side code is unaffected — but
@@ -325,6 +329,8 @@ path.
 
 ## P11 — `test: verify response signing against our listeners`
 
+**Status (2026-09-06).** No change needed. The SDK signer (priority -64 on `kernel.response`) covers `@status`, `@method;req`, `@target-uri;req` and `content-digest`; nothing else. `EmbeddedResponseListener` (-1024) and `ProfileCacheHeadersListener` (-2000) run after it and mutate headers only, none of them covered, and neither touches the body. Response signing is also off by default and this plugin does not enable it.
+
 **Why.** We set `signature_policy: strict` in both config locations and add our
 own response listeners: `EmbeddedResponseListener` (CSP and origin) and the
 profile cache-headers listener. SDK `T23` adds a `ResponseSignatureListener`. A
@@ -341,6 +347,8 @@ listeners active. Embedded responses still carry CSP and origin enforcement.
 **Effort.** S · **Depends on.** SDK `T23`
 
 ## P12 — `feat(checkout): act on the completion payment instrument`
+
+**Status.** Seam and document done in [#213](https://github.com/shopware/agentic-commerce/pull/213) (`CompletionPaymentApplierInterface`, `docs/completion-payment.md`). The default applier keeps charging the sales-channel default and warns; switching methods is a checkout and provider decision.
 
 **Why.** `checkout.complete` requires a `payment` object per spec and our MCP tool
 already sends one, but the instrument is not acted on: completion always charges
@@ -371,6 +379,8 @@ completion are unaffected.
 
 ## P13 — `feat(cart): emit the discount breakdown via Cart.extra`
 
+**Status.** Done in [#212](https://github.com/shopware/agentic-commerce/pull/212).
+
 **Why.** Applied discounts are reported only as a negative `items_discount`
 total. The spec's richer `discounts.applied[]` breakdown
 (`discount.json` → `$defs.applied_discount`, with per-target `allocations`) is
@@ -389,6 +399,8 @@ validates against the pinned cart response schema.
 **Effort.** S · **Depends on.** nothing — startable now
 
 ## P14 — `refactor(mcp): drop the duplicated cart id in cart.update`
+
+**Status.** Done in [#214](https://github.com/shopware/agentic-commerce/pull/214), together with the negotiation-id guard (P9) and the removal of the tokenization capability id.
 
 **Why.** UCP `2026-08-25` standardises `cart.id` as omitted in update requests,
 so the tool argument and the payload no longer both need it.
@@ -457,6 +469,8 @@ cover whichever file survives — in particular that `DATABASE_URL` is **not**
 **Effort.** S · **Depends on.** nothing — startable now
 
 ## P17 — `docs: correct the plugin parity plan`
+
+**Status.** Done on this branch: the three entries now say what shipped and that two of them were never blocked on the SDK.
 
 **Why.** Three items under `## Remaining Runtime Gaps` are recorded as blocked on
 upstream and are not. See "Corrections to `full-ucp-parity-plan.md`" above.
