@@ -135,7 +135,7 @@ run_extended_checks() {
       -H "mcp-session-id: ${session_id}" \
       -H "${UCP_AGENT_HEADER}" \
       -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":202}')"
-    jq -e '.result.tools | map(.name) | index("shopware-ucp-catalog-search") and index("shopware-ucp-cart-create") and index("shopware-ucp-checkout-create") and index("shopware-ucp-order-get")' >/dev/null <<<"${tools_response}"
+    jq -e '.result.tools | map(.name) | index("search_catalog") and index("create_cart") and index("create_checkout") and index("get_order")' >/dev/null <<<"${tools_response}"
   else
     echo "Skipping MCP checks: transport is not advertised."
   fi

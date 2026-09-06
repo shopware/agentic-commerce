@@ -1,5 +1,6 @@
 # next version
 
+- Name the UCP MCP tools as the specification's OpenRPC document does (`search_catalog`, `create_cart`, `create_checkout`, `complete_checkout`, `get_order` and so on) and advertise them on a fresh MCP session. They were named `shopware-ucp-*` and hidden behind a toolset an agent had to enable first, so a spec-following agent listing tools on `/ucp/mcp` saw only the toolset meta-tools. An MCP client that called the old names has to switch; the arguments are unchanged.
 - Product links in the OpenAI and Google product feeds now resolve correctly for headless sales channels on Shopware 6.7.14 and newer, so agents receive working product URLs; the feeds keep working unchanged on earlier Shopware versions.
 - Store the administration translations in country-agnostic files (`de.json`, `en.json`) following the current Shopware core convention; a compatibility loader keeps them working on Shopware versions before 6.7.3.
 - Polish the administration texts: consistent capitalisation of the informal German address and a clearer "Total" label in the English statistics summary.

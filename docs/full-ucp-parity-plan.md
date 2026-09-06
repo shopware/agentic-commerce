@@ -110,8 +110,8 @@ Validated local profile matrix:
 For trunk MCP validation, initialize `/ucp/mcp`, then call `tools/list`. The
 plugin resolves the current sales-channel access key internally before
 delegating to `/store-api/_mcp`. The expected UCP tool names cover the shopping
-operation matrix: `shopware-ucp-catalog-search`,
-`shopware-ucp-catalog-lookup`, cart create/get/update/cancel, discount apply,
+operation matrix: `search_catalog`,
+`lookup_catalog`, cart create/get/update/cancel, discount apply,
 checkout create/get/update/complete/cancel, and order get.
 
 ## Admin QA
