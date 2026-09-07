@@ -40,9 +40,23 @@ if [[ ! -f "${zip_file}" ]]; then
 fi
 
 readonly PLUGIN="SwagAgenticCommerce"
-# A trivially small count would mean a stub or a partial copy. core alone is well over 100
-# files, so this floor only catches "essentially nothing got copied".
-readonly MIN_PHP_FILES=50
+# Deliberately a low floor. An earlier revision set this to 50 and failed a correct
+# archive, because ucp-php-sdk/symfony-bundle genuinely has 49 source files -- a count
+# threshold has to be re-tuned every time the package legitimately changes shape, and
+# tuning it against the current tree is how it ends up asserting nothing. The real
+# invariant is the named classes below; this only catches "essentially nothing arrived".
+readonly MIN_PHP_FILES=10
+
+# Load-bearing classes. If the copy is partial in a way a count would miss, one of these
+# is what actually breaks: the bundle Shopware registers, the extension that reads the
+# configuration, and a core class the plugin constructs directly.
+readonly REQUIRED_CLASSES=(
+  "vendor/ucp-php-sdk/symfony-bundle/src/UcpSdkBundle.php"
+  "vendor/ucp-php-sdk/symfony-bundle/src/DependencyInjection/UcpSdkExtension.php"
+  "vendor/ucp-php-sdk/symfony-bundle/src/Bridge/DoctrineDbal/SchemaBootstrapper.php"
+  "vendor/ucp-php-sdk/core/src/Model/Profile/PlatformProfile.php"
+  "vendor/ucp-php-sdk/core/src/Enum/UcpProtocolVersion.php"
+)
 
 listing="$(unzip -Z1 "${zip_file}")"
 
@@ -64,6 +78,27 @@ for package in core symfony-bundle; do
     echo "ok: vendor/ucp-php-sdk/${package} ships ${count} PHP files."
   fi
 done
+
+for class_path in "${REQUIRED_CLASSES[@]}"; do
+  if ! printf '%s\n' "${listing}" | grep -Fqx "${PLUGIN}/${class_path}"; then
+    echo "FAIL: ${class_path} is not in the archive." >&2
+    status=1
+  fi
+done
+
+# The SDK ships the generated JSON Schemas it validates every request and response
+# against, and they are resources rather than PHP -- so a copy that took only *.php would
+# pass every check above and then refuse traffic at runtime.
+schema_count="$(printf '%s\n' "${listing}" \
+  | grep -c "^${PLUGIN}/vendor/ucp-php-sdk/core/resources/schema/.*\.json$" || true)"
+
+if [[ "${schema_count}" -lt 30 ]]; then
+  echo "FAIL: only ${schema_count} generated schema files shipped." >&2
+  echo "      The SDK validates every request and response against these." >&2
+  status=1
+else
+  echo "ok: ${schema_count} schema files ship."
+fi
 
 # The autoloader has to agree with what is on disk. If composer recorded the package under
 # a different install path than the one packed, the file count above can pass while nothing
