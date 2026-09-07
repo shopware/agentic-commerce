@@ -21,6 +21,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+/** @internal */
 #[AsCommand(
     name: 'ucp:config:validate',
     description: 'Checks each sales channel\'s UCP config for readiness and security issues.',

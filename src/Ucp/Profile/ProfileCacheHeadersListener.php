@@ -32,6 +32,8 @@ use Symfony\Component\HttpKernel\KernelEvents;
  *    CacheControlListener (priority 0) and restores the mandated policy on every
  *    lane. BeforeSendResponseEvent is the last hook before the response is sent,
  *    so this is the authoritative final state.
+ *
+ * @internal
  */
 #[Package('framework')]
 final class ProfileCacheHeadersListener implements EventSubscriberInterface
