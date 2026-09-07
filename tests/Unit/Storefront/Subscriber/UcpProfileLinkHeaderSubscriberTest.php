@@ -21,6 +21,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/** @internal */
 #[Package('discovery')]
 #[CoversClass(UcpProfileLinkHeaderSubscriber::class)]
 final class UcpProfileLinkHeaderSubscriberTest extends TestCase
