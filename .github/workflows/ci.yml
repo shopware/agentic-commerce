@@ -284,7 +284,7 @@ jobs:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
+      - run: composer install --no-scripts --no-interaction --prefer-dist
         working-directory: shopware
       - name: Configure private SDK path repositories
         run: |
@@ -295,7 +295,7 @@ jobs:
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules
         # Do not enable phpstan-shopware's default rules.neon via its extension installer.
-        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" "phpstan/phpstan-symfony:^2" --no-interaction --no-plugins
+        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
         working-directory: shopware
       - run: composer phpstan
         working-directory: agentic-commerce

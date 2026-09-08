@@ -136,7 +136,6 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
-        '__PHPSTAN_SYMFONY_INCLUDE__' => renderPhpstanSymfonyInclude($coreDir),
         '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir, $coreDir),
         '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
         '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
@@ -216,13 +215,6 @@ function renderFutureCompatibilityInclude(string $pluginDir, string $coreDir): s
     }
 
     return '';
-}
-
-function renderPhpstanSymfonyInclude(string $coreDir): string
-{
-    $extension = \dirname($coreDir, 2).'/vendor/phpstan/phpstan-symfony/extension.neon';
-
-    return is_file($extension) ? '    - '.$extension : '';
 }
 
 function renderShopwarePhpstanParameters(string $coreDir): string
