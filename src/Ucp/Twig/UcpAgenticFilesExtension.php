@@ -10,6 +10,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
+/** @internal */
 #[Package('discovery')]
 final class UcpAgenticFilesExtension extends AbstractExtension
 {

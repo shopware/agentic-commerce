@@ -12,6 +12,7 @@ use Ucp\Sdk\Model\Cart\CartUpdateRequest;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class CartCapability implements CartCapabilityInterface
 {
     public function __construct(

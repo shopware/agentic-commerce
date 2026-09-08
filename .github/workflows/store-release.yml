@@ -1,0 +1,94 @@
+name: Release to Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Upload to the Shopware Store and create the GitHub release'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+
+concurrency:
+  group: store-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: ${{ inputs.publish && 'Publish release' || 'Build release package' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate release metadata
+        id: metadata
+        run: |
+          set -euo pipefail
+
+          version="$(jq -er '.version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"))' composer.json)"
+
+          for changelog in CHANGELOG.md CHANGELOG_de-DE.md; do
+            if ! grep -Fqx "# ${version}" "${changelog}"; then
+              echo "${changelog} has no entry for ${version}." >&2
+              exit 1
+            fi
+          done
+
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+          echo "Validated release metadata for ${version}."
+
+      - name: Require releasable main commit
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "${GITHUB_REF_NAME}" != "main" || "${GITHUB_SHA}" != "${main_sha}" ]]; then
+            echo "Store releases must run from the current main HEAD (${main_sha})." >&2
+            exit 1
+          fi
+
+          if git show-ref --verify --quiet "refs/tags/${VERSION}" || git show-ref --verify --quiet "refs/tags/v${VERSION}"; then
+            echo "Version ${VERSION} has already been tagged. Bump composer.json and both changelogs." >&2
+            exit 1
+          fi
+
+          gate_id="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+              --jq '.check_runs[] | select(.name == "validation-gate" and .conclusion == "success") | .id' \
+              | head -n 1
+          )"
+
+          if [[ -z "${gate_id}" ]]; then
+            echo "The exact main commit has no successful validation-gate check." >&2
+            exit 1
+          fi
+
+          echo "Validated main HEAD ${GITHUB_SHA} with CI gate ${gate_id}."
+
+      - name: Build and validate release package
+        if: inputs.publish == false
+        uses: shopware/github-actions/build-zip@main
+        with:
+          extensionName: SwagAgenticCommerce
+          skipCheckout: true
+
+      - name: Publish release
+        if: inputs.publish
+        uses: shopware/github-actions/store-release@main
+        with:
+          extensionName: SwagAgenticCommerce
+          clientId: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_ID }}
+          clientSecret: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET }}
+          ghToken: ${{ secrets.GITHUB_TOKEN }}
+          skipCheckout: true

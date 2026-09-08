@@ -13,6 +13,8 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityCollection;
 
 /**
  * @extends EntityCollection<SalesChannelTrackingOrderEntity>
+ *
+ * @internal
  */
 class SalesChannelTrackingOrderCollection extends EntityCollection
 {

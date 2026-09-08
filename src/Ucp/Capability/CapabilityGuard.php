@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Capability;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class CapabilityGuard
 {
     public static function assertEnabled(RequestContext $context, string $descriptorName, string $message): void

@@ -17,6 +17,8 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 /**
  * Mirror of {@see \Shopware\Core\Content\ProductExport\Tracking\SalesChannelTrackingCustomerEntity}
  * in Shopware 6.7.10+. Names match so an upgrade preserves access paths.
+ *
+ * @internal
  */
 class SalesChannelTrackingCustomerEntity extends Entity
 {

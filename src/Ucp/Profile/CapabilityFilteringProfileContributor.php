@@ -16,6 +16,7 @@ use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Model\Profile\ServiceEndpoint;
 
+/** @internal */
 final class CapabilityFilteringProfileContributor implements ProfileContributorInterface
 {
     public function __construct(

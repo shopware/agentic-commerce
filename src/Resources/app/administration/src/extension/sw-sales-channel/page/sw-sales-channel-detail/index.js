@@ -1,5 +1,13 @@
 import template from './sw-sales-channel-detail.html.twig';
+import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import {
+    defaultForm as ucpDefaultForm,
+    normalizeConfig as ucpNormalizeConfig,
+    buildConfigPayload as ucpBuildConfigPayload,
+} from '../../agentic-commerce/ucp-form-state';
+import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
+import { isKnownSalesChannelType, isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -12,11 +20,15 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
 
     provide() {
         return {
             swSalesChannelDetailGetAgenticCommerceExportConfig: () => this.agenticCommerceExportConfig,
+            // The UCP form state is owned by the page (not the tab view) so edits
+            // survive tab switches and persist through the page's global Save —
+            // mirroring how agenticCommerceExportConfig is handled.
+            swSalesChannelGetUcpState: () => this.ucpState,
         };
     },
 
@@ -24,6 +36,15 @@ export const swSalesChannelDetailOverride = {
         return {
             agenticCommerceExportConfig: [],
             previousTemplateName: null,
+            ucpState: {
+                loaded: false,
+                isLoading: false,
+                form: ucpDefaultForm(),
+                savedForm: ucpDefaultForm(),
+                meta: {},
+                preview: null,
+                transactional: false,
+            },
         };
     },
 
@@ -55,6 +76,19 @@ export const swSalesChannelDetailOverride = {
 
         shouldRenderAgenticUi() {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
+        },
+
+        agenticCommerceStatisticsRoute() {
+            return coreShipsAgenticCommerce
+                ? 'sw.sales.channel.detail.productExportInsights'
+                : 'sw.sales.channel.detail.agenticCommerceStatistics';
+        },
+
+        shouldRenderAgenticCommerceTab() {
+            const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
+
+            return this.acl.can('ucp.viewer')
+                && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -90,6 +124,14 @@ export const swSalesChannelDetailOverride = {
     },
 
     methods: {
+        createdComponent() {
+            this.$super('createdComponent');
+
+            if (this.isAgenticCommerce && this.productExport?.isNew()) {
+                this.onTemplateSelected('open_ai');
+            }
+        },
+
         loadEntityData() {
             const hasRouteId = Boolean(this.$route.params.id);
             const hasRouteTypeId = Boolean(this.$route.params.typeId);
@@ -129,9 +171,105 @@ export const swSalesChannelDetailOverride = {
 
                     this.generateAccessUrl();
                     this.loadAgenticCommerceExportConfig();
+                    this.loadUcpState();
 
                     this.isLoading = false;
                 });
+        },
+
+        async loadUcpState() {
+            if (!this.salesChannel?.id || !this.acl.can('ucp.viewer')) {
+                return;
+            }
+
+            const resolveRemotely = !this.shouldRenderAgenticCommerceTab;
+            if (resolveRemotely && isKnownSalesChannelType(this.salesChannel.typeId)) {
+                return;
+            }
+
+            const salesChannelId = this.salesChannel.id;
+            this.ucpState.isLoading = true;
+
+            // The three responses answer independent questions, so each is applied from its
+            // own handler the moment it arrives. Two reasons not to gate them on each other:
+            //
+            // - `meta` must never be lost. It reports what the *platform* supports (whether
+            //   this Shopware exposes a Store-API MCP server) and decides which transports are
+            //   offered at all. Discarding it because the preview call failed renders the form
+            //   as if the platform had no MCP — indistinguishable from a shop that has it
+            //   switched off, so the merchant sees a plausible wrong answer instead of an error.
+            // - A slow request must not hold back a fast one. Waiting for all three (either
+            //   Promise.all or allSettled) means one hanging request delays the others' data,
+            //   the error notification and the spinner reset.
+            let reported = false;
+            const report = (error) => {
+                if (reported) {
+                    return;
+                }
+
+                reported = true;
+                // Stop the spinner with the first failure rather than leaving it turning until
+                // a request that may never settle finally does.
+                this.ucpState.isLoading = false;
+                this.createNotificationError({ message: extractApiErrorMessage(error) });
+            };
+
+            try {
+                const salesChannelView = this.ucpAdminApiService.getSalesChannel(salesChannelId).then((response) => {
+                    this.ucpState.meta = response.data.meta || {};
+                    this.ucpState.transactional = Boolean(response.data.data?.transactional);
+                }, report);
+
+                // A type this plugin does not know is classified by the backend's resolver; config and
+                // preview are only worth fetching once it says the channel can sell.
+                if (resolveRemotely) {
+                    await salesChannelView;
+                    if (!this.ucpState.transactional) {
+                        return;
+                    }
+                }
+
+                await Promise.all([
+                    salesChannelView,
+
+                    this.ucpAdminApiService.getConfig(salesChannelId).then((response) => {
+                        const form = ucpNormalizeConfig(response.data.data || {});
+
+                        this.ucpState.form = form;
+                        this.ucpState.savedForm = ucpNormalizeConfig(form);
+                        // Only with the saved config is there something trustworthy to edit.
+                        this.ucpState.loaded = true;
+                    }, report),
+
+                    this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                        this.ucpState.preview = response.data.data || null;
+                    }, report),
+                ]);
+            } catch (error) {
+                // Every rejection is already absorbed by `report`, so this only catches a
+                // throw from one of the fulfilled handlers.
+                report(error);
+            } finally {
+                this.ucpState.isLoading = false;
+            }
+        },
+
+        // Persist the UCP config as part of the page's global Save. Returns false
+        // to abort the save flow (and the post-save reload) on error so the user
+        // can fix and retry. No-op for channels that never loaded UCP state.
+        async saveUcpState(salesChannelId) {
+            if (!this.ucpState.loaded || !salesChannelId) {
+                return true;
+            }
+
+            try {
+                await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(this.ucpState.form));
+                this.ucpState.savedForm = ucpNormalizeConfig(this.ucpState.form);
+                return true;
+            } catch (error) {
+                this.createNotificationError({ message: extractApiErrorMessage(error) });
+                return false;
+            }
         },
 
         onTemplateSelected(templateName) {
@@ -140,6 +278,13 @@ export const swSalesChannelDetailOverride = {
             }
 
             this.productComparison.selectedTemplate = { ...this.productComparison.templates[templateName] };
+
+            if (this.productExport.isNew()) {
+                this.productComparison.templateName = templateName;
+                this.onTemplateModalConfirm();
+                return;
+            }
+
             const contentChanged = Object.keys(this.productComparison.selectedTemplate).some((value) => {
                 return this.productExport[value] !== this.productComparison.selectedTemplate[value];
             });
@@ -176,6 +321,10 @@ export const swSalesChannelDetailOverride = {
             this.productComparison.selectedTemplate = null;
             this.previousTemplateName = null;
             this.productComparison.showTemplateModal = false;
+
+            if (this.productExport.isNew()) {
+                return;
+            }
 
             this.createNotificationInfo({
                 message: this.$t('sw-sales-channel.detail.productComparison.templates.message.template-applied-message'),
@@ -216,6 +365,12 @@ export const swSalesChannelDetailOverride = {
             );
 
             if (!configSaveSuccessful) {
+                return;
+            }
+
+            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave);
+
+            if (!ucpSaveSuccessful) {
                 return;
             }
 

@@ -8,6 +8,7 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Common\Buyer;
 
+/** @internal */
 final class CheckoutSessionStore
 {
     private const PAYLOAD_KEY = 'swagAgenticCommerce';

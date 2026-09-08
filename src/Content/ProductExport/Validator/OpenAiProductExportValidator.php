@@ -16,6 +16,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Error\JsonlValidationError;
 use Swag\AgenticCommerce\Content\ProductExport\Error\ProviderValidationError;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
+/** @internal */
 class OpenAiProductExportValidator extends AbstractProviderValidator
 {
     /**

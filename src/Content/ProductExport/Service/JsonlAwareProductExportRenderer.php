@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Service;
 
+use GuzzleHttp\Psr7\Uri;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Content\ProductExport\Service\ProductExportRendererInterface;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -24,6 +25,8 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  * would preserve template whitespace noise inside a JSONL row. This decorator
  * trims the rendered body, skips empty renders entirely, and re-encodes each
  * line so that every non-empty product becomes exactly one JSONL row.
+ *
+ * @internal
  */
 class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
 {
@@ -68,11 +71,10 @@ class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
             $decoded = json_decode($trimmed, true, 512, \JSON_THROW_ON_ERROR);
 
             if (\is_array($decoded)) {
-                // URLs from media filenames may contain unescaped spaces; encode them so
-                // the row passes downstream RFC 3986 validation (FILTER_VALIDATE_URL).
-                array_walk_recursive($decoded, static function (mixed &$value): void {
+                // Encode URLs so non-ASCII media filenames / spaces pass FILTER_VALIDATE_URL.
+                array_walk_recursive($decoded, function (mixed &$value): void {
                     if (\is_string($value) && 1 === preg_match('#^https?://#i', $value)) {
-                        $value = str_replace(' ', '%20', $value);
+                        $value = $this->normalizeUrls($value);
                     }
                 });
 
@@ -83,5 +85,23 @@ class JsonlAwareProductExportRenderer implements ProductExportRendererInterface
         }
 
         return $trimmed.\PHP_EOL;
+    }
+
+    /** Normalizes each URL in a possibly comma-joined value (e.g. additional_image_urls) individually. */
+    private function normalizeUrls(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $url): string => $this->normalizeSingleUrl($url),
+            explode(',', $value),
+        ));
+    }
+
+    private function normalizeSingleUrl(string $value): string
+    {
+        try {
+            return (string) new Uri($value);
+        } catch (\InvalidArgumentException) {
+            return $value;
+        }
     }
 }

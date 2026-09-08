@@ -11,6 +11,7 @@ use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class DiscountCapability implements DiscountCapabilityInterface
 {
     public function __construct(

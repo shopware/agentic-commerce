@@ -10,6 +10,7 @@ use Ucp\Sdk\Repository\ManagedSigningKeyRepositoryInterface;
 use Ucp\Sdk\Repository\TenantAwareManagedSigningKeyRepositoryInterface;
 use Ucp\Sdk\Service\SigningKeyManagerInterface;
 
+/** @internal */
 #[Package('framework')]
 final class UcpSigningKeyService
 {

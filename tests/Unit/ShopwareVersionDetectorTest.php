@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 
 /** @internal */
+#[CoversClass(ShopwareVersionDetector::class)]
 final class ShopwareVersionDetectorTest extends TestCase
 {
     #[Test]
@@ -36,5 +38,26 @@ final class ShopwareVersionDetectorTest extends TestCase
         self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.1.0'))->needsRobotsTrackingAllowPatch());
         self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.12.0'))->needsRobotsTrackingAllowPatch());
         self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.13.0'))->needsRobotsTrackingAllowPatch());
+    }
+
+    #[Test]
+    public function testItNeedsTheCountryAgnosticSnippetCompatOnlyBeforeSixSevenThree(): void
+    {
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.5.8.0'))->needsCountryAgnosticSnippetCompat());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.6.10.0'))->needsCountryAgnosticSnippetCompat());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.2.2'))->needsCountryAgnosticSnippetCompat());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.3.0'))->needsCountryAgnosticSnippetCompat());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.9999999-dev'))->needsCountryAgnosticSnippetCompat());
+    }
+
+    #[Test]
+    public function testItNeedsTheSystemConfigXsdCompatPatchOnlyOnSixFive(): void
+    {
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.5.0.0'))->needsSystemConfigXsdCompatPatch());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.5.9.0'))->needsSystemConfigXsdCompatPatch());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.6.0.0'))->needsSystemConfigXsdCompatPatch());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.13.0'))->needsSystemConfigXsdCompatPatch());
+        // Unknown/unresolvable version must fall through to core's real schema.
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '0.0.0.0'))->needsSystemConfigXsdCompatPatch());
     }
 }

@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareCartGateway
 {
     public function __construct(

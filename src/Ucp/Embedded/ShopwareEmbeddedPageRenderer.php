@@ -15,6 +15,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
+/** @internal */
 #[Package('checkout')]
 final class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterface
 {

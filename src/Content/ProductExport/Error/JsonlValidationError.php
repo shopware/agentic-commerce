@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Error;
 use Shopware\Core\Content\ProductExport\Error\Error;
 use Shopware\Core\Content\ProductExport\Error\ErrorMessage;
 
+/** @internal */
 class JsonlValidationError extends Error
 {
     /**

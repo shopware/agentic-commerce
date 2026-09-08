@@ -20,6 +20,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCust
  * Adds the `salesChannelTracking` association on the `customer` entity. The
  * cascade-delete flag mirrors the behaviour of the native extension so deleting
  * a customer removes the tracking row before the FK constraint kicks in.
+ *
+ * @internal
  */
 class CustomerSalesChannelTrackingExtension extends EntityExtension
 {

@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Migration;
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Framework\Migration\MigrationStep;
 
+/** @internal */
 final class Migration1780328112CreateUcpConfigTable extends MigrationStep
 {
     public function getCreationTimestamp(): int

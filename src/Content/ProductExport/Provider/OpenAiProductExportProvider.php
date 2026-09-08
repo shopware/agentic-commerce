@@ -20,11 +20,10 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
+/** @internal */
 class OpenAiProductExportProvider extends AbstractAgenticCommerceProductExportProvider
 {
     /**
-     * @internal
-     *
      * @param EntityRepository<SalesChannelCollection> $salesChannelRepository
      */
     public function __construct(

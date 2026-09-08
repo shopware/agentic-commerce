@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Capability\IdentityLinkingCapability;
@@ -20,6 +21,10 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
 /** @internal */
+#[CoversClass(IdentityLinkingCapability::class)]
+#[CoversClass(PaymentTokenizationCapability::class)]
+#[CoversClass(UcpExtensionAvailability::class)]
+#[CoversClass(ShopwareInvoicePaymentHandler::class)]
 final class UcpExtensionCapabilityTest extends TestCase
 {
     #[Test]
@@ -108,6 +113,7 @@ final class UcpExtensionCapabilityTest extends TestCase
     }
 }
 
+/** @internal */
 final class PaymentHandlerRegistryStub implements PaymentHandlerRegistryInterface
 {
     /**
@@ -135,6 +141,7 @@ final class PaymentHandlerRegistryStub implements PaymentHandlerRegistryInterfac
     }
 }
 
+/** @internal */
 final class PaymentHandlerStub implements PaymentHandlerInterface
 {
     public function __construct(

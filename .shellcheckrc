@@ -1,0 +1,4 @@
+# SC2016: "Expressions don't expand in single quotes" — false positive across these
+# scripts, where single-quoted strings are jq filters using jq variables ($var passed via
+# --arg/--argjson), not shell variables. Single quotes are intentional and correct there.
+disable=SC2016

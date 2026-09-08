@@ -18,6 +18,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
+/** @internal */
 final class CheckoutCompleter
 {
     public function __construct(
@@ -31,6 +32,7 @@ final class CheckoutCompleter
         private readonly CheckoutContinueUrlBuilderInterface $continueUrlBuilder,
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
+        private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
     ) {
     }
 
@@ -107,6 +109,7 @@ final class CheckoutCompleter
                 $checkoutId,
                 $customerContext->getCurrency()->getIsoCode(),
                 $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
+                orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
             );
         } finally {
             $lock->release();
@@ -126,6 +129,7 @@ final class CheckoutCompleter
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
         );
     }
 }

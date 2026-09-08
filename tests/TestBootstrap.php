@@ -53,6 +53,27 @@ if (!\is_string($corePath) || !is_file($corePath.'/TestBootstrapper.php')) {
 }
 $projectDir = \dirname($corePath, str_ends_with($corePath, '/src/Core') ? 2 : 3);
 
+// In test env the DI compile (AttributeEntityCompiler) reflects core's test-fixture
+// entities under Shopware\Tests\*. Those namespaces are autoload-dev and are absent from a
+// lane dumped with --no-dev, which crashes the kernel boot with a ReflectionException. Map
+// them onto the active Composer loader (pointing at the lane's tests/ dirs) before booting.
+$composerLoader = require $projectDir.'/vendor/autoload.php';
+if ($composerLoader instanceof Composer\Autoload\ClassLoader) {
+    $coreTestNamespaces = [
+        'Shopware\\Tests\\Examples\\' => '/tests/examples/',
+        'Shopware\\Tests\\Unit\\' => '/tests/unit/',
+        'Shopware\\Tests\\Integration\\' => '/tests/integration/',
+        'Shopware\\Tests\\Migration\\' => '/tests/migration/',
+        'Shopware\\Tests\\DevOps\\' => '/tests/devops/',
+    ];
+    foreach ($coreTestNamespaces as $namespace => $relativePath) {
+        if (is_dir($projectDir.$relativePath)) {
+            $composerLoader->addPsr4($namespace, $projectDir.$relativePath);
+        }
+    }
+    $composerLoader->register();
+}
+
 $classLoader = (new TestBootstrapper())
     ->setProjectDir($projectDir)
     ->setLoadEnvFile(true)

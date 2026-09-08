@@ -38,34 +38,15 @@ case "${LANE}" in
     ;;
 esac
 
-cat >"${SHOPWARE_DIR}/compose.yaml" <<EOF
-services:
-  web:
-    image: ${image}
-    ports:
-      - "8000:8000"
-      - "5173:5173"
-      - "9998:9998"
-      - "9999:9999"
-    environment:
-      APP_ENV: \${APP_ENV-prod}
-      APP_DEBUG: \${APP_DEBUG-0}
-      SHELL_VERBOSITY: \${SHELL_VERBOSITY--1}
-      ADMIN_VITE: \${ADMIN_VITE-0}
-      COMPOSER_ROOT_VERSION: ${root_version}
-      HOST: "0.0.0.0"
-      APP_URL: http://localhost:8000
-      DATABASE_URL: mysql://root:root@database/shopware
-      MAILER_DSN: smtp://mailer:1025
-      OPENSEARCH_URL: http://opensearch:9200
-      ADMIN_OPENSEARCH_URL: http://opensearch:9200
-      SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: \${SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE-1}
-    volumes:
-      - .:/var/www/html
-    depends_on:
-      database:
-        condition: service_healthy
+# The database flavor is decoupled from the Shopware lane so a single lane can be
+# re-run against a different engine. MySQL 8.4 enforces that a foreign key must
+# reference a full unique/primary key (MariaDB and MySQL 8.0 accept a prefix), so
+# a mysql84 lane catches install/migration regressions the default MariaDB misses.
+DB_FLAVOR="${CI_DB_FLAVOR:-mariadb}"
 
+case "${DB_FLAVOR}" in
+  mariadb)
+    database_service=$(cat <<'YAML'
   database:
     image: mariadb:latest
     environment:
@@ -93,6 +74,71 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
+YAML
+)
+    ;;
+  mysql84)
+    database_service=$(cat <<'YAML'
+  database:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: shopware
+    command:
+      - --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --log_bin_trust_function_creators=1
+      - --group_concat_max_len=320000
+      - --default-time-zone=+00:00
+      - --innodb_buffer_pool_size=1024M
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      start_interval: 3s
+      start_period: 10s
+      interval: 5s
+      timeout: 1s
+      retries: 10
+YAML
+)
+    ;;
+  *)
+    echo "Unsupported CI_DB_FLAVOR '${DB_FLAVOR}'. Use 'mariadb' or 'mysql84'." >&2
+    exit 1
+    ;;
+esac
+
+cat >"${SHOPWARE_DIR}/compose.yaml" <<EOF
+services:
+  web:
+    image: ${image}
+    ports:
+      - "8000:8000"
+      - "5173:5173"
+      - "9998:9998"
+      - "9999:9999"
+    environment:
+      APP_ENV: \${APP_ENV-prod}
+      APP_DEBUG: \${APP_DEBUG-0}
+      SHELL_VERBOSITY: \${SHELL_VERBOSITY--1}
+      ADMIN_VITE: \${ADMIN_VITE-0}
+      COMPOSER_NO_SECURITY_BLOCKING: \${COMPOSER_NO_SECURITY_BLOCKING-1}
+      COMPOSER_POLICY_ADVISORIES_BLOCK: \${COMPOSER_POLICY_ADVISORIES_BLOCK-0}
+      COMPOSER_ROOT_VERSION: ${root_version}
+      HOST: "0.0.0.0"
+      APP_URL: http://localhost:8000
+      DATABASE_URL: mysql://root:root@database/shopware
+      MAILER_DSN: smtp://mailer:1025
+      OPENSEARCH_URL: http://opensearch:9200
+      ADMIN_OPENSEARCH_URL: http://opensearch:9200
+      SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: \${SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE-1}
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      database:
+        condition: service_healthy
+
+${database_service}
 
   mailer:
     image: axllent/mailpit

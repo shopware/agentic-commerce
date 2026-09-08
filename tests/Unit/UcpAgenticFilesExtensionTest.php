@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -12,6 +13,8 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Twig\UcpAgenticFilesExtension;
 
+/** @internal */
+#[CoversClass(UcpAgenticFilesExtension::class)]
 final class UcpAgenticFilesExtensionTest extends TestCase
 {
     /** @var array<string, UcpConfig> */

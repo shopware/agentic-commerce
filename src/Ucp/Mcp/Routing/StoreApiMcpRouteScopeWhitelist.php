@@ -8,6 +8,7 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\RouteScopeWhitelistInterface;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 
+/** @internal */
 #[Package('checkout')]
 final class StoreApiMcpRouteScopeWhitelist implements RouteScopeWhitelistInterface
 {

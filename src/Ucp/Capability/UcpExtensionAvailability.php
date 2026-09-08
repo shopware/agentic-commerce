@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Capability;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
+/** @internal */
 final class UcpExtensionAvailability
 {
     /** @var list<IdentityLinkingAdapterInterface>|null */

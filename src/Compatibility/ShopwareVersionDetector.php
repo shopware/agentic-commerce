@@ -9,6 +9,7 @@ use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
 
+/** @internal */
 #[Package('framework')]
 final class ShopwareVersionDetector
 {
@@ -71,10 +72,37 @@ final class ShopwareVersionDetector
             && version_compare($version, '6.7.13.0', '<');
     }
 
+    public function needsSystemConfigXsdCompatPatch(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        // Shopware 6.5's core config.xsd uses a non-deterministic content model that
+        // libxml2 >= 2.13 rejects, breaking ALL system-config validation. The plugin
+        // ships a permissive copy and swaps it in on 6.5 only. From 6.6 core's schema
+        // is fixed and stays current (e.g. it adds <subtitle> in 6.7), so the bundled
+        // copy must NOT be used there or it wrongly rejects valid newer core config
+        // such as basicInformation.xml. Scoping to the 6.5 range also means an
+        // unknown/unresolvable version fails the check, so the frozen copy is never
+        // imposed speculatively.
+        return version_compare($version, '6.5.0.0', '>=')
+            && version_compare($version, '6.6.0.0', '<');
+    }
+
+    /**
+     * The admin SnippetFinder only matches full-locale filenames (de-DE.json)
+     * before 6.7.3.0. The plugin ships country-agnostic filenames (de.json),
+     * which core picks up natively from 6.7.3.0 on.
+     */
+    public function needsCountryAgnosticSnippetCompat(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        return version_compare($version, '6.7.3.0', '<');
+    }
+
     public function coreShipsAgenticCommerce(): bool
     {
-        // Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE is defined in 6.7.10–6.7.11 only.
-        // From 6.7.12+ the feature moves back to plugin-only and the constant is removed.
+        // Core defines the constant only while it ships the feature itself.
         return \defined('Shopware\\Core\\Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE');
     }
 

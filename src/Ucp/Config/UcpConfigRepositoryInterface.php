@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
 
+/** @internal */
 #[Package('framework')]
 interface UcpConfigRepositoryInterface
 {

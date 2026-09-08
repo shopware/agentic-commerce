@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
+/** @internal */
 final class OAuthAuthorization
 {
     public function __construct(

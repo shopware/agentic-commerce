@@ -17,6 +17,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
+use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -56,6 +57,7 @@ final class CheckoutCompleterTest extends TestCase
         $currency->setIsoCode('EUR');
 
         $order = new OrderEntity();
+        $order->setId(self::ORDER_ID);
         $order->setCurrency($currency);
 
         $orderGateway = $this->createMock(OrderGatewayInterface::class);
@@ -69,19 +71,19 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
             {
                 return $this->checkout;
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
         };
 
         $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): ?string
+            public function build(string $checkoutId, string $salesChannelId): string
             {
                 return 'https://example.com/continue';
             }
@@ -104,6 +106,7 @@ final class CheckoutCompleterTest extends TestCase
             $continueUrlBuilder,
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
+            new OrderPermalinkBuilder(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -145,6 +148,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutContinueUrlBuilder::class),
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
+            new OrderPermalinkBuilder(),
         );
 
         $this->expectExceptionObject(new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.'));
@@ -206,12 +210,12 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
             {
                 return $this->checkout;
             }
 
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null): OrderView
+            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
@@ -231,7 +235,7 @@ final class CheckoutCompleterTest extends TestCase
         $configService = $this->nullConfigService();
 
         $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): ?string
+            public function build(string $checkoutId, string $salesChannelId): string
             {
                 return 'https://example.com/continue';
             }
@@ -257,6 +261,7 @@ final class CheckoutCompleterTest extends TestCase
             $continueUrlBuilder,
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $orderWebhookPublisher,
+            new OrderPermalinkBuilder(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -310,6 +315,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutContinueUrlBuilder::class),
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
+            new OrderPermalinkBuilder(),
         );
 
         try {

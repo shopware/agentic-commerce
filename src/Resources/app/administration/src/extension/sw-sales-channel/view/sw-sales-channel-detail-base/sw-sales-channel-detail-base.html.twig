@@ -40,7 +40,7 @@
     data-ac-template-select
     :disabled="!acl.can('sales_channel.editor')"
     :label="$t('sw-sales-channel.detail.productComparison.templates.label')"
-    :placeholder="$t('sw-sales-channel.detail.productComparison.templates.placeholderSelectTemplate')"
+    :placeholder="templateSelectPlaceholder"
     :options="templateSelectOptions"
     @change="$emit('template-selected', $event)"
     @update:value="(templateName) => $emit('template-selected', templateName)"

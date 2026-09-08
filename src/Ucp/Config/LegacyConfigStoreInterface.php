@@ -11,6 +11,8 @@ use Shopware\Core\Framework\Log\Package;
  *
  * Lets the config service depend on a plugin-owned abstraction instead of the
  * concrete Shopware SystemConfigService, so it stays unit-testable without core.
+ *
+ * @internal
  */
 #[Package('framework')]
 interface LegacyConfigStoreInterface

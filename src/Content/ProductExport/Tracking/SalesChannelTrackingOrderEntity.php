@@ -19,6 +19,8 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
  * in Shopware 6.7.10+. Entity class names and field names are kept identical so
  * the admin's `extensions.salesChannelTracking.salesChannel.name` access path
  * continues to work after upgrading and uninstalling this plugin.
+ *
+ * @internal
  */
 class SalesChannelTrackingOrderEntity extends Entity
 {

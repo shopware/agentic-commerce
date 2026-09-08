@@ -11,6 +11,7 @@ use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 
+/** @internal */
 #[Package('framework')]
 final class ShopwareRuntimeConfigurationResolver implements RuntimeConfigurationResolverInterface
 {

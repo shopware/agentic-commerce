@@ -10,6 +10,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Service\ProfileBuilderInterface;
 
+/** @internal */
 #[Package('checkout')]
 final class ProfilePreviewBuilder
 {

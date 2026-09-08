@@ -22,11 +22,18 @@ global.Shopware = {
         : {}),
     Utils: {},
     Classes: {},
+    Defaults: {
+        productComparisonTypeId: 'product-comparison-type-id',
+        storefrontSalesChannelTypeId: 'storefront-type-id',
+        apiSalesChannelTypeId: 'api-type-id',
+        agenticCommerceTypeId: 'agentic-commerce-type-id',
+    },
 };
 
 const { swSalesChannelDetailOverride } = require('Resources/extension/sw-sales-channel/page/sw-sales-channel-detail');
 
 const { syncExportFileName } = swSalesChannelDetailOverride.methods;
+const { shouldRenderAgenticCommerceTab } = swSalesChannelDetailOverride.computed;
 
 describe('sw-sales-channel-detail syncExportFileName', () => {
     it.each([
@@ -70,5 +77,62 @@ describe('sw-sales-channel-detail syncExportFileName', () => {
 
         expect(context.productExport.fileName).toBe(productExport.fileName);
         expect(context.productExport.fileFormat).toBe(productExport.fileFormat);
+    });
+});
+
+describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
+    it('requires ucp.viewer because the tab reads UCP admin APIs', () => {
+        const context = {
+            acl: { can: jest.fn(() => false) },
+            salesChannel: { typeId: 'storefront-type-id' },
+            $route: { params: {} },
+            ucpState: { transactional: false },
+        };
+
+        expect(shouldRenderAgenticCommerceTab.call(context)).toBe(false);
+        expect(context.acl.can).toHaveBeenCalledWith('ucp.viewer');
+    });
+
+    it.each([
+        ['Storefront', 'storefront-type-id'],
+        ['Headless/API', 'api-type-id'],
+    ])('renders agentic tab for %s channels when ucp.viewer is granted', (_label, typeId) => {
+        const context = {
+            acl: { can: jest.fn(() => true) },
+            salesChannel: { typeId },
+            $route: { params: {} },
+            isAgenticCommerce: false,
+            ucpState: { transactional: false },
+        };
+
+        expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
+    });
+
+    it.each([
+        ['Agentic Commerce', 'agentic-commerce-type-id'],
+        ['Product Comparison', 'product-comparison-type-id'],
+        ['an unknown', 'unknown-type-id'],
+    ])('does not render agentic tab for %s channels', (_label, typeId) => {
+        const context = {
+            acl: { can: jest.fn(() => true) },
+            salesChannel: { typeId },
+            $route: { params: {} },
+            isAgenticCommerce: false,
+            ucpState: { transactional: false },
+        };
+
+        expect(shouldRenderAgenticCommerceTab.call(context)).toBe(false);
+    });
+
+    it('renders agentic tab for a type the backend resolver classified as transactional', () => {
+        const context = {
+            acl: { can: jest.fn(() => true) },
+            salesChannel: { typeId: 'partner-type-id' },
+            $route: { params: {} },
+            isAgenticCommerce: false,
+            ucpState: { transactional: true },
+        };
+
+        expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
     });
 });

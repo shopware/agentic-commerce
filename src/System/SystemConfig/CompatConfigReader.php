@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\System\SystemConfig;
 
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 
 /**
  * Shopware 6.5's config.xsd defines the `input-field` complex type with several
@@ -17,15 +18,29 @@ use Shopware\Core\System\SystemConfig\Util\ConfigReader;
  * (`translatableString`). libxml2 >= 2.13 flags this as a non-deterministic
  * content model and rejects ALL XML files validated against that schema.
  *
- * This subclass points to a bundled copy of the 6.6 schema which replaced the
- * named child elements with a single `xs:any processContents="lax"`. The 6.6
- * schema is strictly more permissive — every document valid under 6.5's schema
- * is also valid under the 6.6 schema.
+ * On 6.5 this reader swaps in a bundled, permissive copy of the schema so config
+ * validation keeps working. From 6.6 core's own schema is fixed and, crucially,
+ * stays current (e.g. it adds `<subtitle>` in 6.7). There we must keep core's real
+ * xsd — inherited via the parent's `$xsdFile` property default — because forcing
+ * the frozen bundled copy would reject valid newer core config such as
+ * basicInformation.xml.
+ *
+ * The service is registered unconditionally so the compiled DI container stays
+ * deterministic (required for SaaS). The version decision therefore happens here
+ * at runtime rather than at container-build time.
+ *
+ * @internal
  */
 class CompatConfigReader extends ConfigReader
 {
-    public function __construct()
+    public function __construct(?ShopwareVersionDetector $versionDetector = null)
     {
-        $this->xsdFile = \dirname(__DIR__, 2).'/Resources/config/config.xsd';
+        $versionDetector ??= new ShopwareVersionDetector();
+
+        // 6.5 only: swap in the bundled compat schema. On 6.6+ leave the inherited
+        // $xsdFile default untouched so validation uses core's real, current schema.
+        if ($versionDetector->needsSystemConfigXsdCompatPatch()) {
+            $this->xsdFile = \dirname(__DIR__, 2).'/Resources/config/config.xsd';
+        }
     }
 }

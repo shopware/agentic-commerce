@@ -1,0 +1,202 @@
+.sw-sales-channel-detail-agentic-commerce {
+    &__hint {
+        color: var(--color-text-secondary-default, #52667a);
+        margin-bottom: var(--scale-size-8, 8px);
+    }
+
+    // Render the card header (title + intro) exactly like the core Agentic
+    // Files card, which uses a custom #title slot rather than mt-card's muted,
+    // smaller `subtitle` prop. Values mirror
+    // sw-sales-channel-detail-agentic-files.scss so the two descriptions match.
+    &__card-title {
+        display: flex;
+        flex-direction: column;
+        gap: var(--scale-size-8, 8px);
+    }
+
+    &__card-headline {
+        margin: 0;
+        font-size: var(--font-size-l, 20px);
+        line-height: var(--font-line-height-m, 28px);
+        font-weight: var(--font-weight-semi-bold);
+    }
+
+    &__card-description {
+        margin: 0;
+        color: var(--color-text-primary-default);
+        font-size: var(--font-size-s, 16px);
+        line-height: var(--font-line-height-xs, 22px);
+    }
+
+    // Align the top unsaved-changes banner with the mt-card column below it
+    // (mt-card caps at 960px and centres inside the sw-card-view column).
+    &__unsaved-banner {
+        width: 100%;
+        max-width: 960px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    &__section-label {
+        margin-top: var(--scale-size-20, 20px);
+        margin-bottom: var(--scale-size-8, 8px);
+        font-weight: var(--font-weight-semibold, 600);
+    }
+
+    // Inline help icon sitting directly after a section-label's text (e.g.
+    // Signature policy) — keeps the "?" behind the label instead of in the
+    // select's own (now empty) label row. mt-help-text isn't globally
+    // registered, so we render mt-icon + the tooltip directive and mirror the
+    // meteor help-icon look (brand-blue "?").
+    &__label-help {
+        display: inline-flex;
+        vertical-align: middle;
+        margin-left: var(--scale-size-4, 4px);
+        color: var(--color-icon-brand-default);
+        cursor: help;
+    }
+
+    // Capabilities and transports are parallel lists. Keep the first rows at
+    // the same height so labels + help icons scan cleanly across both columns.
+    &__option-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        column-gap: var(--scale-size-48, 48px);
+        row-gap: var(--scale-size-24, 24px);
+        margin-bottom: var(--scale-size-12, 12px);
+    }
+
+    &__option-column {
+        min-width: 0;
+    }
+
+    &__option-column > &__section-label {
+        margin-bottom: var(--scale-size-16, 16px);
+    }
+
+    &__option-list {
+        display: grid;
+        grid-auto-rows: minmax(36px, auto);
+        row-gap: var(--scale-size-4, 4px);
+    }
+
+    &__option-item {
+        min-height: 36px;
+        margin-bottom: 0;
+    }
+
+    &__option-item :is(.mt-checkbox, .mt-field--checkbox, .sw-field--checkbox) {
+        margin-bottom: 0;
+    }
+
+    @media (max-width: 900px) {
+        &__option-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    // Signing keys rendered as a lightweight table: aligned columns (key id /
+    // algorithm / status / actions) so the action buttons never shift with the
+    // key-name length, and the actions column pins to the right. The Create key
+    // row (&__key-create) reuses this exact column template so its inputs line
+    // up under the same headers — keep the two `grid-template-columns` in sync.
+    &__keys {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) 180px;
+        align-items: center;
+        column-gap: var(--scale-size-24, 24px);
+        row-gap: var(--scale-size-12, 12px);
+        margin: 0 0 var(--scale-size-12, 12px);
+    }
+
+    // Rows contribute their cells directly to the parent grid so every column
+    // lines up across rows.
+    &__keys-row {
+        display: contents;
+    }
+
+    &__keys-row--head > span {
+        font-weight: var(--font-weight-semibold, 600);
+        font-size: var(--font-size-xs, 0.75rem);
+        color: var(--color-text-secondary-default, #52667a);
+    }
+
+    &__keys-kid {
+        font-family: var(--font-family-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", "Menlo", monospace);
+        overflow-wrap: anywhere;
+    }
+
+    // Fill the actions column so Retire/Delete span the same width as the
+    // Create button in the row below.
+    &__keys-actions {
+        display: flex;
+        gap: var(--scale-size-8, 8px);
+    }
+
+    // Retire/Delete split the actions column evenly and match the Create key
+    // button / form-field height (48px) below.
+    &__keys-actions > .mt-button {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: var(--scale-size-48, 48px);
+    }
+
+    // Group the sub-tab into logical sections separated by whitespace only —
+    // matching the core SEO card (bold heading + space, no divider lines).
+    &__section {
+        & + & {
+            margin-top: var(--scale-size-32, 32px);
+        }
+
+        // The section heading sits flush at the top of its section.
+        .sw-sales-channel-detail-agentic-commerce__section-label {
+            margin-top: 0;
+        }
+    }
+
+
+    // Mirrors the &__keys column template (keep in sync) so the New key id
+    // input lands under "Key ID", the Algorithm select spans the Algorithm +
+    // Status columns, and the Create button fills the Actions column.
+    &__key-create {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) 180px;
+        align-items: end;
+        column-gap: var(--scale-size-24, 24px);
+
+        // New key id → Key ID column.
+        > *:nth-child(1) {
+            grid-column: 1;
+            margin-bottom: 0;
+        }
+
+        // Algorithm select → spans the Algorithm + Status columns.
+        > *:nth-child(2) {
+            grid-column: 2 / 4;
+            margin-bottom: 0;
+        }
+
+        // Create button → Actions column, stretched to the two-button width and
+        // matched to the form-field height (48px).
+        > .mt-button {
+            grid-column: 4;
+            width: 100%;
+            min-height: var(--scale-size-48, 48px);
+        }
+    }
+
+    // Developer profile preview — a readable, scrollable code block.
+    &__preview {
+        margin: 0;
+        padding: var(--scale-size-16, 16px);
+        max-height: 720px;
+        overflow: auto;
+        background: #1e293b;
+        color: #e2e8f0;
+        border-radius: var(--border-radius-default, 8px);
+        font-family: var(--font-family-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", "Menlo", monospace);
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre;
+    }
+}

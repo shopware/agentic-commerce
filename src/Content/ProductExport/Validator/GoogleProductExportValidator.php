@@ -15,6 +15,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Error\ProviderValidationError;
 
 /**
  * Validates Google Merchant Center XML feeds (RSS 2.0 with the http://base.google.com/ns/1.0 namespace).
+ *
+ * @internal
  */
 class GoogleProductExportValidator extends AbstractProviderValidator
 {

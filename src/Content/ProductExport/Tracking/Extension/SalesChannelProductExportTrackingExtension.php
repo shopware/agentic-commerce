@@ -19,6 +19,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrde
 /**
  * Reverse-side associations on `sales_channel` for tracked orders/customers.
  * Powers product-export insights aggregation in the admin.
+ *
+ * @internal
  */
 class SalesChannelProductExportTrackingExtension extends EntityExtension
 {

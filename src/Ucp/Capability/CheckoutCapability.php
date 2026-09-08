@@ -12,6 +12,7 @@ use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class CheckoutCapability implements CheckoutCapabilityInterface
 {
     public function __construct(

@@ -10,6 +10,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-order-get', title: 'UCP Order Get', description: 'Load an order by id through the shared UCP order capability.')]
+/** @internal */
 #[Package('checkout')]
 final class UcpOrderGetTool
 {
@@ -29,7 +30,7 @@ final class UcpOrderGetTool
                 $id,
             )));
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

@@ -27,6 +27,8 @@ use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
  * Mirror of {@see \Shopware\Core\Content\ProductExport\Tracking\SalesChannelTrackingOrderDefinition}
  * in Shopware 6.7.10+. Entity name, fields and flags are kept identical so the
  * admin UI and existing repositories keep working after upgrading.
+ *
+ * @internal
  */
 class SalesChannelTrackingOrderDefinition extends EntityDefinition
 {

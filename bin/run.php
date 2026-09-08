@@ -137,6 +137,8 @@ function renderPhpstanConfig(string $pluginDir): string
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
         '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir, $coreDir),
+        '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
+        '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
     ]);
 
@@ -189,16 +191,12 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
     }
 
     if (is_file($phpStanDir.'/common.neon')) {
-        return implode("\n", [
-            '    - '.$phpStanDir.'/common.neon',
-            '    - '.$phpStanDir.'/core-rules.neon',
-        ]);
+        return '    - '.$phpStanDir.'/common.neon';
     }
 
     return implode("\n", [
         '    - '.$phpStanDir.'/extension.neon',
         '    - '.$phpStanDir.'/rules.neon',
-        '    - '.$phpStanDir.'/core-rules.neon',
     ]);
 }
 
@@ -217,6 +215,46 @@ function renderFutureCompatibilityInclude(string $pluginDir, string $coreDir): s
     }
 
     return '';
+}
+
+function renderShopwarePhpstanParameters(string $coreDir): string
+{
+    if (!supportsConfigurableCoversRule($coreDir)) {
+        return '';
+    }
+
+    return implode("\n", [
+        '    shopware:',
+        '        allowedUnitTestClassNamespaces:',
+        '            - Swag\AgenticCommerce\Tests\Unit\\',
+        '            - Swag\AgenticCommerce\Tests\Integration\Migration\\',
+    ]);
+}
+
+function renderUnexpectedTestCoversIgnore(string $coreDir): string
+{
+    if (supportsConfigurableCoversRule($coreDir)) {
+        return '';
+    }
+
+    return implode("\n", [
+        '        # CoversClass on unit tests in subdirs — fixed by configurable covers namespaces in newer Shopware.',
+        '        -',
+        '            identifier: shopware.unexpectedTestCovers',
+        "            message: '#.+#'",
+    ]);
+}
+
+function supportsConfigurableCoversRule(string $coreDir): bool
+{
+    $commonConfig = $coreDir.'/DevOps/StaticAnalyze/PHPStan/common.neon';
+    if (!is_file($commonConfig)) {
+        return false;
+    }
+
+    $contents = file_get_contents($commonConfig);
+
+    return \is_string($contents) && str_contains($contents, 'allowedUnitTestClassNamespaces: list(string)');
 }
 
 function renderPhpstanAutoload(string $pluginDir, string $coreDir, string $tmpDir): string

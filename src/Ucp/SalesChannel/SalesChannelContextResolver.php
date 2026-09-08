@@ -10,6 +10,7 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParamete
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class SalesChannelContextResolver
 {
     public function __construct(

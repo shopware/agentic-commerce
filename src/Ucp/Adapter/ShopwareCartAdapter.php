@@ -12,6 +12,7 @@ use Ucp\Sdk\Model\Cart\CartCreateRequest;
 use Ucp\Sdk\Model\Cart\CartUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
 
+/** @internal */
 final class ShopwareCartAdapter implements CartAdapterInterface
 {
     public function __construct(

@@ -8,6 +8,8 @@ use Shopware\Core\Framework\Log\Package;
 
 /**
  * Signing key algorithms the SDK's key manager can actually generate.
+ *
+ * @internal
  */
 #[Package('framework')]
 enum SigningKeyAlgorithm: string
