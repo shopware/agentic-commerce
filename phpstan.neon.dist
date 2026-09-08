@@ -1,5 +1,6 @@
 includes:
 __SHOPWARE_PHPSTAN_INCLUDES__
+__PHPSTAN_SYMFONY_INCLUDE__
 __FUTURE_COMPATIBILITY_INCLUDE__
     # Pre-existing errors inherited from code merged from main (codex/backpart-agentic-files).
     # These are not introduced by this PR; remove once the original author fixes them.

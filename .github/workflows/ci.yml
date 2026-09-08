@@ -295,7 +295,7 @@ jobs:
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules
         # Do not enable phpstan-shopware's default rules.neon via its extension installer.
-        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
+        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" "phpstan/phpstan-symfony:^2" --no-interaction --no-plugins
         working-directory: shopware
       - run: composer phpstan
         working-directory: agentic-commerce
