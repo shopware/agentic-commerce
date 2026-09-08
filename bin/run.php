@@ -18,7 +18,7 @@ if (null === $binaryPath) {
 }
 
 if ('phpstan' === $binary) {
-    $autoloadFile = renderPhpstanConfig($pluginDir);
+    $autoloadFile = renderPhpstanConfig($pluginDir, phpstanConfigPath($args));
     if (!\in_array('--autoload-file', $args, true) && !\in_array('-a', $args, true)) {
         $autoloadArgs = ['--autoload-file', $autoloadFile];
         if (isset($args[0]) && !str_starts_with($args[0], '-')) {
@@ -116,9 +116,21 @@ function resolveBinary(string $pluginDir, string $binary): ?string
     return null;
 }
 
-function renderPhpstanConfig(string $pluginDir): string
+function phpstanConfigPath(array $args): string
 {
-    $templatePath = $pluginDir.'/phpstan.neon.dist';
+    foreach ($args as $index => $arg) {
+        if ('-c' === $arg || '--configuration' === $arg) {
+            return $args[$index + 1] ?? 'phpstan.neon';
+        }
+    }
+
+    return 'phpstan.neon';
+}
+
+function renderPhpstanConfig(string $pluginDir, string $configPath): string
+{
+    $configFile = basename($configPath);
+    $templatePath = $pluginDir.'/'.$configFile.'.dist';
     $template = file_get_contents($templatePath);
     if (false === $template) {
         fwrite(\STDERR, "phpstan.neon.dist not found.\n");
@@ -142,7 +154,7 @@ function renderPhpstanConfig(string $pluginDir): string
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
     ]);
 
-    file_put_contents($pluginDir.'/phpstan.neon', $rendered);
+    file_put_contents($pluginDir.'/'.$configFile, $rendered);
 
     return renderPhpstanAutoload($pluginDir, $coreDir, $tmpDir);
 }

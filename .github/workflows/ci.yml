@@ -284,7 +284,7 @@ jobs:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - run: composer install --no-scripts --no-interaction --prefer-dist
+      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
         working-directory: shopware
       - name: Configure private SDK path repositories
         run: |
@@ -297,7 +297,7 @@ jobs:
         # Do not enable phpstan-shopware's default rules.neon via its extension installer.
         run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
         working-directory: shopware
-      - run: composer phpstan
+      - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan-future-compatibility.neon
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
