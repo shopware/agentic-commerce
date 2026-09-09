@@ -29,7 +29,7 @@ final class TestGenerator
         /** @var string $method */
         $method = 'generateSalesChannelContext';
         if (method_exists(Generator::class, $method)) {
-            return Generator::generateSalesChannelContext(
+            return Generator::$method(
                 baseContext: $baseContext,
                 salesChannel: $salesChannel,
                 country: $country,
