@@ -26,7 +26,9 @@ final class TestGenerator
         ?SalesChannelEntity $salesChannel = null,
         ?CountryEntity $country = null,
     ): SalesChannelContext {
-        if (method_exists(Generator::class, 'generateSalesChannelContext')) {
+        /** @var string $method */
+        $method = 'generateSalesChannelContext';
+        if (method_exists(Generator::class, $method)) {
             return Generator::generateSalesChannelContext(
                 baseContext: $baseContext,
                 salesChannel: $salesChannel,
