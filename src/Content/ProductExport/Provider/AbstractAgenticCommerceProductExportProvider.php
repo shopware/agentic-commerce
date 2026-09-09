@@ -22,6 +22,10 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
  * Handles adding common fields (provider name, referral code, affiliate/campaign codes)
  * to the Twig render context. Concrete providers only need to implement
  * {@see buildProviderContext()} for their format-specific fields.
+ *
+ * This is the plugin's only public PHP extension point; every other class under `src/`
+ * is `@internal`. Register an own provider by extending this class and tagging the
+ * service with `swag_agentic_commerce.product_export.provider`.
  */
 #[Package('discovery')]
 abstract class AbstractAgenticCommerceProductExportProvider
