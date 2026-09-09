@@ -36,7 +36,9 @@ final class SalesChannelViewProvider
         $criteria->addAssociation('domains');
 
         $salesChannels = $this->salesChannelRepository->search($criteria, $context)->getEntities();
-        $typeClassificationBySalesChannelId = $this->salesChannelTypeResolver->resolveMany($salesChannels->getIds());
+        /** @var array<string> $salesChannelIds */
+        $salesChannelIds = $salesChannels->getIds();
+        $typeClassificationBySalesChannelId = $this->salesChannelTypeResolver->resolveMany(array_values($salesChannelIds));
         $payload = [];
 
         foreach ($salesChannels as $salesChannel) {
