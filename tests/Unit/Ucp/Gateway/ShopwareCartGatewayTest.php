@@ -19,6 +19,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Symfony\Component\HttpFoundation\Request;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartDeleteRoute;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartItemAddRoute;
