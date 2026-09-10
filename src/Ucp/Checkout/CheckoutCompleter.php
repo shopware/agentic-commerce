@@ -76,6 +76,12 @@ final class CheckoutCompleter
                 $this->sessionManager->guestAddress($metadata),
             );
 
+            // Guest registration rotates the Shopware context token and migrates the persisted cart
+            // along with it, so the token on the cart we were handed points at a storage entry that
+            // no longer exists. Re-tokenize before ordering: the order route recalculates the cart
+            // against the customer context anyway, but it rejects carts whose token it cannot find.
+            $cart->setToken($customerContext->getToken());
+
             $config = $this->configService->getConfig($customerContext->getSalesChannelId());
             if (null !== $config->webhookUrlOverride) {
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
