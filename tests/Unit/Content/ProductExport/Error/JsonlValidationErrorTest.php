@@ -53,4 +53,12 @@ class JsonlValidationErrorTest extends TestCase
         static::assertSame('The export did not generate a valid JSONL file', $serialized['message']);
         static::assertCount(1, $serialized['errorMessages']);
     }
+
+    public function testItSupportsRecursiveAssignmentOnNewerShopwareVersions(): void
+    {
+        $error = new JsonlValidationError('export-id', 'Malformed JSON on line 2');
+
+        static::assertSame($error, $error->assignRecursive(['error' => 'Changed error']));
+        static::assertSame('Changed error', $error->getParameters()['error']);
+    }
 }
