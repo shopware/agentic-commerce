@@ -13,6 +13,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+/** @internal */
 #[AsCommand(
     name: 'ucp:config:set',
     description: 'Sets the non-UI UCP config fields (signature policy, allowlists, delivery) for a sales channel.',

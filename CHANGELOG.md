@@ -6,6 +6,7 @@
 
 # 1.3.0
 
+- Restrict UCP to the sales channels that can actually complete a purchase: Storefront and Headless. Product feed channels are no longer offered for UCP and can no longer have it switched on through the API or the console; one that had it switched on before is now treated as switched off, so no shop is advertised that an agent cannot buy from.
 - Serve `/.well-known/api-catalog` (RFC 9727 linkset) on exposed sales channels, so an agent can discover the shop's UCP profile and Store API entry point from one standardised location; unexposed channels return 404.
 
 # 1.2.0
