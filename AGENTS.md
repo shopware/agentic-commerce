@@ -275,6 +275,13 @@ The script handles the important differences:
 - Sales-channel UCP config lives in the plugin table
   `swag_agentic_commerce_ucp_config`. `SystemConfig` is only a legacy fallback
   and read-through backfill path; do not add new UCP settings there.
+- Gate sales-channel features through `AbstractSalesChannelTypeResolver`, never
+  on a denylist of feed types and never on `SalesChannelTypeClassification::forTypeId()`
+  directly: the enum's built-in map is the resolver's default and an unresolved
+  type stays `Other`. Unknown types are excluded by construction, so neither
+  version probing nor another vendor's type id belongs here. Both classes are
+  `@internal` while the extension is in beta; opening the seam is a deliberate
+  later step.
 - Keep REST, A2A, embedded, and MCP on the shared SDK operation/capability
   layer. Shopware-specific MCP code is limited to the `/ucp/mcp` proxy and Store
   API MCP tool registrations.
@@ -366,8 +373,8 @@ The script handles the important differences:
 ## Releases
 
 Store releases run from `main` HEAD via `.github/workflows/store-release.yml` after
-that commit has a green `validation-gate`. Bump `composer.json` `version`, the admin
-`package.json` + lock, and both changelogs (`# <version>`) in the release PR. See the
+that commit has a green `validation-gate`. Bump `composer.json` `version` and both
+changelogs (`# <version>`) in the release PR. See the
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 

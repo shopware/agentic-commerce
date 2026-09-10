@@ -24,8 +24,6 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
 class OpenAiProductExportProvider extends AbstractAgenticCommerceProductExportProvider
 {
     /**
-     * @internal
-     *
      * @param EntityRepository<SalesChannelCollection> $salesChannelRepository
      */
     public function __construct(
