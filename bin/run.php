@@ -120,6 +120,7 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
+        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir),
         '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
         '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
@@ -181,6 +182,13 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
         '    - '.$phpStanDir.'/extension.neon',
         '    - '.$phpStanDir.'/rules.neon',
     ]);
+}
+
+function renderFutureCompatibilityInclude(string $pluginDir): string
+{
+    $rules = $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon';
+
+    return is_file($rules) ? '    - '.$rules : '';
 }
 
 function renderShopwarePhpstanParameters(string $coreDir): string

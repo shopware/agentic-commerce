@@ -223,6 +223,12 @@ jobs:
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
+      - name: Install opt-in future compatibility rules
+        if: matrix.php-version != '8.1'
+        # Install without plugins so phpstan-shopware's default rules.neon is not registered.
+        # The package requires PHP 8.2, while this plugin remains compatible with PHP 8.1.
+        run: composer require --dev shopwarelabs/phpstan-shopware:0.2.4 --no-interaction --no-plugins --ignore-platform-req=php
+        working-directory: agentic-commerce
       - name: Capture plugin Composer advisory report
         if: matrix.lane == 'php-8.2'
         working-directory: agentic-commerce
