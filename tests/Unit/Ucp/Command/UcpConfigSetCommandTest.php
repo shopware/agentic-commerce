@@ -15,6 +15,8 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
+use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 use Swag\AgenticCommerce\Ucp\Command\SalesChannelResolver;
 use Swag\AgenticCommerce\Ucp\Command\UcpConfigSetCommand;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -133,6 +135,9 @@ class UcpConfigSetCommandTest extends TestCase
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('search')->willReturn($searchResult);
 
-        return new SalesChannelResolver(new SalesChannelViewProvider($repository));
+        return new SalesChannelResolver(new SalesChannelViewProvider(
+            $repository,
+            new StaticSalesChannelTypeResolver(SalesChannelTypeClassification::Storefront),
+        ));
     }
 }

@@ -41,6 +41,8 @@ use Ucp\Sdk\Service\ProfileBuilderInterface;
  * Requests go through a real Symfony {@see KernelBrowser} (the full HttpKernel request/response
  * cycle, kernel events included) against `APP_URL` — the test database's default storefront
  * sales-channel domain — exactly as Shopware's own functional tests do.
+ *
+ * @internal
  */
 trait UcpFlowTestBehaviour
 {

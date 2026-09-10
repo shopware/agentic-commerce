@@ -7,7 +7,7 @@ import {
     buildConfigPayload as ucpBuildConfigPayload,
 } from '../../agentic-commerce/ucp-form-state';
 import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
-import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
+import { isKnownSalesChannelType, isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -43,6 +43,7 @@ export const swSalesChannelDetailOverride = {
                 savedForm: ucpDefaultForm(),
                 meta: {},
                 preview: null,
+                transactional: false,
             },
         };
     },
@@ -77,10 +78,17 @@ export const swSalesChannelDetailOverride = {
             return this.isAgenticCommerce && !coreShipsAgenticCommerce;
         },
 
+        agenticCommerceStatisticsRoute() {
+            return coreShipsAgenticCommerce
+                ? 'sw.sales.channel.detail.productExportInsights'
+                : 'sw.sales.channel.detail.agenticCommerceStatistics';
+        },
+
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
-            return this.acl.can('ucp.viewer') && (isTransactionalSalesChannelType(typeId) || this.isAgenticCommerce);
+            return this.acl.can('ucp.viewer')
+                && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -170,7 +178,12 @@ export const swSalesChannelDetailOverride = {
         },
 
         async loadUcpState() {
-            if (!this.shouldRenderAgenticCommerceTab || !this.salesChannel?.id) {
+            if (!this.salesChannel?.id || !this.acl.can('ucp.viewer')) {
+                return;
+            }
+
+            const resolveRemotely = !this.shouldRenderAgenticCommerceTab;
+            if (resolveRemotely && isKnownSalesChannelType(this.salesChannel.typeId)) {
                 return;
             }
 
@@ -202,10 +215,22 @@ export const swSalesChannelDetailOverride = {
             };
 
             try {
+                const salesChannelView = this.ucpAdminApiService.getSalesChannel(salesChannelId).then((response) => {
+                    this.ucpState.meta = response.data.meta || {};
+                    this.ucpState.transactional = Boolean(response.data.data?.transactional);
+                }, report);
+
+                // A type this plugin does not know is classified by the backend's resolver; config and
+                // preview are only worth fetching once it says the channel can sell.
+                if (resolveRemotely) {
+                    await salesChannelView;
+                    if (!this.ucpState.transactional) {
+                        return;
+                    }
+                }
+
                 await Promise.all([
-                    this.ucpAdminApiService.getSalesChannel(salesChannelId).then((response) => {
-                        this.ucpState.meta = response.data.meta || {};
-                    }, report),
+                    salesChannelView,
 
                     this.ucpAdminApiService.getConfig(salesChannelId).then((response) => {
                         const form = ucpNormalizeConfig(response.data.data || {});
