@@ -1,3 +1,14 @@
+# next version
+
+- Produktlinks in den OpenAI- und Google-Produktfeeds werden für Headless-Verkaufskanäle ab Shopware 6.7.14 nun korrekt aufgelöst, sodass Agenten funktionierende Produkt-URLs erhalten; auf älteren Shopware-Versionen funktionieren die Feeds unverändert weiter.
+- Die Admin-Übersetzungen liegen jetzt in länder-agnostischen Dateien (`de.json`, `en.json`) gemäß aktueller Shopware-Core-Konvention; ein Kompatibilitäts-Loader hält sie auf Shopware-Versionen vor 6.7.3 funktionsfähig.
+- Admin-Texte überarbeitet: durchgängige Großschreibung der Du-Anrede und ein eindeutigeres „Total"-Label in der englischen Statistik-Zusammenfassung.
+
+# 1.3.0
+
+- UCP lässt sich nur noch in Verkaufskanälen aktivieren, die tatsächlich verkaufen können: Storefront und Headless. Produktfeed-Kanäle werden für UCP nicht mehr angeboten und lassen sich weder über die API noch über die Konsole aktivieren. Ein Feed-Kanal, in dem UCP zuvor aktiviert war, gilt jetzt als deaktiviert und bewirbt so keinen Shop, in dem ein Agent nichts kaufen kann.
+- Exponierte Verkaufskanäle liefern `/.well-known/api-catalog` (RFC-9727-Linkset) aus, sodass ein Agent das UCP-Profil und den Store-API-Einstiegspunkt des Shops an einem standardisierten Ort findet; nicht exponierte Kanäle antworten mit 404.
+
 # 1.2.0
 
 - Die UCP-MCP-Tools unterstützen einen Trockenlauf (Dry Run) und liefern verwertbare Fehlermeldungen: Ein Agent erfährt, welches Feld falsch ist und warum, statt einen undurchsichtigen Fehler zu erhalten.

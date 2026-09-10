@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Storefront\Robots;
 
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Storefront\Page\Robots\RobotsPageLoadedEvent;
 use Shopware\Storefront\Page\Robots\Struct\RobotsDirective;
 use Shopware\Storefront\Page\Robots\Struct\RobotsDirectiveType;
@@ -20,6 +21,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 /**
  * @internal
  */
+#[Package('discovery')]
 final class ReferringSalesChannelRobotsSubscriber implements EventSubscriberInterface
 {
     public function __construct(private readonly ShopwareVersionDetector $versionDetector)
