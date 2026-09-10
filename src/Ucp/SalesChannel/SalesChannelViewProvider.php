@@ -11,9 +11,11 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 
 /** @internal */
-#[Package('framework')]
+#[Package('discovery')]
 final class SalesChannelViewProvider
 {
     /**
@@ -21,51 +23,36 @@ final class SalesChannelViewProvider
      */
     public function __construct(
         private readonly EntityRepository $salesChannelRepository,
+        private readonly AbstractSalesChannelTypeResolver $salesChannelTypeResolver,
     ) {
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<SalesChannelView>
      */
     public function all(Context $context): array
     {
         $criteria = new Criteria();
         $criteria->addAssociation('domains');
 
-        $channels = $this->salesChannelRepository->search($criteria, $context)->getEntities();
+        $salesChannels = $this->salesChannelRepository->search($criteria, $context)->getEntities();
+        $typeClassificationBySalesChannelId = $this->salesChannelTypeResolver->resolveMany(array_values($salesChannels->getIds()));
         $payload = [];
 
-        foreach ($channels as $salesChannel) {
+        foreach ($salesChannels as $salesChannel) {
             /** @var SalesChannelEntity $salesChannel */
-            $domains = [];
-            $domainCollection = $salesChannel->getDomains();
-            if (null !== $domainCollection) {
-                foreach ($domainCollection as $domain) {
-                    /* @var SalesChannelDomainEntity $domain */
-                    $domains[] = [
-                        'id' => $domain->getId(),
-                        'url' => $domain->getUrl(),
-                        'languageId' => $domain->getLanguageId(),
-                        'currencyId' => $domain->getCurrencyId(),
-                    ];
-                }
+            $typeClassification = $typeClassificationBySalesChannelId[$salesChannel->getId()] ?? SalesChannelTypeClassification::Other;
+            if (!$typeClassification->isTransactional()) {
+                continue;
             }
 
-            $payload[] = [
-                'id' => $salesChannel->getId(),
-                'name' => $salesChannel->getName(),
-                'typeId' => $salesChannel->getTypeId(),
-                'domains' => $domains,
-            ];
+            $payload[] = $this->view($salesChannel, $typeClassification);
         }
 
         return $payload;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function get(string $salesChannelId, Context $context): ?array
+    public function get(string $salesChannelId, Context $context): ?SalesChannelView
     {
         $criteria = new Criteria([$salesChannelId]);
         $criteria->addAssociation('domains');
@@ -76,26 +63,7 @@ final class SalesChannelViewProvider
             return null;
         }
 
-        $domains = [];
-        $domainCollection = $salesChannel->getDomains();
-        if (null !== $domainCollection) {
-            foreach ($domainCollection as $domain) {
-                /* @var SalesChannelDomainEntity $domain */
-                $domains[] = [
-                    'id' => $domain->getId(),
-                    'url' => $domain->getUrl(),
-                    'languageId' => $domain->getLanguageId(),
-                    'currencyId' => $domain->getCurrencyId(),
-                ];
-            }
-        }
-
-        return [
-            'id' => $salesChannel->getId(),
-            'name' => $salesChannel->getName(),
-            'typeId' => $salesChannel->getTypeId(),
-            'domains' => $domains,
-        ];
+        return $this->view($salesChannel, $this->salesChannelTypeResolver->resolve($salesChannelId));
     }
 
     public function firstDomainUrl(string $salesChannelId, ?Context $context = null): ?string
@@ -112,5 +80,27 @@ final class SalesChannelViewProvider
         $domains = $salesChannel->getDomains();
 
         return $domains?->first()?->getUrl();
+    }
+
+    private function view(SalesChannelEntity $salesChannel, SalesChannelTypeClassification $typeClassification): SalesChannelView
+    {
+        $domains = [];
+        foreach ($salesChannel->getDomains() ?? [] as $domain) {
+            /* @var SalesChannelDomainEntity $domain */
+            $domains[] = new SalesChannelDomainView(
+                $domain->getId(),
+                $domain->getUrl(),
+                $domain->getLanguageId(),
+                $domain->getCurrencyId(),
+            );
+        }
+
+        return new SalesChannelView(
+            $salesChannel->getId(),
+            $salesChannel->getName(),
+            $salesChannel->getTypeId(),
+            $typeClassification->isTransactional(),
+            $domains,
+        );
     }
 }

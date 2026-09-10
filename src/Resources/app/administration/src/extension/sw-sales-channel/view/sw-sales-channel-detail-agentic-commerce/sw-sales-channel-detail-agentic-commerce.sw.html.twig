@@ -77,19 +77,6 @@
             <pre class="sw-sales-channel-detail-agentic-commerce__preview">{{ previewJson }}</pre>
         </sw-card>
 
-        <sw-card
-            v-if="isAgenticCommerce"
-            position-identifier="sw-sales-channel-detail-agentic-commerce-export"
-            :title="$t('sw-sales-channel.detail.agenticCommerce.exportCardTitle')"
-        >
-            <sw-sales-channel-detail-agentic-commerce-integration
-                :sales-channel="salesChannel"
-                :product-export="productExport"
-                :product-comparison-access-url="productComparisonAccessUrl"
-                :is-loading="isLoading"
-            />
-        </sw-card>
-
         <sw-sales-channel-detail-agentic-files
             v-if="coreAgenticFilesAvailable"
             :sales-channel="salesChannel"

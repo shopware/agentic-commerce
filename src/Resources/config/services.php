@@ -61,6 +61,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Twig\AgenticProductExportExtensio
 use Swag\AgenticCommerce\Content\ProductExport\Validator\GoogleProductExportValidator;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
+use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
 use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
@@ -195,6 +197,10 @@ return static function (ContainerConfigurator $container): void {
     // DAL repositories are bound by service id, not type — named args required.
 
     $services->set(SalesChannelViewProvider::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
+
+    $services->set(SalesChannelTypeResolver::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(SalesChannelDomainResolver::class)
@@ -367,17 +373,20 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
     $services->set(UcpConfigService::class)
-        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
+        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
 
     // Feeds the shop's per-channel/global UCP allowlists into the SDK's URL-safety
     // validator; ReplaceSdkUrlSafetyValidatorPass swaps the SDK definition to this factory.
     $services->set(ConfiguredUrlSafetyValidatorFactory::class)
         ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
 
+    $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
-    $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class);
+    // Fetched from the container by the plugin's activate()/update() hooks.
+    $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class)->public();
 
     // Event listeners.
 

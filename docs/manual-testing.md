@@ -337,6 +337,14 @@ exploratory UX review:
 - overview renders real sales channels and the native sales-channel shortcut
 - profile preview renders the lane-aware transports
 - browser console has no UCP runtime error
+- a Product Comparison and an Agentic Commerce channel show no UCP card, and
+  saving their feed settings still succeeds
+- `PUT /api/_admin/ucp/sales-channels/<feed-channel-id>/config` with
+  `{"active": true}` answers `400`
+  (`SWAG_AGENTIC_COMMERCE__UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED`), while
+  `{"active": false}` is accepted
+- `ucp:channels` lists no feed channel, and `ucp:config:set --sales-channel
+  <feed-channel-id> --active 1` exits non-zero
 
 ## Storefront Build Validation
 
