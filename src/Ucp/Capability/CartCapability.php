@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Adapter\CartAdapterInterface;
 use Ucp\Sdk\Contract\CartCapabilityInterface;
 use Ucp\Sdk\Model\Cart\Cart;
@@ -13,6 +14,7 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class CartCapability implements CartCapabilityInterface
 {
     public function __construct(

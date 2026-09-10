@@ -11,6 +11,7 @@ namespace Swag\AgenticCommerce\Migration;
 
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Defaults;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Migration\MigrationStep;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
@@ -34,6 +35,7 @@ use Swag\AgenticCommerce\SwagAgenticCommerce;
  *
  * @internal
  */
+#[Package('discovery')]
 class Migration1773329152AddAgenticCommerceSalesChannelType extends MigrationStep
 {
     /**

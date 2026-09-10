@@ -13,10 +13,12 @@ use Shopware\Core\Content\ProductExport\ProductExportHydrator;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\Entity;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityDefinition;
+use Shopware\Core\Framework\Log\Package;
 
 /**
  * @internal
  */
+#[Package('discovery')]
 class AgenticProductExportHydrator extends ProductExportHydrator
 {
     /**

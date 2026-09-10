@@ -11,6 +11,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Validator;
 
 use Shopware\Core\Content\ProductExport\Error\ErrorCollection;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Content\ProductExport\Error\ProviderValidationError;
 
 /**
@@ -18,6 +19,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Error\ProviderValidationError;
  *
  * @internal
  */
+#[Package('discovery')]
 class GoogleProductExportValidator extends AbstractProviderValidator
 {
     private const GOOGLE_NAMESPACE = 'http://base.google.com/ns/1.0';
