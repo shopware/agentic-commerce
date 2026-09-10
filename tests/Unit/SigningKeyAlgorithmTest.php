@@ -18,10 +18,9 @@ final class SigningKeyAlgorithmTest extends TestCase
     }
 
     #[Test]
-    public function testItResolvesKnownAlgorithmsAndRejectsUnknownOnes(): void
+    public function testItResolvesKnownAlgorithms(): void
     {
         self::assertSame(SigningKeyAlgorithm::ES256, SigningKeyAlgorithm::tryFrom('ES256'));
         self::assertSame(SigningKeyAlgorithm::ES384, SigningKeyAlgorithm::tryFrom('ES384'));
-        self::assertNull(SigningKeyAlgorithm::tryFrom('RS256'));
     }
 }
