@@ -30,7 +30,7 @@ final class UcpCartGetTool
                 $id,
             )));
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

@@ -11,13 +11,11 @@
   },
   "sw-sales-channel": {
     "modal": {
-      "messageNoProductStreams": "In order to use product comparisons or agentic commerce sales channels, a dynamic product group has to be created first."
+      "messageNoProductStreams": "In order to create product comparison or agentic commerce sales channels, a dynamic product group has to be created first."
     },
     "detail": {
       "agenticCommerce": {
-        "tabIntegration": "Integration",
         "tabAgenticCommerce": "Agentic Commerce",
-        "exportCardTitle": "Product feed export",
         "ucp": {
           "cardTitle": "UCP",
           "cardIntro": "Configure how this sales channel is exposed to AI agents over the Universal Commerce Protocol (UCP): which capabilities agents may use, how requests are secured, and which profile they discover.",
@@ -65,7 +63,7 @@
               "cardTitle": "OpenAI connection",
               "introduction": {
                 "title": "How to: Setup and connection",
-                "description": "This Sales Channel generates a JSONL product feed so your products can appear in ChatGPT search results. To do this, you have to apply as a merchant and share the feed URL with OpenAI. Everything else is explained in the step by step guide below."
+                "description": "This Sales Channel generates a JSONL product feed so your products can appear in ChatGPT search results. To do this, you have to apply as a merchant and share the feed URL with OpenAI. Everything else is explained in the step-by-step guide below."
               },
               "stepByStep": "<li>Apply as a merchant at <a href=\"https://chatgpt.com/merchants/\" target=\"_blank\" rel=\"noopener noreferrer\">chatgpt.com/merchants</a></li><li>Copy the export URL (below) and share it with OpenAI according to the <a href=\"https://developers.openai.com/commerce/product-feeds\" target=\"_blank\" rel=\"noopener noreferrer\">Product feeds docs</a></li><li>Make sure the export URL is publicly accessible</li>"
             },
@@ -78,7 +76,8 @@
               "stepByStep": "<li>Create a Merchant Center account at <a href=\"https://merchants.google.com\" target=\"_blank\" rel=\"noopener noreferrer\">merchants.google.com</a> and verify your online store URL</li><li>In Merchant Center, open <em>Settings &rsaquo; Data sources</em> and click <em>Add product source</em></li><li>Choose <em>File</em>, then <em>Add a scheduled fetch from a URL</em>, and paste the export URL (below) as the file URL</li><li>Make sure the export URL is publicly reachable (no authentication required)</li><li>Review the <a href=\"https://support.google.com/merchants/answer/7052112\" target=\"_blank\" rel=\"noopener noreferrer\">Google product data specification</a> and adjust attributes if needed</li>"
             }
           }
-        }
+        },
+        "tabIntegration": "Integration"
       },
       "productExport": {
         "tabInsights": "Statistics",
@@ -88,7 +87,7 @@
           "turnoverCardHeadline": "Referred turnover",
           "numbers": "Count",
           "totalTurnover": "Turnover",
-          "summary": "Summary",
+          "summary": "Total",
           "dateRanges": {
             "180Days": "Last 180 days",
             "30Days": "Last 30 days",

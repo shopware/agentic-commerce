@@ -28,6 +28,8 @@ use Twig\TwigFunction;
 #[CoversNothing]
 class EssentialCharacteristicsFeedRenderTest extends TestCase
 {
+    use AdminTemplateModuleTrait;
+
     private const TEMPLATE_DIR = __DIR__
         .'/../../../../src/Resources/app/administration/src/extension/sw-sales-channel'
         .'/agentic-product-export-templates';
@@ -172,6 +174,7 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
         $twig = new Environment(new ArrayLoader([$name => $source]));
         $twig->getExtension(EscaperExtension::class)->setDefaultStrategy($strategy);
         $twig->addFunction(new TwigFunction('seoUrl', static fn (): string => 'https://shop.test/detail'));
+        $twig->addFunction(new TwigFunction('entitySeoUrl', static fn (): string => 'https://shop.test/detail'));
         $twig->addFunction(new TwigFunction(
             'agentic_essential_characteristics',
             static fn (mixed $product, mixed $context): array => $characteristics
@@ -236,10 +239,6 @@ class EssentialCharacteristicsFeedRenderTest extends TestCase
 
     private function readTemplate(string $name): string
     {
-        $contents = file_get_contents(self::TEMPLATE_DIR.'/'.$name);
-
-        static::assertIsString($contents);
-
-        return $contents;
+        return $this->readTemplateModule(self::TEMPLATE_DIR.'/'.$name.'.js');
     }
 }

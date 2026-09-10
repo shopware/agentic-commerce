@@ -59,15 +59,62 @@ final class ShopwareOrderGateway implements OrderGatewayInterface
         $request = new Request();
         $criteria = $this->orderCriteria($orderId);
 
-        if (null === $context->getCustomer() && null !== $checkoutMetadata) {
-            $guestOrderRequest = $this->guestOrderRequest($orderId, $checkoutMetadata);
-            if (null !== $guestOrderRequest) {
-                [$request, $deepLinkCode] = $guestOrderRequest;
-                $criteria->addFilter(new EqualsFilter('order.deepLinkCode', $deepLinkCode));
+        if (null === $context->getCustomer()) {
+            $guestOrderRequest = null !== $checkoutMetadata
+                ? $this->guestOrderRequest($orderId, $checkoutMetadata)
+                : null;
+
+            if (null === $guestOrderRequest) {
+                throw $this->guestOrderNotReadable($orderId);
             }
+
+            [$request, $deepLinkCode] = $guestOrderRequest;
+            $criteria->addFilter(new EqualsFilter('order.deepLinkCode', $deepLinkCode));
         }
 
         return $this->loadOrder($request, $context, $criteria, $orderId);
+    }
+
+    /**
+     * Refuses a guest order read in UCP's vocabulary instead of Shopware's.
+     *
+     * Without a customer and without the guest credentials, `OrderRoute` refuses with
+     * Shopware's own `Customer is not logged in.` — a 403 that reaches the agent as
+     * `code: invalid_request`, `severity: recoverable`. Every part of that misleads:
+     * nothing about the request is invalid, and a UCP agent cannot log in, so it is
+     * not recoverable by anything the agent can do. It would retry on our advice.
+     *
+     * **The refusal itself is correct and stays.** The order specification requires
+     * one — "the business MUST authenticate requests to order data before returning a
+     * response" — and only *permits* the case we are in:
+     *
+     *     | Platform credentials | Orders originated by the platform |
+     *
+     * with businesses that "MAY allow access for orders the platform originated". We
+     * cannot honour that yet, and the reason is worth stating rather than implying:
+     * the only credential on the request is the sales-channel access key, which is
+     * shared and semi-public. It identifies the channel, not the platform that placed
+     * this order, so serving an order on the strength of it would let any holder of
+     * that key read any order by id. Attributing orders to the originating agent
+     * profile — which the `UCP-Agent` header does carry — is what would make that MAY
+     * safe to take, and it is a design change rather than a fix.
+     *
+     * `not_found` rather than a forbidden-shaped code, on purpose: with a shared key,
+     * the difference between "exists but not yours" and "does not exist" is an
+     * enumeration oracle. This is the same answer `loadOrder()` gives for an order that
+     * genuinely is not there, so the two are indistinguishable from outside.
+     *
+     * The message names the two channels the specification actually intends here:
+     * `permalink_url`, "the authoritative reference for the full order experience",
+     * and the order webhook, which platforms "SHOULD rely on as the primary order
+     * update channel", using Get Order "for reconciliation".
+     */
+    private function guestOrderNotReadable(string $orderId): ResourceNotFoundException
+    {
+        return new ResourceNotFoundException(\sprintf(
+            'Order "%s" is not available to this request. A guest order can only be read back by the checkout session that placed it, and a platform credential does not authenticate one. Use the permalink_url returned by checkout.complete, or the order webhook, which is the channel UCP intends for order state.',
+            $orderId,
+        ));
     }
 
     private function loadOrder(Request $request, SalesChannelContext $context, Criteria $criteria, string $orderId): OrderEntity

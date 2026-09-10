@@ -28,6 +28,8 @@ use Twig\TwigFunction;
 #[CoversNothing]
 class GoogleProductExportFeedRenderTest extends TestCase
 {
+    use AdminTemplateModuleTrait;
+
     private const TEMPLATE_DIR = __DIR__
         .'/../../../../src/Resources/app/administration/src/extension/sw-sales-channel'
         .'/agentic-product-export-templates/google';
@@ -124,6 +126,10 @@ class GoogleProductExportFeedRenderTest extends TestCase
             'seoUrl',
             static fn (string $route, array $params = []): string => 'https://shop.test/detail/'.($params['productId'] ?? '')
         ));
+        $twig->addFunction(new TwigFunction(
+            'entitySeoUrl',
+            static fn (string $entityName, string $primaryKey): string => 'https://shop.test/detail/'.$primaryKey
+        ));
         $twig->addFunction(new TwigFunction('agentic_essential_characteristics', static fn (mixed $product, mixed $context): array => []));
         $twig->addFunction(new TwigFunction('agentic_product_measurements', static fn (mixed $product): array => [
             'weight' => null,
@@ -188,10 +194,6 @@ class GoogleProductExportFeedRenderTest extends TestCase
 
     private function readTemplate(string $name): string
     {
-        $contents = file_get_contents(self::TEMPLATE_DIR.'/'.$name);
-
-        static::assertIsString($contents);
-
-        return $contents;
+        return $this->readTemplateModule(self::TEMPLATE_DIR.'/'.$name.'.js');
     }
 }

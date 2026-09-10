@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Ucp\Sdk\Adapter\OrderAdapterInterface;
@@ -18,6 +19,7 @@ final class ShopwareOrderAdapter implements OrderAdapterInterface
         private readonly ShopwareOrderGateway $gateway,
         private readonly ShopwareDataMapper $mapper,
         private readonly CheckoutCompletionStoreInterface $completionStore,
+        private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
     ) {
     }
 
@@ -27,18 +29,8 @@ final class ShopwareOrderAdapter implements OrderAdapterInterface
 
         return $this->mapper->toOrderView(
             $order,
-            $this->orderPermalink($order->getId(), $context),
+            $this->orderPermalinkBuilder->build($order, $context),
             $this->completionStore->completedCheckoutId($order->getId()) ?? $order->getId(),
         );
-    }
-
-    private function orderPermalink(string $orderId, RequestContext $context): string
-    {
-        $baseUri = $context->runtimeConfiguration?->baseUri;
-        if (null === $baseUri || '' === $baseUri) {
-            $baseUri = 'https://'.$context->host;
-        }
-
-        return rtrim($baseUri, '/').'/account/order/'.rawurlencode($orderId);
     }
 }

@@ -1,4 +1,12 @@
-{%- set title = product.translated.name|default(product.name)|default('')|trim -%}
+// Product-export template, kept as a JS module rather than an imported `.twig` file.
+//
+// It must reach `registerProductExportTemplate` byte-exact: the OpenAI feed is JSONL, so
+// newlines are significant. Shopware's own twig loader collapses whitespace
+// (`build/vite-plugins/twigjs-plugin`), which is why this used to be imported with vite's
+// `?raw` suffix — but `?raw` is vite-only and esbuild (used for the release ZIP) cannot
+// resolve it. A plain JS module is the one form every bundler treats identically.
+
+export default `{%- set title = product.translated.name|default(product.name)|default('')|trim -%}
 {%- set description = product.translated.description|default(title)|default('')|striptags|trim -%}
 {%- set price = product.calculatedPrice -%}
 {%- if product.calculatedPrices.count > 0 -%}
@@ -26,7 +34,8 @@
     {%- endfor -%}
 {%- endif -%}
 {%- set hasVariantListing = productExport.includeVariants and (product.parentId or product.childCount > 0) -%}
-{%- set canonicalUrl = seoUrl('frontend.detail.page', {'productId': product.id}) -%}
+{#- @deprecated tag:v2.0.0 - remove 3rd argument 'productId' once min. required Shopware version >= 6.7.14 -#}
+{%- set canonicalUrl = entitySeoUrl('product', product.id, 'productId') -%}
 {%- set productUrl = canonicalUrl ~ '?referringSalesChannel=' ~ provider.referringSalesChannel -%}
 {%- if provider.affiliateCode -%}
     {%- set productUrl = productUrl ~ '&affiliateCode=' ~ provider.affiliateCode|url_encode -%}
@@ -256,3 +265,4 @@
     {%- endif %}
 </item>
 {%- endif -%}
+`;

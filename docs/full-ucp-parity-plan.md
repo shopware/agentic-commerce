@@ -165,6 +165,22 @@ The top screenshots verify the lane transport summary. The security screenshots 
 - MCP and A2A now route the shopping operation matrix through the shared
   capability layer. Follow-up validation should target lane builds and real demo
   storefront data rather than adding protocol-specific business logic.
+- `checkout.complete` requires a `payment` object per spec (`checkout.json`
+  annotates it `ucp_request: {complete: "required"}`), and the MCP tool now sends
+  one. The instrument is not yet acted on: the SDK's
+  `CheckoutAdapterInterface::completeCheckout()` takes only an id and a context, so
+  completion charges the sales channel default (invoice/offline) method. Threading
+  payment into the adapter is an upstream SDK change.
+- Applied discounts are reported as a negative `items_discount` total. The spec's
+  richer `discounts.applied[]` breakdown (`discount.json` → `$defs.applied_discount`,
+  with per-target `allocations`) is not emitted yet: the SDK's `Cart` model has no
+  `discounts` field and no `extra` escape hatch, so cart responses cannot carry it.
+  `Checkout` does have `extra`, so checkout-only fidelity is possible ahead of the
+  SDK change.
+- `cart.update` requires the cart id inside the payload as well as on the tool
+  argument, because the SDK validates the raw payload rather than merging the
+  resource id first as it does for `cart.get`/`cart.cancel`. The tool description
+  documents the duplication; removing it is an upstream SDK change.
 
 ## QA-Only Surfaces
 

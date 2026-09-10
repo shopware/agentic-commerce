@@ -9,10 +9,10 @@ use Shopware\Core\Framework\Adapter\Twig\TemplateFinder;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Log\Package;
-use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Symfony\Component\Routing\RouterInterface;
 use Twig\Environment;
 
@@ -31,6 +31,7 @@ final class FallbackAgenticFileRenderer
         private readonly SeoUrlPlaceholderHandlerInterface $seoUrlPlaceholderHandler,
         private readonly EntityRepository $salesChannelRepository,
         private readonly RouterInterface $router,
+        private readonly SalesChannelBaseUrlResolver $baseUrlResolver,
     ) {
     }
 
@@ -44,7 +45,7 @@ final class FallbackAgenticFileRenderer
             'context' => $context,
             'salesChannel' => $salesChannel,
             'salesChannelFile' => $file,
-            'salesChannelFileContext' => $this->buildSalesChannelFileContext($salesChannel, $context),
+            'salesChannelFileContext' => $this->buildSalesChannelFileContext($context),
             'cmsPageRouteName' => $this->cmsPageRouteName(),
         ]);
 
@@ -101,34 +102,14 @@ final class FallbackAgenticFileRenderer
     /**
      * @return array{baseUrl: string|null, publisher: string|null}
      */
-    private function buildSalesChannelFileContext(SalesChannelEntity $salesChannel, SalesChannelContext $context): array
+    private function buildSalesChannelFileContext(SalesChannelContext $context): array
     {
-        $baseUrl = $this->resolveBaseUrl($salesChannel, $context);
+        $baseUrl = $this->baseUrlResolver->resolve($context);
 
         return [
             'baseUrl' => $baseUrl,
             'publisher' => null === $baseUrl ? null : $this->extractPublisher($baseUrl),
         ];
-    }
-
-    private function resolveBaseUrl(SalesChannelEntity $salesChannel, SalesChannelContext $context): ?string
-    {
-        $domains = $salesChannel->getDomains();
-        if (null === $domains || 0 === $domains->count()) {
-            return null;
-        }
-
-        $domainId = $context->getDomainId();
-        if (null !== $domainId) {
-            $domain = $domains->get($domainId);
-            if ($domain instanceof SalesChannelDomainEntity) {
-                return rtrim($domain->getUrl(), '/');
-            }
-        }
-
-        $domain = $domains->first();
-
-        return $domain instanceof SalesChannelDomainEntity ? rtrim($domain->getUrl(), '/') : null;
     }
 
     private function extractPublisher(string $baseUrl): ?string

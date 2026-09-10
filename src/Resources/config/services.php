@@ -31,12 +31,15 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
+use Swag\AgenticCommerce\AgenticFiles\ApiCatalog\ApiCatalogController;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Compatibility\Snippet\CountryAgnosticSnippetFinder;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportHydrator;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\AgenticCommerceProductExportProviderRegistry;
@@ -58,6 +61,8 @@ use Swag\AgenticCommerce\Content\ProductExport\Twig\AgenticProductExportExtensio
 use Swag\AgenticCommerce\Content\ProductExport\Validator\GoogleProductExportValidator;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
+use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
+use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
 use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
@@ -122,6 +127,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalid
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
@@ -188,6 +194,10 @@ return static function (ContainerConfigurator $container): void {
     // DAL repositories are bound by service id, not type — named args required.
 
     $services->set(SalesChannelViewProvider::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
+
+    $services->set(SalesChannelTypeResolver::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(SalesChannelDomainResolver::class)
@@ -198,6 +208,9 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$cache', service('cache.object'))
         ->tag('kernel.event_subscriber');
 
+    $services->set(SalesChannelBaseUrlResolver::class)
+        ->arg('$domainRepository', service('sales_channel_domain.repository'));
+
     $services->set(FallbackAgenticFileRenderer::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
@@ -207,6 +220,16 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareVersionDetector::class)
         ->arg('$kernelVersion', param('kernel.shopware_version'));
+
+    // Priority < 0 keeps this outside CachedSnippetFinder — see the class docblock.
+    $services->set(CountryAgnosticSnippetFinder::class)
+        ->decorate(
+            'Shopware\\Administration\\Snippet\\SnippetFinder',
+            null,
+            -100,
+            ContainerInterface::IGNORE_ON_INVALID_REFERENCE,
+        )
+        ->arg('$inner', service('.inner'));
 
     $services->set(ShopwareCatalogGateway::class)
         ->arg('$productListRoute', service(ProductListRoute::class));
@@ -309,6 +332,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(FallbackAgenticFileController::class)
         ->tag('controller.service_arguments');
 
+    $services->set(ApiCatalogController::class)
+        ->tag('controller.service_arguments');
+
     // ── Test-only helpers (issue #53) ─────────────────────────────────────────
     // Registered only outside prod so the webhook-capture endpoint, its capture/write store, and
     // the smoke-catalog seeder never enter the production service graph. The matching test route
@@ -336,17 +362,20 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
     $services->set(UcpConfigService::class)
-        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
+        ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
+        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
 
     // Feeds the shop's per-channel/global UCP allowlists into the SDK's URL-safety
     // validator; ReplaceSdkUrlSafetyValidatorPass swaps the SDK definition to this factory.
     $services->set(ConfiguredUrlSafetyValidatorFactory::class)
         ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
 
+    $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
-    $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class);
+    // Fetched from the container by the plugin's activate()/update() hooks.
+    $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class)->public();
 
     // Event listeners.
 

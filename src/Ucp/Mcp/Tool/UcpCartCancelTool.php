@@ -10,7 +10,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-cart-cancel', title: 'UCP Cart Cancel', description: 'Cancel a cart through the shared UCP cart capability.')]
+#[McpTool(name: 'shopware-ucp-cart-cancel', title: 'UCP Cart Cancel', description: 'Cancel a cart through the shared UCP cart capability. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
 /** @internal */
 #[Package('checkout')]
 final class UcpCartCancelTool
@@ -21,7 +21,7 @@ final class UcpCartCancelTool
     ) {
     }
 
-    public function __invoke(string $id): string
+    public function __invoke(string $id, bool $dryRun = true): string
     {
         try {
             return $this->toolContext->executeMutating(
@@ -33,9 +33,10 @@ final class UcpCartCancelTool
                     $context,
                     $id,
                 )),
+                $dryRun,
             );
         } catch (\Throwable $exception) {
-            throw $this->toolContext->toToolCallException($exception);
+            return $this->toolContext->failure($exception);
         }
     }
 }

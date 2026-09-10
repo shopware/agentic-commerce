@@ -7,7 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Order;
 use Shopware\Core\Checkout\Order\Event\OrderStateMachineStateChangeEvent;
 use Shopware\Core\Checkout\Order\OrderStates;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
-use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -20,7 +20,7 @@ final class OrderStateSubscriber implements EventSubscriberInterface
 {
     public function __construct(
         private readonly CheckoutCompletionStoreInterface $completionStore,
-        private readonly CheckoutContinueUrlBuilderInterface $continueUrlBuilder,
+        private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
         private readonly UcpConfigService $configService,
         private readonly ShopwareDataMapperInterface $mapper,
         private readonly OrderWebhookPublisherInterface $webhookPublisher,
@@ -53,14 +53,17 @@ final class OrderStateSubscriber implements EventSubscriberInterface
 
         $runtimeConfiguration = $config->toRuntimeConfiguration('', $salesChannelId);
         $host = parse_url($runtimeConfiguration->baseUri, \PHP_URL_HOST) ?: '';
-        $permalinkUrl = $this->continueUrlBuilder->build($checkoutId, $salesChannelId);
+        // The same order URL the completion and the read return: `permalink_url` means one
+        // thing, and a continue URL is a checkout return address rather than an order page.
+        $requestContext = new RequestContext($host, runtimeConfiguration: $runtimeConfiguration);
+        $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
 
         $this->webhookPublisher->publish(
             $config->webhookUrlOverride,
             new OrderWebhookPayload('order.updated', $order->getId(), [
                 'order' => $this->mapper->toOrderView($order, $permalinkUrl, $checkoutId)->toArray(),
             ]),
-            new RequestContext($host, runtimeConfiguration: $runtimeConfiguration),
+            $requestContext,
         );
     }
 }

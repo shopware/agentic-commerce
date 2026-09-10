@@ -13,6 +13,13 @@ symfony/mcp-bundle: ~0.9.0   →   requires   mcp/sdk: ^0.5   →   resolves   m
 `Mcp\Capability\Attribute\Schema` nor `Mcp\Exception\ToolCallException`. Both were
 added later and are available from **`mcp/sdk` v0.6.0**.
 
+> **Re-verify before doing the Schema work below.** Recent trunk checkouts have
+> been observed resolving `mcp/sdk v0.7.0`, i.e. the ceiling may already be gone.
+> `Schema` cannot simply be adopted either way: the plugin has no `mcp/sdk`
+> requirement of its own, so a 0.5 install would fail when the bundle reflects an
+> attribute class that is not there. Check the resolved version across the whole
+> supported matrix first, not just one lane.
+
 ## Current (v0.5.0-compatible) behaviour
 
 To keep PHPStan and the trunk lane green we target the v0.5.0 API:
@@ -21,9 +28,18 @@ To keep PHPStan and the trunk lane green we target the v0.5.0 API:
   `checkout.update`) take a **JSON-string `payload`** that
   `UcpMcpToolContext::decodeObject()` parses, instead of a typed `array $payload`
   validated by `#[Schema(definition: ShoppingOperationToolSchemas::…)]`.
-- **Errors** propagate as plain exceptions; the MCP server maps them to a generic
-  JSON-RPC tool error. `UcpMcpToolContext::toToolCallException()` is kept as a
-  pass-through wrapper (the seam to restore the richer mapping).
+- **Errors** are returned **in band** by `UcpMcpToolContext::failure()` as
+  `{"success":false,"error":{…}}` tool content, mirroring the
+  `{"success":true,"data":…}` shape of `success()`. Throwing instead is not an
+  option on this version: the MCP server turns any exception into a generic
+  `"Error while executing tool"` JSON-RPC error, so the message the agent needs
+  in order to correct its call is lost. In-band tool errors are also what the MCP
+  spec recommends, so this stays correct after the SDK bump — a
+  `ToolCallException` is only worth adding for genuinely protocol-level failures
+  (`-32602` invalid input), not for UCP domain errors.
+  Only `Ucp\Sdk\Exception\UcpException` subclasses are surfaced verbatim;
+  everything else is reported as `{"type":"internal"}` with a generic message so
+  internals do not leak to an unauthenticated MCP client.
 
 ## Why not just require `mcp/sdk: ^0.6`?
 
@@ -45,10 +61,9 @@ Shopware trunk bumps the bundle:
      (and the `CART_UPDATE_INPUT` / `CHECKOUT_CREATE_INPUT` / `CHECKOUT_UPDATE_INPUT`
      counterparts), passing `$payload` straight to `ShoppingOperationRequest`
      instead of `decodeObject($payload)`.
-2. Restore structured errors in `UcpMcpToolContext::toToolCallException()`:
-   return a `Mcp\Exception\ToolCallException` (per-violation messages for
-   `ValidationException`, `-32602` for invalid input). The call sites in every
-   tool already invoke this method, so only the body changes.
+2. Leave `UcpMcpToolContext::failure()` alone — in-band tool errors remain the
+   right shape. Optionally add a `Mcp\Exception\ToolCallException` path for
+   protocol-level input errors (`-32602`), but keep UCP domain errors in band.
 3. Remove the `test.skip(true, …)` guard in
    `tests/e2e/ucp/profile.spec.js` → `exposes object payload schemas for MCP write
    tools` and confirm it passes against trunk.

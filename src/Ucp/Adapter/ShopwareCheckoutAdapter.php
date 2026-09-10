@@ -13,6 +13,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
+use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -41,6 +42,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         private readonly CheckoutCompleter $checkoutCompleter,
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly ContextTokenGenerator $contextTokenGenerator,
+        private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
     ) {
     }
 
@@ -112,7 +114,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -175,7 +177,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId());
+            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -266,12 +268,14 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         OrderEntity $order,
         string $checkoutId,
         string $salesChannelId,
+        RequestContext $context,
     ): Checkout {
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
             $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $context),
         );
     }
 }

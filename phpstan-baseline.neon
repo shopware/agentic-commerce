@@ -113,3 +113,15 @@ parameters:
 			identifier: check.classnamespacepsr4
 			count: 1
 			path: tests/phpstan/McpTool.php
+
+		-
+			message: '#^Access to constant on deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
+			identifier: classConstant.deprecatedClass
+			count: 1
+			path: src/DependencyInjection/AgenticCommerceCoexistenceCompilerPass.php
+
+		-
+			message: '#^Access to constant on deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
+			identifier: classConstant.deprecatedClass
+			count: 4
+			path: tests/Unit/DependencyInjection/AgenticCommerceCoexistenceCompilerPassTest.php
