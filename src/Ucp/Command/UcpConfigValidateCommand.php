@@ -11,6 +11,8 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Finding;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Severity;
 use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainView;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -19,6 +21,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+/** @internal */
 #[AsCommand(
     name: 'ucp:config:validate',
     description: 'Checks each sales channel\'s UCP config for readiness and security issues.',
@@ -66,7 +69,7 @@ final class UcpConfigValidateCommand extends Command
 
             $channels = array_values(array_filter(
                 $channels,
-                static fn (array $channel): bool => ($channel['id'] ?? null) === $salesChannelId,
+                static fn (SalesChannelView $channel): bool => $channel->id === $salesChannelId,
             ));
         }
 
@@ -84,8 +87,8 @@ final class UcpConfigValidateCommand extends Command
         $checked = [];
 
         foreach ($channels as $channel) {
-            $id = (string) ($channel['id'] ?? '');
-            $name = (string) ($channel['name'] ?? '');
+            $id = $channel->id;
+            $name = $channel->name ?? '';
 
             try {
                 $config = $this->configService->getConfig($id);
@@ -109,13 +112,12 @@ final class UcpConfigValidateCommand extends Command
                 continue;
             }
 
-            $domains = \is_array($channel['domains'] ?? null) ? $channel['domains'] : [];
             $channelFindings = $this->validator->validate(
                 $id,
                 $name,
                 $config,
                 $this->signingKeyService->all($id),
-                $domains,
+                array_map(static fn (SalesChannelDomainView $domain): array => $domain->jsonSerialize(), $channel->domains),
             );
 
             $checked[] = ['id' => $id, 'name' => $name, 'findings' => $channelFindings];

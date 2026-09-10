@@ -53,12 +53,9 @@ final class SystemConfigSchemaReadableTest extends TestCase
             ++$validated;
 
             // read() validates the XML against the reader's chosen xsd and throws on a
-            // schema mismatch (the exact failure being guarded). A returned array = OK.
-            static::assertIsArray(
-                // @phpstan-ignore-next-line method.deprecated -- the test intentionally exercises the inherited cross-version ConfigReader contract.
-                $reader->read($file),
-                \sprintf('Core system-config file "%s" failed schema validation on this lane.', basename($file))
-            );
+            // schema mismatch (the exact failure being guarded).
+            // @phpstan-ignore-next-line method.deprecated -- the test intentionally exercises the inherited cross-version ConfigReader contract.
+            $reader->read($file);
         }
 
         static::assertGreaterThan(0, $validated, 'No core system-config files were validated.');
