@@ -72,4 +72,14 @@ class JsonlValidationError extends Error
     {
         return $this->errorMessages;
     }
+
+    /**
+     * @param array<array-key, mixed> $options
+     */
+    public function assignRecursive(array $options): static
+    {
+        $this->assign($options);
+
+        return $this;
+    }
 }

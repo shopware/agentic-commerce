@@ -16,7 +16,6 @@
     "detail": {
       "agenticCommerce": {
         "tabAgenticCommerce": "Agentic Commerce",
-        "exportCardTitle": "Produktfeed-Export",
         "ucp": {
           "cardTitle": "UCP",
           "cardIntro": "Lege fest, wie dieser Verkaufskanal KI-Agenten über das Universal Commerce Protocol (UCP) bereitgestellt wird: welche Fähigkeiten Agenten nutzen dürfen, wie Anfragen abgesichert werden und welches Profil sie finden.",
@@ -77,7 +76,8 @@
               "stepByStep": "<li>Erstelle ein Merchant-Center-Konto unter <a href=\"https://merchants.google.com\" target=\"_blank\" rel=\"noopener noreferrer\">merchants.google.com</a> und verifiziere die URL Deines Onlineshops</li><li>Öffne im Merchant Center <em>Einstellungen &rsaquo; Datenquellen</em> und klicke auf <em>Produktquelle hinzufügen</em></li><li>Wähle <em>Datei</em>, dann <em>Geplanten Abruf von einer URL hinzufügen</em>, und füge die Export-URL (unten) als Datei-URL ein</li><li>Stelle sicher, dass die Export-URL öffentlich erreichbar ist (ohne Authentifizierung)</li><li>Prüfe die <a href=\"https://support.google.com/merchants/answer/7052112\" target=\"_blank\" rel=\"noopener noreferrer\">Google-Produktdaten-Spezifikation</a> und passe die Attribute bei Bedarf an</li>"
             }
           }
-        }
+        },
+        "tabIntegration": "Integration"
       },
       "productExport": {
         "tabInsights": "Statistiken",
