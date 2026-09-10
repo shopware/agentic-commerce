@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
 use Shopware\Core\Framework\Log\Package;
-use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
-use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
 use Ucp\Sdk\Contract\PaymentAwareCheckoutCapabilityInterface;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
