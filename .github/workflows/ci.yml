@@ -42,6 +42,7 @@ env:
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
+  PHPSTAN_SHOPWARE_VERSION: '0.2.4'
 
 permissions:
   actions: read
@@ -141,6 +142,7 @@ jobs:
             "php-quality (php-8.2)"
             "php-quality (6.7.11)"
             "php-quality (6.7.12)"
+            "future-compatibility"
             "shopware-matrix (6.5.x)"
             "shopware-matrix (6.6.x)"
             "shopware-matrix (trunk)"
@@ -255,6 +257,47 @@ jobs:
           retention-days: 7
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: composer ci
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+
+  future-compatibility:
+    runs-on: ubuntu-latest
+    needs:
+      - verify-main-validation
+    if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: actions/checkout@v6
+        with:
+          repository: agentic-commerce-alliance/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
+        working-directory: shopware
+      - name: Configure private SDK path repositories
+        run: |
+          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.5"}}}'
+          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.5"}}}'
+        working-directory: agentic-commerce
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: agentic-commerce
+      - name: Install opt-in future compatibility rules
+        # Do not enable phpstan-shopware's default rules.neon via its extension installer.
+        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
+        working-directory: shopware
+      - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan-future-compatibility.neon
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware

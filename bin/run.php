@@ -18,7 +18,7 @@ if (null === $binaryPath) {
 }
 
 if ('phpstan' === $binary) {
-    $autoloadFile = renderPhpstanConfig($pluginDir);
+    $autoloadFile = renderPhpstanConfig($pluginDir, phpstanConfigPath($args));
     if (!\in_array('--autoload-file', $args, true) && !\in_array('-a', $args, true)) {
         $autoloadArgs = ['--autoload-file', $autoloadFile];
         if (isset($args[0]) && !str_starts_with($args[0], '-')) {
@@ -37,6 +37,23 @@ exit($exitCode);
 
 function resolveBinary(string $pluginDir, string $binary): ?string
 {
+    $shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
+
+    // The opt-in future compatibility rules require PHPStan 2. When they are
+    // installed in the active Shopware project, use its matching binary rather
+    // than this plugin's PHPStan 1 tooling used for the older compatibility lanes.
+    if (
+        'phpstan' === $binary
+        && \is_string($shopwareProjectDir)
+        && '' !== $shopwareProjectDir
+        && is_file($shopwareProjectDir.'/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon')
+    ) {
+        $shopwarePhpstan = $shopwareProjectDir.'/vendor/bin/'.$binary;
+        if (is_file($shopwarePhpstan)) {
+            return $shopwarePhpstan;
+        }
+    }
+
     // Inside a full Shopware install ("lane"), prefer the platform's PHPUnit so the
     // running binary matches the single autoloader tests/bootstrap.php loads there.
     // The plugin pins PHPUnit 10.5 (PHP 8.1) in .tools/vendor; on newer platforms
@@ -57,7 +74,6 @@ function resolveBinary(string $pluginDir, string $binary): ?string
         return $pluginTooling;
     }
 
-    $shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
     if (
         'phpstan' === $binary
         && \is_string($shopwareProjectDir)
@@ -100,9 +116,21 @@ function resolveBinary(string $pluginDir, string $binary): ?string
     return null;
 }
 
-function renderPhpstanConfig(string $pluginDir): string
+function phpstanConfigPath(array $args): string
 {
-    $templatePath = $pluginDir.'/phpstan.neon.dist';
+    foreach ($args as $index => $arg) {
+        if ('-c' === $arg || '--configuration' === $arg) {
+            return $args[$index + 1] ?? 'phpstan.neon';
+        }
+    }
+
+    return 'phpstan.neon';
+}
+
+function renderPhpstanConfig(string $pluginDir, string $configPath): string
+{
+    $configFile = basename($configPath);
+    $templatePath = $pluginDir.'/'.$configFile.'.dist';
     $template = file_get_contents($templatePath);
     if (false === $template) {
         fwrite(\STDERR, "phpstan.neon.dist not found.\n");
@@ -120,12 +148,13 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
+        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir, $coreDir),
         '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
         '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
     ]);
 
-    file_put_contents($pluginDir.'/phpstan.neon', $rendered);
+    file_put_contents($pluginDir.'/'.$configFile, $rendered);
 
     return renderPhpstanAutoload($pluginDir, $coreDir, $tmpDir);
 }
@@ -181,6 +210,23 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
         '    - '.$phpStanDir.'/extension.neon',
         '    - '.$phpStanDir.'/rules.neon',
     ]);
+}
+
+function renderFutureCompatibilityInclude(string $pluginDir, string $coreDir): string
+{
+    $shopwareProjectDir = \dirname($coreDir, 2);
+    $candidates = [
+        $shopwareProjectDir.'/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon',
+        $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon',
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            return '    - '.$candidate;
+        }
+    }
+
+    return '';
 }
 
 function renderShopwarePhpstanParameters(string $coreDir): string
