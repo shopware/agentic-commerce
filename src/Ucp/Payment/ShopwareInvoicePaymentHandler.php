@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Payment;
 
+use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\RequestContext;
-use Swag\AgenticCommerce\Ucp\UcpProtocol;
 
 /** @internal */
 final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
