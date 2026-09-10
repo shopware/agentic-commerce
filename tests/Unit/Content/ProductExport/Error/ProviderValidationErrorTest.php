@@ -72,4 +72,12 @@ class ProviderValidationErrorTest extends TestCase
         static::assertSame('The export did not satisfy the provider requirements', $serialized['message']);
         static::assertCount(1, $serialized['errorMessages']);
     }
+
+    public function testItSupportsRecursiveAssignmentOnNewerShopwareVersions(): void
+    {
+        $error = new ProviderValidationError('export-id', 'open-ai', 'return_policy', 'Return policy is missing.');
+
+        static::assertSame($error, $error->assignRecursive(['error' => 'Changed error']));
+        static::assertSame('Changed error', $error->getParameters()['error']);
+    }
 }

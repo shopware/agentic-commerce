@@ -13,6 +13,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Profile\ProfilePreviewBuilder;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -41,18 +42,21 @@ final class UcpAdminController
     public function salesChannels(Context $context): JsonResponse
     {
         $salesChannels = $this->salesChannelViewProvider->all($context);
-        $configs = $this->configService->getConfigs(array_column($salesChannels, 'id'));
+        $configs = $this->configService->getConfigs(array_map(
+            static fn (SalesChannelView $salesChannel): string => $salesChannel->id,
+            $salesChannels,
+        ));
 
-        $salesChannels = array_map(
-            fn (array $salesChannel): array => [
-                ...$salesChannel,
-                'ucp' => $this->salesChannelSummary($configs[$salesChannel['id']] ?? UcpConfig::fromArray([])),
+        $payload = array_map(
+            fn (SalesChannelView $salesChannel): array => [
+                ...$salesChannel->jsonSerialize(),
+                'ucp' => $this->salesChannelSummary($configs[$salesChannel->id] ?? UcpConfig::fromArray([])),
             ],
             $salesChannels,
         );
 
         return new JsonResponse([
-            'data' => $salesChannels,
+            'data' => $payload,
             'meta' => [
                 'shopwareVersion' => $this->shopwareVersionLabel(),
                 'supportsStoreApiMcp' => $this->versionDetector->supportsStoreApiMcp(),
@@ -70,7 +74,7 @@ final class UcpAdminController
 
         return new JsonResponse([
             'data' => [
-                ...$salesChannel,
+                ...$salesChannel->jsonSerialize(),
                 'ucp' => $this->salesChannelSummary($this->configService->getConfig($salesChannelId)),
             ],
             'meta' => [
