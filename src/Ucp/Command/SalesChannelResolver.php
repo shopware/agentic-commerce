@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Command;
 
 use Shopware\Core\Framework\Context;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -29,9 +30,9 @@ final class SalesChannelResolver
     public function all(): array
     {
         return array_map(
-            static fn (array $channel): array => [
-                'id' => (string) ($channel['id'] ?? ''),
-                'name' => (string) ($channel['name'] ?? ''),
+            static fn (SalesChannelView $channel): array => [
+                'id' => $channel->id,
+                'name' => $channel->name ?? '',
             ],
             $this->salesChannelViewProvider->all(Context::createDefaultContext()),
         );

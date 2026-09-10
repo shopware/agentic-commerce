@@ -89,9 +89,7 @@ final class ShopwareCatalogGatewayTest extends TestCase
             function (Criteria $criteria, SalesChannelContext $context) use (&$criteriaIds, $products): ProductListResponse {
                 $ids = [];
                 foreach ($criteria->getIds() as $id) {
-                    if (\is_string($id)) {
-                        $ids[] = $id;
-                    }
+                    $ids[] = $id;
                 }
 
                 $criteriaIds[] = $ids;

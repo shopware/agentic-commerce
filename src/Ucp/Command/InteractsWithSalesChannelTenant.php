@@ -24,6 +24,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * {@see InteractsWithSigningKeyTenant::configureTenantOption()} and
  * {@see InteractsWithSigningKeyTenant::resolveTenantIdentifier()} are overridden
  * here so the SDK's own `execute()` transparently scopes to a sales channel.
+ *
+ * @internal
  */
 trait InteractsWithSalesChannelTenant
 {
