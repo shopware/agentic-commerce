@@ -337,7 +337,7 @@ final class UcpConfigTest extends TestCase
                 'allowedAgentDomains' => ['merchant.example'],
                 'enabledCapabilities' => [
                     UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
+                    UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
                     UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
                 ],
                 'transports' => ['rest', 'a2a'],
