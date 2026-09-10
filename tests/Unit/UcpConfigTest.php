@@ -539,6 +539,50 @@ final class UcpConfigTest extends TestCase
         ];
     }
 
+    #[Test]
+    public function testDisabledSwitchesUcpOffAndKeepsEverythingElse(): void
+    {
+        $config = UcpConfig::fromArray([
+            'active' => true,
+            'signaturePolicy' => 'log',
+            'enabledCapabilities' => ['catalog', 'cart'],
+            'enabledTransports' => ['rest', 'a2a'],
+            'agentAllowlist' => ['agent.example'],
+            'catalogResultLimit' => 7,
+        ]);
+
+        $disabled = $config->disabled();
+
+        static::assertFalse($disabled->active);
+        static::assertSame(
+            [...$config->toArray(), 'active' => false],
+            $disabled->toArray(),
+        );
+    }
+
+    #[Test]
+    public function testDisabledIsTheSameConfigWhenUcpIsAlreadyOff(): void
+    {
+        $config = UcpConfig::fromArray(['active' => false, 'signaturePolicy' => 'off']);
+
+        static::assertSame($config, $config->disabled());
+    }
+
+    #[Test]
+    public function testDisabledDoesNotChokeOnAStoredLocalHttpWebhookOverride(): void
+    {
+        $config = UcpConfig::fromArray([
+            'active' => true,
+            'agentAllowlist' => ['sw66.localhost'],
+            'webhookUrlOverride' => 'http://sw66.localhost:8088/ucp/webhook',
+        ], true);
+
+        $disabled = $config->disabled();
+
+        static::assertFalse($disabled->active);
+        static::assertSame('http://sw66.localhost:8088/ucp/webhook', $disabled->webhookUrlOverride);
+    }
+
     private static function configProperty(UcpConfig $config, string $property): mixed
     {
         return match ($property) {

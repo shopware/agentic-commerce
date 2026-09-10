@@ -11,6 +11,7 @@ use Shopware\Core\Framework\Plugin\Context\ActivateContext;
 use Shopware\Core\Framework\Plugin\Context\InstallContext;
 use Shopware\Core\Framework\Plugin\Context\UpdateContext;
 use Shopware\Core\Kernel;
+use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
@@ -23,6 +24,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Ucp\Sdk\Symfony\Bridge\DoctrineDbal\SchemaBootstrapper;
 
+/** @internal */
 #[Package('framework')]
 final class SwagAgenticCommerce extends Plugin
 {
@@ -129,6 +131,17 @@ final class SwagAgenticCommerce extends Plugin
 
     private function syncCoreAgenticFiles(): void
     {
+        // install() runs before the plugin's services exist; from activate() on the container
+        // has them, and only then can a decorated type resolver be honoured.
+        if (isset($this->container) && $this->container->has(AgenticFilesCoreBridgeInterface::class)) {
+            $bridge = $this->container->get(AgenticFilesCoreBridgeInterface::class);
+            if ($bridge instanceof AgenticFilesCoreBridgeInterface) {
+                $bridge->syncActiveUcpSalesChannels();
+
+                return;
+            }
+        }
+
         CoreSalesChannelFileBridge::syncActiveUcpSalesChannelsWithConnection(Kernel::getConnection());
     }
 

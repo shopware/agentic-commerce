@@ -27,7 +27,7 @@ final class RecordingCartItemRemoveRoute extends AbstractCartItemRemoveRoute
     {
         /** @var list<string> $ids */
         $ids = $request->query->all('ids');
-        $this->removedIds = array_values(array_merge($this->removedIds, $ids));
+        $this->removedIds = array_merge($this->removedIds, $ids);
 
         foreach ($ids as $id) {
             $cart->remove($id);
