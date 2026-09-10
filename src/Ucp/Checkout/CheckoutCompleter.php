@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -14,11 +15,10 @@ use Symfony\Component\Lock\LockFactory;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
-use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /** @internal */
 final class CheckoutCompleter

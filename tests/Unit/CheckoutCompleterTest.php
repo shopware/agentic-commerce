@@ -18,6 +18,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -34,7 +35,6 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 
 /**
  * @internal

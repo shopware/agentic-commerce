@@ -270,7 +270,6 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         return \is_string($code) && '' !== $code ? $code : null;
     }
 
-
     /**
      * Decides whether a Shopware line belongs in `totals` instead of `line_items`.
      *
