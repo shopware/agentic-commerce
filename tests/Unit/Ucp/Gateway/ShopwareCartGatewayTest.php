@@ -19,7 +19,6 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Symfony\Component\HttpFoundation\Request;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartDeleteRoute;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartItemAddRoute;
@@ -32,6 +31,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
