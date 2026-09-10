@@ -352,7 +352,7 @@ final class CheckoutCompleterTest extends TestCase
         $orderGateway = $this->createMock(OrderGatewayInterface::class);
         $orderGateway->expects(static::once())
             ->method('placeOrder')
-            ->willReturnCallback(function (Cart $cart) use (&$orderedCart, $order): OrderEntity {
+            ->willReturnCallback(static function (Cart $cart) use (&$orderedCart, $order): OrderEntity {
                 $orderedCart = $cart;
 
                 return $order;
