@@ -87,6 +87,18 @@ final class ShopwareCartGatewayTest extends TestCase
     }
 
     #[Test]
+    public function testLoadRouteReturnsTheProvidedCart(): void
+    {
+        $storedCart = new Cart('stored-cart-token');
+        $providedCart = new Cart('provided-cart-token');
+        $loadRoute = new RecordingCartLoadRoute($storedCart);
+
+        $response = $loadRoute->load(new Request(), $this->createSalesChannelContext('stored-cart-token'), $providedCart);
+
+        self::assertSame($providedCart, $response->getCart());
+    }
+
+    #[Test]
     public function testUpdateCartSynchronizesAuthoritativeProductsAndDiscounts(): void
     {
         $cart = new Cart('cart-token');
