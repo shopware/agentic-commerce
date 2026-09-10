@@ -184,6 +184,11 @@ jobs:
             php-version: '8.1'
           - lane: 'php-8.2'
             php-version: '8.2'
+          # Future-compatibility rules inspect the upcoming core API annotations, which are
+          # available only on trunk.
+          - lane: 'trunk'
+            php-version: '8.2'
+            shopware-ref: 'trunk'
           # 6.7.11.x: core still ships Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE here
           # (present only in 6.7.10-6.7.11), so this lane keeps exercising the "core owns the
           # feature" coexistence path. Moving branch ref -> always the latest 6.7.11 patch.
