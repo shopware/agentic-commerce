@@ -6,11 +6,13 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-update', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request. line_items is required and replaces the checkout contents rather than patching them, so resend every line you want to keep even when you only mean to change the buyer or the fulfillment address. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
+#[McpTool(name: 'update_checkout', title: 'UCP Checkout Update', description: 'Update a checkout session through the shared UCP checkout capability. The payload parameter is a JSON object string matching the UCP checkout.update request. line_items is required and replaces the checkout contents rather than patching them, so resend every line you want to keep even when you only mean to change the buyer or the fulfillment address. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
+#[McpToolGroup('discovery')]
 /** @internal */
 #[Package('checkout')]
 final class UcpCheckoutUpdateTool
