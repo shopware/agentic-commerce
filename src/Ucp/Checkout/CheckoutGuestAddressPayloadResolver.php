@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\FulfillmentSelection;
 
 /** @internal */
+#[Package('checkout')]
 final class CheckoutGuestAddressPayloadResolver
 {
     public function __construct(

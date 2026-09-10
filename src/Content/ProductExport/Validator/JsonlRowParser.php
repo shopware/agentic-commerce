@@ -9,11 +9,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Content\ProductExport\Validator;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportException;
 
 /**
  * @internal
  */
+#[Package('discovery')]
 class JsonlRowParser
 {
     /**

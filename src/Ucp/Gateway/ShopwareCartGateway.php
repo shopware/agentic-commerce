@@ -10,6 +10,7 @@ use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemRemoveRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemUpdateRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Cart\CartSessionStore;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
@@ -19,6 +20,7 @@ use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class ShopwareCartGateway
 {
     public function __construct(

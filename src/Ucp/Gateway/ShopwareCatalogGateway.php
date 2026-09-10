@@ -10,6 +10,7 @@ use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
@@ -17,6 +18,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('inventory')]
 final class ShopwareCatalogGateway
 {
     public function __construct(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Model\Catalog\CatalogLookupRequest;
@@ -13,6 +14,7 @@ use Ucp\Sdk\Model\Catalog\Product;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('inventory')]
 final class ShopwareCatalogAdapter implements CatalogAdapterInterface
 {
     public function __construct(
