@@ -19,6 +19,19 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
   workflow_dispatch:
+    inputs:
+      sdk_ref:
+        description: 'ucp-php-sdk ref to vendor into the zip'
+        required: false
+        default: 'integration/all-open-prs'
+      sdk_version:
+        description: 'Version to attribute to that ref (its packages are untagged)'
+        required: false
+        default: '0.0.6'
+      overwrite_version:
+        description: 'Plugin version to stamp (Shopware rejects semver pre-release suffixes; use e.g. 1.3.99)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -39,19 +52,62 @@ jobs:
           # full history so shopware-cli can generate the changelog
           fetch-depth: 0
 
+      # The SDK's release track is ahead of anything published, so a plain resolve gets
+      # whatever packagist last saw rather than the code this archive is meant to carry.
+      # Checked out and resolved from source instead, and placed *inside* the extension:
+      # shopware-cli copies the extension to a temp directory before running composer, so
+      # a path repository pointing at a sibling (`../ucp-php-sdk`) resolves during
+      # planning and then materialises nothing.
+      - name: Check out the SDK ref to vendor
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          repository: agentic-commerce-alliance/ucp-php-sdk
+          ref: ${{ github.event.inputs.sdk_ref }}
+          path: ucp-php-sdk
+
+      - name: Vendor that SDK ref into the extension
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SDK_VERSION: ${{ github.event.inputs.sdk_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p .sdk
+          cp -a ucp-php-sdk/packages/core .sdk/core
+          cp -a ucp-php-sdk/packages/symfony-bundle .sdk/symfony-bundle
+          rm -rf .sdk/core/tests .sdk/symfony-bundle/tests
+          # `options.versions` attributes a version without editing the SDK's own
+          # composer.json -- its packages carry none and derive it from tags, and the
+          # bundle already requires core >=0.0.6 while the newest tag is 0.0.5.
+          composer config repositories.ucp-sdk-core             "{\"type\":\"path\",\"url\":\"./.sdk/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"${SDK_VERSION}\"}}}"
+          composer config repositories.ucp-sdk-symfony             "{\"type\":\"path\",\"url\":\"./.sdk/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"${SDK_VERSION}\"}}}"
+          composer require --no-update --no-interaction "ucp-php-sdk/symfony-bundle:${SDK_VERSION}"
+          composer update --no-dev --no-scripts --no-interaction --prefer-dist             ucp-php-sdk/core ucp-php-sdk/symfony-bundle
+
       - name: Install shopware-cli
         uses: shopware/shopware-cli-action@v3
 
       - name: Build and validate the extension zip
         run: |
-          shopware-cli extension zip . --git-commit "${{ github.sha }}" --release
-          mv "SwagAgenticCommerce-${{ github.sha }}.zip" SwagAgenticCommerce.zip
+          set -euo pipefail
+          version_flag=()
+          if [[ -n "${{ github.event.inputs.overwrite_version }}" ]]; then
+            version_flag=(--overwrite-version "${{ github.event.inputs.overwrite_version }}")
+          fi
+          shopware-cli extension zip . --git-commit "${{ github.sha }}" --release "${version_flag[@]}"
+          mv SwagAgenticCommerce-*.zip SwagAgenticCommerce.zip
           shopware-cli extension validate SwagAgenticCommerce.zip
 
       # `extension validate` does not look at the compiled administration bundle, so it
       # happily passes an archive whose admin assets are empty or self-referencing.
       - name: Assert the zip ships a usable administration bundle
         run: bin/ci-assert-zip-admin-bundle.sh SwagAgenticCommerce.zip
+
+      # Neither `extension validate` nor the admin-bundle guard looks at vendor/, so an
+      # archive whose autoloader points at an SDK that was never copied in passes both and
+      # then fatals on the first request with `Class "Ucp\\Sdk\\..." not found`.
+      - name: Assert the zip carries the SDK it autoloads
+        run: bin/ci-assert-zip-vendors-sdk.sh SwagAgenticCommerce.zip
 
       - name: Unpack so the downloaded artifact is directly installable
         run: |
