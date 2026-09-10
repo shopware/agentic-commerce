@@ -75,6 +75,9 @@ final class ShopwareCatalogGatewayTest extends TestCase
     #[Test]
     public function testLookupClampsIdsAndLoadsProductsInOneBatch(): void
     {
+        // Annotated because PHPStan cannot follow a by-reference mutation from inside the
+        // closure below, and infers a shape narrow enough to call the assertion impossible.
+        /** @var list<list<string>> $criteriaIds */
         $criteriaIds = [];
         $products = [
             $this->product('product-b', 'B', 20.0),
