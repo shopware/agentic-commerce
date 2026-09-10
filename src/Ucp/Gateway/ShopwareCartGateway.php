@@ -146,7 +146,6 @@ final class ShopwareCartGateway
         $addItems = [];
 
         foreach ($desiredLineItems as $item) {
-            \assert($item instanceof UcpLineItem);
             $productIds[] = $item->id;
 
             $existing = $lineItemsByReferencedId[$item->id] ?? null;

@@ -169,10 +169,6 @@ final class SalesChannelDomainResolver
         $candidates = [];
 
         foreach ($domains as $domain) {
-            if (!$domain instanceof SalesChannelDomainEntity) {
-                continue;
-            }
-
             $candidate = $this->candidateFromDomain($domain);
             if (null !== $candidate) {
                 $candidates[] = $candidate;

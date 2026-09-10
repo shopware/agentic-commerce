@@ -153,8 +153,10 @@ final class SalesChannelTypeResolverTest extends TestCase
                     }
 
                     $salesChannels = [];
-                    foreach ($criteria->getIds() as $salesChannelId) {
-                        if (!\is_string($salesChannelId) || !isset($typeIdsBySalesChannelId[$salesChannelId])) {
+                    /** @var list<string> $salesChannelIds */
+                    $salesChannelIds = $criteria->getIds();
+                    foreach ($salesChannelIds as $salesChannelId) {
+                        if (!isset($typeIdsBySalesChannelId[$salesChannelId])) {
                             continue;
                         }
 
