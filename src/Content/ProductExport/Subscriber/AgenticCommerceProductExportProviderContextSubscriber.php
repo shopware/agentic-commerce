@@ -11,6 +11,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Subscriber;
 
 use Shopware\Core\Content\ProductExport\Event\ProductExportRenderBodyContextEvent;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Content\ProductExport\Provider\AgenticCommerceProductExportProviderRegistry;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -19,6 +20,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 /**
  * @internal
  */
+#[Package('discovery')]
 class AgenticCommerceProductExportProviderContextSubscriber implements EventSubscriberInterface
 {
     public function __construct(

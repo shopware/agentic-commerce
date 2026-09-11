@@ -11,7 +11,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
 #[McpTool(name: 'shopware-ucp-order-get', title: 'UCP Order Get', description: 'Load an order by id through the shared UCP order capability.')]
 /** @internal */
-#[Package('checkout')]
+#[Package('after-sales')]
 final class UcpOrderGetTool
 {
     public function __construct(

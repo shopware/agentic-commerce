@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Content\ProductExport\Twig;
 
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Content\ProductExport\Service\EssentialCharacteristicsResolver;
 use Swag\AgenticCommerce\Content\ProductExport\Service\ProductMeasurementsResolver;
@@ -23,6 +24,7 @@ use Twig\TwigFunction;
  *
  * @internal
  */
+#[Package('discovery')]
 final class AgenticProductExportExtension extends AbstractExtension
 {
     public function __construct(

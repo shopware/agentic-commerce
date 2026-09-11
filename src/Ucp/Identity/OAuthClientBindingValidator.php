@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Exception\OAuthException;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('framework')]
 final class OAuthClientBindingValidator
 {
     public function assertClientId(string $clientId, RequestContext $context): void
