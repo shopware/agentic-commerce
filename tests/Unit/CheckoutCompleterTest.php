@@ -45,6 +45,7 @@ final class CheckoutCompleterTest extends TestCase
     private const CHECKOUT_ID = 'checkout-token';
     private const SALES_CHANNEL_ID = '00000000000000000000000000000001';
     private const ORDER_ID = '00000000000000000000000000000002';
+    private const ROTATED_CONTEXT_TOKEN = 'rotated-context-token';
     private const LOCK_KEY = 'ucp.checkout.completion.'.self::CHECKOUT_ID.'.'.self::SALES_CHANNEL_ID;
 
     #[Test]
@@ -332,6 +333,96 @@ final class CheckoutCompleterTest extends TestCase
 
         // Lock released via finally — a new acquire must succeed
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after order placement failure');
+    }
+
+    #[Test]
+    public function testCartIsRetokenizedToTheProvisionedCustomerContext(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(null);
+
+        $currency = new CurrencyEntity();
+        $currency->setIsoCode('EUR');
+
+        // Guest registration rotates the Shopware context token and migrates the persisted cart to it.
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $customerContext->method('getCurrency')->willReturn($currency);
+        $customerContext->method('getToken')->willReturn(self::ROTATED_CONTEXT_TOKEN);
+
+        $order = new OrderEntity();
+        $order->setId(self::ORDER_ID);
+
+        $orderedCart = null;
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::once())
+            ->method('placeOrder')
+            ->willReturnCallback(static function (Cart $cart) use (&$orderedCart, $order): OrderEntity {
+                $orderedCart = $cart;
+
+                return $order;
+            });
+
+        $provisioner = new class($customerContext) implements GuestCustomerContextProvisionerInterface {
+            public function __construct(private readonly SalesChannelContext $customerContext)
+            {
+            }
+
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            {
+                return $this->customerContext;
+            }
+        };
+
+        $mapper = new class($this->uninitialized(Checkout::class)) implements ShopwareDataMapperInterface {
+            public function __construct(private readonly Checkout $checkout)
+            {
+            }
+
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
+            {
+                return $this->checkout;
+            }
+
+            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
+            {
+                throw new \BadMethodCallException('Not called in this test.');
+            }
+        };
+
+        $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
+            public function build(string $checkoutId, string $salesChannelId): string
+            {
+                return 'https://example.com/continue';
+            }
+        };
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $salesChannelContext->method('getToken')->willReturn(self::CHECKOUT_ID);
+
+        $completer = new CheckoutCompleter(
+            $orderGateway,
+            $mapper,
+            $provisioner,
+            $this->nullConfigService(),
+            $this->nullSessionManager(),
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $continueUrlBuilder,
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new OrderPermalinkBuilder(),
+        );
+
+        $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+
+        static::assertInstanceOf(Cart::class, $orderedCart);
+        static::assertSame(
+            self::ROTATED_CONTEXT_TOKEN,
+            $orderedCart->getToken(),
+            'The ordered cart must carry the post-registration context token, otherwise the order route cannot find its storage entry',
+        );
     }
 
     private function nullProvisioner(): GuestCustomerContextProvisionerInterface
