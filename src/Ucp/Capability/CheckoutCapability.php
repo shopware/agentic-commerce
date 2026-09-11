@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
 use Ucp\Sdk\Model\Checkout\Checkout;
@@ -13,6 +14,7 @@ use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class CheckoutCapability implements CheckoutCapabilityInterface
 {
     public function __construct(

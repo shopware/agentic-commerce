@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 
 /** @internal */
+#[Package('checkout')]
 final class CheckoutContinueUrlBuilder implements CheckoutContinueUrlBuilderInterface
 {
     public function __construct(

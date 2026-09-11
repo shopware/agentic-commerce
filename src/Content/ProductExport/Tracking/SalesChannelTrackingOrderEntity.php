@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Tracking;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\DataAbstractionLayer\Entity;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityIdTrait;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 
 /**
@@ -22,6 +23,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
  *
  * @internal
  */
+#[Package('after-sales')]
 class SalesChannelTrackingOrderEntity extends Entity
 {
     use EntityIdTrait;

@@ -10,6 +10,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -22,6 +23,7 @@ use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('after-sales')]
 final class ShopwareOrderGateway implements OrderGatewayInterface
 {
     public function __construct(

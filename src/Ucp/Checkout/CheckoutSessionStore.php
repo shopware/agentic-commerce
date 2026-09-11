@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
+#[Package('checkout')]
 final class CheckoutSessionStore
 {
     private const PAYLOAD_KEY = 'swagAgenticCommerce';

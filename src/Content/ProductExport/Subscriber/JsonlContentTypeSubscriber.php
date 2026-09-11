@@ -10,12 +10,14 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Content\ProductExport\Subscriber;
 
 use Shopware\Core\Content\ProductExport\Event\ProductExportContentTypeEvent;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
  * @internal
  */
+#[Package('discovery')]
 class JsonlContentTypeSubscriber implements EventSubscriberInterface
 {
     public static function getSubscribedEvents(): array

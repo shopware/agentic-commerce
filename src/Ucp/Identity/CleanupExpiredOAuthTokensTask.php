@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTask;
 
 /** @internal */
+#[Package('framework')]
 class CleanupExpiredOAuthTokensTask extends ScheduledTask
 {
     public static function getTaskName(): string

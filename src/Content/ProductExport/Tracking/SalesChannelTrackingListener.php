@@ -20,6 +20,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Event\EntityWrittenContainerEve
 use Shopware\Core\Framework\DataAbstractionLayer\Event\EntityWrittenEvent;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsAnyFilter;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\KernelListenerPriorities;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\PlatformRequest;
@@ -44,6 +45,7 @@ use Symfony\Contracts\Cache\TagAwareCacheInterface;
  *
  * @internal
  */
+#[Package('after-sales')]
 class SalesChannelTrackingListener implements EventSubscriberInterface
 {
     final public const SESSION_KEY_REFERRAL_CODE = 'salesChannelReferralCode';
