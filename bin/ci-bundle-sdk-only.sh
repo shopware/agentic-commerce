@@ -21,14 +21,21 @@ build['require'] = {
     'ucp-php-sdk/symfony-bundle': manifest['require']['ucp-php-sdk/symfony-bundle'],
 }
 build['replace'] = platform
-build['config'] = {'vendor-dir': 'vendor', 'platform': {'php': '8.1.0'}}
+build['config'] = {'vendor-dir': 'vendor'}
 for key in ('require-dev', 'autoload-dev', 'scripts'):
     build.pop(key, None)
 Path('.composer-bundled-sdk.json').write_text(json.dumps(build, indent=4) + '\n')
 
 # Keep the published manifest's real requirements, without build-only source paths.
-for name in ('ucp-sdk-core', 'ucp-sdk-symfony'):
-    manifest.get('repositories', {}).pop(name, None)
+repositories = manifest.get('repositories', [])
+def is_build_repository(repository):
+    return isinstance(repository, dict) and repository.get('type') == 'path' and repository.get('url') in ('.sdk/core', './.sdk/core', '.sdk/symfony-bundle', './.sdk/symfony-bundle')
+if isinstance(repositories, dict):
+    manifest['repositories'] = {name: repository for name, repository in repositories.items() if not is_build_repository(repository)}
+else:
+    manifest['repositories'] = [repository for repository in repositories if not is_build_repository(repository)]
+if not manifest['repositories']:
+    del manifest['repositories']
 Path('composer.json').write_text(json.dumps(manifest, indent=4) + '\n')
 PYTHON
 
