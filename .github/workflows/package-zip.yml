@@ -82,7 +82,8 @@ jobs:
           composer config repositories.ucp-sdk-core             "{\"type\":\"path\",\"url\":\"./.sdk/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"${SDK_VERSION}\"}}}"
           composer config repositories.ucp-sdk-symfony             "{\"type\":\"path\",\"url\":\"./.sdk/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"${SDK_VERSION}\"}}}"
           composer require --no-update --no-interaction "ucp-php-sdk/symfony-bundle:${SDK_VERSION}"
-          composer update --no-dev --no-scripts --no-interaction --prefer-dist             ucp-php-sdk/core ucp-php-sdk/symfony-bundle
+          # Fresh checkouts have no lock file, so Composer must resolve the full set.
+          composer update --no-dev --no-scripts --no-interaction --prefer-dist
 
       - name: Install shopware-cli
         uses: shopware/shopware-cli-action@v3
