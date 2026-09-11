@@ -101,7 +101,6 @@ jobs:
           # Use the prepared checkout: selecting a git commit discards the SDK and
           # Composer changes made by the preceding step.
           shopware-cli extension zip . --disable-git --release "${version_flag[@]}"
-          mv SwagAgenticCommerce-*.zip SwagAgenticCommerce.zip
           shopware-cli extension validate SwagAgenticCommerce.zip
 
       # `extension validate` does not look at the compiled administration bundle, so it
