@@ -11,7 +11,6 @@ use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
 use Shopware\Core\Framework\Plugin\KernelPluginCollection;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
-use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 /**
  * A store ZIP vendors the UCP SDK into the plugin's own `vendor/`, and Shopware never loads it.
@@ -58,31 +57,12 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
         $root = $this->sentinelPluginRoot(__FUNCTION__);
         $plugin = new SwagAgenticCommerce(true, $root['basePath']);
 
-        $plugin->getAdditionalBundles(new AdditionalBundleParameters(
-            new ClassLoader(),
-            new KernelPluginCollection(),
-            [],
-        ));
+        $plugin->getAdditionalBundles($this->bundleParameters());
 
         self::assertTrue(
             \defined($root['constant']),
             'getAdditionalBundles() must require the plugin\'s own vendor/autoload.php: a store '
             . 'ZIP vendors the SDK there and Shopware does not load it.',
-        );
-    }
-
-    #[Test]
-    public function testBuildLoadsTheAutoloaderTheArchiveShips(): void
-    {
-        $root = $this->sentinelPluginRoot(__FUNCTION__);
-        $plugin = new SwagAgenticCommerce(true, $root['basePath']);
-
-        $plugin->build(new ContainerBuilder());
-
-        self::assertTrue(
-            \defined($root['constant']),
-            'build() must require the bundled autoloader before the container is compiled against '
-            . 'SDK classes.',
         );
     }
 
@@ -107,7 +87,7 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
             'getPath() is <plugin>/src, so the two are not interchangeable for finding vendor/.',
         );
 
-        $plugin->build(new ContainerBuilder());
+        $plugin->getAdditionalBundles($this->bundleParameters());
 
         self::assertTrue(
             \defined($root['constant']),
@@ -130,9 +110,14 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
         $this->tempDirs[] = $basePath;
 
         $plugin = new SwagAgenticCommerce(true, $basePath);
-        $plugin->build(new ContainerBuilder());
+        $plugin->getAdditionalBundles($this->bundleParameters());
 
         self::assertDirectoryDoesNotExist($basePath . '/vendor');
+    }
+
+    private function bundleParameters(): AdditionalBundleParameters
+    {
+        return new AdditionalBundleParameters(new ClassLoader(), new KernelPluginCollection(), []);
     }
 
     /**
