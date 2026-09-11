@@ -80,8 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           composer config vendor-dir vendor
-          composer require --no-update --no-interaction ucp-php-sdk/symfony-bundle:0.0.6
-          composer update --no-dev --no-scripts --no-interaction --prefer-dist
+          composer update --with ucp-php-sdk/symfony-bundle:0.0.6 --with ucp-php-sdk/core:0.0.6 --no-dev --no-scripts --no-interaction --prefer-dist
           bin/ci-bundle-sdk-only.sh
 
       - name: Install shopware-cli

@@ -18,7 +18,8 @@ platform = {
 build = dict(manifest)
 build['require'] = {
     'php': manifest['require']['php'],
-    'ucp-php-sdk/symfony-bundle': manifest['require']['ucp-php-sdk/symfony-bundle'],
+    'ucp-php-sdk/symfony-bundle': versions['ucp-php-sdk/symfony-bundle'],
+    'ucp-php-sdk/core': versions['ucp-php-sdk/core'],
 }
 build['replace'] = platform
 build['config'] = {'vendor-dir': 'vendor'}

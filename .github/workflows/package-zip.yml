@@ -79,12 +79,11 @@ jobs:
           # bundle already requires core >=0.0.6 while the newest tag is 0.0.5.
           composer config repositories.ucp-sdk-core             "{\"type\":\"path\",\"url\":\"./.sdk/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"${SDK_VERSION}\"}}}"
           composer config repositories.ucp-sdk-symfony             "{\"type\":\"path\",\"url\":\"./.sdk/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"${SDK_VERSION}\"}}}"
-          composer require --no-update --no-interaction "ucp-php-sdk/symfony-bundle:${SDK_VERSION}"
           # The source checkout puts development tooling in .tools/vendor. The archive's
           # bootstrap loads runtime dependencies from vendor/autoload.php.
           composer config vendor-dir vendor
           # Fresh checkouts have no lock file, so Composer must resolve the full set.
-          composer update --no-dev --no-scripts --no-interaction --prefer-dist
+          composer update --with "ucp-php-sdk/symfony-bundle:${SDK_VERSION}" --with "ucp-php-sdk/core:${SDK_VERSION}" --no-dev --no-scripts --no-interaction --prefer-dist
 
       - name: Keep only SDK packages in the bundled runtime
         run: bin/ci-bundle-sdk-only.sh
