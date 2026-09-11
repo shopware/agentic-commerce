@@ -1,13 +1,16 @@
-# next version
+# 1.3.0
 
+- Serve UCP `2026-08-25` through SDK `0.0.6` or newer, including version-aware capability negotiation, the standard catalog capability IDs and updated consent, fulfillment and payment shapes.
+- Return real product descriptions from catalog search and lookup, with the product title as fallback.
+- Apply checkout completion payment data through the platform gateway and expose the applied-discount breakdown.
+- Enforce configured profile-fetch allowlists and prevent checkout tokens from leaking through embedded responses.
 - Answer a UCP catalog search with an empty query by listing the catalog instead of returning no products. `query` is optional free text in the specification, and an agent opening with a blank search was being told the shop had nothing to sell.
 - Answer a UCP request for a cart nobody created with `not_found` instead of handing out a fresh empty cart under the guessed id. Cart ids handed out by `cart.create` are remembered in the same context store the checkout session already uses.
+- Name the UCP MCP tools as the specification's OpenRPC document does (`search_catalog`, `create_cart`, `create_checkout`, `complete_checkout`, `get_order` and so on) and advertise them on a fresh MCP session. They were named `shopware-ucp-*` and hidden behind a toolset an agent had to enable first, so a spec-following agent listing tools on `/ucp/mcp` saw only the toolset meta-tools. An MCP client that called the old names has to switch; the arguments are unchanged.
 - Product links in the OpenAI and Google product feeds now resolve correctly for headless sales channels on Shopware 6.7.14 and newer, so agents receive working product URLs; the feeds keep working unchanged on earlier Shopware versions.
 - Store the administration translations in country-agnostic files (`de.json`, `en.json`) following the current Shopware core convention; a compatibility loader keeps them working on Shopware versions before 6.7.3.
 - Polish the administration texts: consistent capitalisation of the informal German address and a clearer "Total" label in the English statistics summary.
 - Completing an agentic checkout keeps working on upcoming Shopware versions: the guest customer created during completion rotates the Shopware context token and moves the cart with it, and the order is now placed against the new token instead of the stale one, which newer Shopware versions reject with a "cart not found" error.
-
-# 1.3.0
 
 - Restrict UCP to the sales channels that can actually complete a purchase: Storefront and Headless. Product feed channels are no longer offered for UCP and can no longer have it switched on through the API or the console; one that had it switched on before is now treated as switched off, so no shop is advertised that an agent cannot buy from.
 - Serve `/.well-known/api-catalog` (RFC 9727 linkset) on exposed sales channels, so an agent can discover the shop's UCP profile and Store API entry point from one standardised location; unexposed channels return 404.

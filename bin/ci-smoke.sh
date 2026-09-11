@@ -333,8 +333,8 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
 else
   web sh -lc "cd /var/www/html \
     && composer config repositories.swag-agentic-commerce '{\"type\":\"path\",\"url\":\"custom/plugins/SwagAgenticCommerce\",\"options\":{\"symlink\":true,\"versions\":{\"shopware/agentic-commerce\":\"${PLUGIN_COMPOSER_VERSION}\"}}}' \
-    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.5\"}}}' \
-    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.5\"}}}' \
+    && composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.6\"}}}' \
+    && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.6\"}}}' \
     && { composer remove --no-update --no-interaction ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; } \
     && composer require --update-no-dev --no-scripts --no-interaction --no-progress --prefer-dist shopware/agentic-commerce:${PLUGIN_COMPOSER_VERSION} --with-all-dependencies"
 fi
@@ -361,24 +361,23 @@ declare(strict_types=1);
 
 require '/var/www/html/vendor/autoload.php';
 
-$configPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/packages/ucp_sdk.yaml';
-if (is_file($configPath)) {
-    $configContents = (string) file_get_contents($configPath);
-    if (str_contains($configContents, 'sqlite:')) {
-        fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
-        exit(1);
-    }
+// The packages/ucp_sdk.yaml this used to guard is gone: it duplicated services.php, which
+// is the only place the SDK is configured now. The sqlite and resolve() checks it carried
+// live on below, against the file that survived.
 
-    if (str_contains($configContents, 'resolve:DATABASE_URL')) {
+$servicesConfigPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/services.php';
+if (is_file($servicesConfigPath)) {
+    $servicesContents = (string) file_get_contents($servicesConfigPath);
+
+    if (str_contains($servicesContents, "env('DATABASE_URL')->resolve()")) {
         fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
         exit(1);
     }
-}
 
-$servicesConfigPath = '/var/www/html/custom/plugins/SwagAgenticCommerce/src/Resources/config/services.php';
-if (is_file($servicesConfigPath) && str_contains((string) file_get_contents($servicesConfigPath), "env('DATABASE_URL')->resolve()")) {
-    fwrite(STDERR, "Packaged UCP SDK storage must not resolve DATABASE_URL; percent-encoded DSNs must stay intact.\n");
-    exit(1);
+    if (str_contains($servicesContents, 'sqlite:')) {
+        fwrite(STDERR, "Packaged UCP SDK storage must use Shopware's DATABASE_URL, not sqlite.\n");
+        exit(1);
+    }
 }
 
 $connectionFactory = 'Ucp\\Sdk\\Symfony\\Bridge\\DoctrineDbal\\ConnectionFactory';

@@ -1,0 +1,11 @@
+includes:
+__FUTURE_COMPATIBILITY_INCLUDE__
+
+parameters:
+    level: 0
+    phpVersion: 80100
+    paths:
+        - src
+    tmpDir: __PHPSTAN_TMP_DIR__
+    excludePaths:
+        - src/Resources/app

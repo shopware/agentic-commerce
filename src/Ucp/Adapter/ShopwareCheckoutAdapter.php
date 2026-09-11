@@ -20,17 +20,19 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
-use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
+use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
 #[Package('checkout')]
-final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
+final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterface
 {
     public function __construct(
         private readonly ShopwareCartGateway $cartGateway,
@@ -169,7 +171,45 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         );
     }
 
+    /**
+     * The payment-aware entry point.
+     *
+     * `completeCheckout()` below is kept and still works: the SDK calls this one when the
+     * adapter opts in, and that one otherwise, so nothing that already calls it breaks.
+     */
+    public function completeCheckoutFromRequest(CheckoutCompleteRequest $request, RequestContext $context): Checkout
+    {
+        return $this->completeCheckoutInternal($request->id, $context, self::selectedInstrument($request));
+    }
+
+    /**
+     * The instrument the agent chose.
+     *
+     * `payment.json` models this as `{"instruments": [...]}`, so a complete request carries a
+     * list. The one flagged `selected` wins; otherwise the first is taken, which is what the
+     * SDK's own mapper does when reading the same shape for create and update.
+     */
+    private static function selectedInstrument(CheckoutCompleteRequest $request): ?PaymentInstrument
+    {
+        $first = null;
+
+        foreach ($request->instruments as $instrument) {
+            if (true === ($instrument->credential['selected'] ?? false)) {
+                return $instrument;
+            }
+
+            $first ??= $instrument;
+        }
+
+        return $first;
+    }
+
     public function completeCheckout(string $id, RequestContext $context): Checkout
+    {
+        return $this->completeCheckoutInternal($id, $context, null);
+    }
+
+    private function completeCheckoutInternal(string $id, RequestContext $context, ?PaymentInstrument $instrument): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
@@ -185,7 +225,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
+        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context, $instrument);
     }
 
     /**

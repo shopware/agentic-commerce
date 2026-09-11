@@ -76,19 +76,48 @@ jobs:
 
           echo "Validated main HEAD ${GITHUB_SHA} with CI gate ${gate_id}."
 
-      - name: Build and validate release package
-        if: inputs.publish == false
-        uses: shopware/github-actions/build-zip@main
-        with:
-          extensionName: SwagAgenticCommerce
-          skipCheckout: true
+      - name: Prepare the released SDK runtime
+        run: |
+          set -euo pipefail
+          composer config vendor-dir vendor
+          composer update --with ucp-php-sdk/symfony-bundle:0.0.6 --with ucp-php-sdk/core:0.0.6 --no-dev --no-scripts --no-interaction --prefer-dist
+          bin/ci-bundle-sdk-only.sh
 
-      - name: Publish release
-        if: inputs.publish
-        uses: shopware/github-actions/store-release@main
+      - name: Install shopware-cli
+        uses: shopware/shopware-cli-action@v3
+
+      - name: Build and validate release package
+        run: |
+          set -euo pipefail
+          shopware-cli extension zip . --disable-git --release
+          shopware-cli extension validate SwagAgenticCommerce.zip
+          bin/ci-assert-zip-admin-bundle.sh SwagAgenticCommerce.zip
+          bin/ci-assert-zip-vendors-sdk.sh SwagAgenticCommerce.zip
+          mkdir -p dist
+          unzip -q SwagAgenticCommerce.zip -d dist
+
+      - name: Upload installable artifact
+        uses: actions/upload-artifact@v6
         with:
-          extensionName: SwagAgenticCommerce
-          clientId: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_ID }}
-          clientSecret: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET }}
-          ghToken: ${{ secrets.GITHUB_TOKEN }}
-          skipCheckout: true
+          name: SwagAgenticCommerce
+          path: dist
+          include-hidden-files: true
+
+      - name: Upload the validated package to the Store
+        if: inputs.publish
+        env:
+          SHOPWARE_CLI_ACCOUNT_CLIENT_ID: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_ID }}
+          SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET }}
+        run: shopware-cli account producer extension upload SwagAgenticCommerce.zip
+
+      - name: Tag the validated source and publish the GitHub release
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopware-cli extension get-changelog SwagAgenticCommerce.zip > /tmp/plugin-release-notes.md
+          gh release create "${VERSION}" SwagAgenticCommerce.zip \
+            --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" \
+            --title "${VERSION}" --notes-file /tmp/plugin-release-notes.md

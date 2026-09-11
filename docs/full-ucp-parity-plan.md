@@ -1,5 +1,10 @@
 # Full UCP Parity Plan
 
+> **Not the SDK's file of the same name.** `ucp-php-sdk` also carries a
+> `docs/full-ucp-parity-plan.md`, with different content — that one records the SDK's
+> MCP-proxy architectural decision. This one is the plugin's parity status. Check which
+> repository you are in before editing either.
+
 ## Summary
 
 The plugin targets UCP parity with the Shopware 6.7 UCP work while keeping the admin UI simpler than the original PR. The implementation is split across three codebases:
@@ -110,8 +115,8 @@ Validated local profile matrix:
 For trunk MCP validation, initialize `/ucp/mcp`, then call `tools/list`. The
 plugin resolves the current sales-channel access key internally before
 delegating to `/store-api/_mcp`. The expected UCP tool names cover the shopping
-operation matrix: `shopware-ucp-catalog-search`,
-`shopware-ucp-catalog-lookup`, cart create/get/update/cancel, discount apply,
+operation matrix: `search_catalog`,
+`lookup_catalog`, cart create/get/update/cancel, discount apply,
 checkout create/get/update/complete/cancel, and order get.
 
 ## Admin QA
@@ -151,6 +156,12 @@ The top screenshots verify the lane transport summary. The security screenshots 
 
 ## Remaining Runtime Gaps
 
+For the UCP SDK upgrade to protocol version `2026-08-25` and the plugin-side
+work it implies, see [ucp-sdk-integration-backlog.md](ucp-sdk-integration-backlog.md).
+Note that the SDK repository also has a `docs/full-ucp-parity-plan.md` with
+different content: that one covers the SDK transport model, this one covers the
+Shopware support matrix.
+
 - Payment tokenization stays hidden/unsupported by default until a real
   PSP-backed tokenizing payment handler is registered and enabled per sales
   channel. See
@@ -159,28 +170,38 @@ The top screenshots verify the lane transport summary. The security screenshots 
   is implemented but remains opt-in per sales channel.
 - Embedded now renders plugin-owned cart/checkout bridge pages with CSP,
   explicit allowed-origin validation, and `postMessage` ready/state messages.
-  Missing `embeddedAllowedOrigins` or non-allowlisted `Origin` headers return a
-  controlled `403`. Follow-up UX work should focus on visual polish and deeper
-  storefront theme integration, not transport correctness.
+  Missing `embeddedAllowedOrigins`, or an `Origin` header that is present but not
+  allowlisted, return a controlled `403`; an absent `Origin` is intentionally
+  allowed through because browsers omit it on iframe and top-level `GET`
+  navigations, with framing enforced by `frame-ancestors` and the payload
+  authorized by the cart/checkout token in the URL. Follow-up UX work should
+  focus on visual polish and deeper storefront theme integration, not transport
+  correctness.
 - MCP and A2A now route the shopping operation matrix through the shared
   capability layer. Follow-up validation should target lane builds and real demo
   storefront data rather than adding protocol-specific business logic.
 - `checkout.complete` requires a `payment` object per spec (`checkout.json`
-  annotates it `ucp_request: {complete: "required"}`), and the MCP tool now sends
-  one. The instrument is not yet acted on: the SDK's
-  `CheckoutAdapterInterface::completeCheckout()` takes only an id and a context, so
-  completion charges the sales channel default (invoice/offline) method. Threading
-  payment into the adapter is an upstream SDK change.
-- Applied discounts are reported as a negative `items_discount` total. The spec's
-  richer `discounts.applied[]` breakdown (`discount.json` → `$defs.applied_discount`,
-  with per-target `allocations`) is not emitted yet: the SDK's `Cart` model has no
-  `discounts` field and no `extra` escape hatch, so cart responses cannot carry it.
-  `Checkout` does have `extra`, so checkout-only fidelity is possible ahead of the
-  SDK change.
-- `cart.update` requires the cart id inside the payload as well as on the tool
-  argument, because the SDK validates the raw payload rather than merging the
-  resource id first as it does for `cart.get`/`cart.cancel`. The tool description
-  documents the duplication; removing it is an upstream SDK change.
+  annotates it `ucp_request: {complete: "required"}`), and the MCP tool sends
+  one. An earlier revision of this document recorded acting on the instrument as
+  blocked on an upstream SDK change. **It never was**: the SDK has exposed
+  `PaymentAwareCheckoutCapabilityInterface` and
+  `PaymentAwareCheckoutAdapterInterface` since 0.0.3. The plugin now supplies the
+  instrument, the context and the timing through `CompletionPaymentApplierInterface`
+  ([#213](https://github.com/shopware/agentic-commerce/pull/213)). The default
+  applier still charges the sales-channel default method and logs a warning naming
+  the handler the agent asked for, because which methods are reachable through UCP
+  and how a handler id maps onto a payment method are decisions for checkout and a
+  payment provider, not this plugin. See
+  [docs/completion-payment.md](completion-payment.md) for the open questions.
+- Applied discounts are reported as `discounts.applied[]` with per-target
+  allocations via `Cart.extra`, alongside the `items_discount` total
+  ([#212](https://github.com/shopware/agentic-commerce/pull/212)). An earlier
+  revision of this document said the SDK `Cart` model had no escape hatch for it.
+  **It never lacked one**: `Cart::$extra` has existed since SDK 0.0.3.
+- `cart.update` no longer asks agents to repeat the cart id inside the payload.
+  UCP `2026-08-25` omits `cart.id` from update requests, and the MCP tool
+  description was corrected with the version switch
+  ([#214](https://github.com/shopware/agentic-commerce/pull/214)).
 
 ## QA-Only Surfaces
 

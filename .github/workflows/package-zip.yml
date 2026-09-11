@@ -23,7 +23,7 @@ on:
       sdk_ref:
         description: 'ucp-php-sdk ref to vendor into the zip'
         required: false
-        default: 'integration/all-open-prs'
+        default: '0.0.6'
       sdk_version:
         description: 'Version to attribute to that ref (its packages are untagged)'
         required: false
@@ -59,30 +59,34 @@ jobs:
       # a path repository pointing at a sibling (`../ucp-php-sdk`) resolves during
       # planning and then materialises nothing.
       - name: Check out the SDK ref to vendor
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v6
         with:
           repository: agentic-commerce-alliance/ucp-php-sdk
-          ref: ${{ github.event.inputs.sdk_ref }}
+          ref: ${{ github.event.inputs.sdk_ref || '0.0.6' }}
           path: ucp-php-sdk
 
       - name: Vendor that SDK ref into the extension
-        if: github.event_name == 'workflow_dispatch'
         env:
-          SDK_VERSION: ${{ github.event.inputs.sdk_version }}
+          SDK_VERSION: ${{ github.event.inputs.sdk_version || '0.0.6' }}
         run: |
           set -euo pipefail
           mkdir -p .sdk
           cp -a ucp-php-sdk/packages/core .sdk/core
           cp -a ucp-php-sdk/packages/symfony-bundle .sdk/symfony-bundle
-          rm -rf .sdk/core/tests .sdk/symfony-bundle/tests
+          rm -rf .sdk/core/tests .sdk/symfony-bundle/tests ucp-php-sdk
           # `options.versions` attributes a version without editing the SDK's own
           # composer.json -- its packages carry none and derive it from tags, and the
           # bundle already requires core >=0.0.6 while the newest tag is 0.0.5.
           composer config repositories.ucp-sdk-core             "{\"type\":\"path\",\"url\":\"./.sdk/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"${SDK_VERSION}\"}}}"
           composer config repositories.ucp-sdk-symfony             "{\"type\":\"path\",\"url\":\"./.sdk/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"${SDK_VERSION}\"}}}"
-          composer require --no-update --no-interaction "ucp-php-sdk/symfony-bundle:${SDK_VERSION}"
-          composer update --no-dev --no-scripts --no-interaction --prefer-dist             ucp-php-sdk/core ucp-php-sdk/symfony-bundle
+          # The source checkout puts development tooling in .tools/vendor. The archive's
+          # bootstrap loads runtime dependencies from vendor/autoload.php.
+          composer config vendor-dir vendor
+          # Fresh checkouts have no lock file, so Composer must resolve the full set.
+          composer update --with "ucp-php-sdk/symfony-bundle:${SDK_VERSION}" --with "ucp-php-sdk/core:${SDK_VERSION}" --no-dev --no-scripts --no-interaction --prefer-dist
+
+      - name: Keep only SDK packages in the bundled runtime
+        run: bin/ci-bundle-sdk-only.sh
 
       - name: Install shopware-cli
         uses: shopware/shopware-cli-action@v3
@@ -94,8 +98,9 @@ jobs:
           if [[ -n "${{ github.event.inputs.overwrite_version }}" ]]; then
             version_flag=(--overwrite-version "${{ github.event.inputs.overwrite_version }}")
           fi
-          shopware-cli extension zip . --git-commit "${{ github.sha }}" --release "${version_flag[@]}"
-          mv SwagAgenticCommerce-*.zip SwagAgenticCommerce.zip
+          # Use the prepared checkout: selecting a git commit discards the SDK and
+          # Composer changes made by the preceding step.
+          shopware-cli extension zip . --disable-git --release "${version_flag[@]}"
           shopware-cli extension validate SwagAgenticCommerce.zip
 
       # `extension validate` does not look at the compiled administration bundle, so it
@@ -119,6 +124,7 @@ jobs:
         with:
           name: SwagAgenticCommerce
           path: dist
+          include-hidden-files: true
 
       # Neither guard above can prove the archive installs. The SDK was once present, correctly
       # pointed at, and still never loaded, because Shopware does not require a plugin's own

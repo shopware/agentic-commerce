@@ -49,7 +49,7 @@ ucp_expect_status 501 'payment tokenization' \
   -X POST "${BASE_URL}/ucp/v1/tokenize" \
   -H 'content-type: application/json' \
   -H "Idempotency-Key: $(next_idempotency_key)" \
-  -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}' >/dev/null
+  -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"type":"dev.ucp.shopping.checkout","id":"test"}}' >/dev/null
 
 has_transport() {
   jq -e --arg transport "$1" '.ucp.services["dev.ucp.shopping"][] | select(.transport == $transport)' >/dev/null <<<"${profile_json}"
@@ -135,7 +135,7 @@ run_extended_checks() {
       -H "mcp-session-id: ${session_id}" \
       -H "${UCP_AGENT_HEADER}" \
       -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":202}')"
-    jq -e '.result.tools | map(.name) | index("shopware-ucp-catalog-search") and index("shopware-ucp-cart-create") and index("shopware-ucp-checkout-create") and index("shopware-ucp-order-get")' >/dev/null <<<"${tools_response}"
+    jq -e '.result.tools | map(.name) | index("search_catalog") and index("create_cart") and index("create_checkout") and index("get_order")' >/dev/null <<<"${tools_response}"
   else
     echo "Skipping MCP checks: transport is not advertised."
   fi

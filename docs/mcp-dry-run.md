@@ -1,6 +1,6 @@
 # `dryRun` on the UCP MCP tools
 
-Every mutating `shopware-ucp-*` MCP tool takes `dryRun: bool`, defaulting to
+Every mutating UCP MCP tool takes `dryRun: bool`, defaulting to
 `true`, matching the core admin write tools (`shopware-entity-upsert`,
 `shopware-order-state`, …). An agent previews first and commits explicitly.
 
@@ -11,14 +11,14 @@ and gets graded on tool name alone.
 
 | Tool | `dryRun: true` behaviour |
 |---|---|
-| `shopware-ucp-cart-create` | transaction, rolled back |
-| `shopware-ucp-cart-update` | transaction, rolled back |
-| `shopware-ucp-cart-cancel` | transaction, rolled back |
-| `shopware-ucp-checkout-create` | transaction, rolled back |
-| `shopware-ucp-checkout-update` | transaction, rolled back |
-| `shopware-ucp-checkout-cancel` | transaction, rolled back |
-| `shopware-ucp-discount-apply` | transaction, rolled back |
-| `shopware-ucp-checkout-complete` | **read-only preview**, see below |
+| `create_cart` | transaction, rolled back |
+| `update_cart` | transaction, rolled back |
+| `cancel_cart` | transaction, rolled back |
+| `create_checkout` | transaction, rolled back |
+| `update_checkout` | transaction, rolled back |
+| `cancel_checkout` | transaction, rolled back |
+| `apply_discount` | transaction, rolled back |
+| `complete_checkout` | **read-only preview**, see below |
 
 Read-only already, so no `dryRun`: `cart-get`, `catalog-lookup`,
 `catalog-search`, `checkout-get`, `order-get`.
@@ -49,7 +49,7 @@ completion would tell the merchant about an order that never existed — on the 
 tool in the catalogue that can take money.
 
 So `checkout-complete` previews instead of executing: it reads the checkout back
-through the same `checkout.get` path `shopware-ucp-checkout-get` uses, and reports
+through the same `checkout.get` path `get_checkout` uses, and reports
 what a commit would do. It supplies that preview to
 `UcpMcpToolContext::executeMutating()` as a callback rather than branching before
 the call, so it is still the one entry point every mutating tool goes through —
@@ -63,7 +63,7 @@ see [Idempotency](#idempotency):
     "operation": "checkout.complete",
     "committed": false,
     "wouldSucceed": false,
-    "blockers": ["Checkout is incomplete: finish it with shopware-ucp-checkout-update before completing."]
+    "blockers": ["Checkout is incomplete: finish it with update_checkout before completing."]
   },
   "data": {"…": "the current checkout"}
 }

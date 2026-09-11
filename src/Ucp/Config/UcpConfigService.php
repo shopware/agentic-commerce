@@ -21,7 +21,6 @@ final class UcpConfigService
      */
     private const KEYS = [
         'active',
-        'ucpVersion',
         'profileDomain',
         'enabledCapabilities',
         'enabledTransports',

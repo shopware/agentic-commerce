@@ -19,6 +19,7 @@ use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerP
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -86,6 +87,11 @@ final class SwagAgenticCommerce extends Plugin
             10000,
         );
 
+        // Build the SDK's URL-safety validator from the plugin's per-channel/global
+        // allowlists instead of the SDK bundle's static (empty) semantic config, so
+        // configured remote profile hosts are actually fetchable.
+        $container->addCompilerPass(new ReplaceSdkUrlSafetyValidatorPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
+
         // In the test environment, swap the SDK's HTTP agent-profile fetcher for a fixed,
         // test-supplied one so the functional suite can negotiate the UCP handshake offline.
         $container->addCompilerPass(
@@ -144,7 +150,9 @@ final class SwagAgenticCommerce extends Plugin
 
     public function executeComposerCommands(): bool
     {
-        return true;
+        // A packaged SDK is already complete. Re-resolving it would discard the version
+        // selected at build time, and cannot resolve an untagged QA build from Packagist.
+        return !is_file($this->getBasePath().'/.swag-agentic-commerce-bundled-sdk');
     }
 
     /**

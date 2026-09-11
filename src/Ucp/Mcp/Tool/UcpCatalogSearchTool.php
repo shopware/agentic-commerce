@@ -6,10 +6,12 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-catalog-search', title: 'UCP Catalog Search', description: 'Search the current Store API sales-channel catalog through the same UCP catalog capability used by REST, A2A, and embedded flows.')]
+#[McpTool(name: 'search_catalog', title: 'UCP Catalog Search', description: 'Search the current Store API sales-channel catalog through the same UCP catalog capability used by REST, A2A, and embedded flows.')]
+#[McpToolGroup('discovery')]
 /** @internal */
 #[Package('inventory')]
 final class UcpCatalogSearchTool

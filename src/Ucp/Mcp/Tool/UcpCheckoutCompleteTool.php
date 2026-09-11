@@ -5,13 +5,20 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Mcp\Capability\Attribute\Schema;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-complete', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object string matching the UCP checkout.complete request; UCP requires a payment object here. Omit it to charge the sales channel default (invoice/offline) method, which needs nothing from the buyer.')]
-/** @internal */
+/**
+ * @phpstan-import-type UcpMcpNestedJsonObject from UcpMcpToolContext
+ *
+ * @internal
+ */
+#[McpTool(name: 'complete_checkout', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object matching the UCP checkout.complete request; UCP requires a payment object here. Omit it to charge the sales channel default (invoice/offline) method, which needs nothing from the buyer.')]
+#[McpToolGroup('discovery')]
 #[Package('checkout')]
 final class UcpCheckoutCompleteTool
 {
@@ -23,10 +30,14 @@ final class UcpCheckoutCompleteTool
     ) {
     }
 
-    public function __invoke(string $id, string $payload = '{}', bool $dryRun = true): string
+    /**
+     * @param UcpMcpNestedJsonObject $payload
+     */
+    #[Schema(properties: ['payload' => ['type' => 'object', 'default' => new \stdClass()]])]
+    public function __invoke(string $id, array $payload = [], bool $dryRun = true): string
     {
         try {
-            $requestPayload = $this->completionPayment->apply($this->toolContext->decodeObject($payload));
+            $requestPayload = $this->completionPayment->apply($payload);
 
             return $this->toolContext->executeMutating(
                 'checkout.complete',
@@ -52,7 +63,7 @@ final class UcpCheckoutCompleteTool
      * rolled-back transaction: completion synchronously POSTs an `order.created`
      * webhook to the merchant, and a rollback does not recall an HTTP request. The
      * preview is therefore built from the read-only `checkout.get` path — the same
-     * one shopware-ucp-checkout-get uses — plus the blockers its status implies.
+     * one get_checkout uses — plus the blockers its status implies.
      *
      * It is still handed to executeMutating() rather than called ahead of it, so a
      * preview fails the same validation a commit would; and the context arrives from
