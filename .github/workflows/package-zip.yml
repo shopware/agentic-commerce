@@ -75,13 +75,16 @@ jobs:
           mkdir -p .sdk
           cp -a ucp-php-sdk/packages/core .sdk/core
           cp -a ucp-php-sdk/packages/symfony-bundle .sdk/symfony-bundle
-          rm -rf .sdk/core/tests .sdk/symfony-bundle/tests
+          rm -rf .sdk/core/tests .sdk/symfony-bundle/tests ucp-php-sdk
           # `options.versions` attributes a version without editing the SDK's own
           # composer.json -- its packages carry none and derive it from tags, and the
           # bundle already requires core >=0.0.6 while the newest tag is 0.0.5.
           composer config repositories.ucp-sdk-core             "{\"type\":\"path\",\"url\":\"./.sdk/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"${SDK_VERSION}\"}}}"
           composer config repositories.ucp-sdk-symfony             "{\"type\":\"path\",\"url\":\"./.sdk/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"${SDK_VERSION}\"}}}"
           composer require --no-update --no-interaction "ucp-php-sdk/symfony-bundle:${SDK_VERSION}"
+          # The source checkout puts development tooling in .tools/vendor. The archive's
+          # bootstrap loads runtime dependencies from vendor/autoload.php.
+          composer config vendor-dir vendor
           # Fresh checkouts have no lock file, so Composer must resolve the full set.
           composer update --no-dev --no-scripts --no-interaction --prefer-dist
 
@@ -95,7 +98,9 @@ jobs:
           if [[ -n "${{ github.event.inputs.overwrite_version }}" ]]; then
             version_flag=(--overwrite-version "${{ github.event.inputs.overwrite_version }}")
           fi
-          shopware-cli extension zip . --git-commit "${{ github.sha }}" --release "${version_flag[@]}"
+          # Use the prepared checkout: selecting a git commit discards the SDK and
+          # Composer changes made by the preceding step.
+          shopware-cli extension zip . --disable-git --release "${version_flag[@]}"
           mv SwagAgenticCommerce-*.zip SwagAgenticCommerce.zip
           shopware-cli extension validate SwagAgenticCommerce.zip
 
