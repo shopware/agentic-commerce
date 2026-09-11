@@ -12,13 +12,13 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'complete_checkout', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object matching the UCP checkout.complete request; UCP requires a payment object here. Omit it to charge the sales channel default (invoice/offline) method, which needs nothing from the buyer.')]
-#[McpToolGroup('discovery')]
 /**
  * @phpstan-import-type UcpMcpNestedJsonObject from UcpMcpToolContext
  *
  * @internal
  */
+#[McpTool(name: 'complete_checkout', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object matching the UCP checkout.complete request; UCP requires a payment object here. Omit it to charge the sales channel default (invoice/offline) method, which needs nothing from the buyer.')]
+#[McpToolGroup('discovery')]
 #[Package('checkout')]
 final class UcpCheckoutCompleteTool
 {

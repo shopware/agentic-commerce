@@ -12,13 +12,13 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'create_cart', title: 'UCP Cart Create', description: 'Create a cart through the shared UCP cart capability. The payload parameter is a JSON object matching the UCP cart.create request. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
-#[McpToolGroup('discovery')]
 /**
  * @phpstan-import-type UcpMcpNestedJsonObject from UcpMcpToolContext
  *
  * @internal
  */
+#[McpTool(name: 'create_cart', title: 'UCP Cart Create', description: 'Create a cart through the shared UCP cart capability. The payload parameter is a JSON object matching the UCP cart.create request. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
+#[McpToolGroup('discovery')]
 #[Package('checkout')]
 final class UcpCartCreateTool
 {
