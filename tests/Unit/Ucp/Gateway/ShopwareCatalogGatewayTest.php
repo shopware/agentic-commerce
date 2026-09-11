@@ -245,13 +245,20 @@ final class ShopwareCatalogGatewayTest extends TestCase
      */
     private function listResponse(array $products, Criteria $criteria): ProductListResponse
     {
-        return new ProductListResponse(new EntitySearchResult(
+        // ProductCollection is declared over ProductEntity, so building one from
+        // SalesChannelProductEntity narrows it to ProductCollection<SalesChannelProductEntity>
+        // -- which the invariant EntitySearchResult<ProductCollection> the route returns does
+        // not accept. The runtime type is right; only the inferred generic is too narrow.
+        /** @var EntitySearchResult<ProductCollection> $result */
+        $result = new EntitySearchResult(
             'product',
             \count($products),
             new ProductCollection($products),
             null,
             $criteria,
             Context::createDefaultContext(),
-        ));
+        );
+
+        return new ProductListResponse($result);
     }
 }
