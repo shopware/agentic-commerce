@@ -599,6 +599,7 @@ jobs:
       - verify-main-validation
       - shell-lint
       - php-quality
+      - future-compatibility
       - admin-static
       - zip-artifact
       - shopware-matrix
@@ -612,6 +613,7 @@ jobs:
           VERIFY_RESULT: ${{ needs.verify-main-validation.result }}
           SHELL_RESULT: ${{ needs.shell-lint.result }}
           PHP_RESULT: ${{ needs.php-quality.result }}
+          FUTURE_COMPATIBILITY_RESULT: ${{ needs.future-compatibility.result }}
           ADMIN_STATIC_RESULT: ${{ needs.admin-static.result }}
           ZIP_ARTIFACT_RESULT: ${{ needs.zip-artifact.result }}
           SHOPWARE_RESULT: ${{ needs.shopware-matrix.result }}
@@ -638,6 +640,7 @@ jobs:
 
           for result in \
             "${PHP_RESULT}" \
+            "${FUTURE_COMPATIBILITY_RESULT}" \
             "${ADMIN_STATIC_RESULT}" \
             "${ZIP_ARTIFACT_RESULT}" \
             "${SHOPWARE_RESULT}" \
