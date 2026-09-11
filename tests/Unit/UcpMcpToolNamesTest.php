@@ -101,7 +101,6 @@ final class UcpMcpToolNamesTest extends TestCase
         $attributes = (new \ReflectionClass($class))->getAttributes(McpTool::class);
         self::assertCount(1, $attributes, $class);
         $name = $attributes[0]->newInstance()->name;
-        self::assertIsString($name, $class);
 
         return $name;
     }

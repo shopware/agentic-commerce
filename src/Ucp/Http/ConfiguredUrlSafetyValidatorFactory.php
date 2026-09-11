@@ -67,7 +67,7 @@ final class ConfiguredUrlSafetyValidatorFactory
     {
         try {
             $ids = $this->connection->fetchFirstColumn('SELECT LOWER(HEX(id)) FROM sales_channel');
-            $ids = array_values(array_map(static fn (mixed $id): string => (string) $id, $ids));
+            $ids = array_map(static fn (mixed $id): string => (string) $id, $ids);
 
             $configs = array_values($this->configService->getConfigs($ids));
             $configs[] = $this->configService->getConfig(null);

@@ -194,10 +194,6 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $first = null;
 
         foreach ($request->instruments as $instrument) {
-            if (!$instrument instanceof PaymentInstrument) {
-                continue;
-            }
-
             if (true === ($instrument->credential['selected'] ?? false)) {
                 return $instrument;
             }

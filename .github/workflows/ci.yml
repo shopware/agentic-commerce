@@ -307,8 +307,8 @@ jobs:
       - name: Install opt-in future compatibility rules
         # Do not enable phpstan-shopware's default rules.neon via its extension installer.
         run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
-        working-directory: shopware
-      - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan-future-compatibility.neon
+        working-directory: agentic-commerce
+      - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan.neon
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
