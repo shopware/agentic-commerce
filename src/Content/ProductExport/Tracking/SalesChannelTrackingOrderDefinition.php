@@ -21,6 +21,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Field\ManyToOneAssociationField
 use Shopware\Core\Framework\DataAbstractionLayer\Field\OneToOneAssociationField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\ReferenceVersionField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
 
 /**
@@ -30,6 +31,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
  *
  * @internal
  */
+#[Package('after-sales')]
 class SalesChannelTrackingOrderDefinition extends EntityDefinition
 {
     final public const ENTITY_NAME = 'sales_channel_tracking_order';

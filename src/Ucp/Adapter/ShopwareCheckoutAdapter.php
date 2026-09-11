@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Adapter;
 
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
@@ -28,6 +29,7 @@ use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
 {
     public function __construct(

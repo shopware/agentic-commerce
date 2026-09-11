@@ -23,6 +23,10 @@ build:
     pack:
       excludes:
         paths:
+          # Build-only: the workflow copies the SDK packages here and composer resolves
+          # them from here into vendor/. Shipping this as well would put two copies of
+          # the SDK in the archive.
+          - .sdk
           - bin
           - docs
           - eslint.config.mjs

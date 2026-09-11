@@ -20,6 +20,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Field\IdField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\ManyToOneAssociationField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\OneToOneAssociationField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
 
 /**
@@ -28,6 +29,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
  *
  * @internal
  */
+#[Package('after-sales')]
 class SalesChannelTrackingCustomerDefinition extends EntityDefinition
 {
     final public const ENTITY_NAME = 'sales_channel_tracking_customer';

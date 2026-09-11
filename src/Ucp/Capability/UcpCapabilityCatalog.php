@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 
 /** @internal */
+#[Package('framework')]
 final class UcpCapabilityCatalog
 {
     public const CONFIG_CATALOG = 'catalog';
