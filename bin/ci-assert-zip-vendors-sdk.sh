@@ -27,12 +27,10 @@ fi
 
 zip_file="$1"
 
-for dependency in unzip; do
-  if ! command -v "${dependency}" >/dev/null 2>&1; then
-    echo "Missing required dependency: ${dependency}" >&2
-    exit 1
-  fi
-done
+if ! command -v unzip >/dev/null 2>&1; then
+  echo "Missing required dependency: unzip" >&2
+  exit 1
+fi
 
 if [[ ! -f "${zip_file}" ]]; then
   echo "No such zip: ${zip_file}" >&2

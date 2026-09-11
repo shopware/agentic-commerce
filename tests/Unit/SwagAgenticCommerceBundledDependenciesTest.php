@@ -41,8 +41,8 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->tempDirs as $dir) {
-            @unlink($dir . '/vendor/autoload.php');
-            @rmdir($dir . '/vendor');
+            @unlink($dir.'/vendor/autoload.php');
+            @rmdir($dir.'/vendor');
             @rmdir($dir);
         }
 
@@ -62,7 +62,7 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
         self::assertTrue(
             \defined($root['constant']),
             'getAdditionalBundles() must require the plugin\'s own vendor/autoload.php: a store '
-            . 'ZIP vendors the SDK there and Shopware does not load it.',
+            .'ZIP vendors the SDK there and Shopware does not load it.',
         );
     }
 
@@ -92,7 +92,7 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
         self::assertTrue(
             \defined($root['constant']),
             'The autoloader must be resolved from getBasePath(); getPath() points at src/ and '
-            . 'finds nothing.',
+            .'finds nothing.',
         );
     }
 
@@ -103,7 +103,7 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
     #[Test]
     public function testAMissingBundledVendorDirectoryIsNotAnError(): void
     {
-        $basePath = sys_get_temp_dir() . '/swag-agentic-no-vendor-' . substr(sha1(uniqid('', true)), 0, 12);
+        $basePath = sys_get_temp_dir().'/swag-agentic-no-vendor-'.substr(sha1(uniqid('', true)), 0, 12);
         if (!mkdir($basePath, 0o777, true) && !is_dir($basePath)) {
             self::fail('Could not create the sentinel plugin root.');
         }
@@ -112,7 +112,7 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
         $plugin = new SwagAgenticCommerce(true, $basePath);
         $plugin->getAdditionalBundles($this->bundleParameters());
 
-        self::assertDirectoryDoesNotExist($basePath . '/vendor');
+        self::assertDirectoryDoesNotExist($basePath.'/vendor');
     }
 
     private function bundleParameters(): AdditionalBundleParameters
@@ -125,16 +125,16 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
      */
     private function sentinelPluginRoot(string $seed): array
     {
-        $basePath = sys_get_temp_dir() . '/swag-agentic-bundled-' . substr(sha1($seed . uniqid('', true)), 0, 12);
-        $constant = 'SWAG_AGENTIC_BUNDLED_AUTOLOAD_' . strtoupper(substr(sha1($seed), 0, 10));
+        $basePath = sys_get_temp_dir().'/swag-agentic-bundled-'.substr(sha1($seed.uniqid('', true)), 0, 12);
+        $constant = 'SWAG_AGENTIC_BUNDLED_AUTOLOAD_'.strtoupper(substr(sha1($seed), 0, 10));
 
-        if (!mkdir($basePath . '/vendor', 0o777, true) && !is_dir($basePath . '/vendor')) {
+        if (!mkdir($basePath.'/vendor', 0o777, true) && !is_dir($basePath.'/vendor')) {
             self::fail('Could not create the sentinel plugin root.');
         }
 
         file_put_contents(
-            $basePath . '/vendor/autoload.php',
-            "<?php\n\ndefine(" . var_export($constant, true) . ", true);\n",
+            $basePath.'/vendor/autoload.php',
+            "<?php\n\ndefine(".var_export($constant, true).", true);\n",
         );
 
         $this->tempDirs[] = $basePath;
