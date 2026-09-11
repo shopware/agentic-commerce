@@ -23,7 +23,7 @@ on:
       sdk_ref:
         description: 'ucp-php-sdk ref to vendor into the zip'
         required: false
-        default: 'integration/all-open-prs'
+        default: '0.0.6'
       sdk_version:
         description: 'Version to attribute to that ref (its packages are untagged)'
         required: false
@@ -59,17 +59,15 @@ jobs:
       # a path repository pointing at a sibling (`../ucp-php-sdk`) resolves during
       # planning and then materialises nothing.
       - name: Check out the SDK ref to vendor
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v6
         with:
           repository: agentic-commerce-alliance/ucp-php-sdk
-          ref: ${{ github.event.inputs.sdk_ref }}
+          ref: ${{ github.event.inputs.sdk_ref || '0.0.6' }}
           path: ucp-php-sdk
 
       - name: Vendor that SDK ref into the extension
-        if: github.event_name == 'workflow_dispatch'
         env:
-          SDK_VERSION: ${{ github.event.inputs.sdk_version }}
+          SDK_VERSION: ${{ github.event.inputs.sdk_version || '0.0.6' }}
         run: |
           set -euo pipefail
           mkdir -p .sdk
@@ -89,7 +87,6 @@ jobs:
           composer update --no-dev --no-scripts --no-interaction --prefer-dist
 
       - name: Keep only SDK packages in the bundled runtime
-        if: github.event_name == 'workflow_dispatch'
         run: bin/ci-bundle-sdk-only.sh
 
       - name: Install shopware-cli

@@ -62,6 +62,22 @@ listing="$(unzip -Z1 "${zip_file}")"
 
 status=0
 
+# A full Composer resolve also installs Shopware and Symfony. Those belong to the
+# host shop; carrying them here overrides its versions and raises the PHP minimum.
+python3 - "${zip_file}" <<'PYTHON'
+import json
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    metadata = json.loads(archive.read('SwagAgenticCommerce/vendor/composer/installed.json'))
+names = {package['name'] for package in metadata['packages']}
+expected = {'ucp-php-sdk/core', 'ucp-php-sdk/symfony-bundle'}
+if names != expected:
+    sys.exit(f'FAIL: bundled runtime must contain only the two SDK packages; found {sorted(names)}')
+print('ok: bundled runtime contains only the two SDK packages.')
+PYTHON
+
 for package in core symfony-bundle; do
   count="$(printf '%s\n' "${listing}" \
     | grep -c "^${PLUGIN}/vendor/ucp-php-sdk/${package}/.*\.php$" || true)"
