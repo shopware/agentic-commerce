@@ -271,6 +271,31 @@ final class ShopwareCartGatewayTest extends TestCase
         }
     }
 
+    /**
+     * The guard first asked only whether Shopware had stored *any* context for the token. It
+     * stores one for ordinary Store API traffic too -- a login, a currency or language switch --
+     * so a token that had merely been seen by the shop passed as a cart id, and the cart load
+     * route would answer 200 with a fabricated cart. Raised in review on #216.
+     */
+    #[Test]
+    public function testATokenSeenOnlyByUnrelatedStoreApiTrafficIsNotACart(): void
+    {
+        $loadRoute = new RecordingCartLoadRoute(new Cart('seen-elsewhere'));
+        $gateway = $this->gateway(
+            new Cart('seen-elsewhere'),
+            loadRoute: $loadRoute,
+            persister: $this->unrelatedContextPersister(),
+        );
+
+        $this->expectException(ResourceNotFoundException::class);
+
+        try {
+            $gateway->getCart('seen-elsewhere', new RequestContext('shop.test'));
+        } finally {
+            self::assertSame([], $loadRoute->loadedTokens, 'A context stored by unrelated traffic is not a cart this plugin handed out.');
+        }
+    }
+
     public function testUpdatingApplyingToOrCancellingACartNobodyCreatedIsNotFound(): void
     {
         $requestContext = new RequestContext('shop.test');
@@ -335,11 +360,33 @@ final class ShopwareCartGatewayTest extends TestCase
     /**
      * The default for these tests: every token was handed out by cart.create, which is what the
      * existing tests assume. The refusal path has its own tests below.
+     *
+     * The payload carries the plugin's own marker. It previously carried only Shopware's
+     * ordinary context keys, which passed because the guard accepted any stored context at
+     * all -- so the fixture was asserting the hole rather than the rule.
      */
     private function knownCartPersister(): SalesChannelContextPersister
     {
         $persister = $this->createMock(SalesChannelContextPersister::class);
-        $persister->method('load')->willReturnCallback(static fn (string $token): array => ['token' => $token, 'expired' => false]);
+        $persister->method('load')->willReturnCallback(static fn (string $token): array => [
+            'token' => $token,
+            'expired' => false,
+            'swagAgenticCommerce' => ['ucpCart' => ['registered' => true]],
+        ]);
+
+        return $persister;
+    }
+
+    /**
+     * Shopware writes a sales_channel_api_context row for ordinary Store API traffic -- a login,
+     * a currency or language switch. Such a token was never a UCP cart, and accepting it would
+     * let back in exactly what this guard refuses.
+     */
+    private function unrelatedContextPersister(): SalesChannelContextPersister
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturn(['token' => 'someone-elses', 'expired' => false, 'currencyId' => 'abc']);
+        $persister->expects(self::never())->method('save');
 
         return $persister;
     }
