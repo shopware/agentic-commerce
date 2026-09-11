@@ -3,6 +3,7 @@
 - Product links in the OpenAI and Google product feeds now resolve correctly for headless sales channels on Shopware 6.7.14 and newer, so agents receive working product URLs; the feeds keep working unchanged on earlier Shopware versions.
 - Store the administration translations in country-agnostic files (`de.json`, `en.json`) following the current Shopware core convention; a compatibility loader keeps them working on Shopware versions before 6.7.3.
 - Polish the administration texts: consistent capitalisation of the informal German address and a clearer "Total" label in the English statistics summary.
+- Completing an agentic checkout keeps working on upcoming Shopware versions: the guest customer created during completion rotates the Shopware context token and moves the cart with it, and the order is now placed against the new token instead of the stale one, which newer Shopware versions reject with a "cart not found" error.
 
 # 1.3.0
 
