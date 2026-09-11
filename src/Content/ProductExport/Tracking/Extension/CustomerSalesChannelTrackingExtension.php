@@ -14,6 +14,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityExtension;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\Flag\CascadeDelete;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\OneToOneAssociationField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerDefinition;
 
 /**
@@ -23,6 +24,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCust
  *
  * @internal
  */
+#[Package('after-sales')]
 class CustomerSalesChannelTrackingExtension extends EntityExtension
 {
     public function extendFields(FieldCollection $collection): void

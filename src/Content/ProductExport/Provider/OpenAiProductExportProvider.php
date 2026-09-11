@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Provider;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\Country\CountryCollection;
 use Shopware\Core\System\Country\CountryEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
@@ -21,6 +22,7 @@ use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
 /** @internal */
+#[Package('discovery')]
 class OpenAiProductExportProvider extends AbstractAgenticCommerceProductExportProvider
 {
     /**

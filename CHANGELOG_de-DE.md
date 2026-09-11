@@ -3,6 +3,7 @@
 - Produktlinks in den OpenAI- und Google-Produktfeeds werden für Headless-Verkaufskanäle ab Shopware 6.7.14 nun korrekt aufgelöst, sodass Agenten funktionierende Produkt-URLs erhalten; auf älteren Shopware-Versionen funktionieren die Feeds unverändert weiter.
 - Die Admin-Übersetzungen liegen jetzt in länder-agnostischen Dateien (`de.json`, `en.json`) gemäß aktueller Shopware-Core-Konvention; ein Kompatibilitäts-Loader hält sie auf Shopware-Versionen vor 6.7.3 funktionsfähig.
 - Admin-Texte überarbeitet: durchgängige Großschreibung der Du-Anrede und ein eindeutigeres „Total"-Label in der englischen Statistik-Zusammenfassung.
+- Der Abschluss eines agentischen Checkouts funktioniert auch auf kommenden Shopware-Versionen: Der beim Abschluss angelegte Gastkunde rotiert das Shopware-Kontext-Token und verschiebt den Warenkorb mit, und die Bestellung wird nun mit dem neuen statt dem veralteten Token aufgegeben, das neuere Shopware-Versionen mit einem „Warenkorb nicht gefunden“-Fehler ablehnen.
 
 # 1.3.0
 

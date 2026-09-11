@@ -11,6 +11,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Provider;
 
 use Shopware\Core\Checkout\Order\SalesChannel\OrderService;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Struct\ArrayStruct;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
@@ -26,6 +27,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
  * is `@internal`. Register an own provider by extending this class and tagging the
  * service with `swag_agentic_commerce.product_export.provider`.
  */
+#[Package('discovery')]
 abstract class AbstractAgenticCommerceProductExportProvider
 {
     /**
