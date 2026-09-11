@@ -85,6 +85,10 @@ final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterf
                 ...$payload,
                 'created_at' => $timestamp,
             ]);
+            // @phpstan-ignore catch.neverThrown (doctrine/dbal only annotates insert() as
+            // throwing on some of the versions this plugin supports, and dropping the platform
+            // pin widened that range. The catch is load-bearing: two requests configuring the
+            // same sales channel race here, and the loser must update rather than fail.)
         } catch (UniqueConstraintViolationException) {
             $this->connection->update(self::TABLE, $payload, $criteria);
         }
