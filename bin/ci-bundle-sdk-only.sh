@@ -10,7 +10,7 @@ from pathlib import Path
 manifest = json.loads(Path('composer.json').read_text())
 installed = json.loads(Path('vendor/composer/installed.json').read_text())
 versions = {package['name']: package['version'] for package in installed['packages']}
-bundle = json.loads(Path('.sdk/symfony-bundle/composer.json').read_text())
+bundle = json.loads(Path('vendor/ucp-php-sdk/symfony-bundle/composer.json').read_text())
 platform = {
     name: versions[name] for name in bundle['require']
     if name != 'php' and not name.startswith(('ext-', 'ucp-php-sdk/'))

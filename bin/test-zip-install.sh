@@ -64,10 +64,20 @@ in_shop() { docker exec -u www-data "${container}" sh -c "cd /var/www/html && $1
 
 say() { printf '  %s\n' "$1"; }
 
+# Authenticate before temporarily removing a plugin that may already be active.
+token=$(curl -sS -X POST "${shop_url}/api/oauth/token" -H 'Content-Type: application/json' \
+  -d "{\"client_id\":\"administration\",\"grant_type\":\"password\",\"scopes\":\"write\",\"username\":\"${admin_user}\",\"password\":\"${admin_pass}\"}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))')
+[[ -n "${token}" ]] || { echo "Could not obtain an admin token from ${shop_url}." >&2; exit 1; }
+
 # ---------------------------------------------------------------------------------------------
 # Restore. Registered before anything is moved, so an interrupted run still puts the lane back.
 # ---------------------------------------------------------------------------------------------
 restored=0
+composer_backed_up=0
+registry_backed_up=0
+plugin_moved=0
+sdk_moved=0
 # Invoked from the EXIT trap below, which shellcheck cannot see.
 # shellcheck disable=SC2317,SC2329
 restore() {
@@ -76,11 +86,18 @@ restore() {
   fi
   restored=1
   echo "== restoring the lane"
-  in_shop "[ -f /tmp/zit-composer.json ] && cp /tmp/zit-composer.json composer.json" || true
-  in_shop "[ -f /tmp/zit-composer.lock ] && cp /tmp/zit-composer.lock composer.lock" || true
-  in_shop "rm -rf custom/plugins/${PLUGIN}" || true
-  in_shop "[ -d /tmp/zit-plugin ] && mv /tmp/zit-plugin custom/plugins/${PLUGIN}" || true
-  in_shop "[ -d /tmp/zit-sdk ] && mkdir -p vendor && rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk vendor/ucp-php-sdk" || true
+  if [[ "${composer_backed_up}" -eq 1 ]]; then
+    in_shop "cp /tmp/zit-composer.json composer.json && cp /tmp/zit-composer.lock composer.lock" || true
+  fi
+  if [[ "${registry_backed_up}" -eq 1 ]]; then
+    in_shop "cp /tmp/zit-installed.json vendor/composer/installed.json && cp /tmp/zit-installed.php vendor/composer/installed.php" || true
+  fi
+  if [[ "${plugin_moved}" -eq 1 ]]; then
+    in_shop "rm -rf custom/plugins/${PLUGIN} && mv /tmp/zit-plugin custom/plugins/${PLUGIN}" || true
+  fi
+  if [[ "${sdk_moved}" -eq 1 ]]; then
+    in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk vendor/ucp-php-sdk" || true
+  fi
   if [[ -n "${sync_session}" ]]; then
     mutagen sync resume "${sync_session}" >/dev/null 2>&1 || true
   fi
@@ -97,9 +114,42 @@ if [[ -n "${sync_session}" ]]; then
   fi
 fi
 
-in_shop "cp composer.json /tmp/zit-composer.json; cp composer.lock /tmp/zit-composer.lock" || true
-in_shop "rm -rf /tmp/zit-plugin; [ -d custom/plugins/${PLUGIN} ] && mv custom/plugins/${PLUGIN} /tmp/zit-plugin" || true
-in_shop "rm -rf /tmp/zit-sdk; [ -d vendor/ucp-php-sdk ] && mv vendor/ucp-php-sdk /tmp/zit-sdk" || true
+in_shop "test ! -e /tmp/zit-plugin && test ! -e /tmp/zit-sdk"
+in_shop "cp composer.json /tmp/zit-composer.json && cp composer.lock /tmp/zit-composer.lock"
+composer_backed_up=1
+in_shop "cp vendor/composer/installed.json /tmp/zit-installed.json && cp vendor/composer/installed.php /tmp/zit-installed.php"
+registry_backed_up=1
+
+# A development lane also registers the plugin and SDK in Composer's package registry.
+# Leaving those entries behind makes Shopware treat the ZIP as Composer-managed and
+# skip its shipped dependencies, even though the registered SDK files were moved away.
+docker exec -i -u www-data "${container}" php <<'PHP'
+<?php
+chdir('/var/www/html');
+$names = ['shopware/agentic-commerce', 'ucp-php-sdk/core', 'ucp-php-sdk/symfony-bundle'];
+$manifest = json_decode(file_get_contents('composer.json'), true, 512, JSON_THROW_ON_ERROR);
+foreach (['require', 'require-dev'] as $section) {
+    foreach ($names as $name) {
+        unset($manifest[$section][$name]);
+    }
+}
+file_put_contents('composer.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+$installed = json_decode(file_get_contents('vendor/composer/installed.json'), true, 512, JSON_THROW_ON_ERROR);
+$installed['packages'] = array_values(array_filter($installed['packages'], static fn (array $package): bool => !in_array($package['name'], $names, true)));
+file_put_contents('vendor/composer/installed.json', json_encode($installed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+$versions = require 'vendor/composer/installed.php';
+foreach ($names as $name) {
+    unset($versions['versions'][$name]);
+}
+file_put_contents('vendor/composer/installed.php', '<?php return '.var_export($versions, true).';');
+PHP
+
+in_shop "mv custom/plugins/${PLUGIN} /tmp/zit-plugin"
+plugin_moved=1
+if in_shop "test -d vendor/ucp-php-sdk"; then
+  in_shop "mv vendor/ucp-php-sdk /tmp/zit-sdk"
+  sdk_moved=1
+fi
 say "moved the plugin source and the project-level SDK aside"
 
 # The refusal. If the shop still resolves the SDK, a successful install proves nothing about the
@@ -116,10 +166,7 @@ say "confirmed: ${SDK_PROBE_CLASS} is NOT resolvable by the shop"
 # ---------------------------------------------------------------------------------------------
 echo "== installing the archive through the admin upload endpoint"
 
-token=$(curl -sS -X POST "${shop_url}/api/oauth/token" -H 'Content-Type: application/json' \
-  -d "{\"client_id\":\"administration\",\"grant_type\":\"password\",\"scopes\":\"write\",\"username\":\"${admin_user}\",\"password\":\"${admin_pass}\"}" \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))')
-[[ -n "${token}" ]] || { echo "Could not obtain an admin token from ${shop_url}." >&2; exit 1; }
+
 
 api() { curl -sS -o "$2" -w '%{http_code}' --max-time 300 -H "Authorization: Bearer ${token}" "${@:3}"; }
 
