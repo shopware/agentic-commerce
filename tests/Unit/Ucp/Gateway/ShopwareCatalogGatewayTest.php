@@ -75,6 +75,9 @@ final class ShopwareCatalogGatewayTest extends TestCase
     #[Test]
     public function testLookupClampsIdsAndLoadsProductsInOneBatch(): void
     {
+        // Annotated because PHPStan cannot follow a by-reference mutation from inside the
+        // closure below, and infers a shape narrow enough to call the assertion impossible.
+        /** @var list<list<string>> $criteriaIds */
         $criteriaIds = [];
         $products = [
             $this->product('product-b', 'B', 20.0),
@@ -127,6 +130,79 @@ final class ShopwareCatalogGatewayTest extends TestCase
         $payload = $products[0]->toArray();
         self::assertSame(['amount' => 1999, 'currency' => 'USD'], $payload['price_range']['min']);
         self::assertSame(['amount' => 1999, 'currency' => 'USD'], $payload['variants'][0]['price'] ?? null);
+    }
+
+    /**
+     * UCP's `query` is optional free text. Shopware's search route answers an empty term with
+     * nothing, so an agent opening with a blank search -- which the conformance agent does --
+     * was told the shop had no products. An empty query lists the catalog instead.
+     */
+    public function testAnEmptyQueryListsTheCatalogInsteadOfSearchingForNothing(): void
+    {
+        $products = [
+            $this->product('product-a', 'A', 10.0),
+            $this->product('product-b', 'B', 20.0),
+        ];
+        $searchRoute = $this->createMock(AbstractProductSearchRoute::class);
+        $searchRoute->expects(self::never())->method('load');
+        $criteriaSeen = null;
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use (&$criteriaSeen, $products): ProductListResponse {
+                $criteriaSeen = $criteria;
+
+                return $this->listResponse($products, $criteria);
+            },
+        );
+        $gateway = $this->gateway(50, searchRoute: $searchRoute, listRoute: $listRoute);
+
+        $listed = $gateway->search('   ', 2, new RequestContext('shop.test'));
+
+        self::assertSame(['product-a', 'product-b'], array_map(static fn (UcpProduct $product): string => $product->id, $listed));
+        self::assertInstanceOf(Criteria::class, $criteriaSeen);
+        self::assertSame(2, $criteriaSeen->getLimit());
+        self::assertSame(['name', 'id'], array_map(static fn ($sorting) => $sorting->getField(), $criteriaSeen->getSorting()), 'A listing without a term needs a stable order to page over.');
+    }
+
+    #[Test]
+    public function testCatalogExposesThePlainProductDescription(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'A', 19.99, '<p>A lightweight <strong>everyday</strong> shoe.</p>')],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('A lightweight everyday shoe.', $products[0]->description);
+
+        $payload = $products[0]->toArray();
+        self::assertSame(['plain' => 'A lightweight everyday shoe.'], $payload['description']);
+        self::assertSame(['plain' => 'A lightweight everyday shoe.'], $payload['variants'][0]['description'] ?? null);
+    }
+
+    #[Test]
+    public function testCatalogDescriptionFallsBackToTheTitleWhenAbsent(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'Runner Pro', 19.99)],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertNull($products[0]->description);
+        self::assertSame(['plain' => 'Runner Pro'], $products[0]->toArray()['description']);
     }
 
     private function gateway(
@@ -214,13 +290,17 @@ final class ShopwareCatalogGatewayTest extends TestCase
         );
     }
 
-    private function product(string $id, string $name, float $price): SalesChannelProductEntity
+    private function product(string $id, string $name, float $price, ?string $description = null): SalesChannelProductEntity
     {
         $product = new SalesChannelProductEntity();
         $product->setId($id);
         $product->setName($name);
         $product->setProductNumber($id);
         $product->setCalculatedPrice(new CalculatedPrice($price, $price, new CalculatedTaxCollection(), new TaxRuleCollection()));
+
+        if (null !== $description) {
+            $product->setDescription($description);
+        }
 
         return $product;
     }
@@ -245,13 +325,20 @@ final class ShopwareCatalogGatewayTest extends TestCase
      */
     private function listResponse(array $products, Criteria $criteria): ProductListResponse
     {
-        return new ProductListResponse(new EntitySearchResult(
+        // ProductCollection is declared over ProductEntity, so building one from
+        // SalesChannelProductEntity narrows it to ProductCollection<SalesChannelProductEntity>
+        // -- which the invariant EntitySearchResult<ProductCollection> the route returns does
+        // not accept. The runtime type is right; only the inferred generic is too narrow.
+        /** @var EntitySearchResult<ProductCollection> $result */
+        $result = new EntitySearchResult(
             'product',
             \count($products),
             new ProductCollection($products),
             null,
             $criteria,
             Context::createDefaultContext(),
-        ));
+        );
+
+        return new ProductListResponse($result);
     }
 }

@@ -9,6 +9,8 @@ use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
@@ -16,6 +18,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('inventory')]
 final class ShopwareCatalogGateway
 {
     public function __construct(
@@ -39,13 +42,22 @@ final class ShopwareCatalogGateway
         $criteria = new Criteria();
         $criteria->setLimit($limit);
 
-        $response = $this->productSearchRoute->load(new Request([
-            'search' => $query,
-            'limit' => $limit,
-        ]), $context, $criteria);
+        // UCP's `query` is optional free text, so an empty one is a valid request that asks for
+        // the catalog rather than for a match. Shopware's search route answers an empty term
+        // with nothing, which reads to an agent as an empty shop; list instead.
+        if ('' === trim($query)) {
+            $criteria->addSorting(new FieldSorting('name'), new FieldSorting('id'));
+            $entities = $this->productListRoute->load($criteria, $context)->getProducts();
+        } else {
+            $entities = $this->productSearchRoute->load(new Request([
+                'search' => $query,
+                'limit' => $limit,
+            ]), $context, $criteria)->getListingResult()->getEntities();
+        }
+
         $products = [];
 
-        foreach ($response->getListingResult()->getEntities() as $product) {
+        foreach ($entities as $product) {
             if (!$product instanceof SalesChannelProductEntity) {
                 continue;
             }

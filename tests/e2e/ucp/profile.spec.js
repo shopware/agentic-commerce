@@ -96,7 +96,7 @@ test.describe('UCP public profile and transports', () => {
                 type: 'tokenized',
                 handler_id: 'test',
                 credential: { type: 'test' },
-                binding: { checkout_id: 'test' },
+                binding: { type: 'dev.ucp.shopping.checkout', id: 'test' },
             },
             failOnStatusCode: false,
         });
@@ -137,10 +137,10 @@ test.describe('UCP public profile and transports', () => {
         test.skip(!mcpEndpoint, 'Store API MCP endpoint is not exposed by this lane.');
 
         const expectedTools = [
-            'shopware-ucp-cart-create',
-            'shopware-ucp-cart-update',
-            'shopware-ucp-checkout-create',
-            'shopware-ucp-checkout-update',
+            'create_cart',
+            'update_cart',
+            'create_checkout',
+            'update_checkout',
         ];
 
         const mcpApi = await request.newContext();
@@ -172,7 +172,7 @@ test.describe('UCP public profile and transports', () => {
             expect(JSON.stringify(tool.inputSchema)).not.toContain('"default":{}');
         }
 
-        for (const toolName of ['shopware-ucp-cart-update', 'shopware-ucp-checkout-update']) {
+        for (const toolName of ['update_cart', 'update_checkout']) {
             expect(tools.get(toolName).inputSchema.required).toContain('id');
             expect(tools.get(toolName).inputSchema.properties.id.minLength).toBe(1);
         }
@@ -186,7 +186,7 @@ test.describe('UCP public profile and transports', () => {
                 jsonrpc: '2.0',
                 method: 'tools/call',
                 params: {
-                    name: 'shopware-ucp-cart-create',
+                    name: 'create_cart',
                     arguments: {},
                 },
                 id: 203,

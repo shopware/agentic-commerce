@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Tests\Functional\Ucp;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Uuid\Uuid;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -44,5 +45,16 @@ final class UcpCartFlowTest extends TestCase
         $cancel = $this->ucpRequest('POST', '/ucp/v1/carts/'.$cartId.'/cancel', []);
         self::assertSame(Response::HTTP_OK, $cancel->getStatusCode());
         self::assertCount(0, $this->decode($cancel)['line_items'], 'Expected cart.cancel to empty the cart.');
+    }
+
+    public function testACartNobodyCreatedIsNotFoundRatherThanFabricated(): void
+    {
+        $this->configureUcpRuntime();
+
+        $get = $this->ucpRequest('GET', '/ucp/v1/carts/'.Uuid::randomHex());
+
+        self::assertSame(Response::HTTP_NOT_FOUND, $get->getStatusCode(), 'A cart id nobody created must not resolve to a fresh empty cart.');
+        $body = $this->decode($get);
+        self::assertSame('not_found', $body['messages'][0]['code'] ?? null);
     }
 }

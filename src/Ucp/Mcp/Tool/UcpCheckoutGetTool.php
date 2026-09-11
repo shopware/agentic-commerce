@@ -6,10 +6,12 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-checkout-get', title: 'UCP Checkout Get', description: 'Load a checkout session by id through the shared UCP checkout capability.')]
+#[McpTool(name: 'get_checkout', title: 'UCP Checkout Get', description: 'Load a checkout session by id through the shared UCP checkout capability.')]
+#[McpToolGroup('discovery')]
 /** @internal */
 #[Package('checkout')]
 final class UcpCheckoutGetTool

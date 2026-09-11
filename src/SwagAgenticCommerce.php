@@ -19,6 +19,7 @@ use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerP
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -41,8 +42,34 @@ final class SwagAgenticCommerce extends Plugin
     /** Mirror of ProductExportEntity::FILE_FORMAT_JSONL in 6.7.10+. */
     public const FILE_FORMAT_JSONL = 'jsonl';
 
+    /**
+     * Registers the dependencies shipped inside this plugin.
+     *
+     * Shopware only autoloads a plugin's own `autoload.psr-4` from its composer.json; it never
+     * requires `custom/plugins/<Plugin>/vendor/autoload.php`. So when the plugin is installed
+     * from a store ZIP -- where the UCP SDK is vendored into the archive rather than resolved by
+     * the shop -- every `Ucp\Sdk\...` class is on disk and invisible, and installation fails
+     * with SdkNotAvailableException before anything else runs.
+     *
+     * A shop that installs the plugin through Composer already has the SDK on the project
+     * autoloader; there the file is absent and this is a no-op. `require_once` keeps it safe to
+     * call from every entry point, and the project's loader stays first, so a Composer-managed
+     * SDK still wins over the bundled copy.
+     */
+    private function registerBundledDependencies(): void
+    {
+        // getBasePath(), not getPath(): Shopware sets a plugin's path to the directory of its
+        // plugin class (<plugin>/src), while the vendor directory sits at the plugin root.
+        $autoloader = $this->getBasePath().'/vendor/autoload.php';
+
+        if (is_file($autoloader)) {
+            require_once $autoloader;
+        }
+    }
+
     public function build(ContainerBuilder $container): void
     {
+        $this->registerBundledDependencies();
         parent::build($container);
 
         $container->addCompilerPass(
@@ -60,6 +87,11 @@ final class SwagAgenticCommerce extends Plugin
             10000,
         );
 
+        // Build the SDK's URL-safety validator from the plugin's per-channel/global
+        // allowlists instead of the SDK bundle's static (empty) semantic config, so
+        // configured remote profile hosts are actually fetchable.
+        $container->addCompilerPass(new ReplaceSdkUrlSafetyValidatorPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
+
         // In the test environment, swap the SDK's HTTP agent-profile fetcher for a fixed,
         // test-supplied one so the functional suite can negotiate the UCP handshake offline.
         $container->addCompilerPass(
@@ -74,6 +106,7 @@ final class SwagAgenticCommerce extends Plugin
      */
     public function getAdditionalBundles(AdditionalBundleParameters $parameters): array
     {
+        $this->registerBundledDependencies();
         $bundleClass = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
         if (!class_exists($bundleClass)) {
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
@@ -91,6 +124,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function install(InstallContext $installContext): void
     {
+        $this->registerBundledDependencies();
         parent::install($installContext);
 
         $this->bootstrapSdkSchema();
@@ -99,6 +133,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function update(UpdateContext $updateContext): void
     {
+        $this->registerBundledDependencies();
         parent::update($updateContext);
 
         $this->bootstrapSdkSchema();
@@ -107,6 +142,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function activate(ActivateContext $activateContext): void
     {
+        $this->registerBundledDependencies();
         parent::activate($activateContext);
 
         $this->syncCoreAgenticFiles();
@@ -114,7 +150,9 @@ final class SwagAgenticCommerce extends Plugin
 
     public function executeComposerCommands(): bool
     {
-        return true;
+        // A packaged SDK is already complete. Re-resolving it would discard the version
+        // selected at build time, and cannot resolve an untagged QA build from Packagist.
+        return !is_file($this->getBasePath().'/.swag-agentic-commerce-bundled-sdk');
     }
 
     /**

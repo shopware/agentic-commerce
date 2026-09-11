@@ -132,7 +132,7 @@ final class UcpResponseSchemaTest extends TestCase
         // installed from a path repository or from vendor/.
         $coreRoot = \dirname((string) (new \ReflectionClass(GeneratedSchemaValidator::class))->getFileName(), 4);
 
-        return new GeneratedSchemaValidator($coreRoot.'/resources/schema/generated/2026-04-08');
+        return new GeneratedSchemaValidator($coreRoot.'/resources/schema/generated/2026-08-25');
     }
 
     private function cartWithPromotion(): Cart

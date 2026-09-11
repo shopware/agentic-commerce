@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -14,11 +16,13 @@ use Symfony\Component\Lock\LockFactory;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
 /** @internal */
+#[Package('checkout')]
 final class CheckoutCompleter
 {
     public function __construct(
@@ -33,6 +37,7 @@ final class CheckoutCompleter
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
+        private readonly CompletionPaymentApplierInterface $completionPaymentApplier,
     ) {
     }
 
@@ -45,6 +50,7 @@ final class CheckoutCompleter
         Cart $cart,
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
+        ?PaymentInstrument $paymentInstrument = null,
     ): Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
 
@@ -76,10 +82,22 @@ final class CheckoutCompleter
                 $this->sessionManager->guestAddress($metadata),
             );
 
+            // Guest registration rotates the Shopware context token and migrates the persisted cart
+            // along with it, so the token on the cart we were handed points at a storage entry that
+            // no longer exists. Re-tokenize before ordering: the order route recalculates the cart
+            // against the customer context anyway, but it rejects carts whose token it cannot find.
+            $cart->setToken($customerContext->getToken());
+
             $config = $this->configService->getConfig($customerContext->getSalesChannelId());
             if (null !== $config->webhookUrlOverride) {
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
             }
+
+            $customerContext = $this->completionPaymentApplier->apply(
+                $paymentInstrument,
+                $customerContext,
+                $requestContext,
+            );
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
@@ -97,7 +115,7 @@ final class CheckoutCompleter
             if (null !== $config->webhookUrlOverride) {
                 $this->orderWebhookPublisher->publish(
                     $config->webhookUrlOverride,
-                    new OrderWebhookPayload('order.created', $order->getId(), [
+                    new OrderWebhookPayload(event: 'order.created', orderId: $order->getId(), payload: [
                         'order' => $this->mapper->toOrderView($order)->toArray(),
                     ]),
                     $requestContext,

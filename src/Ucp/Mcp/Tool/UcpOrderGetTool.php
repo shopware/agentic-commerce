@@ -6,12 +6,14 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-order-get', title: 'UCP Order Get', description: 'Load an order by id through the shared UCP order capability.')]
+#[McpTool(name: 'get_order', title: 'UCP Order Get', description: 'Load an order by id through the shared UCP order capability.')]
+#[McpToolGroup('discovery')]
 /** @internal */
-#[Package('checkout')]
+#[Package('after-sales')]
 final class UcpOrderGetTool
 {
     public function __construct(

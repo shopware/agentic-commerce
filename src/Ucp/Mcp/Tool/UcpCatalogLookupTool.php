@@ -6,12 +6,14 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-catalog-lookup', title: 'UCP Catalog Lookup', description: 'Load products by id from the current Store API sales-channel catalog through the shared UCP catalog capability. The ids parameter is a string, NOT an array: pass a JSON array string such as ["id-a","id-b"], or a single id, or a comma-separated list of ids.')]
+#[McpTool(name: 'lookup_catalog', title: 'UCP Catalog Lookup', description: 'Load products by id from the current Store API sales-channel catalog through the shared UCP catalog capability. The ids parameter is a string, NOT an array: pass a JSON array string such as ["id-a","id-b"], or a single id, or a comma-separated list of ids.')]
+#[McpToolGroup('discovery')]
 /** @internal */
-#[Package('checkout')]
+#[Package('inventory')]
 final class UcpCatalogLookupTool
 {
     public function __construct(

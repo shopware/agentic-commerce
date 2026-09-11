@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Payment;
 
+use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
 {
     public function id(): string
@@ -20,13 +23,13 @@ final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
     public function describe(RequestContext $context): PaymentHandlerDescriptor
     {
         return new PaymentHandlerDescriptor(
-            $this->id(),
-            $this->id(),
-            '2026-04-08',
-            'https://developer.shopware.com/ucp/payment-handlers/invoice',
-            'https://ucp.dev/schemas/payments/delegate-payment.json',
-            ['https://ucp.dev/schemas/shopping/types/invoice_payment_instrument.json'],
-            [
+            id: $this->id(),
+            name: $this->id(),
+            version: UcpProtocol::VERSION,
+            specUrl: 'https://developer.shopware.com/ucp/payment-handlers/invoice',
+            configSchema: 'https://ucp.dev/schemas/payments/delegate-payment.json',
+            instrumentSchemas: ['https://ucp.dev/schemas/shopping/types/invoice_payment_instrument.json'],
+            config: [
                 'tokenization' => false,
                 'description' => 'Uses the sales channel default invoice/offline payment flow. No raw credential tokenization is performed.',
             ],

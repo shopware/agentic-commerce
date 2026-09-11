@@ -30,7 +30,7 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
      */
     public static function blockedStatusProvider(): iterable
     {
-        yield 'incomplete' => ['incomplete', 'Checkout is incomplete: finish it with shopware-ucp-checkout-update before completing.'];
+        yield 'incomplete' => ['incomplete', 'Checkout is incomplete: finish it with update_checkout before completing.'];
         yield 'requires escalation' => ['requires_escalation', 'Checkout requires escalation and cannot be completed by an agent.'];
         yield 'complete in progress' => ['complete_in_progress', 'Another completion for this checkout is already in flight; retry once it finishes.'];
         yield 'canceled' => ['canceled', 'Checkout is canceled and can no longer be completed.'];

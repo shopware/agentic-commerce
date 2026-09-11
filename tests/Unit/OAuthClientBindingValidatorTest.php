@@ -63,7 +63,7 @@ final class OAuthClientBindingValidatorTest extends TestCase
         return new RequestContext(
             'shop.example',
             platformProfileUri: 'https://agent.example/profile.json',
-            platformProfile: new PlatformProfile('2026-04-08', [], [], []),
+            platformProfile: new PlatformProfile('2026-08-25', [], [], []),
             signatureVerified: true,
         );
     }

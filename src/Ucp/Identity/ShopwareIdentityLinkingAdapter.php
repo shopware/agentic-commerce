@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Identity;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Adapter\IdentityLinkingAdapterInterface;
@@ -16,6 +17,7 @@ use Ucp\Sdk\Model\Identity\OAuthTokenResponse;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('framework')]
 final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
 {
     /**
@@ -39,12 +41,12 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
         $baseUri = $this->baseUri($context);
 
         return new OAuthMetadata(
-            $baseUri,
-            $baseUri.'/ucp/v1/oauth/authorize',
-            $baseUri.'/ucp/v1/oauth/token',
-            self::SUPPORTED_SCOPES,
-            ['authorization_code', 'refresh_token'],
-            ['none'],
+            issuer: $baseUri,
+            authorizationEndpoint: $baseUri.'/ucp/v1/oauth/authorize',
+            tokenEndpoint: $baseUri.'/ucp/v1/oauth/token',
+            scopesSupported: self::SUPPORTED_SCOPES,
+            grantTypesSupported: ['authorization_code', 'refresh_token'],
+            tokenEndpointAuthMethodsSupported: ['none'],
         );
     }
 
@@ -114,7 +116,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
                 throw new OAuthException('Refresh token is invalid or expired.');
             }
 
-            return new OAuthTokenResponse($tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
+            return new OAuthTokenResponse(accessToken: $tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
         }
 
         if ('authorization_code' !== $request->grantType) {
@@ -165,7 +167,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
             $authorization->scope,
         );
 
-        return new OAuthTokenResponse($tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
+        return new OAuthTokenResponse(accessToken: $tokenSet->accessToken, expiresIn: $tokenSet->expiresIn, refreshToken: $tokenSet->refreshToken, scope: $tokenSet->scope);
     }
 
     private function saveAuthorizationCode(

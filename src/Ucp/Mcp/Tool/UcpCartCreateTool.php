@@ -5,13 +5,20 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Mcp\Capability\Attribute\Schema;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
-#[McpTool(name: 'shopware-ucp-cart-create', title: 'UCP Cart Create', description: 'Create a cart through the shared UCP cart capability. The payload parameter is a JSON object string matching the UCP cart.create request. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
-/** @internal */
+/**
+ * @phpstan-import-type UcpMcpNestedJsonObject from UcpMcpToolContext
+ *
+ * @internal
+ */
+#[McpTool(name: 'create_cart', title: 'UCP Cart Create', description: 'Create a cart through the shared UCP cart capability. The payload parameter is a JSON object matching the UCP cart.create request. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
+#[McpToolGroup('discovery')]
 #[Package('checkout')]
 final class UcpCartCreateTool
 {
@@ -21,10 +28,14 @@ final class UcpCartCreateTool
     ) {
     }
 
-    public function __invoke(string $payload = '{}', bool $dryRun = true): string
+    /**
+     * @param UcpMcpNestedJsonObject $payload
+     */
+    #[Schema(properties: ['payload' => ['type' => 'object', 'default' => new \stdClass()]])]
+    public function __invoke(array $payload = [], bool $dryRun = true): string
     {
         try {
-            $requestPayload = $this->toolContext->decodeObject($payload);
+            $requestPayload = $payload;
 
             return $this->toolContext->executeMutating(
                 'cart.create',

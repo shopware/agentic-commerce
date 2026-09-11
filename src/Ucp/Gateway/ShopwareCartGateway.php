@@ -10,13 +10,17 @@ use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemRemoveRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemUpdateRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Cart\CartSessionStore;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Symfony\Component\HttpFoundation\Request;
+use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[Package('checkout')]
 final class ShopwareCartGateway
 {
     public function __construct(
@@ -28,6 +32,7 @@ final class ShopwareCartGateway
         private readonly AbstractCartDeleteRoute $cartDeleteRoute,
         private readonly ShopwareDataMapper $mapper,
         private readonly ShopwareVersionDetector $versionDetector,
+        private readonly CartSessionStore $cartSessions,
     ) {
     }
 
@@ -39,6 +44,7 @@ final class ShopwareCartGateway
     {
         $context = $this->contextResolver->resolve($token, $requestContext);
         $cart = $this->synchronize($context, $lineItems, $discountCodes);
+        $this->cartSessions->register($context);
 
         return $this->mapper->toCart($cart, $context);
     }
@@ -46,6 +52,7 @@ final class ShopwareCartGateway
     public function getCart(string $token, RequestContext $requestContext): \Ucp\Sdk\Model\Cart\Cart
     {
         $context = $this->contextResolver->resolve($token, $requestContext);
+        $this->requireKnownCart($token, $context);
         $cart = $this->loadCart($context);
 
         return $this->mapper->toCart($cart, $context);
@@ -58,6 +65,7 @@ final class ShopwareCartGateway
     public function updateCart(string $token, array $lineItems, array $discountCodes, RequestContext $requestContext): \Ucp\Sdk\Model\Cart\Cart
     {
         $context = $this->contextResolver->resolve($token, $requestContext);
+        $this->requireKnownCart($token, $context);
         $cart = $this->synchronize($context, $lineItems, $discountCodes);
 
         return $this->mapper->toCart($cart, $context);
@@ -66,6 +74,7 @@ final class ShopwareCartGateway
     public function applyDiscountCode(string $token, string $discountCode, RequestContext $requestContext): \Ucp\Sdk\Model\Cart\Cart
     {
         $context = $this->contextResolver->resolve($token, $requestContext);
+        $this->requireKnownCart($token, $context);
         $cart = $this->loadCart($context);
 
         if ('' === $discountCode || $this->hasPromotionCode($cart, $discountCode)) {
@@ -85,6 +94,7 @@ final class ShopwareCartGateway
     public function cancelCart(string $token, RequestContext $requestContext): \Ucp\Sdk\Model\Cart\Cart
     {
         $context = $this->contextResolver->resolve($token, $requestContext);
+        $this->requireKnownCart($token, $context);
         $cart = $this->loadCart($context);
 
         if ($cart->getLineItems()->count() > 0) {
@@ -217,6 +227,18 @@ final class ShopwareCartGateway
         }
 
         return $cart;
+    }
+
+    /**
+     * @throws ResourceNotFoundException when no UCP cart was ever created under this id
+     */
+    private function requireKnownCart(string $token, \Shopware\Core\System\SalesChannel\SalesChannelContext $context): void
+    {
+        if ($this->cartSessions->isKnown($context)) {
+            return;
+        }
+
+        throw new ResourceNotFoundException(\sprintf('Cart "%s" was not found.', $token));
     }
 
     private function loadCart(\Shopware\Core\System\SalesChannel\SalesChannelContext $context): \Shopware\Core\Checkout\Cart\Cart

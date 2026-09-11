@@ -86,6 +86,8 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -102,6 +104,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Http\ConfiguredUrlSafetyValidatorFactory;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
@@ -139,6 +142,7 @@ use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Adapter\DiscountAdapterInterface;
 use Ucp\Sdk\Adapter\OrderAdapterInterface;
+use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
 use Ucp\Sdk\Contract\CartCapabilityInterface;
 use Ucp\Sdk\Contract\CatalogCapabilityInterface;
 use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
@@ -159,7 +163,7 @@ return static function (ContainerConfigurator $container): void {
         || '::1' === $appUrlHost;
 
     $container->extension('ucp_sdk', [
-        'version' => '2026-04-08',
+        'version' => '2026-08-25',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
         'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
@@ -260,9 +264,17 @@ return static function (ContainerConfigurator $container): void {
     $services->set(CheckoutWebhookUrlGuard::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
+    // Completion keeps charging the sales channel default until something is registered
+    // under this interface. Replacing it is the whole integration: alias your own service
+    // here and the instrument reaches it. See docs/completion-payment.md.
+    $services->set(UnappliedCompletionPayment::class)
+        ->arg('$logger', service('logger')->nullOnInvalid());
+    $services->alias(CompletionPaymentApplierInterface::class, UnappliedCompletionPayment::class);
+
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
     $services->alias(CheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
+    $services->alias(PaymentAwareCheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
     $services->alias(DiscountAdapterInterface::class, ShopwareDiscountAdapter::class);
     $services->alias(OrderAdapterInterface::class, ShopwareOrderAdapter::class);
 
@@ -363,6 +375,11 @@ return static function (ContainerConfigurator $container): void {
     $services->set(UcpConfigService::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
         ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
+
+    // Feeds the shop's per-channel/global UCP allowlists into the SDK's URL-safety
+    // validator; ReplaceSdkUrlSafetyValidatorPass swaps the SDK definition to this factory.
+    $services->set(ConfiguredUrlSafetyValidatorFactory::class)
+        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
 
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
