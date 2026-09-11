@@ -53,6 +53,8 @@ final class EmbeddedResponseListener
             return;
         }
 
+        $request->attributes->set('ucp_embedded_allowed_origins', $config->embeddedAllowedOrigins);
+
         if (Request::METHOD_OPTIONS === $request->getMethod()) {
             $event->setResponse($this->preflight($origin, $config));
         }

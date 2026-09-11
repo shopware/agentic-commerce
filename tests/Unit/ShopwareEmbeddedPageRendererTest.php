@@ -33,13 +33,6 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
 
     protected function setUp(): void
     {
-        // The UCP SDK cart/checkout models are declared as PHP 8.2 `readonly class`es, so this
-        // test cannot even parse them on the PHP 8.1 unit lane (6.5/phpunit-9). The plugin's own
-        // code stays 8.1-safe; this is a pure test-fixture constraint of the SDK dependency.
-        if (\PHP_VERSION_ID < 80200) {
-            self::markTestSkipped('Exercises UCP SDK models declared as PHP 8.2 readonly classes.');
-        }
-
         $this->cart = new Cart('cart-id', [], 'EUR');
         $this->checkout = new Checkout(
             'checkout-id',
@@ -117,7 +110,7 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
     }
 
     #[Test]
-    public function testItPinsTheInboundBridgeGuardToTheTargetOrigin(): void
+    public function testOriginLessNavigationDoesNotAssumeTheShopIsTheParent(): void
     {
         $request = Request::create('https://shop.example/ucp/embedded/cart/cart-id');
         $request->attributes->set('ucp_request_context', new RequestContext('shop.example'));
@@ -126,11 +119,8 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
 
         self::assertNotNull($response);
         $content = $response->getContent() ?: '';
-        // A single-clause guard. An `|| targetOrigin === window.location.origin` style
-        // escape hatch disables the check entirely on origin-less loads, which are the
-        // common case, so assert the exact shape.
-        self::assertStringContainsString('if (event.origin !== targetOrigin) {', $content);
-        self::assertStringNotContainsString('targetOrigin !== window.location.origin', $content);
+        self::assertStringContainsString('"targetOrigin":null', $content);
+        self::assertStringContainsString('"allowedOrigins":[]', $content);
     }
 
     #[Test]
