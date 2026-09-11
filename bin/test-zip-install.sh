@@ -68,8 +68,12 @@ say() { printf '  %s\n' "$1"; }
 # Restore. Registered before anything is moved, so an interrupted run still puts the lane back.
 # ---------------------------------------------------------------------------------------------
 restored=0
+# Invoked from the EXIT trap below, which shellcheck cannot see.
+# shellcheck disable=SC2317,SC2329
 restore() {
-  [[ "${restored}" -eq 1 ]] && return 0
+  if [[ "${restored}" -eq 1 ]]; then
+    return 0
+  fi
   restored=1
   echo "== restoring the lane"
   in_shop "[ -f /tmp/zit-composer.json ] && cp /tmp/zit-composer.json composer.json" || true
@@ -77,7 +81,9 @@ restore() {
   in_shop "rm -rf custom/plugins/${PLUGIN}" || true
   in_shop "[ -d /tmp/zit-plugin ] && mv /tmp/zit-plugin custom/plugins/${PLUGIN}" || true
   in_shop "[ -d /tmp/zit-sdk ] && mkdir -p vendor && rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk vendor/ucp-php-sdk" || true
-  [[ -n "${sync_session}" ]] && mutagen sync resume "${sync_session}" >/dev/null 2>&1 || true
+  if [[ -n "${sync_session}" ]]; then
+    mutagen sync resume "${sync_session}" >/dev/null 2>&1 || true
+  fi
   say "lane restored; re-run your bootstrap if the plugin version looks off"
 }
 trap restore EXIT
@@ -85,7 +91,11 @@ trap restore EXIT
 # ---------------------------------------------------------------------------------------------
 echo "== preparing a shop that has never seen the SDK"
 
-[[ -n "${sync_session}" ]] && { mutagen sync pause "${sync_session}" >/dev/null 2>&1 && say "paused sync ${sync_session}"; }
+if [[ -n "${sync_session}" ]]; then
+  if mutagen sync pause "${sync_session}" >/dev/null 2>&1; then
+    say "paused sync ${sync_session}"
+  fi
+fi
 
 in_shop "cp composer.json /tmp/zit-composer.json; cp composer.lock /tmp/zit-composer.lock" || true
 in_shop "rm -rf /tmp/zit-plugin; [ -d custom/plugins/${PLUGIN} ] && mv custom/plugins/${PLUGIN} /tmp/zit-plugin" || true
@@ -176,5 +186,8 @@ case "${origin}" in
   *) echo "FAIL: SDK resolved from ${origin}, not from the plugin's bundled vendor." >&2; status=1 ;;
 esac
 
-[[ "${status}" -eq 0 ]] && echo "== PASS: the archive installs and runs on a shop without the SDK"
+if [[ "${status}" -eq 0 ]]; then
+  echo "== PASS: the archive installs and runs on a shop without the SDK"
+fi
+
 exit "${status}"

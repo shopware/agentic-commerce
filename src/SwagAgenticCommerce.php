@@ -60,7 +60,7 @@ final class SwagAgenticCommerce extends Plugin
     {
         // getBasePath(), not getPath(): Shopware sets a plugin's path to the directory of its
         // plugin class (<plugin>/src), while the vendor directory sits at the plugin root.
-        $autoloader = $this->getBasePath() . '/vendor/autoload.php';
+        $autoloader = $this->getBasePath().'/vendor/autoload.php';
 
         if (is_file($autoloader)) {
             require_once $autoloader;
