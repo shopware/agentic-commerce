@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Capability;
 
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
@@ -12,6 +13,7 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
 /** @internal */
+#[Package('checkout')]
 final class PaymentTokenizationCapability implements TokenizationCapabilityInterface
 {
     public function __construct(

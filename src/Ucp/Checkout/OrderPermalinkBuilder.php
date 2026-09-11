@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Model\RequestContext;
 
 /**
@@ -41,6 +42,7 @@ use Ucp\Sdk\Model\RequestContext;
  *
  * @internal
  */
+#[Package('checkout')]
 final class OrderPermalinkBuilder
 {
     public function build(OrderEntity $order, RequestContext $context): string

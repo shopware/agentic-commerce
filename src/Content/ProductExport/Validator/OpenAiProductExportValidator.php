@@ -11,12 +11,14 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Validator;
 
 use Shopware\Core\Content\ProductExport\Error\ErrorCollection;
 use Shopware\Core\Content\ProductExport\ProductExportEntity;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Content\ProductExport\AgenticProductExportException;
 use Swag\AgenticCommerce\Content\ProductExport\Error\JsonlValidationError;
 use Swag\AgenticCommerce\Content\ProductExport\Error\ProviderValidationError;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 
 /** @internal */
+#[Package('discovery')]
 class OpenAiProductExportValidator extends AbstractProviderValidator
 {
     /**

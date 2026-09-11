@@ -12,6 +12,7 @@ namespace Swag\AgenticCommerce\Content\ProductExport\Tracking\Extension;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityExtension;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\OneToManyAssociationField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerDefinition;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderDefinition;
@@ -22,6 +23,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrde
  *
  * @internal
  */
+#[Package('after-sales')]
 class SalesChannelProductExportTrackingExtension extends EntityExtension
 {
     public function extendFields(FieldCollection $collection): void

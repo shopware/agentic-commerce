@@ -13,6 +13,7 @@ use Shopware\Core\Checkout\Order\OrderDefinition;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityExtension;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\OneToOneAssociationField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
+use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderDefinition;
 
 /**
@@ -21,6 +22,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrde
  *
  * @internal
  */
+#[Package('after-sales')]
 class OrderSalesChannelTrackingExtension extends EntityExtension
 {
     public function extendFields(FieldCollection $collection): void
