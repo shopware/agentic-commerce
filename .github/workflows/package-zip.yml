@@ -119,3 +119,28 @@ jobs:
         with:
           name: SwagAgenticCommerce
           path: dist
+
+      # Neither guard above can prove the archive installs. The SDK was once present, correctly
+      # pointed at, and still never loaded, because Shopware does not require a plugin's own
+      # vendor/autoload.php -- so both checks passed while `plugin:install` failed on every
+      # Shopware version. Only an install onto a shop that does not separately provide the SDK
+      # settles it, and that is a local step until this workflow boots a shop of its own.
+      - name: How to verify this archive actually installs
+        run: |
+          {
+            echo "### Before handing this archive to anyone"
+            echo
+            echo 'The checks in this job prove the SDK is *in* the archive and that the autoloader'
+            echo '*points* at it. They cannot prove it loads. Run the install smoke against a lane'
+            echo 'whose shop does not already provide the SDK:'
+            echo
+            echo '```'
+            echo 'bin/test-zip-install.sh --zip <downloaded>.zip \'
+            echo '  --container shopware-6-5-branch-web-1 \'
+            echo '  --shop-url http://sw65.localhost:8088 \'
+            echo '  --sync-session agentic-commerce-65'
+            echo '```'
+            echo
+            echo 'It strips the project-level SDK first and refuses to run if the shop can still'
+            echo 'resolve it, because that is how the last defect stayed invisible.'
+          } >> "$GITHUB_STEP_SUMMARY"
