@@ -95,6 +95,7 @@ final class EmbeddedResponseListenerTest extends TestCase
         $this->listener->onKernelRequest($event);
 
         self::assertFalse($event->hasResponse());
+        self::assertSame(['https://assistant.example'], $event->getRequest()->attributes->get('ucp_embedded_allowed_origins'));
     }
 
     /**
@@ -119,6 +120,7 @@ final class EmbeddedResponseListenerTest extends TestCase
         $this->listener->onKernelRequest($event);
 
         self::assertFalse($event->hasResponse());
+        self::assertSame(['https://assistant.example'], $event->getRequest()->attributes->get('ucp_embedded_allowed_origins'));
     }
 
     #[Test]
