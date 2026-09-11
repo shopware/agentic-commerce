@@ -413,6 +413,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
