@@ -104,7 +104,7 @@ final class UcpMcpToolDryRunContractTest extends TestCase
 
     #[DataProvider('payloadCarryingToolProvider')]
     #[Test]
-    public function testToolsWithARequestBodyDeclareAnOptionalStringPayload(string $tool): void
+    public function testToolsWithARequestBodyAcceptAnObjectPayload(string $tool): void
     {
         $parameter = $this->parameters($tool)['payload'] ?? null;
 
@@ -112,9 +112,16 @@ final class UcpMcpToolDryRunContractTest extends TestCase
 
         $type = $parameter->getType();
         self::assertInstanceOf(\ReflectionNamedType::class, $type);
-        self::assertSame('string', $type->getName(), 'payload must be a string so the generated schema declares a JSON object string.');
+        self::assertSame('array', $type->getName());
         self::assertTrue($parameter->isDefaultValueAvailable(), 'payload must be optional.');
-        self::assertSame('{}', $parameter->getDefaultValue(), 'payload must default to an empty JSON object.');
+        self::assertSame([], $parameter->getDefaultValue());
+
+        $method = new \ReflectionMethod(self::TOOL_NAMESPACE.$tool, '__invoke');
+        $attributes = $method->getAttributes(\Mcp\Capability\Attribute\Schema::class);
+        self::assertCount(1, $attributes);
+        $schema = $attributes[0]->getArguments()['properties']['payload'];
+        self::assertSame('object', $schema['type']);
+        self::assertInstanceOf(\stdClass::class, $schema['default']);
     }
 
     #[DataProvider('readOnlyToolProvider')]
