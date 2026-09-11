@@ -148,6 +148,10 @@ activate=$(api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/activate/
 [[ "${activate}" == "204" ]] || { echo "FAIL: activate returned HTTP ${activate}." >&2; exit 1; }
 say "activate: HTTP 204"
 
+# The lane may already have this QA version marked active, so activation is a no-op.
+# Drop routes cached while the source plugin was moved aside before probing the ZIP.
+in_shop "php bin/console cache:clear --no-warmup" >/tmp/zit-cache-clear.log 2>&1
+
 # ---------------------------------------------------------------------------------------------
 echo "== checking it actually runs from the copy the archive shipped"
 
