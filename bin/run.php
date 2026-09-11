@@ -168,9 +168,7 @@ function locateShopwareCore(string $pluginDir): string
 function renderShopwarePhpstanIncludes(string $coreDir): string
 {
     $phpStanDir = $coreDir.'/DevOps/StaticAnalyze/PHPStan';
-    $shopwareProjectDir = \dirname($coreDir, 2);
-
-    if (!is_file($shopwareProjectDir.'/vendor/phpstan/phpstan/conf/bleedingEdge.neon')) {
+    if (!includesShopwarePhpstanConfig($coreDir)) {
         return '';
     }
 
@@ -193,7 +191,7 @@ function renderFutureCompatibilityInclude(string $pluginDir): string
 
 function renderShopwarePhpstanParameters(string $coreDir): string
 {
-    if (!supportsConfigurableCoversRule($coreDir)) {
+    if (!includesShopwarePhpstanConfig($coreDir) || !supportsConfigurableCoversRule($coreDir)) {
         return '';
     }
 
@@ -207,7 +205,7 @@ function renderShopwarePhpstanParameters(string $coreDir): string
 
 function renderUnexpectedTestCoversIgnore(string $coreDir): string
 {
-    if (supportsConfigurableCoversRule($coreDir)) {
+    if (includesShopwarePhpstanConfig($coreDir) && supportsConfigurableCoversRule($coreDir)) {
         return '';
     }
 
@@ -217,6 +215,11 @@ function renderUnexpectedTestCoversIgnore(string $coreDir): string
         '            identifier: shopware.unexpectedTestCovers',
         "            message: '#.+#'",
     ]);
+}
+
+function includesShopwarePhpstanConfig(string $coreDir): bool
+{
+    return is_file(\dirname($coreDir, 2).'/vendor/phpstan/phpstan/conf/bleedingEdge.neon');
 }
 
 function supportsConfigurableCoversRule(string $coreDir): bool

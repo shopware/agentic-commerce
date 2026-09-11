@@ -32,6 +32,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
@@ -86,6 +87,18 @@ final class ShopwareCartGatewayTest extends TestCase
         self::assertSame('cart-token', $result->id);
         self::assertCount(1, $result->lineItems);
         self::assertSame('product-a', $result->lineItems[0]->id);
+    }
+
+    #[Test]
+    public function testLoadRouteReturnsTheProvidedCart(): void
+    {
+        $storedCart = new Cart('stored-cart-token');
+        $providedCart = new Cart('provided-cart-token');
+        $loadRoute = new RecordingCartLoadRoute($storedCart);
+
+        $response = $loadRoute->load(new Request(), $this->createSalesChannelContext('stored-cart-token'), $providedCart);
+
+        self::assertSame($providedCart, $response->getCart());
     }
 
     #[Test]
