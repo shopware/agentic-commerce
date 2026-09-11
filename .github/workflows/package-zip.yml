@@ -88,6 +88,10 @@ jobs:
           # Fresh checkouts have no lock file, so Composer must resolve the full set.
           composer update --no-dev --no-scripts --no-interaction --prefer-dist
 
+      - name: Keep only SDK packages in the bundled runtime
+        if: github.event_name == 'workflow_dispatch'
+        run: bin/ci-bundle-sdk-only.sh
+
       - name: Install shopware-cli
         uses: shopware/shopware-cli-action@v3
 
@@ -124,6 +128,7 @@ jobs:
         with:
           name: SwagAgenticCommerce
           path: dist
+          include-hidden-files: true
 
       # Neither guard above can prove the archive installs. The SDK was once present, correctly
       # pointed at, and still never loaded, because Shopware does not require a plugin's own

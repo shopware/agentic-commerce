@@ -150,7 +150,9 @@ final class SwagAgenticCommerce extends Plugin
 
     public function executeComposerCommands(): bool
     {
-        return true;
+        // A packaged SDK is already complete. Re-resolving it would discard the version
+        // selected at build time, and cannot resolve an untagged QA build from Packagist.
+        return !is_file($this->getBasePath().'/.swag-agentic-commerce-bundled-sdk');
     }
 
     /**
