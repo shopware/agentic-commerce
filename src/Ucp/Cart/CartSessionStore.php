@@ -16,13 +16,17 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
  * the wrong one for a protocol: an agent asking for a cart nobody created must be told it does
  * not exist, not handed a fresh one under the id it guessed. The marker lives in the same
  * `sales_channel_api_context` payload the checkout session already uses, so no table is added
- * and a token a checkout persisted counts as known too.
+ * and a token a UCP checkout persisted counts as known too.
+ *
+ * @internal
  */
 #[Package('checkout')]
 final class CartSessionStore
 {
     private const PAYLOAD_KEY = 'swagAgenticCommerce';
     private const CART_KEY = 'ucpCart';
+    /** Written by CheckoutSessionStore; a checkout's token is a cart this plugin handed out. */
+    private const CHECKOUT_KEY = 'ucpCheckout';
 
     public function __construct(
         private readonly SalesChannelContextPersister $persister,
@@ -44,12 +48,23 @@ final class CartSessionStore
     }
 
     /**
-     * A token is known once anything persisted a context under it: a cart created through
-     * UCP, or a checkout session. Shopware's persister answers an empty array for a token it
-     * has never stored, so that is the whole test.
+     * A token is known once this plugin wrote one of its own markers under it: a cart created
+     * through UCP, or a checkout session.
+     *
+     * Deliberately not "the persister has anything at all for this token". Shopware writes a
+     * `sales_channel_api_context` row for ordinary Store API traffic too -- a login, a currency
+     * or language switch -- and treating those as cart ids would let exactly the tokens this
+     * guard exists to refuse back through.
      */
     public function isKnown(SalesChannelContext $context): bool
     {
-        return [] !== $this->persister->load($context->getToken(), $context->getSalesChannelId());
+        $payload = $this->persister->load($context->getToken(), $context->getSalesChannelId());
+        $markers = $payload[self::PAYLOAD_KEY] ?? null;
+
+        if (!\is_array($markers)) {
+            return false;
+        }
+
+        return isset($markers[self::CART_KEY]) || isset($markers[self::CHECKOUT_KEY]);
     }
 }
