@@ -511,7 +511,7 @@ Steps:
     -H 'Content-Type: application/json' \
     -H 'Idempotency-Key: manual-test-tokenize-1' \
     -H 'UCP-Agent: manual-tester; profile="http://sw65.localhost:8088/.well-known/ucp"' \
-    -d '{"type":"tokenized","handler_id":"<installed-handler-id>","credential":{},"binding":{"checkout_id":"<checkout-id>"}}'
+    -d '{"type":"tokenized","handler_id":"<installed-handler-id>","credential":{},"binding":{"type":"dev.ucp.shopping.checkout","id":"<checkout-id>"}}'
   ```
 
 - Complete a checkout that uses the token. Expected: a paid Shopware order is

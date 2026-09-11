@@ -49,7 +49,7 @@ ucp_expect_status 501 'payment tokenization' \
   -X POST "${BASE_URL}/ucp/v1/tokenize" \
   -H 'content-type: application/json' \
   -H "Idempotency-Key: $(next_idempotency_key)" \
-  -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"checkout_id":"test"}}' >/dev/null
+  -d '{"type":"tokenized","handler_id":"test","credential":{"type":"test"},"binding":{"type":"dev.ucp.shopping.checkout","id":"test"}}' >/dev/null
 
 has_transport() {
   jq -e --arg transport "$1" '.ucp.services["dev.ucp.shopping"][] | select(.transport == $transport)' >/dev/null <<<"${profile_json}"

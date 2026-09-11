@@ -96,7 +96,7 @@ test.describe('UCP public profile and transports', () => {
                 type: 'tokenized',
                 handler_id: 'test',
                 credential: { type: 'test' },
-                binding: { checkout_id: 'test' },
+                binding: { type: 'dev.ucp.shopping.checkout', id: 'test' },
             },
             failOnStatusCode: false,
         });
