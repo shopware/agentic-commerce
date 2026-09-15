@@ -56,3 +56,36 @@ release never reaches a shop on its own. It arrives with a plugin release in whi
 From the shop's point of view an upgrade to such a release changes the version in
 `/.well-known/ucp`, and every agent that still speaks the previous version is refused with
 `422 version_unsupported` from then on. The previous version is not served alongside.
+
+## Seeing which versions agents actually speak
+
+Whether refusing the previous version costs a shop anything depends on which versions the
+agents pin, and that is not public information. SDK releases after `0.0.6` report the version
+an agent's profile named on every request, and `VersionNegotiationCounter` in this plugin
+counts it: one log record per request per distinct combination of observed version, served
+version, outcome and agent profile host, written at kernel terminate on the monolog channel
+`ucp_negotiation` at `info` level. Only the profile **host** is recorded, never the full URI
+or any request content.
+
+Shopware's default production logging keeps only errors, so to retain these records give the
+channel a handler in the shop's `config/packages/prod/monolog.yaml`:
+
+```yaml
+monolog:
+    handlers:
+        ucp_negotiation:
+            type: stream
+            path: '%kernel.logs_dir%/ucp-negotiation.log'
+            level: info
+            channels: ['ucp_negotiation']
+```
+
+Each record's context looks like:
+
+```json
+{"observed_version": "2026-04-08", "served_version": "2026-08-25", "outcome": "rejected", "profile_host": "agent.example", "count": 1}
+```
+
+The share of `rejected` records, grouped by `observed_version`, is what the SDK policy names as
+its revisit trigger. Against SDK `0.0.6`, which does not report it, the listener is inert and
+writes nothing.

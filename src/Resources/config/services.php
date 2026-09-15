@@ -123,6 +123,7 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutGetTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
+use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
@@ -218,6 +219,13 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelDomainResolverCacheInvalidator::class)
         ->arg('$cache', service('cache.object'))
         ->tag('kernel.event_subscriber');
+
+    // Its own monolog channel, so a shop can keep these counters with one handler entry
+    // while the default production setup goes on dropping everything below error.
+    // See docs/ucp-version-support.md.
+    $services->set(VersionNegotiationCounter::class)
+        ->tag('kernel.event_subscriber')
+        ->tag('monolog.logger', ['channel' => 'ucp_negotiation']);
 
     $services->set(SalesChannelBaseUrlResolver::class)
         ->arg('$domainRepository', service('sales_channel_domain.repository'));
