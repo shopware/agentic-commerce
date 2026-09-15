@@ -24,9 +24,10 @@ final class GuestCustomerContextProvisioner implements GuestCustomerContextProvi
     }
 
     /**
-     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress         the billing address
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress set only when the agent stated one distinct from billing
      */
-    public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+    public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
     {
         if (null !== $context->getCustomer()) {
             return $context;
@@ -36,25 +37,29 @@ final class GuestCustomerContextProvisioner implements GuestCustomerContextProvi
             throw new ValidationException('Checkout session is missing buyer.email; set it on checkout create or update before completion.', ['$.checkout_session.buyer.email is required']);
         }
 
-        $address = $this->addressResolver->resolve($context, $guestAddress);
+        $billing = $this->addressResolver->resolve($context, $guestAddress);
         $firstName = $buyer->firstName ?: 'Guest';
         $lastName = $buyer->lastName ?: 'Customer';
 
-        $response = $this->registerRoute->register(new RequestDataBag([
+        $payload = [
             'guest' => true,
             'firstName' => $firstName,
             'lastName' => $lastName,
             'email' => $buyer->email,
-            'billingAddress' => [
-                'firstName' => $firstName,
-                'lastName' => $lastName,
-                'street' => $address['street'],
-                'zipcode' => $address['zipcode'],
-                'city' => $address['city'],
-                'countryId' => $address['countryId'],
-                'phoneNumber' => $buyer->phoneNumber,
-            ],
-        ]), $context, false);
+            'billingAddress' => $this->addressPayload($billing, $firstName, $lastName, $buyer->phoneNumber),
+        ];
+
+        // Sent only when the agent stated a shipping address distinct from the billing
+        // one. Omitted, Shopware defaults shipping to billing -- which is what every
+        // existing session relies on, and until now the only possible outcome: the UCP
+        // shipping destination was registered AS the billing address and no shipping
+        // address was ever passed.
+        if (null !== $guestShippingAddress && $guestShippingAddress !== $guestAddress) {
+            $shipping = $this->addressResolver->resolve($context, $guestShippingAddress);
+            $payload['shippingAddress'] = $this->addressPayload($shipping, $firstName, $lastName, $buyer->phoneNumber);
+        }
+
+        $response = $this->registerRoute->register(new RequestDataBag($payload), $context, false);
 
         $customer = $response->getCustomer();
         $newToken = $response->headers->get(PlatformRequest::HEADER_CONTEXT_TOKEN);
@@ -71,5 +76,23 @@ final class GuestCustomerContextProvisioner implements GuestCustomerContextProvi
             null,
             $customer->getId(),
         ));
+    }
+
+    /**
+     * @param array{street: string, zipcode: string, city: string, countryId: string} $address
+     *
+     * @return array<string, string|null>
+     */
+    private function addressPayload(array $address, string $firstName, string $lastName, ?string $phoneNumber): array
+    {
+        return [
+            'firstName' => $firstName,
+            'lastName' => $lastName,
+            'street' => $address['street'],
+            'zipcode' => $address['zipcode'],
+            'city' => $address['city'],
+            'countryId' => $address['countryId'],
+            'phoneNumber' => $phoneNumber,
+        ];
     }
 }

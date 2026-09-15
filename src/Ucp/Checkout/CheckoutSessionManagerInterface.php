@@ -25,8 +25,16 @@ interface CheckoutSessionManagerInterface
     public function guestAddress(array $metadata): ?array;
 
     /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
+     */
+    public function guestShippingAddress(array $metadata): ?array;
+
+    /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress
      */
     public function save(
         SalesChannelContext $salesChannelContext,
@@ -36,11 +44,14 @@ interface CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?string $paymentHandlerId = null,
+        ?array $guestShippingAddress = null,
     ): void;
 
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress
      */
     public function saveForCheckoutId(
         string $checkoutId,
@@ -51,5 +62,7 @@ interface CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?string $paymentHandlerId = null,
+        ?array $guestShippingAddress = null,
     ): void;
 }

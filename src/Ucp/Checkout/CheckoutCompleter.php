@@ -80,6 +80,7 @@ final class CheckoutCompleter
                 $salesChannelContext,
                 $buyer,
                 $this->sessionManager->guestAddress($metadata),
+                $this->sessionManager->guestShippingAddress($metadata),
             );
 
             // Guest registration rotates the Shopware context token and migrates the persisted cart

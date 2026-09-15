@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
@@ -31,6 +32,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutPaymentNegotiator;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
@@ -50,6 +52,7 @@ use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[CoversClass(ShopwareCheckoutAdapter::class)]
 final class ShopwareCheckoutAdapterTest extends TestCase
 {
     #[Test]
@@ -143,6 +146,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $contextResolver,
             new ContextTokenGenerator(),
             new OrderPermalinkBuilder(),
+            $this->uninitialized(CheckoutPaymentNegotiator::class),
         );
 
         $checkout = $adapter->getCheckout($checkoutId, new RequestContext('shop.example'));
@@ -193,6 +197,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $contextResolver,
             new ContextTokenGenerator(),
             new OrderPermalinkBuilder(),
+            $this->uninitialized(CheckoutPaymentNegotiator::class),
         );
 
         $this->expectExceptionObject(new ValidationException('Completed checkout session is missing its Shopware context token.'));

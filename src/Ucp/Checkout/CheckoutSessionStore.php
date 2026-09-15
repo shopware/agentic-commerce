@@ -78,6 +78,19 @@ final class CheckoutSessionStore
     }
 
     /**
+     * The UCP payment handler id the client committed to (from
+     * CheckoutUpdateRequest.payment). Null when the client committed none.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public function paymentHandlerId(array $metadata): ?string
+    {
+        $id = $metadata['paymentHandlerId'] ?? null;
+
+        return \is_string($id) && '' !== $id ? $id : null;
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      */
     public function buyer(array $metadata): ?Buyer
@@ -102,7 +115,30 @@ final class CheckoutSessionStore
      */
     public function guestAddress(array $metadata): ?array
     {
-        $guestAddress = $metadata['guestAddress'] ?? null;
+        return $this->storedAddress($metadata['guestAddress'] ?? null);
+    }
+
+    /**
+     * The shipping address, when the agent stated one distinct from the billing address.
+     *
+     * Absent for every session written before the two were separated, and for every
+     * agent that supplies only one — the caller falls back to the billing address, which
+     * is what Shopware did implicitly before.
+     *
+     * @param array<string, mixed> $metadata
+     *
+     * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
+     */
+    public function guestShippingAddress(array $metadata): ?array
+    {
+        return $this->storedAddress($metadata['guestShippingAddress'] ?? null);
+    }
+
+    /**
+     * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
+     */
+    private function storedAddress(mixed $guestAddress): ?array
+    {
         if (!\is_array($guestAddress)) {
             return null;
         }

@@ -20,6 +20,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress
      */
     public function save(
         SalesChannelContext $salesChannelContext,
@@ -29,8 +30,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?string $paymentHandlerId = null,
+        ?array $guestShippingAddress = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $paymentHandlerId, $guestShippingAddress);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
     }
@@ -38,6 +41,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress
      */
     public function saveForCheckoutId(
         string $checkoutId,
@@ -48,8 +52,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
+        ?string $paymentHandlerId = null,
+        ?array $guestShippingAddress = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $paymentHandlerId, $guestShippingAddress);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -61,6 +67,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     /**
      * @param list<string>                                                                                        $discountCodes
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress
      *
      * @return array<string, mixed>
      */
@@ -72,6 +79,8 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId,
         ?string $orderDeepLinkCode,
         ?array $guestAddress,
+        ?string $paymentHandlerId = null,
+        ?array $guestShippingAddress = null,
     ): array {
         $metadata = [
             'status' => $status,
@@ -98,6 +107,14 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
             $metadata['guestAddress'] = $guestAddress;
         }
 
+        if (null !== $guestShippingAddress) {
+            $metadata['guestShippingAddress'] = $guestShippingAddress;
+        }
+
+        if (null !== $paymentHandlerId && '' !== $paymentHandlerId) {
+            $metadata['paymentHandlerId'] = $paymentHandlerId;
+        }
+
         return $metadata;
     }
 
@@ -117,6 +134,16 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
     public function guestAddress(array $metadata): ?array
     {
         return $this->sessionStore->guestAddress($metadata);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
+     */
+    public function guestShippingAddress(array $metadata): ?array
+    {
+        return $this->sessionStore->guestShippingAddress($metadata);
     }
 
     /**
