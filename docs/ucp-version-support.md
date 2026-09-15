@@ -45,7 +45,7 @@ a profile). The plugin does not build one, for the reasons in the SDK policy doc
 
 ## What an SDK spec bump means for a shop
 
-The plugin requires the SDK at the exact version it was tested against (`0.0.6` today), so a new SDK
+The plugin requires the SDK at the exact version it was tested against (`0.0.7` today), so a new SDK
 release never reaches a shop on its own. It arrives with a plugin release in which:
 
 - `UcpProtocol::VERSION` has been moved to the new date, after `ShopwareDataMapper` and
@@ -60,7 +60,7 @@ From the shop's point of view an upgrade to such a release changes the version i
 ## Seeing which versions agents actually speak
 
 Whether refusing the previous version costs a shop anything depends on which versions the
-agents pin, and that is not public information. SDK releases after `0.0.6` report the version
+agents pin, and that is not public information. SDK `0.0.7` and newer report the version
 an agent's profile named on every request, and `VersionNegotiationCounter` in this plugin
 counts it: one log record per request per distinct combination of observed version, served
 version, outcome and agent profile host, written at kernel terminate on the monolog channel
@@ -87,5 +87,5 @@ Each record's context looks like:
 ```
 
 The share of `rejected` records, grouped by `observed_version`, is what the SDK policy names as
-its revisit trigger. Against SDK `0.0.6`, which does not report it, the listener is inert and
-writes nothing.
+its revisit trigger. SDK `0.0.7` is the first release that reports it; against `0.0.6` the listener
+was inert and wrote nothing.

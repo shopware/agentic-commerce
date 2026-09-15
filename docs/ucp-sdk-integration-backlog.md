@@ -73,14 +73,14 @@ Effort is S/M/L.
 
 ## P1 — `build!: pin the SDK to an exact patch range`
 
-**Status.** Done 2026-09-15: `composer.json` requires exactly `0.0.6`; see `docs/ucp-version-support.md` for the policy an integrator sees.
+**Status.** Done 2026-09-15: `composer.json` requires exactly `0.0.7`; see `docs/ucp-version-support.md` for the policy an integrator sees.
 
 **Why.** See "The one thing that must happen first". Six breaking SDK releases
 are coming and the current constraint admits all of them silently.
 
 **Note.** `~0.0.5` does **not** help — for a `0.0.x` version Composer expands the
 tilde to the same `>=0.0.5 <0.1.0`. Use an explicit single-patch window
-(exactly `0.0.6`), bumped deliberately per SDK release with a CHANGELOG entry.
+(exactly `0.0.7`), bumped deliberately per SDK release with a CHANGELOG entry.
 
 **Files.** `composer.json:14`; `.github/workflows/ci.yml:221-222` (the forced
 path-repo versions must track the same window); `CHANGELOG.md` and

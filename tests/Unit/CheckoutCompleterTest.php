@@ -373,7 +373,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 return $this->customerContext;
             }
