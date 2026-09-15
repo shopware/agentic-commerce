@@ -364,6 +364,9 @@ final class ShopwareCartGatewayTest extends TestCase
                 throw new \BadMethodCallException('Decoration is not supported in tests.');
             }
 
+            /**
+             * @param array<LineItem>|null $items
+             */
             public function add(Request $request, Cart $cart, SalesChannelContext $context, ?array $items): \Shopware\Core\Checkout\Cart\SalesChannel\CartResponse
             {
                 // Exactly what a parent product does: accepted, then silently not in the cart.

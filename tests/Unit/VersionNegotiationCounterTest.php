@@ -26,7 +26,10 @@ final class VersionNegotiationCounterTest extends TestCase
         $counter->onVersionNegotiationObserved(new VersionNegotiationObservedEvent('2026-04-08', '2026-08-25', 'https://agent.example/.well-known/ucp', VersionNegotiationOutcome::Rejected));
         $counter->onVersionNegotiationObserved(new VersionNegotiationObservedEvent('2026-08-25', '2026-08-25', 'https://agent.example/.well-known/ucp', VersionNegotiationOutcome::Accepted));
 
-        self::assertSame([], $logger->records, 'Nothing is written before the request terminates.');
+        // Read into a local first: asserting the property itself is empty narrows it to array{}
+        // for the rest of the method, and PHPStan cannot see that flush() refills it.
+        $beforeFlush = $logger->records;
+        self::assertSame([], $beforeFlush, 'Nothing is written before the request terminates.');
 
         $counter->flush();
 

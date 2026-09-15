@@ -217,7 +217,10 @@ final class UcpSetupCommand extends Command
 
     private function channel(string $salesChannelId): ?SalesChannelView
     {
-        foreach ($this->salesChannelViewProvider->all(Context::createCLIContext()) as $channel) {
+        // createDefaultContext(), like every other call site here including ucp:config:validate
+        // which lists the same channels: createCLIContext() arrived after 6.5 and 6.6, and this
+        // plugin supports ~6.5 || ~6.6 || ~6.7, where it is an undefined static method.
+        foreach ($this->salesChannelViewProvider->all(Context::createDefaultContext()) as $channel) {
             if ($channel->id === $salesChannelId) {
                 return $channel;
             }
