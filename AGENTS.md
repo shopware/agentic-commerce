@@ -378,13 +378,13 @@ changelogs (`# <version>`) in the release PR. See the
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 
-- **SDK version window.** `ucp-php-sdk/symfony-bundle` is required as an explicit
-  single-patch window, currently `>=0.0.6 <0.0.7` — **not** a caret (a caret on `0.0.x` is
-  locked to that exact patch; the plugin's original `^0.0.2` never resolved `0.0.3`) and
-  **not** a tilde (`~0.0.6` is the open `>=0.0.6 <0.1.0` range the window replaced). Read
-  the window out of `composer.json` rather than from here. The SDK serves one UCP version
+- **SDK version pin.** `ucp-php-sdk/symfony-bundle` is required at the exact version it
+  was tested against, currently `0.0.6` — **not** a caret (a caret on `0.0.x` already means
+  that exact patch; the plugin's original `^0.0.2` never resolved `0.0.3`), **not** a tilde
+  (`~0.0.6` is the open `>=0.0.6 <0.1.0` range) and **not** a `>=a <b` window, which still
+  admits a four-component `0.0.6.1`. Read the pin out of `composer.json` rather than from here. The SDK serves one UCP version
   per release and switches it outright, so a new SDK release must arrive with a plugin
-  release, never on its own; that is what the window enforces. CI still tests against the
+  release, never on its own; that is what the pin enforces. CI still tests against the
   moving SDK `main` so upcoming breakage is caught early, but `main` only *predicts* a tag:
   never merge release-bound code that references SDK symbols living only on the SDK `main`
   branch or an unmerged SDK PR — CI passes against `main` while a shop on the published tag
