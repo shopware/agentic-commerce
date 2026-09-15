@@ -140,8 +140,8 @@ repositories against the synced container paths and require only the plugin:
 
 ```bash
 composer config repositories.swag-agentic-commerce '{"type":"path","url":"custom/plugins/SwagAgenticCommerce","options":{"symlink":true}}'
-composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"ucp-php-sdk/core":"0.0.1"}}}'
-composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.1"}}}'
+composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"ucp-php-sdk/core":"0.0.6"}}}'
+composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.6"}}}'
 composer require shopware/agentic-commerce:6.6.9999999-dev --with-all-dependencies
 bin/console plugin:refresh
 bin/console plugin:install --activate SwagAgenticCommerce
@@ -155,10 +155,11 @@ The plugin directly requires `ucp-php-sdk/symfony-bundle`; SDK core is
 resolved transitively by that bundle. Shopware packages are provided by the
 active lane. The local SDK path repositories above are only needed while the
 SDK packages are private/local.
-Use stable `0.0.1` path aliases for both SDK packages. Composer does not
-propagate alpha stability flags from the SDK bundle to the root Shopware
-project, so alpha path aliases can make the transitive core package
-unsatisfiable.
+Force a stable version that lies inside the window `composer.json` requires
+(`0.0.6` for `>=0.0.6 <0.0.7`; see the README section *The SDK version window*).
+Composer does not propagate alpha stability flags from the SDK bundle to the
+root Shopware project, so alpha path aliases can make the transitive core
+package unsatisfiable.
 
 The Composer `symlink` option is container-local package behavior. It is not
 the old host-plugin-symlink workflow.
