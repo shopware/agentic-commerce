@@ -26,11 +26,6 @@ final class VersionNegotiationCounterTest extends TestCase
         $counter->onVersionNegotiationObserved(new VersionNegotiationObservedEvent('2026-04-08', '2026-08-25', 'https://agent.example/.well-known/ucp', VersionNegotiationOutcome::Rejected));
         $counter->onVersionNegotiationObserved(new VersionNegotiationObservedEvent('2026-08-25', '2026-08-25', 'https://agent.example/.well-known/ucp', VersionNegotiationOutcome::Accepted));
 
-        // Read into a local first: asserting the property itself is empty narrows it to array{}
-        // for the rest of the method, and PHPStan cannot see that flush() refills it.
-        $beforeFlush = $logger->records;
-        self::assertSame([], $beforeFlush, 'Nothing is written before the request terminates.');
-
         $counter->flush();
 
         self::assertCount(2, $logger->records);
@@ -54,6 +49,22 @@ final class VersionNegotiationCounterTest extends TestCase
         $counter->flush();
 
         self::assertCount(2, $logger->records, 'Flushing resets the counters; nothing is written twice.');
+    }
+
+    /**
+     * Its own test on purpose. Asserting that the recorder is empty narrows the property to
+     * `array{}` for the rest of the method, and PHPStan cannot see `flush()` refilling it, so
+     * keeping this in the test above made every later offset read an analysis error.
+     */
+    #[Test]
+    public function testNothingIsWrittenBeforeTheRequestTerminates(): void
+    {
+        $logger = new CollectingLogger();
+        $counter = new VersionNegotiationCounter($logger);
+
+        $counter->onVersionNegotiationObserved(new VersionNegotiationObservedEvent('2026-04-08', '2026-08-25', 'https://agent.example/.well-known/ucp', VersionNegotiationOutcome::Rejected));
+
+        self::assertSame([], $logger->records);
     }
 
     #[Test]
