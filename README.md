@@ -230,13 +230,13 @@ After merging and waiting for the `main` CI run, dispatch a packaging-only run f
 
 Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
 
-### The SDK version window
+### The SDK version pin
 
-The plugin requires `ucp-php-sdk/symfony-bundle` as an explicit single-patch window — currently `>=0.0.6 <0.0.7`, though `composer.json` is the authority and this page is not. Not a caret and not a tilde. **A caret on a `0.0.x` version is locked to that exact patch** (the plugin's original `^0.0.2` meant `>=0.0.2 <0.0.3` and never picked up `0.0.3`), and `~0.0.6` expands to `>=0.0.6 <0.1.0`, which is the open range this window replaced.
+The plugin requires `ucp-php-sdk/symfony-bundle` at the exact version it was tested against — currently `0.0.6`, though `composer.json` is the authority and this page is not. Not a caret, not a tilde, and not a `>=a <b` window. A caret on a `0.0.x` version already means that exact patch (`^0.0.2` is `>=0.0.2 <0.0.3`, which is why the plugin's original constraint never picked up `0.0.3`), `~0.0.6` expands to the open `>=0.0.6 <0.1.0`, and even `>=0.0.6 <0.0.7` still admits a four-component `0.0.6.1`. An exact version is the only constraint that cannot widen.
 
-The window is deliberate. A plugin has no `composer.lock` and the SDK resolves at merchant install time, so the open range let any `0.0.x` release — which carries no compatibility promise — reach production without a plugin change. The SDK serves exactly one UCP version per release and switches it outright (see the SDK's `docs/ucp-version-support-policy.md`), so an SDK release that moves the spec date changes what every shop advertises and has to arrive together with the plugin review that goes with it. The window turns that into a release decision instead of an accident. [docs/ucp-version-support.md](docs/ucp-version-support.md) is the integrator-facing summary.
+The pin is deliberate. A plugin has no `composer.lock` and the SDK resolves at merchant install time, so a range let any matching release — which carries no compatibility promise — reach production without a plugin change. The SDK serves exactly one UCP version per release and switches it outright (see the SDK's `docs/ucp-version-support-policy.md`), so an SDK release that moves the spec date changes what every shop advertises and has to arrive together with the plugin review that goes with it. The pin turns that into a release decision instead of an accident. [docs/ucp-version-support.md](docs/ucp-version-support.md) is the integrator-facing summary.
 
-Moving the window is a plugin release:
+Moving the pin is a plugin release:
 
 1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — anyone who resolved before that tag existed gets the older release that lacks them, and the plugin fatals with `Class "…" not found`.
 2. **Move the window, and the forced versions with it.**

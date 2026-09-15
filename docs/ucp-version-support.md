@@ -45,12 +45,12 @@ a profile). The plugin does not build one, for the reasons in the SDK policy doc
 
 ## What an SDK spec bump means for a shop
 
-The plugin requires the SDK as a single-patch window (`>=0.0.6 <0.0.7` today), so a new SDK
+The plugin requires the SDK at the exact version it was tested against (`0.0.6` today), so a new SDK
 release never reaches a shop on its own. It arrives with a plugin release in which:
 
 - `UcpProtocol::VERSION` has been moved to the new date, after `ShopwareDataMapper` and
   `UcpCapabilityCatalog` were reviewed against the new schemas;
-- the window in `composer.json` was moved to the new SDK patch;
+- the pin in `composer.json` was moved to the new SDK release;
 - the changelog names the new UCP version.
 
 From the shop's point of view an upgrade to such a release changes the version in
