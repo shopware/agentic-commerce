@@ -36,6 +36,43 @@ The SDK is a required runtime dependency for this plugin line. Shopware installs
 
 UCP provides the transaction contract for agentic shopping. The plugin exposes lane-aware UCP configuration in the Administration and wires Shopware catalog/cart/checkout/order behavior through the `ucp-php-sdk`.
 
+### Set up UCP on a sales channel
+
+The whole path from "plugin activated" to "first UCP request answered", for one sales channel. You need a Storefront or Headless sales channel with at least one domain; every other channel type is refused.
+
+1. **Configure the channel in one step.**
+
+   ```bash
+   # a laptop or a test system
+   bin/console ucp:setup --sales-channel=Storefront --dev
+
+   # production: strict signatures, and only the named platform may talk to the channel
+   bin/console ucp:setup --sales-channel=Storefront --agent-host=agent.example.com
+   ```
+
+   `ucp:setup` switches UCP on for the channel, writes the security defaults, generates a signing key if the channel has none, runs the readiness checks and prints the profile URL. `--dev` accepts unsigned requests (policy `log`) and puts the channel's own domain hosts and `localhost` on the allowlists, so the shop can act as its own agent. Without `--dev` the policy is `strict` and nothing is allowed until you name a platform host. `--dry-run` shows the resulting config without writing it.
+
+2. **Locally only: turn on the SDK's development mode.** Every UCP request names the *calling agent's* profile URL, and the SDK's URL-safety rules refuse everything a laptop can offer (`*.localhost` names and container hostnames resolve to loopback). In development mode the shop accepts its own `/.well-known/ucp` as that profile instead, so no second server is needed.
+
+   ```bash
+   export SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1
+   bin/console cache:clear
+   ```
+
+   Never set this in production: it also admits plain-http and loopback profile hosts.
+
+3. **Make the first request.** The SDK bundle prints it for you, headers and a minimal body included:
+
+   ```bash
+   bin/console ucp:dev:request catalog.search --base-uri=http://shop.localhost:8088
+   ```
+
+   Paste the printed `curl`. Expect `200` with `"status": "success"` in the `ucp` envelope. Without an argument the command lists every operation; `--id` fills in product and resource ids.
+
+4. **Change and re-check.** Exposure (active, profile domain, capabilities, transports) lives in the Administration under the sales channel; allowlists and policy in `ucp:config:set`; `bin/console ucp:config:validate --sales-channel=Storefront` re-runs the readiness checks any time.
+
+What the shortcut in step 2 does and does not prove, and what to do when you need a real second profile (strict signatures, the conformance agent, a staging platform), is in the SDK's `docs/local-testing.md`. Which UCP version the plugin serves and what an SDK bump means for a shop is in [docs/ucp-version-support.md](docs/ucp-version-support.md).
+
 Current responsibilities:
 
 - Configure UCP per sales channel — Storefront and Headless only. Every other type, product feed channels included, is refused: the card is hidden, the Admin API and `ucp:config:set` return an error, and a stale `active` flag reads as off.
@@ -53,9 +90,11 @@ UCP is administered from the CLI for everything except the per-channel Exposure 
 
 | Command | Purpose |
 | --- | --- |
+| `ucp:setup --sales-channel=… [--dev] [--agent-host=…] [--dry-run]` | Configure a channel for UCP in one step: exposure, security defaults, signing key, readiness check, first request. See *Set up UCP on a sales channel* above. |
 | `ucp:channels` | List the UCP-capable sales channels, their ids and UCP exposure (`exposed` / `off`). |
 | `ucp:config:show --sales-channel=…` | Print the resolved UCP config for a channel. |
 | `ucp:config:set --sales-channel=… …` | Set the non-UI config fields (below). Only the options you pass change; the rest is preserved by a merge, so admin-managed Exposure fields are never reset. |
+| `ucp:dev:request [operation] [--id=…] --base-uri=…` | SDK command. Print a ready-to-run `curl` for a UCP operation with the shop's own profile as the agent (needs the development mode from step 2 above). |
 | `ucp:signing-keys:{generate,list,show-public,retire,delete} --sales-channel=…` | Manage a channel's signing keys — thin subclasses of the SDK commands that map `--sales-channel` to the SDK tenant. |
 
 `ucp:config:set` fields (run it with `--help` for per-option examples):
@@ -130,7 +169,9 @@ Google XML rows include the required Merchant Center fields, canonical and track
 
 Feed generation, scheduling, caching, and invalidation are owned by Shopware's product export subsystem. The plugin supplies provider-specific templates, provider context, JSONL normalization, and validation. Template defaults set `generateByCronjob: false` and `interval: 86400`; merchants can adjust export behavior through the normal Shopware product export configuration.
 
-## Local Development
+## Local Development (plugin maintainers)
+
+This section is about developing the plugin itself against three Shopware lanes. To run UCP on a shop you already have, see [Set up UCP on a sales channel](#set-up-ucp-on-a-sales-channel) above; the full lane workflow is in [docs/manual-testing.md](docs/manual-testing.md).
 
 This repository keeps plugin source, QA tooling, and CI helpers only. Local Podman/Mutagen lane orchestration is intentionally not versioned here, because it is workstation setup, not plugin code.
 

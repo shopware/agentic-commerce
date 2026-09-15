@@ -1,5 +1,6 @@
 # 1.3.0
 
+- Neuer Befehl `ucp:setup`, der einen Verkaufskanal in einem Schritt für UCP einrichtet: Freigabe, Sicherheitsvorgaben, ein Signaturschlüssel, falls noch keiner existiert, die Bereitschaftsprüfung und der erste auszuführende Request. `--dev` wählt lokale Vorgaben, mit denen der Shop als sein eigener Agent auftreten kann; ohne die Option gelten Produktionsvorgaben. Die README beschreibt die gesamte Einrichtung in vier Schritten.
 - UCP `2026-08-25` mit SDK `0.0.6` oder neuer: versionsabhängige Capability-Aushandlung, standardisierte Katalog-IDs sowie aktualisierte Einwilligungs-, Liefer- und Zahlungsdaten.
 - Katalogsuche und Produktabfrage liefern echte Produktbeschreibungen. Fehlt eine Beschreibung, wird der Produkttitel verwendet.
 - Eine leere Katalogsuche listet Produkte auf. Unbekannte Warenkorb-IDs werden mit `not_found` abgelehnt.

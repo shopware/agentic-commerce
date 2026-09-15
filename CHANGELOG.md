@@ -1,5 +1,6 @@
 # 1.3.0
 
+- Add `ucp:setup`, which configures a sales channel for UCP in one step: exposure, security defaults, a signing key when the channel has none, the readiness checks and the first request to run. `--dev` picks local defaults so the shop can act as its own agent; without it the defaults are production ones. The README now walks through the whole setup in four steps.
 - Serve UCP `2026-08-25` through SDK `0.0.6` or newer, including version-aware capability negotiation, the standard catalog capability IDs and updated consent, fulfillment and payment shapes.
 - Return real product descriptions from catalog search and lookup, with the product title as fallback.
 - Apply checkout completion payment data through the platform gateway and expose the applied-discount breakdown.
