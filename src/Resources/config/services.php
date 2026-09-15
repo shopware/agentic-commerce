@@ -18,6 +18,7 @@ use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
 use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
+use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
@@ -267,6 +268,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractCountryRoute::class, CountryRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
+    $services->alias(AbstractProductListRoute::class, ProductListRoute::class);
 
     // SDK adapter and capability bindings.
 

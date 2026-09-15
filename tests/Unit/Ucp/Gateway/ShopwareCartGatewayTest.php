@@ -9,6 +9,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\LineItem\LineItem;
+use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
+use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
@@ -34,6 +36,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\DiscountCode;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
@@ -346,9 +349,42 @@ final class ShopwareCartGatewayTest extends TestCase
         self::assertArrayHasKey('ucpCart', $saved['fresh-token']['swagAgenticCommerce']);
     }
 
+    /**
+     * Shopware removes a line item it cannot resolve and leaves no error on the cart, so the
+     * gateway used to answer `201 Created`, `status: success`, no messages, and an empty cart --
+     * and the agent's next call was checkout.
+     */
+    #[Test]
+    public function testARequestedProductThatNeverArrivesInTheCartIsAnError(): void
+    {
+        $cart = new Cart('token-drop');
+        $droppingAddRoute = new class extends AbstractCartItemAddRoute {
+            public function getDecorated(): AbstractCartItemAddRoute
+            {
+                throw new \BadMethodCallException('Decoration is not supported in tests.');
+            }
+
+            public function add(Request $request, Cart $cart, SalesChannelContext $context, ?array $items): \Shopware\Core\Checkout\Cart\SalesChannel\CartResponse
+            {
+                // Exactly what a parent product does: accepted, then silently not in the cart.
+                return new \Shopware\Core\Checkout\Cart\SalesChannel\CartResponse($cart);
+            }
+        };
+
+        $gateway = $this->gateway($cart, addRoute: $droppingAddRoute);
+
+        try {
+            $gateway->createCart('token-drop', [new UcpLineItem('parent-a', 'Acoustic Guitar', 25.08, 1)], [], new RequestContext('shop.test'));
+            self::fail('Expected the dropped line item to be reported.');
+        } catch (ValidationException $exception) {
+            self::assertStringContainsString('could not be added', implode(' ', $exception->getViolations()));
+            self::assertStringContainsString('parent-a', implode(' ', $exception->getViolations()));
+        }
+    }
+
     private function gateway(
         Cart $cart,
-        ?RecordingCartItemAddRoute $addRoute = null,
+        ?AbstractCartItemAddRoute $addRoute = null,
         ?RecordingCartItemRemoveRoute $removeRoute = null,
         ?RecordingCartItemUpdateRoute $updateRoute = null,
         ?RecordingCartDeleteRoute $deleteRoute = null,
@@ -367,6 +403,9 @@ final class ShopwareCartGatewayTest extends TestCase
             new ShopwareDataMapper(),
             new ShopwareVersionDetector(versionOverride: '6.6.0.0'),
             new CartSessionStore($persister ?? $this->knownCartPersister()),
+            // Only consulted when a requested line item did not make it into the cart, which the
+            // recording add-route never does: it adds exactly what it was handed.
+            $this->createMock(AbstractProductListRoute::class),
         );
     }
 
