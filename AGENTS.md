@@ -378,19 +378,22 @@ changelogs (`# <version>`) in the release PR. See the
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 
-- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is required as an explicit range,
-  currently `>=0.0.5 <0.1.0`, **not** a caret — a caret on `0.0.x` is locked to that exact
-  patch (the plugin's original `^0.0.2` never resolved `0.0.3`) and excluded every future
-  release. Read the lower bound out of `composer.json` rather than from here. The range lets
-  new `0.0.x` releases reach merchants without a plugin change, so SDK breakage can
-  arrive on its own; that is why CI must keep testing against the moving SDK `main`.
-  It still only *permits* a newer tag — an install with an existing lock resolves the
-  older one — so never merge release-bound code that references SDK symbols living
-  only on the SDK `main` branch or an unmerged SDK PR: CI passes against `main` while
-  such an install fatals with `Class "…" not found`. Depending on a new symbol means
-  raising the range's **lower bound** in `composer.json` and keeping the two forced
-  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two
-  in `bin/ci-smoke.sh` at or above it, while leaving `UCP_SDK_REF` on `main`.
+- **SDK version window.** `ucp-php-sdk/symfony-bundle` is required as an explicit
+  single-patch window, currently `>=0.0.6 <0.0.7` — **not** a caret (a caret on `0.0.x` is
+  locked to that exact patch; the plugin's original `^0.0.2` never resolved `0.0.3`) and
+  **not** a tilde (`~0.0.6` is the open `>=0.0.6 <0.1.0` range the window replaced). Read
+  the window out of `composer.json` rather than from here. The SDK serves one UCP version
+  per release and switches it outright, so a new SDK release must arrive with a plugin
+  release, never on its own; that is what the window enforces. CI still tests against the
+  moving SDK `main` so upcoming breakage is caught early, but `main` only *predicts* a tag:
+  never merge release-bound code that references SDK symbols living only on the SDK `main`
+  branch or an unmerged SDK PR — CI passes against `main` while a shop on the published tag
+  fatals with `Class "…" not found`. Moving the window means `composer.json`, the two forced
+  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two in
+  `bin/ci-smoke.sh`, plus — when the spec date moved — `UcpProtocol::VERSION`, which
+  `UcpProtocolVersionGuardTest` holds equal to the SDK's `UcpProtocolVersion::current()`.
+  Leave `UCP_SDK_REF` on `main`. See the README `The SDK version window` section and
+  `docs/ucp-version-support.md`.
 - **Migrations.** The runner never re-runs an applied migration. Never edit the
   effect of a migration already shipped in a tagged release (upgraded shops keep the
   old schema); add a new idempotent forward migration instead. Editing a migration

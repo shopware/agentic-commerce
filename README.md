@@ -230,23 +230,22 @@ After merging and waiting for the `main` CI run, dispatch a packaging-only run f
 
 Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
 
-### Bumping the SDK version floor
+### The SDK version window
 
-The plugin requires `ucp-php-sdk/symfony-bundle` as an explicit range — currently `>=0.0.5 <0.1.0`, though `composer.json` is the authority on the lower bound and this page is not — written out rather than as a caret. **A caret on a `0.0.x` version is locked to that exact patch**: the plugin's original `^0.0.2` meant `>=0.0.2 <0.0.3`, so it never picked up `0.0.3` and excluded every future release by construction. The range keeps the guard that matters (`<0.1.0`, since a pre-1.0 project breaks things on the minor) while letting new `0.0.x` releases in. The SDK hit the same bug in its own `symfony-bundle` → `core` requirement and fixed it the same way in 0.0.3.
+The plugin requires `ucp-php-sdk/symfony-bundle` as an explicit single-patch window — currently `>=0.0.6 <0.0.7`, though `composer.json` is the authority and this page is not. Not a caret and not a tilde. **A caret on a `0.0.x` version is locked to that exact patch** (the plugin's original `^0.0.2` meant `>=0.0.2 <0.0.3` and never picked up `0.0.3`), and `~0.0.6` expands to `>=0.0.6 <0.1.0`, which is the open range this window replaced.
 
-Two consequences follow, and they pull in opposite directions:
+The window is deliberate. A plugin has no `composer.lock` and the SDK resolves at merchant install time, so the open range let any `0.0.x` release — which carries no compatibility promise — reach production without a plugin change. The SDK serves exactly one UCP version per release and switches it outright (see the SDK's `docs/ucp-version-support-policy.md`), so an SDK release that moves the spec date changes what every shop advertises and has to arrive together with the plugin review that goes with it. The window turns that into a release decision instead of an accident. [docs/ucp-version-support.md](docs/ucp-version-support.md) is the integrator-facing summary.
 
-- **A new SDK release now reaches merchants without a plugin change.** `0.0.x` carries no compatibility promise, so a breaking SDK patch can land in production on its own. That is what makes the moving-`main` CI signal below load-bearing rather than nice to have.
-- **The range permits a newer tag; it does not guarantee one.** An install with an existing `composer.lock`, or one resolved before a tag was published, still runs the older `0.0.x`. So the range is not a substitute for raising the floor.
-
-When plugin code starts using SDK symbols introduced in a newer SDK tag (a new model, enum, or constructor argument):
+Moving the window is a plugin release:
 
 1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — anyone who resolved before that tag existed gets the older release that lacks them, and the plugin fatals with `Class "…" not found`.
-2. **Raise the lower bound, and keep the forced versions at or above it.** Requiring a symbol means requiring the tag that introduced it — widen-and-hope does not do that:
-   - `composer.json` — the lower bound of the `ucp-php-sdk/symfony-bundle` range, e.g. `>=0.0.5 <0.1.0` for a symbol introduced in 0.0.5, leaving the `<0.1.0` upper bound alone.
-   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version below the new lower bound no longer satisfies the constraint and resolution breaks.
+2. **Move the window, and the forced versions with it.**
+   - `composer.json` — the `ucp-php-sdk/symfony-bundle` window, e.g. `>=0.0.7 <0.0.8` for SDK 0.0.7.
+   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version outside the window no longer satisfies the constraint and resolution breaks.
    - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines.
-3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the raised bound. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal, which now also guards the `0.0.x` releases that reach merchants by themselves.
+   - `src/Ucp/UcpProtocol.php` — only if the SDK release moved the spec date. `UcpProtocolVersionGuardTest` fails until `UcpProtocol::VERSION` follows, and it must follow only after `ShopwareDataMapper` and `UcpCapabilityCatalog` have been reviewed against the new schemas. Do not make the constant read the SDK's enum; the failing test is the point.
+   - `CHANGELOG.md` and `CHANGELOG_de-DE.md`.
+3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the window. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
 
 > **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against whichever published tag an install actually resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json`'s lower bound is that tag or newer.
 

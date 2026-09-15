@@ -1,5 +1,6 @@
 # 1.3.0
 
+- Require the UCP SDK as a single patch window (`>=0.0.6 <0.0.7`). The SDK serves one UCP version per release and switches it outright, so an SDK release now arrives together with a plugin release instead of reaching shops on its own. `docs/ucp-version-support.md` explains what the plugin serves and what a spec bump means for a shop.
 - Serve UCP `2026-08-25` through SDK `0.0.6` or newer, including version-aware capability negotiation, the standard catalog capability IDs and updated consent, fulfillment and payment shapes.
 - Return real product descriptions from catalog search and lookup, with the product title as fallback.
 - Apply checkout completion payment data through the platform gateway and expose the applied-discount breakdown.

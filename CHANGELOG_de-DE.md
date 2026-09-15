@@ -1,5 +1,6 @@
 # 1.3.0
 
+- Das UCP-SDK wird als einzelnes Patch-Fenster (`>=0.0.6 <0.0.7`) vorausgesetzt. Das SDK bedient pro Release genau eine UCP-Version und wechselt sie vollständig, deshalb erreicht ein SDK-Release Shops jetzt nur noch zusammen mit einem Plugin-Release. `docs/ucp-version-support.md` beschreibt, welche Version das Plugin bedient und was ein Versionswechsel für einen Shop bedeutet.
 - UCP `2026-08-25` mit SDK `0.0.6` oder neuer: versionsabhängige Capability-Aushandlung, standardisierte Katalog-IDs sowie aktualisierte Einwilligungs-, Liefer- und Zahlungsdaten.
 - Katalogsuche und Produktabfrage liefern echte Produktbeschreibungen. Fehlt eine Beschreibung, wird der Produkttitel verwendet.
 - Eine leere Katalogsuche listet Produkte auf. Unbekannte Warenkorb-IDs werden mit `not_found` abgelehnt.

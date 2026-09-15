@@ -73,6 +73,8 @@ Effort is S/M/L.
 
 ## P1 — `build!: pin the SDK to an exact patch range`
 
+**Status.** Done 2026-09-15: `composer.json` requires `>=0.0.6 <0.0.7`; see `docs/ucp-version-support.md` for the policy an integrator sees.
+
 **Why.** See "The one thing that must happen first". Six breaking SDK releases
 are coming and the current constraint admits all of them silently.
 
