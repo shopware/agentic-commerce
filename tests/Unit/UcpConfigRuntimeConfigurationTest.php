@@ -36,6 +36,20 @@ final class UcpConfigRuntimeConfigurationTest extends TestCase
         self::assertSame(UcpCapabilityCatalog::descriptorNamesForConfigKeys(UcpCapabilityCatalog::defaultConfigKeys()), $runtimeConfiguration->enabledCapabilities);
     }
 
+    /**
+     * The SDK's request-context factory reads development mode from the resolved runtime
+     * configuration. It used to reach only the URL-safety validator, so the shop could never act
+     * as its own agent locally no matter what the environment said.
+     */
+    #[Test]
+    public function testItCarriesTheDevelopmentModeFlagIntoTheRuntimeConfiguration(): void
+    {
+        $config = UcpConfig::fromArray(['active' => true]);
+
+        self::assertFalse($config->toRuntimeConfiguration('https://merchant.example')->profileFetchingDevelopmentMode);
+        self::assertTrue($config->toRuntimeConfiguration('https://merchant.example', null, false, true)->profileFetchingDevelopmentMode);
+    }
+
     #[Test]
     public function testItBuildsRuntimeConfigurationForStoreApiMcp(): void
     {

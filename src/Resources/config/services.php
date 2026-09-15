@@ -384,6 +384,11 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
+    // The same development-mode switch the URL-safety validator gets (above). The SDK's
+    // request-context factory reads it from the resolved RuntimeConfiguration, so without this
+    // the shop could never act as its own agent locally, whatever the environment said.
+    $services->set(ShopwareRuntimeConfigurationResolver::class)
+        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
     // Fetched from the container by the plugin's activate()/update() hooks.
     $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class)->public();

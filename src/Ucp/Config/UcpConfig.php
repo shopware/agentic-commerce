@@ -242,7 +242,15 @@ final class UcpConfig
         ];
     }
 
-    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false): RuntimeConfiguration
+    /**
+     * @param bool $profileFetchingDevelopmentMode the SDK's development mode, from the plugin's
+     *                                             `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE`
+     *                                             environment variable. It used to reach only the
+     *                                             URL-safety validator, so the SDK's request-context
+     *                                             factory never saw it and its development-mode paths
+     *                                             (a shop acting as its own agent) stayed dark in Shopware.
+     */
+    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false, bool $profileFetchingDevelopmentMode = false): RuntimeConfiguration
     {
         $baseUri = $this->resolveBaseUri($fallbackBaseUri);
         $host = parse_url($baseUri, \PHP_URL_HOST);
@@ -262,6 +270,7 @@ final class UcpConfig
             $this->runtimeEnabledCapabilityDescriptors(),
             $tenantIdentifier,
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
+            $profileFetchingDevelopmentMode,
         );
     }
 
