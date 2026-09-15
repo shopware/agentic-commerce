@@ -1,7 +1,7 @@
 # 1.3.0
 
 - Das UCP-SDK wird in genau der getesteten Version (`0.0.6`) vorausgesetzt, und `ucp_sdk.version` wird nicht mehr gesetzt. Das SDK bedient pro Release genau eine UCP-Version und verwendet sie als Standardwert, deshalb erreicht ein SDK-Release Shops jetzt nur noch zusammen mit einem Plugin-Release, und das Plugin kann keine Version mehr benennen, die sein SDK nicht bedient. Version 1.2.x kombinierte ein fest eingetragenes `2026-04-08` mit einem `>=0.0.5 <0.1.0`-Fenster: `composer update` installierte SDK 0.0.6, das diese Version nicht mehr bedient, und der Container-Build schlug mitten in einem Shopware-Core-Update in `assets:install` fehl. `docs/ucp-version-support.md` beschreibt, welche Version das Plugin bedient und was ein Versionswechsel für einen Shop bedeutet.
-- UCP `2026-08-25` mit SDK `0.0.6` oder neuer: versionsabhängige Capability-Aushandlung, standardisierte Katalog-IDs sowie aktualisierte Einwilligungs-, Liefer- und Zahlungsdaten.
+- UCP `2026-08-25` mit SDK `0.0.6`: versionsabhängige Capability-Aushandlung, standardisierte Katalog-IDs sowie aktualisierte Einwilligungs-, Liefer- und Zahlungsdaten.
 - Katalogsuche und Produktabfrage liefern echte Produktbeschreibungen. Fehlt eine Beschreibung, wird der Produkttitel verwendet.
 - Eine leere Katalogsuche listet Produkte auf. Unbekannte Warenkorb-IDs werden mit `not_found` abgelehnt.
 - Die UCP-MCP-Tools verwenden die standardisierten Namen wie `search_catalog` und `create_checkout` und sind direkt nach Sitzungsbeginn sichtbar. Clients müssen bisherige `shopware-ucp-*`-Namen anpassen.
