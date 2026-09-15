@@ -10,10 +10,19 @@ decision of record.
 Exactly one UCP version: the one the linked `ucp-php-sdk` release serves. Today that is
 `2026-08-25`.
 
-It is written down once, in `src/Ucp/UcpProtocol.php` as `UcpProtocol::VERSION`. The SDK
-bundle's `ucp_sdk.version` in `src/Resources/config/services.php` reads that constant, the
-capability catalog and the payment handler stamp it into the profile, and the schema test
-validates responses against the SDK's generated schemas for that date.
+It is written down once, in `src/Ucp/UcpProtocol.php` as `UcpProtocol::VERSION`. The capability
+catalog and the payment handler stamp it into the profile, and the schema test validates
+responses against the SDK's generated schemas for that date.
+
+The plugin does **not** pass `ucp_sdk.version` to the SDK bundle. An SDK release serves exactly
+one protocol version and defaults to it, so the only value that could ever be right is the one
+the SDK already holds -- and passing it is the one way the two can come to disagree. Version
+1.2.x shipped `version: '2026-04-08'` in a bundled `ucp_sdk.yaml` alongside a `>=0.0.5 <0.1.0`
+SDK window: `composer update` resolved SDK 0.0.6, which had dropped that version, and the
+container build failed inside `assets:install` part-way through a Shopware core upgrade, with
+the error naming asset installation rather than the configuration line responsible. Two changes
+close that off -- the SDK window is a single patch now, and the version is not configured at
+all.
 
 `UcpProtocolVersionGuardTest` asserts that the constant equals the SDK's
 `UcpProtocolVersion::current()`. The constant is deliberately **not** derived from the enum: an

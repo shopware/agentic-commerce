@@ -1,6 +1,6 @@
 # 1.3.0
 
-- Require the UCP SDK as a single patch window (`>=0.0.6 <0.0.7`). The SDK serves one UCP version per release and switches it outright, so an SDK release now arrives together with a plugin release instead of reaching shops on its own. `docs/ucp-version-support.md` explains what the plugin serves and what a spec bump means for a shop.
+- Require the UCP SDK as a single patch window (`>=0.0.6 <0.0.7`) and stop configuring `ucp_sdk.version`. The SDK serves one UCP version per release and defaults to it, so an SDK release now arrives together with a plugin release instead of reaching shops on its own, and the plugin can no longer name a version its linked SDK does not serve. Version 1.2.x combined a pinned `2026-04-08` with a `>=0.0.5 <0.1.0` window: `composer update` resolved SDK 0.0.6, which no longer served that version, and the container build failed inside `assets:install` part-way through a Shopware core upgrade. `docs/ucp-version-support.md` explains what the plugin serves and what a spec bump means for a shop.
 - Serve UCP `2026-08-25` through SDK `0.0.6` or newer, including version-aware capability negotiation, the standard catalog capability IDs and updated consent, fulfillment and payment shapes.
 - Return real product descriptions from catalog search and lookup, with the product title as fallback.
 - Apply checkout completion payment data through the platform gateway and expose the applied-discount breakdown.

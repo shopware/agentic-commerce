@@ -129,7 +129,6 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalid
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
-use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
@@ -163,8 +162,16 @@ return static function (ContainerConfigurator $container): void {
         || '127.0.0.1' === $appUrlHost
         || '::1' === $appUrlHost;
 
+    // `version` is deliberately not passed. An SDK release serves exactly one protocol
+    // version and defaults to it, so the only value that could ever be right is the one
+    // the SDK already holds -- and passing it is how a plugin comes to name a version its
+    // linked SDK no longer serves. The 1.2.x config shipped `version: '2026-04-08'` and did
+    // exactly that: `composer update` resolved SDK 0.0.6, which had dropped that version,
+    // and the container build failed inside `assets:install` during a Shopware core upgrade.
+    // `UcpProtocol::VERSION` still names the release this plugin was written against, for
+    // schema URLs and UcpProtocolVersionGuardTest; the composer constraint is what keeps an
+    // unreviewed SDK bump away from a shop.
     $container->extension('ucp_sdk', [
-        'version' => UcpProtocol::VERSION,
         'signature_policy' => 'strict',
         'idempotency_required' => true,
         'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
