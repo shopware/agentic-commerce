@@ -22,6 +22,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Grouping\FieldGrouping;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
@@ -287,6 +288,95 @@ final class ShopwareCatalogGatewayTest extends TestCase
             new SalesChannelDomainResolver($domainRepository),
             new StaticSalesChannelContextService($salesChannelContext),
             $contextPersister,
+        );
+    }
+
+    /**
+     * Browsing used to answer with the parent of every variant product plus one row per variant.
+     * The parent cannot be bought, so a cart built from it comes back empty, and the variants all
+     * wore the parent's name.
+     */
+    #[Test]
+    public function testBrowsingAsksForOneRowPerVariantGroupAndSkipsParents(): void
+    {
+        $captured = null;
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use (&$captured): ProductListResponse {
+                $captured ??= $criteria;
+
+                return $this->listResponse([], $criteria);
+            },
+        );
+
+        $this->gateway(10, listRoute: $listRoute)->search('', 10, new RequestContext('shop.test'));
+
+        self::assertInstanceOf(Criteria::class, $captured);
+
+        $groupedFields = array_map(
+            static fn (FieldGrouping $grouping): string => $grouping->getField(),
+            $captured->getGroupFields(),
+        );
+        self::assertSame(['displayGroup'], $groupedFields, 'one row per variant group');
+
+        // VariantListingUpdater gives a parent with children display_group = NULL, so excluding
+        // the null ones is what removes parents from the answer.
+        self::assertStringContainsString('displayGroup', json_encode($captured->getFilters(), \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testVariantTitlesCarryTheOptionsThatDistinguishThem(): void
+    {
+        $variant = $this->product('variant-a', 'Acoustic Guitar', 25.08);
+        $variant->assign(['variation' => [
+            ['group' => 'Color', 'option' => 'Yellow'],
+            ['group' => 'Material', 'option' => 'Spruce Top'],
+        ]]);
+
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse([$variant], $criteria),
+        );
+
+        $products = $this->gateway(10, listRoute: $listRoute)->lookup(['variant-a'], new RequestContext('shop.test'));
+
+        self::assertSame('Acoustic Guitar (Color: Yellow, Material: Spruce Top)', $products[0]->title);
+    }
+
+    /**
+     * A parent is not purchasable, so answering a lookup with its id -- which is what asking for
+     * one used to do, listed as its own variant -- hands the agent something the cart will drop.
+     */
+    #[Test]
+    public function testLookingUpAParentAnswersWithAPurchasableVariant(): void
+    {
+        $parent = $this->product('parent-a', 'Acoustic Guitar', 25.08);
+        $parent->setChildCount(2);
+
+        $variant = $this->product('variant-a', 'Acoustic Guitar', 25.08);
+        $variant->setParentId('parent-a');
+
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use ($parent, $variant): ProductListResponse {
+                // First the requested ids, then the representative lookup by parentId, then the
+                // replacement load by the representative's own id.
+                if (\in_array('parent-a', $criteria->getIds(), true)) {
+                    return $this->listResponse([$parent], $criteria);
+                }
+
+                return $this->listResponse([$variant], $criteria);
+            },
+        );
+
+        $products = $this->gateway(10, listRoute: $listRoute)->lookup(['parent-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('variant-a', $products[0]->id, 'the answer is something the agent can buy');
+        self::assertSame(
+            [['id' => 'parent-a', 'match' => 'exact']],
+            self::variantInputs($products[0]->extra),
+            'the requested id stays the lookup input',
         );
     }
 

@@ -38,6 +38,8 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             $name = $product->getName() ?: $product->getProductNumber() ?: $product->getId();
         }
 
+        $name = $this->withVariantOptions($name, $product);
+
         $cover = $product->getCover();
         $imageUrl = $cover?->getMedia()?->getUrl();
         $price = $product instanceof SalesChannelProductEntity ? $product->getCalculatedPrice()->getUnitPrice() : 0.0;
@@ -65,6 +67,29 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             currency: $currency,
             description: $description,
         );
+    }
+
+    /**
+     * Appends the options that distinguish this variant from its siblings.
+     *
+     * Variants inherit the parent's name, so a catalog of them is a list of identical titles an
+     * agent cannot choose between. `variation` is the runtime field `ProductSubscriber` builds
+     * from `options.group`, the same data the storefront prints next to a variant.
+     */
+    private function withVariantOptions(string $name, ProductEntity $product): string
+    {
+        $pairs = [];
+        foreach ($product->getVariation() as $entry) {
+            $group = $entry['group'] ?? null;
+            $option = $entry['option'] ?? null;
+            if (!\is_string($group) || !\is_string($option) || '' === trim($group) || '' === trim($option)) {
+                continue;
+            }
+
+            $pairs[] = \sprintf('%s: %s', trim($group), trim($option));
+        }
+
+        return [] === $pairs ? $name : \sprintf('%s (%s)', $name, implode(', ', $pairs));
     }
 
     /**

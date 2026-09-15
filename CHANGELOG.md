@@ -1,5 +1,7 @@
 # 1.3.0
 
+- Answer the catalog with products an agent can actually buy. Browsing returned the parent of every variant product -- which is not purchasable, so a cart built from it silently stayed empty -- plus one row per variant, all wearing the parent's name. Browsing now returns one row per variant group and no parents, variant titles carry the options that tell them apart (`Acoustic Guitar (Color: Yellow, Material: Spruce Top)`), and `catalog.lookup` and `catalog.product` answer a parent id with a purchasable variant chosen the same way every time. `catalog.product` previously picked a different variant on every call.
+- Refuse a line item that never reached the cart instead of reporting success. Shopware drops a product it cannot resolve without leaving an error, so asking for an unbuyable product returned `201 Created`, `status: success`, no messages and an empty cart. The request is now answered with `422` and a recoverable error naming the id, and for the parent of a variant product it lists the variant ids to buy instead.
 - Serve UCP `2026-08-25` through SDK `0.0.6` or newer, including version-aware capability negotiation, the standard catalog capability IDs and updated consent, fulfillment and payment shapes.
 - Return real product descriptions from catalog search and lookup, with the product title as fallback.
 - Apply checkout completion payment data through the platform gateway and expose the applied-discount breakdown.
