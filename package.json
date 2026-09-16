@@ -17,7 +17,13 @@
     "test:e2e:local:66:vite": "BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=vite npm run test:e2e",
     "test:e2e:local:trunk": "BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk ADMIN_BUILD_MODE=vite npm run test:e2e",
     "test:e2e:local:all": "npm run test:e2e:local:trunk && npm run test:e2e:local:66 && npm run test:e2e:local:65",
-    "qa:admin": "npm run test:e2e:admin"
+    "qa:admin": "npm run test:e2e:admin",
+    "acceptance": "npm --prefix tests/acceptance test",
+    "acceptance:all": "npm --prefix tests/acceptance run test:all",
+    "acceptance:known-blocked": "npm --prefix tests/acceptance run test:known-blocked",
+    "acceptance:install": "npm --prefix tests/acceptance install",
+    "acceptance:lint": "npm --prefix tests/acceptance run lint",
+    "acceptance:typecheck": "npm --prefix tests/acceptance run typecheck"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",

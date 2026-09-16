@@ -275,7 +275,7 @@ jobs:
           path: shopware
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: agentic-commerce/package-lock.json
       - run: npm ci --no-audit --no-fund
@@ -334,7 +334,7 @@ jobs:
           path: ucp-php-sdk
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: agentic-commerce/package-lock.json
       - run: npm ci --no-audit --no-fund
@@ -509,7 +509,7 @@ jobs:
           path: ucp-php-sdk
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: agentic-commerce/package-lock.json
       - run: npm ci --no-audit --no-fund
