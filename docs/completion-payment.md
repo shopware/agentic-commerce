@@ -34,9 +34,11 @@ and stops.
 ```php
 namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 
-interface CompletionPaymentApplierInterface
+abstract class AbstractCompletionPaymentApplier
 {
-    public function apply(
+    abstract public function getDecorated(): self;
+
+    abstract public function apply(
         ?PaymentInstrument $instrument,
         SalesChannelContext $context,
         RequestContext $requestContext,
@@ -44,11 +46,48 @@ interface CompletionPaymentApplierInterface
 }
 ```
 
-Register a service under that interface and it replaces the default:
+An abstract class rather than an interface, following the platform's decoration ADR
+(`adr/2020-11-25-decoration-pattern.md`), so you can either replace the default or decorate it.
+
+**Replace it** — yours is the only applier, and its `getDecorated()` throws:
 
 ```php
 $services->set(AcmeCompletionPaymentApplier::class);
-$services->alias(CompletionPaymentApplierInterface::class, AcmeCompletionPaymentApplier::class);
+$services->alias(AbstractCompletionPaymentApplier::class, AcmeCompletionPaymentApplier::class);
+```
+
+**Decorate it** — act on the instruments you know, and let the one you wrapped have the rest:
+
+```php
+final class AcmeCompletionPaymentApplier extends AbstractCompletionPaymentApplier
+{
+    public function __construct(private readonly AbstractCompletionPaymentApplier $decorated)
+    {
+    }
+
+    public function getDecorated(): AbstractCompletionPaymentApplier
+    {
+        return $this->decorated;
+    }
+
+    public function apply(
+        ?PaymentInstrument $instrument,
+        SalesChannelContext $context,
+        RequestContext $requestContext,
+    ): SalesChannelContext {
+        if ('com.acme.card' !== $instrument?->handlerId) {
+            return $this->getDecorated()->apply($instrument, $context, $requestContext);
+        }
+
+        // ... switch the payment method, recalculate, and return the context to place with
+    }
+}
+```
+
+```php
+$services->set(AcmeCompletionPaymentApplier::class)
+    ->decorate(AbstractCompletionPaymentApplier::class)
+    ->args([service('.inner')]);
 ```
 
 There is nothing to unregister and no compiler pass to write.

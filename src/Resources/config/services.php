@@ -87,7 +87,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
@@ -287,7 +287,7 @@ return static function (ContainerConfigurator $container): void {
     // here and the instrument reaches it. See docs/completion-payment.md.
     $services->set(UnappliedCompletionPayment::class)
         ->arg('$logger', service('logger')->nullOnInvalid());
-    $services->alias(CompletionPaymentApplierInterface::class, UnappliedCompletionPayment::class);
+    $services->alias(AbstractCompletionPaymentApplier::class, UnappliedCompletionPayment::class);
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
@@ -392,12 +392,16 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(UcpConfigService::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
-        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
+        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class))
+        // An allowlist edit reaches a running messenger worker only through a new container, so
+        // ask the workers to stop: the same signal PluginLifecycleService raises after an install.
+        ->arg('$restartSignalCachePool', service('cache.messenger.restart_workers_signal')->nullOnInvalid());
 
     // Feeds the shop's per-channel/global UCP allowlists into the SDK's URL-safety
     // validator; ReplaceSdkUrlSafetyValidatorPass swaps the SDK definition to this factory.
     $services->set(ConfiguredUrlSafetyValidatorFactory::class)
-        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
+        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'))
+        ->arg('$logger', service('logger')->nullOnInvalid());
 
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);

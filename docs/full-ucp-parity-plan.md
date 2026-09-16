@@ -186,7 +186,7 @@ Shopware support matrix.
   blocked on an upstream SDK change. **It never was**: the SDK has exposed
   `PaymentAwareCheckoutCapabilityInterface` and
   `PaymentAwareCheckoutAdapterInterface` since 0.0.3. The plugin now supplies the
-  instrument, the context and the timing through `CompletionPaymentApplierInterface`
+  instrument, the context and the timing through `AbstractCompletionPaymentApplier`
   ([#213](https://github.com/shopware/agentic-commerce/pull/213)). The default
   applier still charges the sales-channel default method and logs a warning naming
   the handler the agent asked for, because which methods are reachable through UCP

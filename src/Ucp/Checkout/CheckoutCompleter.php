@@ -7,7 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -37,7 +37,7 @@ final class CheckoutCompleter
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
-        private readonly CompletionPaymentApplierInterface $completionPaymentApplier,
+        private readonly AbstractCompletionPaymentApplier $completionPaymentApplier,
     ) {
     }
 

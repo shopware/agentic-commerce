@@ -280,13 +280,15 @@ The pin is deliberate. A plugin has no `composer.lock` and the SDK resolves at m
 Moving the pin is a plugin release:
 
 1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — anyone who resolved before that tag existed gets the older release that lacks them, and the plugin fatals with `Class "…" not found`.
-2. **Move the window, and the forced versions with it.**
-   - `composer.json` — the `ucp-php-sdk/symfony-bundle` window, e.g. `>=0.0.7 <0.0.8` for SDK 0.0.7.
-   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version outside the window no longer satisfies the constraint and resolution breaks.
+2. **Move the pin, and the forced versions with it.**
+   - `composer.json` — the exact `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` versions. Both, not only the bundle: the bundle accepts a *range* of `core`, so pinning the bundle alone would let a later `core` release pair with it on a source install.
+   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version outside the pin no longer satisfies the constraint and resolution breaks.
    - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines.
    - `src/Ucp/UcpProtocol.php` — only if the SDK release moved the spec date. `UcpProtocolVersionGuardTest` fails until `UcpProtocol::VERSION` follows, and it must follow only after `ShopwareDataMapper` and `UcpCapabilityCatalog` have been reviewed against the new schemas. Do not make the constant read the SDK's enum; the failing test is the point.
    - `CHANGELOG.md` and `CHANGELOG_de-DE.md`.
-3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the window. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
+3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the pin. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
+
+   `future-compatibility` is the exception: it resolves both SDK packages from Packagist at the pinned tag. It is a *Shopware* trunk signal, and the merge gate it blocks has to test what merchants install. Relabelling SDK `main` as the pinned tag there is how a single SDK-internal constraint bump once turned `main` red for five days.
 
 > **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against whichever published tag an install actually resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json`'s lower bound is that tag or newer.
 

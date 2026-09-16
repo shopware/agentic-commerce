@@ -57,15 +57,18 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             ]];
         }
 
+        // Positional, as everywhere else this plugin builds an SDK model: named arguments are
+        // reserved for PHP's own functions, and naming these would make the SDK's parameter names
+        // part of what the exact version pin has to hold still.
         return new Product(
-            id: $product->getId(),
-            title: $name,
-            price: $price,
-            imageUrl: \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
+            $product->getId(),
+            $name,
+            $price,
+            \is_string($imageUrl) && '' !== $imageUrl ? $imageUrl : null,
             // @phpstan-ignore-next-line argument.type -- SDK schema requires lookup inputs, but Product::$extra is typed too narrowly.
-            extra: $extra,
-            currency: $currency,
-            description: $description,
+            $extra,
+            $currency,
+            $description,
         );
     }
 

@@ -56,7 +56,7 @@ final class UnappliedCompletionPaymentTest extends TestCase
         self::assertCount(1, $logger->records);
         self::assertSame('warning', $logger->records[0]['level']);
         self::assertSame('com.shopware.invoice', $logger->records[0]['context']['handler_id']);
-        self::assertStringContainsString('CompletionPaymentApplierInterface', $logger->records[0]['message']);
+        self::assertStringContainsString('AbstractCompletionPaymentApplier', $logger->records[0]['message']);
         self::assertStringContainsString('docs/completion-payment.md', $logger->records[0]['message']);
     }
 

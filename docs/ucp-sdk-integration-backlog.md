@@ -350,7 +350,7 @@ listeners active. Embedded responses still carry CSP and origin enforcement.
 
 ## P12 — `feat(checkout): act on the completion payment instrument`
 
-**Status.** Seam and document done in [#213](https://github.com/shopware/agentic-commerce/pull/213) (`CompletionPaymentApplierInterface`, `docs/completion-payment.md`). The default applier keeps charging the sales-channel default and warns; switching methods is a checkout and provider decision.
+**Status.** Seam and document done in [#213](https://github.com/shopware/agentic-commerce/pull/213) (`AbstractCompletionPaymentApplier`, `docs/completion-payment.md`). The default applier keeps charging the sales-channel default and warns; switching methods is a checkout and provider decision.
 
 **Why.** `checkout.complete` requires a `payment` object per spec and our MCP tool
 already sends one, but the instrument is not acted on: completion always charges

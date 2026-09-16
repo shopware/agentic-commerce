@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use Psr\Cache\CacheItemInterface;
+use Psr\Cache\CacheItemPoolInterface;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
@@ -14,6 +16,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Symfony\Component\Messenger\EventListener\StopWorkerOnRestartSignalListener;
 
 /** @internal */
 #[CoversClass(UcpConfigService::class)]
@@ -323,6 +326,41 @@ final class UcpConfigServiceTest extends TestCase
         static::assertFalse($service->getConfig('storefront-channel')->active);
     }
 
+    /**
+     * The SDK's UrlSafetyValidator is built once, when the container is, from the union of every
+     * channel's allowlists. Its consumers -- profile fetcher, key directory fetcher, order webhook
+     * dispatcher -- are shared services that hold it, and it is final with a readonly host list,
+     * so nothing short of a new container picks up an edit. A web request gets one; a
+     * `messenger:consume` worker would keep refusing an outbound webhook to a host allowlisted
+     * minutes ago for as long as it runs. Same signal PluginLifecycleService raises on install.
+     */
+    public function testAnAllowlistChangeAsksTheMessengerWorkersToRestart(): void
+    {
+        $pool = new RecordingRestartSignalCachePool();
+        $service = new UcpConfigService(new InMemoryUcpConfigRepository(), $this->createMock(LegacyConfigStoreInterface::class), null, null, false, null, $pool);
+
+        $service->saveConfig(['platformAllowlist' => ['agent.example.com']], 'sales-channel-a');
+
+        static::assertSame([StopWorkerOnRestartSignalListener::RESTART_REQUESTED_TIMESTAMP_KEY], $pool->savedKeys);
+    }
+
+    /**
+     * Restarting every worker whenever someone toggles exposure would be a worse trade than the
+     * one the signal fixes, so only the lists that reach the validator raise it.
+     */
+    public function testSavingSomethingOtherThanAnAllowlistLeavesTheWorkersAlone(): void
+    {
+        $pool = new RecordingRestartSignalCachePool();
+        $repository = new InMemoryUcpConfigRepository([
+            'sales-channel-a' => UcpConfig::fromArray(['platformAllowlist' => ['agent.example.com']]),
+        ]);
+        $service = new UcpConfigService($repository, $this->createMock(LegacyConfigStoreInterface::class), null, null, false, null, $pool);
+
+        $service->saveConfig(['enabledCapabilities' => ['catalog']], 'sales-channel-a');
+
+        static::assertSame([], $pool->savedKeys);
+    }
+
     private function typeResolver(SalesChannelTypeClassification $class): AbstractSalesChannelTypeResolver
     {
         $typeResolver = $this->createMock(AbstractSalesChannelTypeResolver::class);
@@ -381,5 +419,111 @@ final class RecordingAgenticFilesCoreBridge implements AgenticFilesCoreBridgeInt
 
     public function syncActiveUcpSalesChannels(): void
     {
+    }
+}
+
+/**
+ * The messenger restart-signal pool, recording which keys were written rather than caching.
+ *
+ * @internal
+ */
+final class RecordingRestartSignalCachePool implements CacheItemPoolInterface
+{
+    /** @var list<string> */
+    public array $savedKeys = [];
+
+    public function getItem(string $key): CacheItemInterface
+    {
+        return new class($key) implements CacheItemInterface {
+            private mixed $value = null;
+
+            public function __construct(private readonly string $key)
+            {
+            }
+
+            public function getKey(): string
+            {
+                return $this->key;
+            }
+
+            public function get(): mixed
+            {
+                return $this->value;
+            }
+
+            public function isHit(): bool
+            {
+                return false;
+            }
+
+            public function set(mixed $value): static
+            {
+                $this->value = $value;
+
+                return $this;
+            }
+
+            public function expiresAt(?\DateTimeInterface $expiration): static
+            {
+                return $this;
+            }
+
+            public function expiresAfter(\DateInterval|int|null $time): static
+            {
+                return $this;
+            }
+        };
+    }
+
+    /**
+     * @param array<int, string> $keys
+     *
+     * @return iterable<string, CacheItemInterface>
+     */
+    public function getItems(array $keys = []): iterable
+    {
+        foreach ($keys as $key) {
+            yield $key => $this->getItem($key);
+        }
+    }
+
+    public function hasItem(string $key): bool
+    {
+        return false;
+    }
+
+    public function clear(): bool
+    {
+        return true;
+    }
+
+    public function deleteItem(string $key): bool
+    {
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $keys
+     */
+    public function deleteItems(array $keys): bool
+    {
+        return true;
+    }
+
+    public function save(CacheItemInterface $item): bool
+    {
+        $this->savedKeys[] = $item->getKey();
+
+        return true;
+    }
+
+    public function saveDeferred(CacheItemInterface $item): bool
+    {
+        return $this->save($item);
+    }
+
+    public function commit(): bool
+    {
+        return true;
     }
 }

@@ -194,12 +194,15 @@ final class UcpSetupCommand extends Command
             $payload['platformAllowlist'] = $hosts;
             $payload['agentAllowlist'] = $hosts;
         } else {
+            // Both lists are written even when no host was named. saveConfig() merges this
+            // payload over the stored config, so omitting them would carry an earlier `--dev`
+            // run's `localhost` and own-domain hosts into a production setup -- the opposite of
+            // what this branch promises, and visible only to an operator who reads the summary
+            // carefully. An empty allowlist admits nobody, which is the safe end of the mistake.
+            $hosts = array_values(array_unique($agentHosts));
             $payload['signaturePolicy'] = 'strict';
-            if ([] !== $agentHosts) {
-                $hosts = array_values(array_unique($agentHosts));
-                $payload['platformAllowlist'] = $hosts;
-                $payload['agentAllowlist'] = $hosts;
-            }
+            $payload['platformAllowlist'] = $hosts;
+            $payload['agentAllowlist'] = $hosts;
         }
 
         if (\is_string($capabilities) && '' !== trim($capabilities)) {

@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 
 use Psr\Log\LoggerInterface;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
@@ -22,17 +23,24 @@ use Ucp\Sdk\Model\RequestContext;
  * "we cannot honour this payment", and it is the answer a real implementation should give --
  * but making it the default would break every business already completing checkouts through
  * the channel default, for a capability they have not been offered yet. The refusal belongs
- * to whoever implements the real applier, and the interface says so.
+ * to whoever implements the real applier, and the base class says so.
  *
- * Replace by registering a service under this interface; there is nothing to unregister.
+ * Replace it by aliasing {@see AbstractCompletionPaymentApplier} to your own service, or
+ * decorate this one and delegate through `getDecorated()` for the instruments you do not
+ * handle. This is the end of the chain, so its own `getDecorated()` throws.
  *
  * @internal
  */
 #[Package('framework')]
-final class UnappliedCompletionPayment implements CompletionPaymentApplierInterface
+final class UnappliedCompletionPayment extends AbstractCompletionPaymentApplier
 {
     public function __construct(private readonly ?LoggerInterface $logger = null)
     {
+    }
+
+    public function getDecorated(): AbstractCompletionPaymentApplier
+    {
+        throw new DecorationPatternException(self::class);
     }
 
     public function apply(
@@ -46,7 +54,7 @@ final class UnappliedCompletionPayment implements CompletionPaymentApplierInterf
 
         $this->logger?->warning(
             'A UCP checkout was completed with the sales channel default payment method, ignoring the instrument the agent presented. '
-            .'Register a service under '.CompletionPaymentApplierInterface::class.' to act on it; see docs/completion-payment.md.',
+            .'Register a service under '.AbstractCompletionPaymentApplier::class.' to act on it; see docs/completion-payment.md.',
             [
                 'handler_id' => $instrument->handlerId,
                 'instrument_type' => $instrument->type,

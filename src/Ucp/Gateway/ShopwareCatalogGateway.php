@@ -25,6 +25,13 @@ use Ucp\Sdk\Model\RequestContext;
 #[Package('inventory')]
 final class ShopwareCatalogGateway
 {
+    /**
+     * How many variants of one parent the batched representative query is allowed to scan before
+     * that parent is resolved by a query of its own. Matches the cap `ShopwareCartGateway` uses
+     * when it lists the variants to buy instead of a parent.
+     */
+    private const VARIANTS_SCANNED_PER_PARENT = 50;
+
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly ContextTokenGenerator $contextTokenGenerator,
@@ -160,6 +167,12 @@ final class ShopwareCatalogGateway
      * tiebreaker core is missing: without it, variants that share availability and price come back
      * in whatever order the database felt like.
      *
+     * The DAL cannot express "one row per parent", so one page of parents would otherwise hydrate
+     * every variant of every one of them to keep one id apiece. `parentId` leads the sorting so
+     * each parent's variants sit together, and the window is bounded per parent rather than by
+     * their total variant count; a parent whose variants did not fit is resolved on its own below,
+     * so the bound costs a query for the rare wide product instead of correctness for all of them.
+     *
      * @param list<string> $ids
      *
      * @return array<string, string> parent id => representative variant id
@@ -170,13 +183,8 @@ final class ShopwareCatalogGateway
             return [];
         }
 
-        $criteria = new Criteria();
-        $criteria->addFilter(new EqualsAnyFilter('parentId', $ids));
-        $criteria->addSorting(
-            new FieldSorting('available', FieldSorting::DESCENDING),
-            new FieldSorting('price'),
-            new FieldSorting('id'),
-        );
+        $criteria = $this->representativeCriteria($ids);
+        $criteria->setLimit(\count($ids) * self::VARIANTS_SCANNED_PER_PARENT);
 
         $representatives = [];
         foreach ($this->productListRoute->load($criteria, $context)->getProducts() as $variant) {
@@ -188,7 +196,39 @@ final class ShopwareCatalogGateway
             $representatives[$parentId] = $variant->getId();
         }
 
+        foreach ($ids as $id) {
+            if (isset($representatives[$id])) {
+                continue;
+            }
+
+            $criteria = $this->representativeCriteria([$id]);
+            $criteria->setLimit(1);
+            $variant = $this->productListRoute->load($criteria, $context)->getProducts()->first();
+            if (null !== $variant) {
+                $representatives[$id] = $variant->getId();
+            }
+        }
+
         return $representatives;
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    private function representativeCriteria(array $ids): Criteria
+    {
+        $criteria = new Criteria();
+        $criteria->addFilter(new EqualsAnyFilter('parentId', $ids));
+        $criteria->addSorting(
+            // parentId first so one parent's variants are contiguous and a bounded window covers
+            // whole parents; the three that follow are what decides which variant represents one.
+            new FieldSorting('parentId'),
+            new FieldSorting('available', FieldSorting::DESCENDING),
+            new FieldSorting('price'),
+            new FieldSorting('id'),
+        );
+
+        return $criteria;
     }
 
     /**

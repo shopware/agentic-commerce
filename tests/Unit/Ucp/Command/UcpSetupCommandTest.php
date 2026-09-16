@@ -113,6 +113,37 @@ class UcpSetupCommandTest extends TestCase
         static::assertStringContainsString('No platform is allowed yet', $tester->getDisplay());
     }
 
+    /**
+     * saveConfig() merges a partial payload over the stored config, so a production rerun naming
+     * no host used to leave an earlier `--dev` run's `localhost` and own-domain hosts in place --
+     * a channel documented as admitting only what `--agent-host` names, still admitting a laptop.
+     * The summary printed the carried-over hosts, so the only defence was an operator reading it
+     * closely enough to notice.
+     */
+    public function testProductionSetupClearsTheHostsAnEarlierDevRunLeftBehind(): void
+    {
+        $saved = null;
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->method('find')->willReturn(UcpConfig::fromArray([
+            'active' => true,
+            'signaturePolicy' => 'log',
+            'platformAllowlist' => ['localhost', 'shop.localhost'],
+            'agentAllowlist' => ['localhost', 'shop.localhost'],
+        ]));
+        $configRepository->method('save')
+            ->willReturnCallback(static function (string $salesChannelId, UcpConfig $config) use (&$saved): void {
+                $saved = $config;
+            });
+
+        $tester = new CommandTester($this->command($configRepository, new UcpSigningKeyServiceTestTenantRepository()));
+        $tester->execute(['--sales-channel' => 'Storefront'], ['interactive' => false]);
+
+        static::assertInstanceOf(UcpConfig::class, $saved);
+        static::assertSame('strict', $saved->signaturePolicy);
+        static::assertSame([], $saved->platformAllowlist, 'the dev hosts do not survive a production rerun');
+        static::assertSame([], $saved->agentAllowlist);
+    }
+
     public function testDryRunWritesNothingAndGeneratesNoKey(): void
     {
         $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);

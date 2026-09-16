@@ -273,6 +273,14 @@ jobs:
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
 
+  # What Shopware trunk will require of this plugin, against the SDK release the plugin pins.
+  #
+  # The SDK is resolved from Packagist at the pinned tag, not checked out at UCP_SDK_REF and
+  # relabelled as that tag through a path repository. This job blocks the merge gate, and a job
+  # that blocks merges has to test what merchants install: SDK main relabelled as 0.0.7 is not
+  # that, and when main moved to require a newer core it turned this repository's main red for
+  # five days and would have done it to every open pull request at once. SDK main is a signal
+  # about a release the plugin has not pinned yet, so it does not belong on the merge path.
   future-compatibility:
     runs-on: ubuntu-latest
     needs:
@@ -288,21 +296,11 @@ jobs:
           coverage: none
       - uses: actions/checkout@v6
         with:
-          repository: agentic-commerce-alliance/ucp-php-sdk
-          ref: ${{ env.UCP_SDK_REF }}
-          path: ucp-php-sdk
-      - uses: actions/checkout@v6
-        with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
           path: shopware
       - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
         working-directory: shopware
-      - name: Configure private SDK path repositories
-        run: |
-          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
-          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.7"}}}'
-        working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules

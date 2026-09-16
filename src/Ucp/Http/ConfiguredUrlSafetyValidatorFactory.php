@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Http;
 
 use Doctrine\DBAL\Connection;
+use Psr\Log\LoggerInterface;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -34,6 +35,7 @@ final class ConfiguredUrlSafetyValidatorFactory
         private readonly Connection $connection,
         private readonly UcpConfigService $configService,
         private readonly bool $profileFetchingDevelopmentMode = false,
+        private readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -61,6 +63,12 @@ final class ConfiguredUrlSafetyValidatorFactory
     }
 
     /**
+     * Read through the raw connection rather than SalesChannelViewProvider::all(), which returns
+     * the same ids and domains: this runs while the container is being built, before a
+     * plugin install has necessarily migrated, and on a shop whose tables are missing or whose
+     * DAL is not yet usable. A DAL read there takes the whole container down; a failed query is
+     * caught below and degrades to an empty allowlist instead.
+     *
      * @return list<UcpConfig>
      */
     private function configs(): array
@@ -73,7 +81,14 @@ final class ConfiguredUrlSafetyValidatorFactory
             $configs[] = $this->configService->getConfig(null);
 
             return $configs;
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            // Failing closed is deliberate -- an unreadable config must not widen the allowlist --
+            // but a shop whose remote profile fetches all start refusing needs the cause named.
+            $this->logger?->warning(
+                'UCP could not read its allowlist configuration; the URL safety validator falls back to an empty allowlist, which refuses every remote profile fetch and webhook delivery.',
+                ['exception' => $exception],
+            );
+
             return [];
         }
     }
@@ -85,7 +100,12 @@ final class ConfiguredUrlSafetyValidatorFactory
     {
         try {
             $urls = $this->connection->fetchFirstColumn('SELECT url FROM sales_channel_domain');
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            $this->logger?->warning(
+                'UCP could not read the sales channel domains; their hosts are missing from the URL safety validator allowlist.',
+                ['exception' => $exception],
+            );
+
             return [];
         }
 
