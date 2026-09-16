@@ -67,15 +67,9 @@ final class UcpCheckoutCompleteTool
      * preview is therefore built from the read-only `checkout.get` path — the same
      * one get_checkout uses — plus the blockers its status implies.
      *
-     * Reading the checkout back does not look at the payload, so the request is validated
-     * here explicitly, against the same schema `checkout.complete` validates it against on
-     * the way in. Without this the preview answered on a payment object the commit would
-     * refuse: the tool promises to report "anything that would block a commit", and an
-     * invalid payload is the one blocker an agent can still fix before confirming.
-     *
-     * It is still handed to executeMutating() rather than called ahead of it, so the
-     * idempotency requirement is enforced on a preview too, and the context arrives from
-     * there already checked instead of being resolved again here.
+     * That read never looks at the payload, so the request is validated here explicitly --
+     * otherwise an invalid payment object previews clean and fails on commit, which is the one
+     * blocker dryRun exists to surface.
      *
      * @param UcpMcpNestedJsonObject $requestPayload
      */

@@ -63,11 +63,8 @@ final class ConfiguredUrlSafetyValidatorFactory
     }
 
     /**
-     * Read through the raw connection rather than SalesChannelViewProvider::all(), which returns
-     * the same ids and domains: this runs while the container is being built, before a
-     * plugin install has necessarily migrated, and on a shop whose tables are missing or whose
-     * DAL is not yet usable. A DAL read there takes the whole container down; a failed query is
-     * caught below and degrades to an empty allowlist instead.
+     * Raw connection rather than SalesChannelViewProvider::all(), deliberately: this runs while
+     * the container is being built, where a DAL read on an unmigrated shop takes it down.
      *
      * @return list<UcpConfig>
      */

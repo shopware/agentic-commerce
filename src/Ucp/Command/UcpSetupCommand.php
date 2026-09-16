@@ -185,25 +185,17 @@ final class UcpSetupCommand extends Command
         ];
 
         if ($dev) {
-            // The shop's own hosts, so it can act as its own agent (the SDK accepts its own
-            // profile in development mode), plus localhost for a profile served from a
-            // local process. All three lists, because the SDK checks the profile host against
-            // one, the agent domain against another, and a remote profile fetch against the third.
+            // The shop's own hosts so it can act as its own agent, plus localhost for a profile
+            // served from a local process. All three lists: the SDK checks one host against each.
             $hosts = array_values(array_unique(['localhost', ...$domainHosts, ...$agentHosts]));
             $payload['signaturePolicy'] = 'log';
             $payload['platformAllowlist'] = $hosts;
             $payload['agentAllowlist'] = $hosts;
             $payload['remoteProfileAllowlist'] = $hosts;
         } else {
-            // All three lists are written even when no host was named. saveConfig() merges this
-            // payload over the stored config, so omitting one would carry an earlier `--dev`
-            // run's `localhost` and own-domain hosts into a production setup -- the opposite of
-            // what this branch promises, and visible only to an operator who reads the summary
-            // carefully. An empty allowlist admits nobody, which is the safe end of the mistake.
-            //
-            // remoteProfileAllowlist especially: toRuntimeConfiguration() falls back to
-            // platformAllowlist only while it is empty, so a stale non-empty one *overrides*
-            // the list this command just cleared and goes on trusting hosts nobody named.
+            // Written even when empty: saveConfig() merges over the stored config, so omitting a
+            // list would carry an earlier `--dev` run's hosts into a production setup. An empty
+            // remoteProfileAllowlist matters most -- a stale one overrides the others entirely.
             $hosts = array_values(array_unique($agentHosts));
             $payload['signaturePolicy'] = 'strict';
             $payload['platformAllowlist'] = $hosts;

@@ -165,20 +165,12 @@ final class UcpConfigService
     }
 
     /**
-     * Ask the messenger workers to finish their message and stop, so the next one runs on a
-     * container that knows the new allowlist.
+     * Ask the messenger workers to stop, so the next message runs on a container that knows the
+     * new allowlist. The SDK's UrlSafetyValidator is built once per container and its consumers
+     * are shared, so a long-running worker would otherwise keep refusing webhooks to a host
+     * allowlisted minutes ago. Same signal `PluginLifecycleService` raises after an install.
      *
-     * ConfiguredUrlSafetyValidatorFactory folds every channel's allowlist into the SDK's
-     * UrlSafetyValidator once, when the container builds it. That validator is `final` with a
-     * readonly host list, and the services that hold it -- the profile fetcher, the key directory
-     * fetcher, the order webhook dispatcher -- are shared, so nothing short of a new container
-     * picks up an edit. A web request gets one anyway; a `messenger:consume` worker runs for
-     * hours, and an outbound order webhook to a host allowlisted five minutes ago would be
-     * refused until someone restarted it.
-     *
-     * The same signal `PluginLifecycleService` raises after installing a plugin, for the same
-     * reason. Only allowlist changes raise it: workers restarting on every exposure toggle would
-     * be a worse trade than the one this fixes.
+     * Allowlist changes only: restarting workers on every exposure toggle is the worse trade.
      */
     private function signalWorkerRestartOnAllowlistChange(UcpConfig $previous, UcpConfig $current): void
     {
@@ -193,9 +185,7 @@ final class UcpConfigService
         }
 
         $item = $this->restartSignalCachePool->getItem(StopWorkerOnRestartSignalListener::RESTART_REQUESTED_TIMESTAMP_KEY);
-        // StopWorkerOnRestartSignalListener compares this against the worker's own microtime(true)
-        // start value, so it has to come from the same clock; an injectable one that a test could
-        // freeze would defeat the signal. Core's PluginLifecycleService writes it the same way.
+        // Compared against the worker's own microtime(true), so it must come from the same clock.
         // @phpstan-ignore-next-line shopware.noNativeTimeRead
         $item->set(microtime(true));
         $this->restartSignalCachePool->save($item);

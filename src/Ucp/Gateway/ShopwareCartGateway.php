@@ -302,12 +302,9 @@ final class ShopwareCartGateway
      * The buyable variants of any requested id that turns out to be a parent, so the agent can
      * retry with a real one rather than discovering the catalog a second time.
      *
-     * The bound is per parent, not global. A single `setLimit()` over the whole result is
-     * spent in `id` order, so one wide product can consume the entire window and leave the
-     * other refused parents with no variants listed -- and a parent with no entry here is
-     * reported as "not purchasable in this sales channel", which is a false statement about a
-     * product the agent could have bought. `parentId` leads the sorting so each parent's rows
-     * are contiguous; any parent the window still missed is asked for on its own.
+     * Bounded per parent, not globally: a single limit is spent in id order, so one wide product
+     * would starve the other refused parents -- and a parent with no entry here is reported as
+     * "not purchasable", which is false. Any parent the window missed is asked for on its own.
      *
      * @param list<string> $ids
      *

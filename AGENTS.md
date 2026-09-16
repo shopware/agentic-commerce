@@ -358,6 +358,61 @@ The script handles the important differences:
   a general change could negatively affect other plugin behavior.
 - Always do a root cause analysis to identify where the real issue lives.
 
+## Code Shape
+
+These are the rules a review keeps rediscovering. They are measurable on purpose:
+check the number, do not argue with the feeling.
+
+### Comment budget
+
+`src/` sits at roughly **0.24 comment lines per code line**. A diff well above
+that is explaining in the wrong place. Measure before pushing:
+
+```bash
+git diff <base> -- 'src/*.php' | grep '^+' | grep -v '^+++' | sed 's/^+//' | awk '
+/^[[:space:]]*(\/\/|\*|\/\*)/ {c++; next} /^[[:space:]]*$/ {next} {code++}
+END {printf "%.2f\n", c/code}'
+```
+
+- A comment earns its place when it stops a reader from **undoing** something: a
+  constraint not visible locally, a rejected alternative, a rule from upstream.
+  "Shared on purpose, because the SDK class is final" is worth a line.
+- Do not narrate history ("this used to…", "for as long as it has been here"),
+  restate the code, or re-explain the bug. The commit message is where the story
+  goes, and git keeps it.
+- `@param` and `@return` descriptions are **one line**. A parameter that needs a
+  paragraph means the contract belongs in `docs/`, with `@see` pointing there.
+- Class docblock on a small abstraction: about five lines, then `@see docs/…`.
+  This repo has a real `docs/` tree — use it instead of growing a header.
+
+### Constructor size
+
+Current worst offenders, all service classes, none of them good:
+`CheckoutCompleter` (13), `ShopwareCheckoutAdapter` (13), `ShopwareCartGateway`
+(11). `UcpConfig` is a DTO and does not count.
+
+- **Six collaborators is the ceiling** for a service. At seven, say so in the PR.
+- Do not add an argument to a class already over the ceiling without proposing
+  the split first. "Just one more logger" is how all three got there.
+- A cross-cutting dependency (logger, clock, cache pool) landing on several
+  classes at once is a sign the behaviour wants its own collaborator rather than
+  a constructor parameter on each.
+- Adding a dependency only to make one method testable usually means that method
+  wants to be its own class — `UcpCheckoutCompletionPayment` exists precisely
+  because the SDK executor is `final` and the tool could not be mocked.
+
+### Answering reviews
+
+- A review comment is a hypothesis about the code, not an instruction. Verify it
+  against the source first, and say so when the premise is wrong.
+- Fixing the reported instance is half the job: check whether the same mistake
+  sits in the sibling nobody reviewed. The per-parent variant bound and the
+  stale-allowlist bug each had to be fixed twice because the first pass only
+  touched the copy that was pointed at.
+- Answering a reviewer in prose inside the source file is this plugin's main
+  source of comment bloat. Answer in the PR thread; leave a line in the code only
+  if a future reader would otherwise revert the change.
+
 ## Pull Requests
 
 - Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior,

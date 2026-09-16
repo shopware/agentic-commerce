@@ -26,9 +26,8 @@ use Ucp\Sdk\Model\RequestContext;
 final class ShopwareCatalogGateway
 {
     /**
-     * How many variants of one parent the batched representative query is allowed to scan before
-     * that parent is resolved by a query of its own. Matches the cap `ShopwareCartGateway` uses
-     * when it lists the variants to buy instead of a parent.
+     * How many variants of one parent the batched query may scan before that parent is resolved
+     * by a query of its own.
      */
     private const VARIANTS_SCANNED_PER_PARENT = 50;
 
@@ -162,16 +161,11 @@ final class ShopwareCatalogGateway
     /**
      * The variant that stands in for each requested id that turns out to be a parent.
      *
-     * One ordering, used by every path, so `catalog.lookup`, `catalog.product` and the cart agree
-     * on which variant represents a product and keep agreeing between two calls. `id` is the
-     * tiebreaker core is missing: without it, variants that share availability and price come back
-     * in whatever order the database felt like.
+     * One ordering, used by every path, so lookup, product and the cart pick the same variant and
+     * keep picking it. `id` is the tiebreaker core is missing.
      *
-     * The DAL cannot express "one row per parent", so one page of parents would otherwise hydrate
-     * every variant of every one of them to keep one id apiece. `parentId` leads the sorting so
-     * each parent's variants sit together, and the window is bounded per parent rather than by
-     * their total variant count; a parent whose variants did not fit is resolved on its own below,
-     * so the bound costs a query for the rare wide product instead of correctness for all of them.
+     * The DAL cannot express "one row per parent", so the window is bounded per parent instead of
+     * by total variant count; a parent that did not fit is resolved on its own below.
      *
      * @param list<string> $ids
      *
