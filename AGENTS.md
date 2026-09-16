@@ -295,9 +295,13 @@ The script handles the important differences:
   where no Store API route exists.
 - MCP write tools must expose object payload schemas (`payload` plus `id` where
   needed), not JSON-string payload arguments.
-- Embedded pages require configured `embeddedAllowedOrigins`; the plugin returns
-  controlled `403` responses for missing or non-allowlisted `Origin` headers and
-  sets CSP frame ancestors from `embeddedFrameAncestors`.
+- Embedded pages require configured `embeddedAllowedOrigins`: an unconfigured sales
+  channel is refused with a controlled `403`, and so is a request whose `Origin` is
+  present but not allowlisted. An absent `Origin` is not a denial signal -- browsers
+  omit the header on the iframe and top-level GET navigations the embedded surface is
+  loaded by -- so such a request proceeds and its preflight receives no
+  `Access-Control-Allow-Origin` grant. CSP frame ancestors come from
+  `embeddedFrameAncestors`.
 - Feature-detect Shopware capabilities instead of comparing versions unless a
   version check is the only stable signal.
 - Keep migrations safe across all supported lanes. Do not assume newer core

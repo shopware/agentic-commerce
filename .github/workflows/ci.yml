@@ -142,6 +142,7 @@ jobs:
             "php-quality (php-8.2)"
             "php-quality (6.7.11)"
             "php-quality (6.7.12)"
+            "php-quality (trunk)"
             "future-compatibility"
             "shopware-matrix (6.5.x)"
             "shopware-matrix (6.6.x)"

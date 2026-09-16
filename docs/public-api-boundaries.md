@@ -8,6 +8,11 @@ Public contracts:
 - MCP tool names and payload schemas.
 - DAL entity names, fields, associations, and template context keys.
 - Documented UCP/SDK behavior.
+- `Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentApplierInterface`. The
+  shipped `UnappliedCompletionPayment` deliberately ignores the instrument and completes
+  against the sales channel default; the interface exists so a deployment can replace that
+  with one that settles the instrument the agent presented. Alias
+  `CompletionPaymentApplierInterface` to your own service to do so.
 - `Swag\AgenticCommerce\Content\ProductExport\Provider\AbstractAgenticCommerceProductExportProvider`
   plus the `swag_agentic_commerce.product_export.provider` service tag for
   product-export provider extensions. A third party extends the class, implements
