@@ -30,10 +30,9 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
-        ?string $paymentHandlerId = null,
         ?array $guestShippingAddress = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $paymentHandlerId, $guestShippingAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
     }
@@ -52,10 +51,9 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
-        ?string $paymentHandlerId = null,
         ?array $guestShippingAddress = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $paymentHandlerId, $guestShippingAddress);
+        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -79,7 +77,6 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderId,
         ?string $orderDeepLinkCode,
         ?array $guestAddress,
-        ?string $paymentHandlerId = null,
         ?array $guestShippingAddress = null,
     ): array {
         $metadata = [
@@ -109,10 +106,6 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
 
         if (null !== $guestShippingAddress) {
             $metadata['guestShippingAddress'] = $guestShippingAddress;
-        }
-
-        if (null !== $paymentHandlerId && '' !== $paymentHandlerId) {
-            $metadata['paymentHandlerId'] = $paymentHandlerId;
         }
 
         return $metadata;

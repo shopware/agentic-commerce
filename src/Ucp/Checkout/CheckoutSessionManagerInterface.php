@@ -44,7 +44,6 @@ interface CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
-        ?string $paymentHandlerId = null,
         ?array $guestShippingAddress = null,
     ): void;
 
@@ -62,7 +61,6 @@ interface CheckoutSessionManagerInterface
         ?string $orderId = null,
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
-        ?string $paymentHandlerId = null,
         ?array $guestShippingAddress = null,
     ): void;
 }
