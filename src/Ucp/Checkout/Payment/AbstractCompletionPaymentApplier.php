@@ -37,7 +37,15 @@ abstract class AbstractCompletionPaymentApplier
     abstract public function getDecorated(): self;
 
     /**
-     * @param PaymentInstrument|null $instrument the instrument the agent sent, when it sent one
+     * @param PaymentInstrument|null $instrument the *first* instrument on the completion, when
+     *                                           there was one -- not necessarily the one the buyer
+     *                                           chose. UCP marks the choice with `selected` at the
+     *                                           instrument top level; the SDK's `PaymentInstrument`
+     *                                           has no such property, so on completion nothing
+     *                                           reaches this plugin that could tell two instruments
+     *                                           apart. Refuse rather than guess if that matters to
+     *                                           you. Tracked in
+     *                                           agentic-commerce-alliance/ucp-php-sdk#190
      *
      * @return SalesChannelContext the context the order will be placed with
      */

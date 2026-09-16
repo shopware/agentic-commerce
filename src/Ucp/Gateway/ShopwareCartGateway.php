@@ -28,6 +28,13 @@ use Ucp\Sdk\Model\RequestContext;
 #[Package('checkout')]
 final class ShopwareCartGateway
 {
+    /**
+     * How many variants of one refused parent the error lists. A retry needs a usable choice,
+     * not the whole variant tree; an error naming fifty ids is one the agent has to parse
+     * before it can act on it.
+     */
+    private const VARIANTS_LISTED_PER_PARENT = 10;
+
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly AbstractCartLoadRoute $cartLoadRoute,
@@ -295,28 +302,57 @@ final class ShopwareCartGateway
      * The buyable variants of any requested id that turns out to be a parent, so the agent can
      * retry with a real one rather than discovering the catalog a second time.
      *
+     * The bound is per parent, not global. A single `setLimit()` over the whole result is
+     * spent in `id` order, so one wide product can consume the entire window and leave the
+     * other refused parents with no variants listed -- and a parent with no entry here is
+     * reported as "not purchasable in this sales channel", which is a false statement about a
+     * product the agent could have bought. `parentId` leads the sorting so each parent's rows
+     * are contiguous; any parent the window still missed is asked for on its own.
+     *
      * @param list<string> $ids
      *
      * @return array<string, list<string>> parent id => variant ids
      */
     private function purchasableVariantsOf(array $ids, \Shopware\Core\System\SalesChannel\SalesChannelContext $context): array
     {
-        $criteria = new Criteria();
-        $criteria->addFilter(new EqualsAnyFilter('parentId', $ids));
-        $criteria->addSorting(new FieldSorting('id'));
-        $criteria->setLimit(50);
+        $criteria = $this->variantsCriteria($ids);
+        $criteria->setLimit(\count($ids) * self::VARIANTS_LISTED_PER_PARENT);
 
         $variants = [];
         foreach ($this->productListRoute->load($criteria, $context)->getProducts() as $variant) {
             $parentId = $variant->getParentId();
-            if (null === $parentId) {
+            if (null === $parentId || \count($variants[$parentId] ?? []) >= self::VARIANTS_LISTED_PER_PARENT) {
                 continue;
             }
 
             $variants[$parentId][] = $variant->getId();
         }
 
+        foreach ($ids as $id) {
+            if (isset($variants[$id])) {
+                continue;
+            }
+
+            $criteria = $this->variantsCriteria([$id]);
+            $criteria->setLimit(self::VARIANTS_LISTED_PER_PARENT);
+            foreach ($this->productListRoute->load($criteria, $context)->getProducts() as $variant) {
+                $variants[$id][] = $variant->getId();
+            }
+        }
+
         return $variants;
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    private function variantsCriteria(array $ids): Criteria
+    {
+        $criteria = new Criteria();
+        $criteria->addFilter(new EqualsAnyFilter('parentId', $ids));
+        $criteria->addSorting(new FieldSorting('parentId'), new FieldSorting('id'));
+
+        return $criteria;
     }
 
     /**

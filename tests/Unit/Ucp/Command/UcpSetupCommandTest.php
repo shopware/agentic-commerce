@@ -63,6 +63,7 @@ class UcpSetupCommandTest extends TestCase
         static::assertTrue($saved->idempotencyRequired);
         static::assertSame(['localhost', 'shop.localhost'], $saved->platformAllowlist);
         static::assertSame(['localhost', 'shop.localhost'], $saved->agentAllowlist);
+        static::assertSame(['localhost', 'shop.localhost'], $saved->remoteProfileAllowlist);
         static::assertCount(1, $keys->allManagedForTenant(self::CHANNEL_ID), 'A signing key is generated when the channel has none.');
         static::assertStringContainsString('Signing key generated', $display);
         static::assertStringContainsString('http://shop.localhost:8088/.well-known/ucp', $display);
@@ -91,6 +92,7 @@ class UcpSetupCommandTest extends TestCase
         static::assertSame('strict', $saved->signaturePolicy);
         static::assertSame(['agent.example.com'], $saved->platformAllowlist);
         static::assertSame(['agent.example.com'], $saved->agentAllowlist);
+        static::assertSame(['agent.example.com'], $saved->remoteProfileAllowlist);
         static::assertSame(['catalog', 'cart'], $saved->enabledCapabilities);
         static::assertStringNotContainsString('DEVELOPMENT_MODE', $tester->getDisplay());
     }
@@ -142,6 +144,9 @@ class UcpSetupCommandTest extends TestCase
         static::assertSame('strict', $saved->signaturePolicy);
         static::assertSame([], $saved->platformAllowlist, 'the dev hosts do not survive a production rerun');
         static::assertSame([], $saved->agentAllowlist);
+        // toRuntimeConfiguration() falls back to platformAllowlist only while this one is empty,
+        // so a surviving remote-profile host would override the list just cleared above.
+        static::assertSame([], $saved->remoteProfileAllowlist);
     }
 
     public function testDryRunWritesNothingAndGeneratesNoKey(): void

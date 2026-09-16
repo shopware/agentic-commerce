@@ -9,6 +9,7 @@ use Mcp\Capability\Attribute\Schema;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Ucp\Sdk\Model\RequestContext;
+use Ucp\Sdk\Service\ProtocolValidatorInterface;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
@@ -27,6 +28,7 @@ final class UcpCheckoutCompleteTool
         private readonly UcpMcpToolContext $toolContext,
         private readonly UcpCheckoutCompletionPreview $completionPreview,
         private readonly UcpCheckoutCompletionPayment $completionPayment,
+        private readonly ProtocolValidatorInterface $protocolValidator,
     ) {
     }
 
@@ -49,7 +51,7 @@ final class UcpCheckoutCompleteTool
                     $id,
                 )),
                 $dryRun,
-                fn (RequestContext $context) => $this->preview($id, $context),
+                fn (RequestContext $context) => $this->preview($id, $requestPayload, $context),
             );
         } catch (\Throwable $exception) {
             return $this->toolContext->failure($exception);
@@ -65,12 +67,22 @@ final class UcpCheckoutCompleteTool
      * preview is therefore built from the read-only `checkout.get` path — the same
      * one get_checkout uses — plus the blockers its status implies.
      *
-     * It is still handed to executeMutating() rather than called ahead of it, so a
-     * preview fails the same validation a commit would; and the context arrives from
+     * Reading the checkout back does not look at the payload, so the request is validated
+     * here explicitly, against the same schema `checkout.complete` validates it against on
+     * the way in. Without this the preview answered on a payment object the commit would
+     * refuse: the tool promises to report "anything that would block a commit", and an
+     * invalid payload is the one blocker an agent can still fix before confirming.
+     *
+     * It is still handed to executeMutating() rather than called ahead of it, so the
+     * idempotency requirement is enforced on a preview too, and the context arrives from
      * there already checked instead of being resolved again here.
+     *
+     * @param UcpMcpNestedJsonObject $requestPayload
      */
-    private function preview(string $id, RequestContext $context): string
+    private function preview(string $id, array $requestPayload, RequestContext $context): string
     {
+        $this->protocolValidator->validateRequest('checkout.complete', $requestPayload, $context);
+
         $checkout = $this->operationExecutor->execute(new ShoppingOperationRequest(
             'checkout.get',
             [],

@@ -18,6 +18,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsAnyFilter;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
@@ -431,6 +432,63 @@ final class ShopwareCartGatewayTest extends TestCase
     }
 
     /**
+     * A single global `setLimit()` is spent in id order, so one wide product could consume the
+     * whole window and leave the other refused parents with no variants listed -- reported as
+     * "not purchasable in this sales channel", which is a false statement about a product the
+     * agent could have bought. The bound has to be per parent.
+     */
+    #[Test]
+    public function testAWideParentDoesNotStarveTheOtherRefusedParentsOfAlternatives(): void
+    {
+        $cart = new Cart('token-two-parents');
+        $droppingAddRoute = new class extends AbstractCartItemAddRoute {
+            public function getDecorated(): AbstractCartItemAddRoute
+            {
+                throw new \BadMethodCallException('Decoration is not supported in tests.');
+            }
+
+            /**
+             * @param array<LineItem>|null $items
+             */
+            public function add(Request $request, Cart $cart, SalesChannelContext $context, ?array $items): \Shopware\Core\Checkout\Cart\SalesChannel\CartResponse
+            {
+                return new \Shopware\Core\Checkout\Cart\SalesChannel\CartResponse($cart);
+            }
+        };
+
+        // 60 variants on the first parent: more than the old global limit of 50 on its own.
+        $wide = [];
+        for ($i = 0; $i < 60; ++$i) {
+            $wide[] = \sprintf('wide-variant-%02d', $i);
+        }
+
+        $gateway = $this->gateway(
+            $cart,
+            addRoute: $droppingAddRoute,
+            productListRoute: $this->variantsOfParents(['parent-wide' => $wide, 'parent-narrow' => ['narrow-variant']]),
+        );
+
+        try {
+            $gateway->createCart(
+                'token-two-parents',
+                [
+                    new UcpLineItem('parent-wide', 'Wide', 10.0, 1),
+                    new UcpLineItem('parent-narrow', 'Narrow', 20.0, 1),
+                ],
+                [],
+                new RequestContext('shop.test'),
+            );
+            self::fail('Expected both dropped line items to be reported.');
+        } catch (ValidationException $exception) {
+            $violations = implode(' ', $exception->getViolations());
+            self::assertStringContainsString('narrow-variant', $violations, 'the second parent still gets its alternatives');
+            self::assertStringNotContainsString('not purchasable in this sales channel', $violations);
+            self::assertStringContainsString('wide-variant-00', $violations);
+            self::assertStringNotContainsString('wide-variant-59', $violations, 'and the wide one is capped rather than dumped whole');
+        }
+    }
+
+    /**
      * A product list route that answers the gateway's parentId query with the given variants,
      * the way Shopware does for a parent whose children are buyable in this sales channel.
      *
@@ -438,17 +496,49 @@ final class ShopwareCartGatewayTest extends TestCase
      */
     private function variantsOfParent(string $parentId, array $variantIds): AbstractProductListRoute
     {
+        return $this->variantsOfParents([$parentId => $variantIds]);
+    }
+
+    /**
+     * A product list route that answers the gateway's parentId query the way Shopware does:
+     * honouring the `parentId` filter and the criteria's limit, in `parentId, id` order. The
+     * limit matters — a fixture that returns everything regardless cannot show a starved parent.
+     *
+     * @param array<string, list<string>> $variantIdsByParent
+     */
+    private function variantsOfParents(array $variantIdsByParent): AbstractProductListRoute
+    {
         $variants = [];
-        foreach ($variantIds as $variantId) {
-            $variant = new SalesChannelProductEntity();
-            $variant->setId($variantId);
-            $variant->setParentId($parentId);
-            $variants[] = $variant;
+        foreach ($variantIdsByParent as $parentId => $variantIds) {
+            foreach ($variantIds as $variantId) {
+                $variant = new SalesChannelProductEntity();
+                $variant->setId($variantId);
+                $variant->setParentId((string) $parentId);
+                $variants[] = $variant;
+            }
         }
 
         $route = $this->createMock(AbstractProductListRoute::class);
         $route->method('load')->willReturnCallback(
             static function (Criteria $criteria, SalesChannelContext $context) use ($variants): ProductListResponse {
+                $wanted = [];
+                foreach ($criteria->getFilters() as $filter) {
+                    if ($filter instanceof EqualsAnyFilter && 'parentId' === $filter->getField()) {
+                        $wanted = array_map(strval(...), $filter->getValue());
+                    }
+                }
+
+                $matching = array_values(array_filter(
+                    $variants,
+                    static fn (SalesChannelProductEntity $variant): bool => \in_array((string) $variant->getParentId(), $wanted, true),
+                ));
+                usort($matching, static fn (SalesChannelProductEntity $a, SalesChannelProductEntity $b): int => [$a->getParentId(), $a->getId()] <=> [$b->getParentId(), $b->getId()]);
+
+                $limit = $criteria->getLimit();
+                if (null !== $limit) {
+                    $matching = \array_slice($matching, 0, $limit);
+                }
+
                 // ProductCollection is declared over ProductEntity, so building one from
                 // SalesChannelProductEntity narrows it to ProductCollection<SalesChannelProductEntity>
                 // -- which the invariant EntitySearchResult<ProductCollection> the route returns
@@ -456,8 +546,8 @@ final class ShopwareCartGatewayTest extends TestCase
                 /** @var EntitySearchResult<ProductCollection> $result */
                 $result = new EntitySearchResult(
                     'product',
-                    \count($variants),
-                    new ProductCollection($variants),
+                    \count($matching),
+                    new ProductCollection($matching),
                     null,
                     $criteria,
                     Context::createDefaultContext(),

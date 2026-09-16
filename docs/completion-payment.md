@@ -92,6 +92,23 @@ $services->set(AcmeCompletionPaymentApplier::class)
 
 There is nothing to unregister and no compiler pass to write.
 
+### Which instrument you get
+
+The **first** instrument on the completion — not necessarily the one the buyer chose.
+
+UCP models payment as `{"instruments": [...]}` and marks the buyer's choice with `selected` at the
+instrument top level. The SDK's `PaymentInstrument` has no such property and completion maps the
+whole list through it, so nothing reaches this plugin that could tell two instruments apart. The
+SDK does honour `selected` on create and update, where it reads the raw payload before mapping;
+the asymmetry is tracked in
+[ucp-php-sdk#190](https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/190).
+
+The plugin does not refuse a completion carrying several instruments — that is a spec-valid
+request, and refusing it here would be this plugin deciding for every deployment. If charging the
+wrong one is unacceptable to your business, **your applier is the place to refuse**: throw
+`ValidationException` when the instrument you are handed is not one you can confidently settle.
+Once the SDK reports `selected`, this section goes away and the parameter becomes the chosen one.
+
 ### When it is called
 
 Immediately before the order is placed, and after everything the order needs already exists:
