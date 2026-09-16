@@ -224,6 +224,10 @@ bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT"
 bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT"
 ```
 
+These resolve the SDK from Packagist at the versions `composer.json` pins, which is what a
+merchant installs. To smoke a local SDK checkout instead, prefix with
+`UCP_SDK_SOURCE=path SDK_ROOT=/path/to/ucp-php-sdk`.
+
 > **Runtime header note:** every `/ucp/...` runtime request must carry a
 > `UCP-Agent` header (ucp-php-sdk request-time validation) or it returns `422`
 > before reaching the capability. Any manual curl below that hits a runtime

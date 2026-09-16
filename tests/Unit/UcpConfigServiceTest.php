@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
-use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;

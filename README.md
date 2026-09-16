@@ -211,6 +211,10 @@ bin/ci-admin-smoke.sh /path/to/shopware-checkout auto
 bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 ```
 
+`bin/ci-smoke.sh` resolves the SDK from Packagist at the versions `composer.json` pins. To smoke
+a local SDK checkout instead, set `UCP_SDK_SOURCE=path` (and `SDK_ROOT`, which defaults to a
+sibling `../ucp-php-sdk`); it is then staged into the shop and relabelled as the pinned version.
+
 ### Prefer functional tests over shell smoke
 
 Cover behavior at the lowest layer that can express it, and reach for a PHP test
@@ -283,14 +287,20 @@ Moving the pin is a plugin release:
 2. **Move the pin, and the forced versions with it.**
    - `composer.json` — the exact `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` versions. Both, not only the bundle: the bundle accepts a *range* of `core`, so pinning the bundle alone would let a later `core` release pair with it on a source install.
    - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version outside the pin no longer satisfies the constraint and resolution breaks.
-   - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines.
+   - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines, which apply only under `UCP_SDK_SOURCE=path`.
    - `src/Ucp/UcpProtocol.php` — only if the SDK release moved the spec date. `UcpProtocolVersionGuardTest` fails until `UcpProtocol::VERSION` follows, and it must follow only after `ShopwareDataMapper` and `UcpCapabilityCatalog` have been reviewed against the new schemas. Do not make the constant read the SDK's enum; the failing test is the point.
    - `CHANGELOG.md` and `CHANGELOG_de-DE.md`.
-3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the pin. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
+3. **Leave `UCP_SDK_REF` on `main`.** One job, `sdk-main-compatibility`, still builds the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
 
-   `future-compatibility` is the exception: it resolves both SDK packages from Packagist at the pinned tag. It is a *Shopware* trunk signal, and the merge gate it blocks has to test what merchants install. Relabelling SDK `main` as the pinned tag there is how a single SDK-internal constraint bump once turned `main` red for five days.
+### Which SDK a CI job resolves
 
-> **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against whichever published tag an install actually resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json`'s lower bound is that tag or newer.
+Every job that blocks a merge resolves both SDK packages **from Packagist at the versions `composer.json` pins** — the pair a merchant installs. `sdk-main-compatibility` is the single exception and the only job that stages an SDK checkout: it points a path repository at `UCP_SDK_REF` and relabels that source as the pinned version.
+
+That relabelling is why the exception is `continue-on-error` and absent from both `expected_checks` and `validation-gate`. A branch wearing a release's version number is not what anyone installs, and when SDK `main` moved to require a newer `core`, having it on the merge path turned this repository's `main` red for five days — and would have done the same to every open pull request at once. Read the job, open an SDK issue; do not let it stop a merge.
+
+`bin/ci-smoke.sh` follows the same rule through `UCP_SDK_SOURCE`, which defaults to `packagist`; only `sdk-main-compatibility` and local manual testing set `path`.
+
+> **Why green CI is not enough on its own:** a change that compiles against SDK `main` in `sdk-main-compatibility` can still be broken against whichever published tag an install resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json` pins that tag.
 
 ### Migrations and releases
 
