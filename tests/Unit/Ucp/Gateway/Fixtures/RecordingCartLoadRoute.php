@@ -27,13 +27,13 @@ final class RecordingCartLoadRoute extends AbstractCartLoadRoute
         throw new \BadMethodCallException('Decoration is not supported in tests.');
     }
 
-    public function load(Request $request, SalesChannelContext $context): CartResponse
+    public function load(Request $request, SalesChannelContext $context, ?Cart $cart = null): CartResponse
     {
         $token = $request->query->get('token');
         if (\is_string($token)) {
             $this->loadedTokens[] = $token;
         }
 
-        return new CartResponse($this->cart);
+        return new CartResponse($cart ?? $this->cart);
     }
 }

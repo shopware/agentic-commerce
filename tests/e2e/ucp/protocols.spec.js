@@ -108,6 +108,11 @@ test.describe('UCP live protocol transports', () => {
             expect(cartResponse.headers()['access-control-allow-origin']).toBe(config.baseUrl);
             expect(cartResponse.headers()['content-security-policy']).toContain(`frame-ancestors ${config.baseUrl}`);
             expect(cartResponse.headers()['x-frame-options']).toBeUndefined();
+            // The embedded URL carries the cart context token, so keep the page out of
+            // shared caches, search indexes, and outbound Referer headers.
+            expect(cartResponse.headers()['cache-control']).toBe('no-store, private');
+            expect(cartResponse.headers()['referrer-policy']).toBe('no-referrer');
+            expect(cartResponse.headers()['x-robots-tag']).toBe('noindex, nofollow');
             const cartHtml = await cartResponse.text();
             expect(cartHtml).toContain('UCP embedded cart');
             expect(cartHtml).toContain(product.title);

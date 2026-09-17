@@ -86,7 +86,7 @@
 
             {% block ucp_embedded_cta %}
             {% if data.continue_url is defined and data.continue_url is not empty %}
-                <a class="cta" target="_top" rel="noopener" href="{{ data.continue_url }}">Continue checkout</a>
+                <a class="cta" target="_top" rel="noopener noreferrer" href="{{ data.continue_url }}">Continue checkout</a>
             {% endif %}
             {% endblock %}
         </div>
@@ -96,8 +96,18 @@
 <script>
 (() => {
     const state = {{ stateJson|raw }};
-    const targetOrigin = state.targetOrigin || window.location.origin;
+    const allowedOrigins = state.allowedOrigins || [];
+    let targetOrigin = allowedOrigins.includes(state.targetOrigin) ? state.targetOrigin : null;
+    if (!targetOrigin && document.referrer) {
+        const referrerOrigin = new URL(document.referrer).origin;
+        if (allowedOrigins.includes(referrerOrigin)) {
+            targetOrigin = referrerOrigin;
+        }
+    }
     function emit(type, detail = {}) {
+        if (!targetOrigin) {
+            return;
+        }
         window.parent.postMessage({
             channel: state.channel,
             type,
@@ -108,11 +118,19 @@
         }, targetOrigin);
     }
     window.addEventListener('message', (event) => {
-        if (event.origin !== targetOrigin && targetOrigin !== window.location.origin) {
+        if (event.source !== window.parent || !allowedOrigins.includes(event.origin)) {
             return;
         }
         const data = event.data || {};
         if (data.channel !== state.channel) {
+            return;
+        }
+        if (!targetOrigin) {
+            targetOrigin = event.origin;
+            emit('ucp.embedded.ready');
+            emit('ucp.embedded.state');
+        }
+        if (event.origin !== targetOrigin) {
             return;
         }
         if (data.type === 'ucp.embedded.ping') {

@@ -88,10 +88,10 @@ final class CheckoutSessionStore
         }
 
         return new Buyer(
-            isset($buyer['email']) && \is_string($buyer['email']) ? $buyer['email'] : null,
-            isset($buyer['firstName']) && \is_string($buyer['firstName']) ? $buyer['firstName'] : null,
-            isset($buyer['lastName']) && \is_string($buyer['lastName']) ? $buyer['lastName'] : null,
-            isset($buyer['phoneNumber']) && \is_string($buyer['phoneNumber']) ? $buyer['phoneNumber'] : null,
+            email: isset($buyer['email']) && \is_string($buyer['email']) ? $buyer['email'] : null,
+            firstName: isset($buyer['firstName']) && \is_string($buyer['firstName']) ? $buyer['firstName'] : null,
+            lastName: isset($buyer['lastName']) && \is_string($buyer['lastName']) ? $buyer['lastName'] : null,
+            phoneNumber: isset($buyer['phoneNumber']) && \is_string($buyer['phoneNumber']) ? $buyer['phoneNumber'] : null,
         );
     }
 
@@ -102,7 +102,30 @@ final class CheckoutSessionStore
      */
     public function guestAddress(array $metadata): ?array
     {
-        $guestAddress = $metadata['guestAddress'] ?? null;
+        return $this->storedAddress($metadata['guestAddress'] ?? null);
+    }
+
+    /**
+     * The shipping address, when the agent stated one distinct from the billing address.
+     *
+     * Absent for every session written before the two were separated, and for every
+     * agent that supplies only one — the caller falls back to the billing address, which
+     * is what Shopware did implicitly before.
+     *
+     * @param array<string, mixed> $metadata
+     *
+     * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
+     */
+    public function guestShippingAddress(array $metadata): ?array
+    {
+        return $this->storedAddress($metadata['guestShippingAddress'] ?? null);
+    }
+
+    /**
+     * @return array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null
+     */
+    private function storedAddress(mixed $guestAddress): ?array
+    {
         if (!\is_array($guestAddress)) {
             return null;
         }

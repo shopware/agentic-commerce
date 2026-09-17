@@ -22,6 +22,8 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Grouping\FieldGrouping;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
@@ -164,6 +166,47 @@ final class ShopwareCatalogGatewayTest extends TestCase
         self::assertSame(['name', 'id'], array_map(static fn ($sorting) => $sorting->getField(), $criteriaSeen->getSorting()), 'A listing without a term needs a stable order to page over.');
     }
 
+    #[Test]
+    public function testCatalogExposesThePlainProductDescription(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'A', 19.99, '<p>A lightweight <strong>everyday</strong> shoe.</p>')],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('A lightweight everyday shoe.', $products[0]->description);
+
+        $payload = $products[0]->toArray();
+        self::assertSame(['plain' => 'A lightweight everyday shoe.'], $payload['description']);
+        self::assertSame(['plain' => 'A lightweight everyday shoe.'], $payload['variants'][0]['description'] ?? null);
+    }
+
+    #[Test]
+    public function testCatalogDescriptionFallsBackToTheTitleWhenAbsent(): void
+    {
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse(
+                [$this->product('product-a', 'Runner Pro', 19.99)],
+                $criteria,
+            ),
+        );
+        $gateway = $this->gateway(10, listRoute: $listRoute);
+
+        $products = $gateway->lookup(['product-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertNull($products[0]->description);
+        self::assertSame(['plain' => 'Runner Pro'], $products[0]->toArray()['description']);
+    }
+
     private function gateway(
         int $catalogResultLimit,
         ?AbstractProductSearchRoute $searchRoute = null,
@@ -249,13 +292,213 @@ final class ShopwareCatalogGatewayTest extends TestCase
         );
     }
 
-    private function product(string $id, string $name, float $price): SalesChannelProductEntity
+    /**
+     * Browsing used to answer with the parent of every variant product plus one row per variant.
+     * The parent cannot be bought, so a cart built from it comes back empty, and the variants all
+     * wore the parent's name.
+     */
+    #[Test]
+    public function testBrowsingAsksForOneRowPerVariantGroupAndSkipsParents(): void
+    {
+        $captured = null;
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use (&$captured): ProductListResponse {
+                $captured ??= $criteria;
+
+                return $this->listResponse([], $criteria);
+            },
+        );
+
+        $this->gateway(10, listRoute: $listRoute)->search('', 10, new RequestContext('shop.test'));
+
+        self::assertInstanceOf(Criteria::class, $captured);
+
+        $groupedFields = array_map(
+            static fn (FieldGrouping $grouping): string => $grouping->getField(),
+            $captured->getGroupFields(),
+        );
+        self::assertSame(['displayGroup'], $groupedFields, 'one row per variant group');
+
+        // VariantListingUpdater gives a parent with children display_group = NULL, so excluding
+        // the null ones is what removes parents from the answer.
+        self::assertStringContainsString('displayGroup', json_encode($captured->getFilters(), \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function testVariantTitlesCarryTheOptionsThatDistinguishThem(): void
+    {
+        $variant = $this->product('variant-a', 'Acoustic Guitar', 25.08);
+        $variant->assign(['variation' => [
+            ['group' => 'Color', 'option' => 'Yellow'],
+            ['group' => 'Material', 'option' => 'Spruce Top'],
+        ]]);
+
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            fn (Criteria $criteria, SalesChannelContext $context): ProductListResponse => $this->listResponse([$variant], $criteria),
+        );
+
+        $products = $this->gateway(10, listRoute: $listRoute)->lookup(['variant-a'], new RequestContext('shop.test'));
+
+        self::assertSame('Acoustic Guitar (Color: Yellow, Material: Spruce Top)', $products[0]->title);
+    }
+
+    /**
+     * A parent is not purchasable, so answering a lookup with its id -- which is what asking for
+     * one used to do, listed as its own variant -- hands the agent something the cart will drop.
+     */
+    #[Test]
+    public function testLookingUpAParentAnswersWithAPurchasableVariant(): void
+    {
+        $parent = $this->product('parent-a', 'Acoustic Guitar', 25.08);
+        $parent->setChildCount(2);
+
+        $variant = $this->product('variant-a', 'Acoustic Guitar', 25.08);
+        $variant->setParentId('parent-a');
+
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use ($parent, $variant): ProductListResponse {
+                // First the requested ids, then the representative lookup by parentId, then the
+                // replacement load by the representative's own id.
+                if (\in_array('parent-a', $criteria->getIds(), true)) {
+                    return $this->listResponse([$parent], $criteria);
+                }
+
+                return $this->listResponse([$variant], $criteria);
+            },
+        );
+
+        $products = $this->gateway(10, listRoute: $listRoute)->lookup(['parent-a'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('variant-a', $products[0]->id, 'the answer is something the agent can buy');
+        self::assertSame(
+            [['id' => 'parent-a', 'match' => 'exact']],
+            self::variantInputs($products[0]->extra),
+            'the requested id stays the lookup input',
+        );
+    }
+
+    /**
+     * The fix for `catalog.product` answering a different variant on every call is the ordering,
+     * not the resolving: ProductDetailRoute's findBestVariant() resolves a parent too, but orders
+     * by availability and price with no tiebreaker, so variants sharing both came back in
+     * whatever order the database felt like. Assert the ordering, or the determinism the
+     * representative lookup exists for is the one thing nothing covers.
+     */
+    #[Test]
+    public function testTheVariantRepresentingAParentIsChosenByAFullyDeterministicOrder(): void
+    {
+        $sorting = $this->captureRepresentativeCriteria()->getSorting();
+
+        self::assertSame(
+            ['parentId', 'available', 'price', 'id'],
+            array_map(static fn (FieldSorting $field): string => $field->getField(), $sorting),
+        );
+        self::assertSame(
+            [FieldSorting::ASCENDING, FieldSorting::DESCENDING, FieldSorting::ASCENDING, FieldSorting::ASCENDING],
+            array_map(static fn (FieldSorting $field): string => $field->getDirection(), $sorting),
+            'buyable first, then cheapest, then id -- the tiebreaker core is missing',
+        );
+    }
+
+    /**
+     * Unbounded, this loads every variant of every parent to keep one id apiece, so a page of
+     * parents that each have many variants hydrates the full cross-product to select a handful.
+     */
+    #[Test]
+    public function testTheRepresentativeLookupIsBoundedPerParentRatherThanByTotalVariantCount(): void
+    {
+        self::assertSame(50, $this->captureRepresentativeCriteria()->getLimit());
+    }
+
+    /**
+     * The bound must not cost correctness: a parent whose variants did not fit in the window
+     * still has to resolve, or the lookup answers with the parent id again and the cart drops it.
+     */
+    #[Test]
+    public function testAParentCrowdedOutOfTheBoundedWindowIsStillResolvedOnItsOwn(): void
+    {
+        $parent = $this->product('parent-b', 'Bass Guitar', 30.0);
+        $parent->setChildCount(2);
+
+        $variant = $this->product('variant-b', 'Bass Guitar', 30.0);
+        $variant->setParentId('parent-b');
+
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use ($parent, $variant): ProductListResponse {
+                if (\in_array('parent-b', $criteria->getIds(), true)) {
+                    return $this->listResponse([$parent], $criteria);
+                }
+
+                if (\in_array('variant-b', $criteria->getIds(), true)) {
+                    return $this->listResponse([$variant], $criteria);
+                }
+
+                // The batched window came back without this parent in it -- another parent's
+                // variants filled it. Only the single-parent query that follows finds one.
+                return 1 === $criteria->getLimit()
+                    ? $this->listResponse([$variant], $criteria)
+                    : $this->listResponse([], $criteria);
+            },
+        );
+
+        $products = $this->gateway(10, listRoute: $listRoute)->lookup(['parent-b'], new RequestContext('shop.test'));
+
+        self::assertCount(1, $products);
+        self::assertSame('variant-b', $products[0]->id, 'the bound may cost a query, not an answer');
+    }
+
+    /**
+     * The criteria the representative lookup hands the product list route: the one carrying the
+     * sorting, as opposed to the id reads on either side of it.
+     */
+    private function captureRepresentativeCriteria(): Criteria
+    {
+        $captured = null;
+
+        $parent = $this->product('parent-a', 'Acoustic Guitar', 25.08);
+        $parent->setChildCount(2);
+
+        $variant = $this->product('variant-a', 'Acoustic Guitar', 25.08);
+        $variant->setParentId('parent-a');
+
+        $listRoute = $this->createMock(AbstractProductListRoute::class);
+        $listRoute->method('load')->willReturnCallback(
+            function (Criteria $criteria, SalesChannelContext $context) use (&$captured, $parent, $variant): ProductListResponse {
+                if ([] !== $criteria->getSorting()) {
+                    $captured ??= $criteria;
+
+                    return $this->listResponse([$variant], $criteria);
+                }
+
+                return \in_array('parent-a', $criteria->getIds(), true)
+                    ? $this->listResponse([$parent], $criteria)
+                    : $this->listResponse([$variant], $criteria);
+            },
+        );
+
+        $this->gateway(10, listRoute: $listRoute)->lookup(['parent-a'], new RequestContext('shop.test'));
+
+        self::assertInstanceOf(Criteria::class, $captured);
+
+        return $captured;
+    }
+
+    private function product(string $id, string $name, float $price, ?string $description = null): SalesChannelProductEntity
     {
         $product = new SalesChannelProductEntity();
         $product->setId($id);
         $product->setName($name);
         $product->setProductNumber($id);
         $product->setCalculatedPrice(new CalculatedPrice($price, $price, new CalculatedTaxCollection(), new TaxRuleCollection()));
+
+        if (null !== $description) {
+            $product->setDescription($description);
+        }
 
         return $product;
     }

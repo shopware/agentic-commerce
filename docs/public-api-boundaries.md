@@ -8,6 +8,14 @@ Public contracts:
 - MCP tool names and payload schemas.
 - DAL entity names, fields, associations, and template context keys.
 - Documented UCP/SDK behavior.
+- `Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier`. The
+  shipped `UnappliedCompletionPayment` deliberately ignores the instrument and completes
+  against the sales channel default; the class exists so a deployment can replace that
+  with one that settles the instrument the agent presented. Alias
+  `AbstractCompletionPaymentApplier` to your own service, or decorate it and delegate
+  through `getDecorated()`. An abstract class rather than an interface, per
+  `adr/2020-11-25-decoration-pattern.md`, so a parameter can be added later without
+  breaking every implementation at once. See `docs/completion-payment.md`.
 - `Swag\AgenticCommerce\Content\ProductExport\Provider\AbstractAgenticCommerceProductExportProvider`
   plus the `swag_agentic_commerce.product_export.provider` service tag for
   product-export provider extensions. A third party extends the class, implements

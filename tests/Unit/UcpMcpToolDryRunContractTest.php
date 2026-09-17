@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Ucp\Sdk\Service\ProtocolValidatorInterface;
 
 /**
  * Pins which UCP MCP tools declare `dryRun`.
@@ -104,7 +105,7 @@ final class UcpMcpToolDryRunContractTest extends TestCase
 
     #[DataProvider('payloadCarryingToolProvider')]
     #[Test]
-    public function testToolsWithARequestBodyDeclareAnOptionalStringPayload(string $tool): void
+    public function testToolsWithARequestBodyAcceptAnObjectPayload(string $tool): void
     {
         $parameter = $this->parameters($tool)['payload'] ?? null;
 
@@ -112,9 +113,16 @@ final class UcpMcpToolDryRunContractTest extends TestCase
 
         $type = $parameter->getType();
         self::assertInstanceOf(\ReflectionNamedType::class, $type);
-        self::assertSame('string', $type->getName(), 'payload must be a string so the generated schema declares a JSON object string.');
+        self::assertSame('array', $type->getName());
         self::assertTrue($parameter->isDefaultValueAvailable(), 'payload must be optional.');
-        self::assertSame('{}', $parameter->getDefaultValue(), 'payload must default to an empty JSON object.');
+        self::assertSame([], $parameter->getDefaultValue());
+
+        $method = new \ReflectionMethod(self::TOOL_NAMESPACE.$tool, '__invoke');
+        $attributes = $method->getAttributes(\Mcp\Capability\Attribute\Schema::class);
+        self::assertCount(1, $attributes);
+        $schema = $attributes[0]->getArguments()['properties']['payload'];
+        self::assertSame('object', $schema['type']);
+        self::assertInstanceOf(\stdClass::class, $schema['default']);
     }
 
     #[DataProvider('readOnlyToolProvider')]
@@ -147,6 +155,34 @@ final class UcpMcpToolDryRunContractTest extends TestCase
         sort($found);
 
         self::assertSame($classified, $found, 'A tool was added or removed without updating this contract.');
+    }
+
+    /**
+     * Every other mutating tool previews by running the operation in a rolled-back transaction,
+     * so its payload meets the same validation a commit would. `complete_checkout` cannot --
+     * completion POSTs an `order.created` webhook and a rollback does not recall an HTTP request
+     * -- so it previews through the read-only `checkout.get` path, which never looks at the
+     * payload. It therefore has to validate the request itself, or an invalid payment object
+     * previews clean and fails on commit, which is what dryRun exists to prevent.
+     *
+     * This pins the dependency, not the call: `ShoppingOperationExecutor` is final, so the tool
+     * cannot be built with a mock and `preview()` cannot be reached from a unit test.
+     */
+    #[Test]
+    public function testTheCompletionToolValidatesItsOwnRequestBecauseItsPreviewCannot(): void
+    {
+        $constructor = (new \ReflectionClass(self::TOOL_NAMESPACE.'UcpCheckoutCompleteTool'))->getConstructor();
+        self::assertNotNull($constructor);
+
+        $types = [];
+        foreach ($constructor->getParameters() as $parameter) {
+            $type = $parameter->getType();
+            if ($type instanceof \ReflectionNamedType) {
+                $types[] = $type->getName();
+            }
+        }
+
+        self::assertContains(ProtocolValidatorInterface::class, $types);
     }
 
     /**

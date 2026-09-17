@@ -56,9 +56,27 @@ readonly REQUIRED_CLASSES=(
   "vendor/ucp-php-sdk/core/src/Enum/UcpProtocolVersion.php"
 )
 
+# Consumers must read the whole listing. grep -q can close early on a large archive,
+# making printf fail with SIGPIPE under pipefail even when the expected file exists.
 listing="$(unzip -Z1 "${zip_file}")"
 
 status=0
+
+# A full Composer resolve also installs Shopware and Symfony. Those belong to the
+# host shop; carrying them here overrides its versions and raises the PHP minimum.
+python3 - "${zip_file}" <<'PYTHON'
+import json
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    metadata = json.loads(archive.read('SwagAgenticCommerce/vendor/composer/installed.json'))
+names = {package['name'] for package in metadata['packages']}
+expected = {'ucp-php-sdk/core', 'ucp-php-sdk/symfony-bundle'}
+if names != expected:
+    sys.exit(f'FAIL: bundled runtime must contain only the two SDK packages; found {sorted(names)}')
+print('ok: bundled runtime contains only the two SDK packages.')
+PYTHON
 
 for package in core symfony-bundle; do
   count="$(printf '%s\n' "${listing}" \
@@ -78,7 +96,7 @@ for package in core symfony-bundle; do
 done
 
 for class_path in "${REQUIRED_CLASSES[@]}"; do
-  if ! printf '%s\n' "${listing}" | grep -Fqx "${PLUGIN}/${class_path}"; then
+  if ! printf '%s\n' "${listing}" | grep -Fx "${PLUGIN}/${class_path}" >/dev/null; then
     echo "FAIL: ${class_path} is not in the archive." >&2
     status=1
   fi
@@ -109,7 +127,7 @@ if [[ -z "${autoload_psr4}" ]]; then
   status=1
 else
   for expected in 'ucp-php-sdk/core/src' 'ucp-php-sdk/symfony-bundle/src'; do
-    if ! printf '%s\n' "${autoload_psr4}" | grep -Fq "${expected}"; then
+    if ! printf '%s\n' "${autoload_psr4}" | grep -F "${expected}" >/dev/null; then
       echo "FAIL: autoload_psr4.php does not map anything to ${expected}." >&2
       status=1
     fi
@@ -119,7 +137,7 @@ fi
 # .sdk/ is the build-only source the path repositories resolve from. Shipping it too would
 # put a second copy of the SDK in the archive, which is how a plugin ends up with two
 # versions of the same class on disk.
-if printf '%s\n' "${listing}" | grep -q "^${PLUGIN}/\.sdk/"; then
+if printf '%s\n' "${listing}" | grep "^${PLUGIN}/\.sdk/" >/dev/null; then
   echo "FAIL: the archive ships the build-only .sdk/ source copy." >&2
   echo "      Add .sdk to zip.pack.excludes.paths in .shopware-extension.yml." >&2
   status=1

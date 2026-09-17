@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
@@ -50,6 +51,7 @@ use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
+#[CoversClass(ShopwareCheckoutAdapter::class)]
 final class ShopwareCheckoutAdapterTest extends TestCase
 {
     #[Test]

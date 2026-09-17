@@ -46,6 +46,15 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
         );
 
         $capabilities = array_intersect_key($profile->capabilities, array_flip($enabledDescriptors));
+
+        // `dev.ucp.shopping.payment_tokenization` is not a capability any release defines. At
+        // 2026-08-25 tokenization is a payment *handler* concern -- handlers/tokenization
+        // /openapi.json -- so publishing it advertised something no peer can negotiate on,
+        // the same defect the catalog ids had. The switch itself stays: it is what decides
+        // whether this business publishes payment handlers at all, which is a real question
+        // with a real answer. It just is not a capability id.
+        unset($capabilities[UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION]);
+        $capabilities = $this->withAdditionalDescriptors($capabilities, $enabledDescriptors);
         $capabilities = $this->withPrunedDiscountExtension($capabilities);
         $services = $profile->services;
 
@@ -61,12 +70,12 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
         }
 
         return new PlatformProfile(
-            $profile->version,
-            $services,
-            $capabilities,
-            \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
-            $profile->signingKeys,
-            $profile->supportedVersions,
+            version: $profile->version,
+            services: $services,
+            capabilities: $capabilities,
+            paymentHandlers: \in_array(UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION, $enabledDescriptors, true) ? $profile->paymentHandlers : [],
+            signingKeys: $profile->signingKeys,
+            supportedVersions: $profile->supportedVersions,
         );
     }
 
@@ -94,16 +103,70 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
 
         $capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT] = array_map(
             static fn (CapabilityDescriptor $descriptor): CapabilityDescriptor => new CapabilityDescriptor(
-                $descriptor->name,
-                $descriptor->version,
-                $descriptor->specUrl,
-                $descriptor->schemaUrl,
-                $extends,
-                $descriptor->config,
+                name: $descriptor->name,
+                version: $descriptor->version,
+                specUrl: $descriptor->specUrl,
+                schemaUrl: $descriptor->schemaUrl,
+                extends: $extends,
+                config: $descriptor->config,
             ),
             $capabilities[UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT],
         );
 
         return $capabilities;
+    }
+
+    /**
+     * Publish the descriptors a single capability class cannot report.
+     *
+     * `CapabilityInterface::describe()` returns one descriptor, so the SDK builds one entry
+     * per registered capability -- but the catalog capability implements two of the
+     * specification's capabilities, search and lookup, and a business that advertises only
+     * one of them cannot negotiate the other. The filter above can only remove, so the
+     * second name is added here, from the same catalog the descriptors themselves come from.
+     *
+     * @param array<string, list<CapabilityDescriptor>> $capabilities
+     * @param list<string>                              $enabledDescriptors
+     *
+     * @return array<string, list<CapabilityDescriptor>>
+     */
+    private function withAdditionalDescriptors(array $capabilities, array $enabledDescriptors): array
+    {
+        foreach (UcpCapabilityCatalog::allConfigKeys() as $configKey) {
+            foreach (UcpCapabilityCatalog::descriptors($configKey) as $descriptor) {
+                if (isset($capabilities[$descriptor->name])) {
+                    continue;
+                }
+
+                if (!\in_array($descriptor->name, $enabledDescriptors, true)) {
+                    continue;
+                }
+
+                // Only alongside a sibling the SDK did build. Without that check this would
+                // advertise a capability whose class is not registered at all, which is the
+                // mistake it exists to correct rather than repeat.
+                if (!$this->hasSiblingDescriptor($capabilities, $configKey)) {
+                    continue;
+                }
+
+                $capabilities[$descriptor->name] = [$descriptor];
+            }
+        }
+
+        return $capabilities;
+    }
+
+    /**
+     * @param array<string, list<CapabilityDescriptor>> $capabilities
+     */
+    private function hasSiblingDescriptor(array $capabilities, string $configKey): bool
+    {
+        foreach (UcpCapabilityCatalog::descriptorNamesForConfigKey($configKey) as $name) {
+            if (isset($capabilities[$name])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
