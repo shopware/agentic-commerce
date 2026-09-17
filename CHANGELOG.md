@@ -1,3 +1,7 @@
+# next version
+
+- Require Shopware `6.5.8` or newer. `6.5.0.0` through `6.5.7.4` were listed as compatible but could never install: those versions ship Symfony 6.3, while both the extension's own routes and the UCP SDK need Symfony 6.4. Installation therefore ended in a Composer error about `symfony/config` that a merchant cannot act on. Such a shop now sees the extension as incompatible; updating to `6.5.8.x` fixes that and stays inside the same minor.
+
 # 1.3.0
 
 - Register the billing and shipping address the agent actually stated. One address was resolved from the fulfillment destination and registered as the billing address, with no shipping address passed at all -- so an agent that stated the two separately had the parcel sent to the billing address, and a digital cart, which has no destination to offer, had no address at all and could not complete. Billing now comes from `payment.instruments[].billing_address` and shipping from the fulfillment destination, each falling back to the other, and a shipping address reaches Shopware only when it differs from billing.
