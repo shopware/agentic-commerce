@@ -1,3 +1,7 @@
+# next version
+
+- Shopware `6.5.8` oder neuer ist auf der `6.5`-Linie Voraussetzung. `6.5.0.0` bis `6.5.7.4` wurden als kompatibel angeboten, ließen sich aber nie installieren: Sie liefern Symfony 6.3 aus, während sowohl die Routen des Plugins als auch das UCP-SDK Symfony 6.4 benötigen -- der Versuch endete in einem Composer-Auflösungsfehler zu `symfony/config`, mit dem ein Händler nichts anfangen kann. Ein solcher Shop erhält jetzt den Hinweis, dass die Erweiterung nicht kompatibel ist, und erreicht sie mit dem Update auf `6.5.8.x` -- einem Patch-Update innerhalb derselben Minor-Version.
+
 # 1.3.0
 
 - Rechnungs- und Lieferadresse werden so registriert, wie der Agent sie angegeben hat. Bisher wurde eine einzige Adresse aus dem Lieferziel gelesen und als Rechnungsadresse registriert, ganz ohne Lieferadresse -- wer beide getrennt angab, bekam die Ware an die Rechnungsadresse geschickt, und ein digitaler Warenkorb ohne Lieferziel hatte gar keine Adresse und ließ sich nicht abschließen. Die Rechnungsadresse stammt jetzt aus `payment.instruments[].billing_address`, die Lieferadresse aus dem Lieferziel, beide greifen ersatzweise aufeinander zurück, und eine Lieferadresse wird nur übergeben, wenn sie von der Rechnungsadresse abweicht.

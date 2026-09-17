@@ -119,7 +119,7 @@ The SDK bundle also ships storage-maintenance commands (not sales-channel scoped
 
 ### Compatibility and transport security
 
-The plugin supports Shopware `6.5.x`, `6.6.x`, and trunk/current `6.7+` from one codebase. Capability exposure is feature-detected at runtime: unsupported transports are removed from the UCP profile instead of returning dead links. MCP is only advertised when the current lane has the required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK capability layer.
+The plugin supports Shopware `6.5.8` and newer, `6.6.x`, and trunk/current `6.7+` from one codebase. `6.5.0.0` through `6.5.7.4` are not supported: they ship Symfony 6.3, while both the plugin's own controllers and the UCP SDK need the routing attribute and the `symfony/config` version that arrived in Symfony 6.4. A shop on one of those takes the in-line update to `6.5.8.x`, which stays inside the same minor. Capability exposure is feature-detected at runtime: unsupported transports are removed from the UCP profile instead of returning dead links. MCP is only advertised when the current lane has the required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK capability layer.
 
 Every UCP sales channel has its own tenant configuration. The default setup is intentionally closed: profile exposure must be enabled for the channel, remote platform/profile hosts must be allowlisted where configured, and embedded pages require both `embeddedAllowedOrigins` and `embeddedFrameAncestors`. Until both are configured, every embedded request returns a controlled `403` UCP response.
 
