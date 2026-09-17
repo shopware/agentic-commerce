@@ -1,6 +1,6 @@
 # next version
 
-- Require Shopware `6.5.8` or newer on the `6.5` line. `6.5.0.0` through `6.5.7.4` were offered as compatible but could never install: they ship Symfony 6.3, while both the plugin's own routes and the UCP SDK need Symfony 6.4, so the attempt ended in a Composer resolution error about `symfony/config` that a merchant cannot act on. Such a shop is now told the extension is incompatible, and reaches it with the update to `6.5.8.x` -- a patch-level update inside the same minor.
+- Require Shopware `6.5.8` or newer. `6.5.0.0` through `6.5.7.4` were listed as compatible but could never install: those versions ship Symfony 6.3, while both the extension's own routes and the UCP SDK need Symfony 6.4. Installation therefore ended in a Composer error about `symfony/config` that a merchant cannot act on. Such a shop now sees the extension as incompatible; updating to `6.5.8.x` fixes that and stays inside the same minor.
 
 # 1.3.0
 

@@ -1,6 +1,6 @@
 # next version
 
-- Shopware `6.5.8` oder neuer ist auf der `6.5`-Linie Voraussetzung. `6.5.0.0` bis `6.5.7.4` wurden als kompatibel angeboten, ließen sich aber nie installieren: Sie liefern Symfony 6.3 aus, während sowohl die Routen des Plugins als auch das UCP-SDK Symfony 6.4 benötigen -- der Versuch endete in einem Composer-Auflösungsfehler zu `symfony/config`, mit dem ein Händler nichts anfangen kann. Ein solcher Shop erhält jetzt den Hinweis, dass die Erweiterung nicht kompatibel ist, und erreicht sie mit dem Update auf `6.5.8.x` -- einem Patch-Update innerhalb derselben Minor-Version.
+- Die Erweiterung setzt jetzt Shopware `6.5.8` oder neuer voraus. `6.5.0.0` bis `6.5.7.4` wurden als kompatibel angezeigt, ließen sich aber nie installieren: Diese Versionen enthalten Symfony 6.3, während sowohl die Routen der Erweiterung als auch das UCP-SDK Symfony 6.4 benötigen. Die Installation brach deshalb mit einer Composer-Fehlermeldung zu `symfony/config` ab, mit der ein Händler nichts anfangen kann. In betroffenen Shops wird die Erweiterung jetzt als nicht kompatibel angezeigt; ein Update auf `6.5.8.x` behebt das und bleibt innerhalb derselben Minor-Version.
 
 # 1.3.0
 
