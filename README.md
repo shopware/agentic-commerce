@@ -269,7 +269,7 @@ Store releases use `.github/workflows/store-release.yml`. Manual dispatch is saf
 Prepare a release in a pull request by updating:
 
 - `composer.json` (`version`), which is the Store release source of truth;
-- `CHANGELOG.md` and `CHANGELOG_de-DE.md` with a matching `# <version>` section.
+- `CHANGELOG.md` and `CHANGELOG_de-DE.md` with a matching `# <version>` section. Both files carry the same bullets in the same order, one to one; [AGENTS.md](AGENTS.md#changelog-entries) describes the entry format, and the 1.3.0 section is the reference shape.
 
 After merging and waiting for the `main` CI run, dispatch a packaging-only run first. Enable `publish` only after that succeeds. Publishing uploads the ZIP to the Shopware Store and creates the version tag and GitHub release. It does not update the Store listing metadata or remove the Beta label.
 
