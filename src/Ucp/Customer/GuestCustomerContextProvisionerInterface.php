@@ -12,10 +12,12 @@ interface GuestCustomerContextProvisionerInterface
 {
     /**
      * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestAddress
+     * @param array{street: string, zipcode: string, city: string, countryCode?: string, countryId?: string}|null $guestShippingAddress
      */
     public function ensureGuestCustomer(
         SalesChannelContext $context,
         ?Buyer $buyer,
         ?array $guestAddress = null,
+        ?array $guestShippingAddress = null,
     ): SalesChannelContext;
 }

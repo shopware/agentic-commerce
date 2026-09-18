@@ -14,10 +14,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Shopware\Core\Content\Seo\SeoUrlPlaceholderHandlerInterface;
 use Shopware\Core\Content\Seo\SeoUrlRoute\SeoUrlRouteConfig;
 use Shopware\Core\Content\Seo\SeoUrlRoute\SeoUrlRouteInterface;
 use Shopware\Core\Content\Seo\SeoUrlRoute\SeoUrlRouteRegistry;
-use Shopware\Core\Framework\Adapter\Twig\Extension\SeoUrlFunctionExtension;
 use Swag\AgenticCommerce\Compatibility\Twig\EntitySeoUrlCompatExtension;
 
 /**
@@ -59,13 +59,13 @@ final class EntitySeoUrlCompatExtensionTest extends TestCase
             ->with($entityName)
             ->willReturn([$route]);
 
-        $seoUrlFunctionExtension = $this->createMock(SeoUrlFunctionExtension::class);
-        $seoUrlFunctionExtension->expects($this->once())
-            ->method('seoUrl')
+        $seoUrlPlaceholderHandler = $this->createMock(SeoUrlPlaceholderHandlerInterface::class);
+        $seoUrlPlaceholderHandler->expects($this->once())
+            ->method('generate')
             ->with($routeName, [$parameterName => $primaryKey])
             ->willReturn('GENERATED_PLACEHOLDER');
 
-        $extension = new EntitySeoUrlCompatExtension($registry, $seoUrlFunctionExtension, new NullLogger());
+        $extension = new EntitySeoUrlCompatExtension($registry, $seoUrlPlaceholderHandler, new NullLogger());
 
         static::assertSame('GENERATED_PLACEHOLDER', $extension->entitySeoUrl($entityName, $primaryKey, $parameterName));
     }
@@ -75,8 +75,8 @@ final class EntitySeoUrlCompatExtensionTest extends TestCase
         $registry = $this->createMock(SeoUrlRouteRegistry::class);
         $registry->method('findByDefinition')->willReturn([]);
 
-        $seoUrlFunctionExtension = $this->createMock(SeoUrlFunctionExtension::class);
-        $seoUrlFunctionExtension->expects($this->never())->method('seoUrl');
+        $seoUrlPlaceholderHandler = $this->createMock(SeoUrlPlaceholderHandlerInterface::class);
+        $seoUrlPlaceholderHandler->expects($this->never())->method('generate');
 
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->once())
@@ -86,7 +86,7 @@ final class EntitySeoUrlCompatExtensionTest extends TestCase
                 ['entityName' => 'unknown_entity'],
             );
 
-        $extension = new EntitySeoUrlCompatExtension($registry, $seoUrlFunctionExtension, $logger);
+        $extension = new EntitySeoUrlCompatExtension($registry, $seoUrlPlaceholderHandler, $logger);
 
         static::assertSame('', $extension->entitySeoUrl('unknown_entity', '019cdc7c9cab71cbb44933e5a1003492', 'someId'));
     }
@@ -97,7 +97,7 @@ final class EntitySeoUrlCompatExtensionTest extends TestCase
         // so the function is registered unconditionally.
         $extension = new EntitySeoUrlCompatExtension(
             $this->createMock(SeoUrlRouteRegistry::class),
-            $this->createMock(SeoUrlFunctionExtension::class),
+            $this->createMock(SeoUrlPlaceholderHandlerInterface::class),
             new NullLogger(),
         );
 

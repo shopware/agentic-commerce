@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -15,6 +16,7 @@ use Symfony\Component\Lock\LockFactory;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
@@ -35,6 +37,7 @@ final class CheckoutCompleter
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
+        private readonly AbstractCompletionPaymentApplier $completionPaymentApplier,
     ) {
     }
 
@@ -47,6 +50,7 @@ final class CheckoutCompleter
         Cart $cart,
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
+        ?PaymentInstrument $paymentInstrument = null,
     ): Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
 
@@ -76,6 +80,7 @@ final class CheckoutCompleter
                 $salesChannelContext,
                 $buyer,
                 $this->sessionManager->guestAddress($metadata),
+                $this->sessionManager->guestShippingAddress($metadata),
             );
 
             // Guest registration rotates the Shopware context token and migrates the persisted cart
@@ -88,6 +93,12 @@ final class CheckoutCompleter
             if (null !== $config->webhookUrlOverride) {
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
             }
+
+            $customerContext = $this->completionPaymentApplier->apply(
+                $paymentInstrument,
+                $customerContext,
+                $requestContext,
+            );
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
@@ -105,7 +116,7 @@ final class CheckoutCompleter
             if (null !== $config->webhookUrlOverride) {
                 $this->orderWebhookPublisher->publish(
                     $config->webhookUrlOverride,
-                    new OrderWebhookPayload('order.created', $order->getId(), [
+                    new OrderWebhookPayload(event: 'order.created', orderId: $order->getId(), payload: [
                         'order' => $this->mapper->toOrderView($order)->toArray(),
                     ]),
                     $requestContext,

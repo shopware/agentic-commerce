@@ -36,6 +36,43 @@ The SDK is a required runtime dependency for this plugin line. Shopware installs
 
 UCP provides the transaction contract for agentic shopping. The plugin exposes lane-aware UCP configuration in the Administration and wires Shopware catalog/cart/checkout/order behavior through the `ucp-php-sdk`.
 
+### Set up UCP on a sales channel
+
+The whole path from "plugin activated" to "first UCP request answered", for one sales channel. You need a Storefront or Headless sales channel with at least one domain; every other channel type is refused.
+
+1. **Configure the channel in one step.**
+
+   ```bash
+   # a laptop or a test system
+   bin/console ucp:setup --sales-channel=Storefront --dev
+
+   # production: strict signatures, and only the named platform may talk to the channel
+   bin/console ucp:setup --sales-channel=Storefront --agent-host=agent.example.com
+   ```
+
+   `ucp:setup` switches UCP on for the channel, writes the security defaults, generates a signing key if the channel has none, runs the readiness checks and prints the profile URL. `--dev` accepts unsigned requests (policy `log`) and puts the channel's own domain hosts and `localhost` on the allowlists, so the shop can act as its own agent. Without `--dev` the policy is `strict` and nothing is allowed until you name a platform host. `--dry-run` shows the resulting config without writing it.
+
+2. **Locally only: turn on the SDK's development mode.** Every UCP request names the *calling agent's* profile URL, and the SDK's URL-safety rules refuse everything a laptop can offer (`*.localhost` names and container hostnames resolve to loopback). In development mode the shop accepts its own `/.well-known/ucp` as that profile instead, so no second server is needed.
+
+   ```bash
+   export SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1
+   bin/console cache:clear
+   ```
+
+   Never set this in production: it also admits plain-http and loopback profile hosts.
+
+3. **Make the first request.** The SDK bundle prints it for you, headers and a minimal body included:
+
+   ```bash
+   bin/console ucp:dev:request catalog.search --base-uri=http://shop.localhost:8088
+   ```
+
+   Paste the printed `curl`. Expect `200` with `"status": "success"` in the `ucp` envelope. Without an argument the command lists every operation; `--id` fills in product and resource ids.
+
+4. **Change and re-check.** Exposure (active, profile domain, capabilities, transports) lives in the Administration under the sales channel; allowlists and policy in `ucp:config:set`; `bin/console ucp:config:validate --sales-channel=Storefront` re-runs the readiness checks any time.
+
+What the shortcut in step 2 does and does not prove, and what to do when you need a real second profile (strict signatures, the conformance agent, a staging platform), is in the SDK's `docs/local-testing.md`. Which UCP version the plugin serves and what an SDK bump means for a shop is in [docs/ucp-version-support.md](docs/ucp-version-support.md).
+
 Current responsibilities:
 
 - Configure UCP per sales channel — Storefront and Headless only. Every other type, product feed channels included, is refused: the card is hidden, the Admin API and `ucp:config:set` return an error, and a stale `active` flag reads as off.
@@ -53,9 +90,11 @@ UCP is administered from the CLI for everything except the per-channel Exposure 
 
 | Command | Purpose |
 | --- | --- |
+| `ucp:setup --sales-channel=… [--dev] [--agent-host=…] [--dry-run]` | Configure a channel for UCP in one step: exposure, security defaults, signing key, readiness check, first request. See *Set up UCP on a sales channel* above. |
 | `ucp:channels` | List the UCP-capable sales channels, their ids and UCP exposure (`exposed` / `off`). |
 | `ucp:config:show --sales-channel=…` | Print the resolved UCP config for a channel. |
 | `ucp:config:set --sales-channel=… …` | Set the non-UI config fields (below). Only the options you pass change; the rest is preserved by a merge, so admin-managed Exposure fields are never reset. |
+| `ucp:dev:request [operation] [--id=…] --base-uri=…` | SDK command. Print a ready-to-run `curl` for a UCP operation with the shop's own profile as the agent (needs the development mode from step 2 above). |
 | `ucp:signing-keys:{generate,list,show-public,retire,delete} --sales-channel=…` | Manage a channel's signing keys — thin subclasses of the SDK commands that map `--sales-channel` to the SDK tenant. |
 
 `ucp:config:set` fields (run it with `--help` for per-option examples):
@@ -82,7 +121,13 @@ The SDK bundle also ships storage-maintenance commands (not sales-channel scoped
 
 The plugin supports Shopware `6.5.x`, `6.6.x`, and trunk/current `6.7+` from one codebase. Capability exposure is feature-detected at runtime: unsupported transports are removed from the UCP profile instead of returning dead links. MCP is only advertised when the current lane has the required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK capability layer.
 
-Every UCP sales channel has its own tenant configuration. The default setup is intentionally closed: profile exposure must be enabled for the channel, remote platform/profile hosts must be allowlisted where configured, and embedded pages require both `embeddedAllowedOrigins` and `embeddedFrameAncestors`. Embedded requests without an `Origin` header, or with a non-allowlisted origin, return a controlled `403` UCP response. Successful embedded responses set `Content-Security-Policy: frame-ancestors ...`, remove `X-Frame-Options`, and vary by `Origin`.
+Every UCP sales channel has its own tenant configuration. The default setup is intentionally closed: profile exposure must be enabled for the channel, remote platform/profile hosts must be allowlisted where configured, and embedded pages require both `embeddedAllowedOrigins` and `embeddedFrameAncestors`. Until both are configured, every embedded request returns a controlled `403` UCP response.
+
+Once configured, the embedded surface is protected by three distinct mechanisms — do not mistake any one of them for the others:
+
+- **Framing** is restricted by `embeddedFrameAncestors`, emitted as `Content-Security-Policy: frame-ancestors ...` (and `X-Frame-Options` is removed so the CSP is authoritative). This is what stops a non-allowlisted page from embedding the surface, and it is enforced by the browser.
+- **Cross-origin reads** are restricted by `embeddedAllowedOrigins`, emitted as `Access-Control-Allow-Origin`. A request carrying an `Origin` header that is not on the allowlist is rejected with `403`. Note that browsers omit `Origin` on iframe and top-level `GET` navigations, so an *absent* `Origin` is deliberately not treated as a denial signal — rejecting it would break every real browser load of the embedded page. `embeddedAllowedOrigins` is a CORS control, not a server-side authorization gate, and cannot constrain a non-browser client.
+- **Authorization for the payload** is possession of the cart or checkout token in the URL. That path segment is the Shopware sales-channel context token; anyone holding it can already read and write that cart through the REST and A2A transports. **Treat the embedded URL as a secret.** Embedded responses are sent with `Cache-Control: no-store, private`, `Referrer-Policy: no-referrer`, and `X-Robots-Tag: noindex, nofollow` so the token does not leak into shared caches, search indexes, or `Referer` headers, and they vary by `Origin`.
 
 Signed-request handling, idempotency, replay nonce storage, profile cache storage, OAuth state, and retired signing keys are owned by the SDK bundle. The plugin maps those contracts to Shopware sales channels and keeps buyer-facing work inside Store API route boundaries. Run `bin/validate-ucp-store.sh <base-url> conformance` against a live lane for signed-request conformance when transport behavior changes.
 
@@ -124,7 +169,9 @@ Google XML rows include the required Merchant Center fields, canonical and track
 
 Feed generation, scheduling, caching, and invalidation are owned by Shopware's product export subsystem. The plugin supplies provider-specific templates, provider context, JSONL normalization, and validation. Template defaults set `generateByCronjob: false` and `interval: 86400`; merchants can adjust export behavior through the normal Shopware product export configuration.
 
-## Local Development
+## Local Development (plugin maintainers)
+
+This section is about developing the plugin itself against three Shopware lanes. To run UCP on a shop you already have, see [Set up UCP on a sales channel](#set-up-ucp-on-a-sales-channel) above; the full lane workflow is in [docs/manual-testing.md](docs/manual-testing.md).
 
 This repository keeps plugin source, QA tooling, and CI helpers only. Local Podman/Mutagen lane orchestration is intentionally not versioned here, because it is workstation setup, not plugin code.
 
@@ -163,6 +210,10 @@ bin/ci-smoke.sh /path/to/shopware-checkout
 bin/ci-admin-smoke.sh /path/to/shopware-checkout auto
 bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 ```
+
+`bin/ci-smoke.sh` resolves the SDK from Packagist at the versions `composer.json` pins. To smoke
+a local SDK checkout instead, set `UCP_SDK_SOURCE=path` (and `SDK_ROOT`, which defaults to a
+sibling `../ucp-php-sdk`); it is then staged into the shop and relabelled as the pinned version.
 
 ### Prefer functional tests over shell smoke
 
@@ -224,25 +275,32 @@ After merging and waiting for the `main` CI run, dispatch a packaging-only run f
 
 Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
 
-### Bumping the SDK version floor
+### The SDK version pin
 
-The plugin requires `ucp-php-sdk/symfony-bundle` as an explicit range — currently `>=0.0.5 <0.1.0`, though `composer.json` is the authority on the lower bound and this page is not — written out rather than as a caret. **A caret on a `0.0.x` version is locked to that exact patch**: the plugin's original `^0.0.2` meant `>=0.0.2 <0.0.3`, so it never picked up `0.0.3` and excluded every future release by construction. The range keeps the guard that matters (`<0.1.0`, since a pre-1.0 project breaks things on the minor) while letting new `0.0.x` releases in. The SDK hit the same bug in its own `symfony-bundle` → `core` requirement and fixed it the same way in 0.0.3.
+The plugin requires `ucp-php-sdk/symfony-bundle` at the exact version it was tested against — currently `0.0.7`, though `composer.json` is the authority and this page is not. Not a caret, not a tilde, and not a `>=a <b` window. A caret on a `0.0.x` version already means that exact patch (`^0.0.2` is `>=0.0.2 <0.0.3`, which is why the plugin's original constraint never picked up `0.0.3`), `~0.0.6` expands to the open `>=0.0.6 <0.1.0`, and even `>=0.0.6 <0.0.7` still admits a four-component `0.0.6.1`. An exact version is the only constraint that cannot widen.
 
-Two consequences follow, and they pull in opposite directions:
+The pin is deliberate. A plugin has no `composer.lock` and the SDK resolves at merchant install time, so a range let any matching release — which carries no compatibility promise — reach production without a plugin change. The SDK serves exactly one UCP version per release and switches it outright (see the SDK's `docs/ucp-version-support-policy.md`), so an SDK release that moves the spec date changes what every shop advertises and has to arrive together with the plugin review that goes with it. The pin turns that into a release decision instead of an accident. [docs/ucp-version-support.md](docs/ucp-version-support.md) is the integrator-facing summary.
 
-- **A new SDK release now reaches merchants without a plugin change.** `0.0.x` carries no compatibility promise, so a breaking SDK patch can land in production on its own. That is what makes the moving-`main` CI signal below load-bearing rather than nice to have.
-- **The range permits a newer tag; it does not guarantee one.** An install with an existing `composer.lock`, or one resolved before a tag was published, still runs the older `0.0.x`. So the range is not a substitute for raising the floor.
-
-When plugin code starts using SDK symbols introduced in a newer SDK tag (a new model, enum, or constructor argument):
+Moving the pin is a plugin release:
 
 1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs resolve them from there. Do not merge plugin code that references symbols which only exist on the SDK `main` branch or an unmerged SDK PR — anyone who resolved before that tag existed gets the older release that lacks them, and the plugin fatals with `Class "…" not found`.
-2. **Raise the lower bound, and keep the forced versions at or above it.** Requiring a symbol means requiring the tag that introduced it — widen-and-hope does not do that:
-   - `composer.json` — the lower bound of the `ucp-php-sdk/symfony-bundle` range, e.g. `>=0.0.5 <0.1.0` for a symbol introduced in 0.0.5, leaving the `<0.1.0` upper bound alone.
-   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version below the new lower bound no longer satisfies the constraint and resolution breaks.
-   - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines.
-3. **Leave `UCP_SDK_REF` on `main`.** CI must keep testing the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early; the path repo relabels the checked-out `main` source with the forced version, so it still satisfies the raised bound. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal, which now also guards the `0.0.x` releases that reach merchants by themselves.
+2. **Move the pin, and the forced versions with it.**
+   - `composer.json` — the exact `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` versions. Both, not only the bundle: the bundle accepts a *range* of `core`, so pinning the bundle alone would let a later `core` release pair with it on a source install.
+   - `.github/workflows/ci.yml` — the two forced `versions` in the *Configure private SDK path repositories* step (`ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle`). A forced version outside the pin no longer satisfies the constraint and resolution breaks.
+   - `bin/ci-smoke.sh` — the same two forced `versions` in the `composer config repositories.ucp-sdk-*` lines, which apply only under `UCP_SDK_SOURCE=path`.
+   - `src/Ucp/UcpProtocol.php` — only if the SDK release moved the spec date. `UcpProtocolVersionGuardTest` fails until `UcpProtocol::VERSION` follows, and it must follow only after `ShopwareDataMapper` and `UcpCapabilityCatalog` have been reviewed against the new schemas. Do not make the constant read the SDK's enum; the failing test is the point.
+   - `CHANGELOG.md` and `CHANGELOG_de-DE.md`.
+3. **Leave `UCP_SDK_REF` on `main`.** One job, `sdk-main-compatibility`, still builds the plugin against the moving SDK `main` branch so upcoming SDK breakage is caught early. Do not pin `UCP_SDK_REF` to a tag to "make CI match production" — that trades away the early-warning signal.
 
-> **Why green CI is not enough on its own:** CI resolves the SDK from a path repo pointed at `UCP_SDK_REF` (default `main`) with a *forced* version string. A change that compiles against SDK `main` can still be broken against whichever published tag an install actually resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json`'s lower bound is that tag or newer.
+### Which SDK a CI job resolves
+
+Every job that blocks a merge resolves both SDK packages **from Packagist at the versions `composer.json` pins** — the pair a merchant installs. `sdk-main-compatibility` is the single exception and the only job that stages an SDK checkout: it points a path repository at `UCP_SDK_REF` and relabels that source as the pinned version.
+
+That relabelling is why the exception is `continue-on-error` and absent from both `expected_checks` and `validation-gate`. A branch wearing a release's version number is not what anyone installs, and when SDK `main` moved to require a newer `core`, having it on the merge path turned this repository's `main` red for five days — and would have done the same to every open pull request at once. Read the job, open an SDK issue; do not let it stop a merge.
+
+`bin/ci-smoke.sh` follows the same rule through `UCP_SDK_SOURCE`, which defaults to `packagist`; only `sdk-main-compatibility` and local manual testing set `path`.
+
+> **Why green CI is not enough on its own:** a change that compiles against SDK `main` in `sdk-main-compatibility` can still be broken against whichever published tag an install resolves. Before merging SDK-coupled code for a release, confirm the required symbols exist in a **published** SDK tag and that `composer.json` pins that tag.
 
 ### Migrations and releases
 

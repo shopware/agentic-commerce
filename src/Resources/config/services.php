@@ -18,6 +18,7 @@ use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
 use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
+use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\ProductListRoute;
@@ -86,6 +87,8 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -102,6 +105,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Http\ConfiguredUrlSafetyValidatorFactory;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
@@ -120,6 +124,7 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutGetTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
+use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
@@ -139,6 +144,7 @@ use Ucp\Sdk\Adapter\CatalogAdapterInterface;
 use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
 use Ucp\Sdk\Adapter\DiscountAdapterInterface;
 use Ucp\Sdk\Adapter\OrderAdapterInterface;
+use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
 use Ucp\Sdk\Contract\CartCapabilityInterface;
 use Ucp\Sdk\Contract\CatalogCapabilityInterface;
 use Ucp\Sdk\Contract\CheckoutCapabilityInterface;
@@ -158,8 +164,16 @@ return static function (ContainerConfigurator $container): void {
         || '127.0.0.1' === $appUrlHost
         || '::1' === $appUrlHost;
 
+    // `version` is deliberately not passed. An SDK release serves exactly one protocol
+    // version and defaults to it, so the only value that could ever be right is the one
+    // the SDK already holds -- and passing it is how a plugin comes to name a version its
+    // linked SDK no longer serves. The 1.2.x config shipped `version: '2026-04-08'` and did
+    // exactly that: `composer update` resolved SDK 0.0.6, which had dropped that version,
+    // and the container build failed inside `assets:install` during a Shopware core upgrade.
+    // `UcpProtocol::VERSION` still names the release this plugin was written against, for
+    // schema URLs and UcpProtocolVersionGuardTest; the composer constraint is what keeps an
+    // unreviewed SDK bump away from a shop.
     $container->extension('ucp_sdk', [
-        'version' => '2026-04-08',
         'signature_policy' => 'strict',
         'idempotency_required' => true,
         'profile_fetching_development_mode' => env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'),
@@ -207,6 +221,13 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$cache', service('cache.object'))
         ->tag('kernel.event_subscriber');
 
+    // Its own monolog channel, so a shop can keep these counters with one handler entry
+    // while the default production setup goes on dropping everything below error.
+    // See docs/ucp-version-support.md.
+    $services->set(VersionNegotiationCounter::class)
+        ->tag('kernel.event_subscriber')
+        ->tag('monolog.logger', ['channel' => 'ucp_negotiation']);
+
     $services->set(SalesChannelBaseUrlResolver::class)
         ->arg('$domainRepository', service('sales_channel_domain.repository'));
 
@@ -247,6 +268,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractCountryRoute::class, CountryRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
+    $services->alias(AbstractProductListRoute::class, ProductListRoute::class);
 
     // SDK adapter and capability bindings.
 
@@ -260,9 +282,17 @@ return static function (ContainerConfigurator $container): void {
     $services->set(CheckoutWebhookUrlGuard::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
+    // Completion keeps charging the sales channel default until something is registered
+    // under this interface. Replacing it is the whole integration: alias your own service
+    // here and the instrument reaches it. See docs/completion-payment.md.
+    $services->set(UnappliedCompletionPayment::class)
+        ->arg('$logger', service('logger')->nullOnInvalid());
+    $services->alias(AbstractCompletionPaymentApplier::class, UnappliedCompletionPayment::class);
+
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
     $services->alias(CheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
+    $services->alias(PaymentAwareCheckoutAdapterInterface::class, ShopwareCheckoutAdapter::class);
     $services->alias(DiscountAdapterInterface::class, ShopwareDiscountAdapter::class);
     $services->alias(OrderAdapterInterface::class, ShopwareOrderAdapter::class);
 
@@ -362,11 +392,25 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(UcpConfigService::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
-        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
+        ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class))
+        // An allowlist edit reaches a running messenger worker only through a new container, so
+        // ask the workers to stop: the same signal PluginLifecycleService raises after an install.
+        ->arg('$restartSignalCachePool', service('cache.messenger.restart_workers_signal')->nullOnInvalid());
+
+    // Feeds the shop's per-channel/global UCP allowlists into the SDK's URL-safety
+    // validator; ReplaceSdkUrlSafetyValidatorPass swaps the SDK definition to this factory.
+    $services->set(ConfiguredUrlSafetyValidatorFactory::class)
+        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'))
+        ->arg('$logger', service('logger')->nullOnInvalid());
 
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
+    // The same development-mode switch the URL-safety validator gets (above). The SDK's
+    // request-context factory reads it from the resolved RuntimeConfiguration, so without this
+    // the shop could never act as its own agent locally, whatever the environment said.
+    $services->set(ShopwareRuntimeConfigurationResolver::class)
+        ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
     // Fetched from the container by the plugin's activate()/update() hooks.
     $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class)->public();

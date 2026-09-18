@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use Composer\InstalledVersions;
 use RuntimeException as RouteRuntimeException;
 use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\PlatformRequest;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
+use Ucp\Sdk\Symfony\UcpSdkBundle;
 
 return static function (RoutingConfigurator $routes): void {
     $routes->import('../../Ucp/Admin/Api/', 'attribute');
@@ -26,10 +26,11 @@ return static function (RoutingConfigurator $routes): void {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');
     }
 
-    $sdkBundlePath = InstalledVersions::getInstallPath('ucp-php-sdk/symfony-bundle');
-    $sdkRoutes = \is_string($sdkBundlePath) ? $sdkBundlePath.'/src/Resources/config/routes.php' : null;
-    if (!\is_string($sdkRoutes) || !is_file($sdkRoutes)) {
-        throw new RouteRuntimeException('Unable to load UCP SDK routes from the Composer-installed Symfony bundle.');
+    // Match the bundle actually loaded by PHP. A host Composer registry can point
+    // at another SDK copy even when this installation uses the bundled runtime.
+    $sdkRoutes = (new UcpSdkBundle())->getPath().'/Resources/config/routes.php';
+    if (!is_file($sdkRoutes)) {
+        throw new RouteRuntimeException('Unable to load UCP SDK routes from the active Symfony bundle.');
     }
 
     $routes->import($sdkRoutes)->defaults([

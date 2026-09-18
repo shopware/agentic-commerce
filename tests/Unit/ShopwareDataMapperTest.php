@@ -117,6 +117,38 @@ final class ShopwareDataMapperTest extends TestCase
         self::assertSame(-200, $this->total($cart->totals, 'items_discount'));
     }
 
+    /**
+     * A negative total says something was taken off and nothing about what. `discount.json`
+     * models the breakdown -- code, name, per-discount amount -- and this plugin publishes
+     * the capability that defines it, so withholding the list was an odd place to stop.
+     */
+    #[Test]
+    public function testACartPromotionIsAlsoReportedAsAnAppliedDiscount(): void
+    {
+        $cart = (new ShopwareDataMapper())->toCart($this->cartWithPromotion(), $this->salesChannelContext());
+
+        $applied = $cart->extra['discounts']['applied'] ?? null;
+
+        self::assertIsArray($applied);
+        self::assertCount(1, $applied);
+        self::assertSame('Summer Sale', $applied[0]['title']);
+        // Minor units, and positive: the schema asks for the discount amount, while
+        // `items_discount` is what carries the sign.
+        self::assertSame(200, $applied[0]['amount']);
+        self::assertTrue($applied[0]['automatic'], 'A promotion with no code was applied by a merchant rule.');
+        self::assertArrayNotHasKey('code', $applied[0], 'The schema omits `code` for automatic discounts.');
+    }
+
+    #[Test]
+    public function testACartWithoutAPromotionCarriesNoDiscountBreakdown(): void
+    {
+        $cart = (new ShopwareDataMapper())->toCart($this->cartWithoutPromotion(), $this->salesChannelContext());
+
+        // Absent rather than an empty list: `applied: []` would assert that discounts were
+        // considered and none applied, which is a different claim from having none.
+        self::assertArrayNotHasKey('discounts', $cart->extra);
+    }
+
     #[Test]
     public function testSubtotalIsReportedGrossOfTheDiscountSoTheBreakdownAddsUp(): void
     {

@@ -10,7 +10,7 @@ smoke_discovery() {
 
   profile_json="$(curl_required 'UCP profile' "${BASE_URL}/.well-known/ucp")"
   assert_jq "${profile_json}" 'Expected the profile to expose the configured lane-aware shopping transports.' '.ucp.services["dev.ucp.shopping"] | map(.transport) | sort == $expectedTransports' --argjson expectedTransports "${expected_transports_json}"
-  assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
+  assert_jq "${profile_json}" 'Expected the profile to expose only the enabled shopping capabilities.' '.ucp.capabilities | keys == ["dev.ucp.shopping.cart","dev.ucp.shopping.catalog.lookup","dev.ucp.shopping.catalog.search","dev.ucp.shopping.checkout","dev.ucp.shopping.discount","dev.ucp.shopping.order"]'
   assert_jq "${profile_json}" 'Expected the profile to expose no payment handlers until tokenization has a Shopware-backed adapter.' '.ucp.payment_handlers | type == "object" and length == 0'
 
   if [[ "${store_api_mcp_available}" == "1" ]]; then

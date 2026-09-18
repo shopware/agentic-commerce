@@ -10,7 +10,7 @@ use Shopware\Core\Framework\Log\Package;
 #[Package('framework')]
 final class UcpProtocol
 {
-    public const VERSION = '2026-04-08';
+    public const VERSION = '2026-08-25';
 
     public static function specificationUrl(string $capability): string
     {

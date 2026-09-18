@@ -18,6 +18,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -108,6 +109,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -150,6 +152,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $this->expectExceptionObject(new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.'));
@@ -189,16 +192,21 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
+            public function guestShippingAddress(array $metadata): ?array
+            {
+                return null;
+            }
+
             public function guestAddress(array $metadata): ?array
             {
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null): void
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null): void
             {
                 ++$this->saveCalled;
             }
@@ -227,7 +235,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 return $this->customerContext;
             }
@@ -263,6 +271,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $orderWebhookPublisher,
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -293,7 +302,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 return $this->customerContext;
             }
@@ -317,6 +326,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         try {
@@ -363,7 +373,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 return $this->customerContext;
             }
@@ -408,6 +418,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
+            new UnappliedCompletionPayment(),
         );
 
         $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -423,7 +434,7 @@ final class CheckoutCompleterTest extends TestCase
     private function nullProvisioner(): GuestCustomerContextProvisionerInterface
     {
         return new class implements GuestCustomerContextProvisionerInterface {
-            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null): SalesChannelContext
+            public function ensureGuestCustomer(SalesChannelContext $context, ?Buyer $buyer, ?array $guestAddress = null, ?array $guestShippingAddress = null): SalesChannelContext
             {
                 throw new \BadMethodCallException('Not called in this test.');
             }
@@ -438,16 +449,21 @@ final class CheckoutCompleterTest extends TestCase
                 return null;
             }
 
+            public function guestShippingAddress(array $metadata): ?array
+            {
+                return null;
+            }
+
             public function guestAddress(array $metadata): ?array
             {
                 return null;
             }
 
-            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function save(SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null): void
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null): void
             {
             }
         };

@@ -83,4 +83,51 @@ if [[ "${entrypoint_js}" -eq 0 ]]; then
   exit 1
 fi
 
-echo "OK: administration bundle is ${bundle_bytes} bytes and entrypoints.json advertises ${entrypoint_js} js entry/entries."
+# The two discovery paths do not have to name the same file. shopware-cli emits
+# content-hashed assets (js/<name>-PMJ7ZT4L.js) with an unhashed alias next to them:
+# 6.5/6.6 build the unhashed path by convention and never read entrypoints.json, while
+# 6.7 follows entrypoints.json to the hashed one. Checking only the unhashed file would
+# pass an archive whose hashed target is missing or misnamed, which 404s on 6.7 exactly
+# as silently as the original bug did. So resolve what entrypoints.json actually points
+# at and verify each referenced asset ships.
+mapfile -t referenced < <(jq -r --arg name "${TECHNICAL_NAME}" \
+  '.entryPoints[$name] | (.js // []) + (.css // []) | .[]' <<<"${entrypoints}")
+
+zip_index="${workdir}/index.txt"
+unzip -Z1 "${zip_file}" >"${zip_index}" 2>/dev/null || unzip -l "${zip_file}" >"${zip_index}"
+
+for asset in "${referenced[@]}"; do
+  # "/bundles/swagagenticcommerce/administration/js/x.js" -> "administration/js/x.js"
+  relative="${asset#/}"
+  relative="${relative#bundles/}"
+  relative="${relative#*/}"
+  archive_path="${PLUGIN}/src/Resources/public/${relative}"
+
+  if ! grep -qF "${archive_path}" "${zip_index}"; then
+    echo "FAIL: entrypoints.json references ${asset}, which is not in ${zip_file}." >&2
+    echo "      Expected archive member: ${archive_path}" >&2
+    echo "      Shopware 6.7 loads exactly that file; a missing target 404s silently." >&2
+    exit 1
+  fi
+done
+
+# The file 6.7 actually executes must be the real bundle too, not just present. Without
+# this the hashed target could be a stub while the unhashed alias carries the real code.
+entry_js_path="$(jq -r --arg name "${TECHNICAL_NAME}" '.entryPoints[$name].js[0]' <<<"${entrypoints}")"
+entry_relative="${entry_js_path#/}"
+entry_relative="${entry_relative#bundles/}"
+entry_relative="${entry_relative#*/}"
+
+entry_bundle="${workdir}/entry.js"
+unzip -p "${zip_file}" "${PLUGIN}/src/Resources/public/${entry_relative}" >"${entry_bundle}" 2>/dev/null || true
+entry_bytes="$(wc -c <"${entry_bundle}" | tr -d ' ')"
+
+if [[ "${entry_bytes}" -lt "${MIN_BUNDLE_BYTES}" ]] \
+  || ! grep -q 'sw-sales-channel-detail-agentic-commerce' "${entry_bundle}"; then
+  echo "FAIL: the asset 6.7 loads (${entry_js_path}, ${entry_bytes} bytes) is not the" >&2
+  echo "      compiled administration bundle." >&2
+  exit 1
+fi
+
+echo "OK: 6.5/6.6 load js/${TECHNICAL_NAME}.js (${bundle_bytes} bytes);" \
+     "6.7 loads ${entry_js_path} (${entry_bytes} bytes); all ${#referenced[@]} referenced assets ship."

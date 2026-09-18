@@ -26,7 +26,7 @@ final class ProfilePreviewBuilder
     public function build(UcpConfig $config, string $baseUri, ?string $tenantIdentifier = null): array
     {
         return $this->profileBuilder->build(new ProfileBuildInput(
-            $config->ucpVersion,
+            $config::ucpVersion(),
             $config->resolveBaseUri($baseUri),
             $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()),
             transportEndpoints: $config->transportEndpoints($baseUri, $this->versionDetector->supportsStoreApiMcp()),

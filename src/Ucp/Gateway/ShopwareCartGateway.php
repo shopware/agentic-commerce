@@ -10,12 +10,17 @@ use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemRemoveRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemUpdateRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
+use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsAnyFilter;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Cart\CartSessionStore;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -23,6 +28,13 @@ use Ucp\Sdk\Model\RequestContext;
 #[Package('checkout')]
 final class ShopwareCartGateway
 {
+    /**
+     * How many variants of one refused parent the error lists. A retry needs a usable choice,
+     * not the whole variant tree; an error naming fifty ids is one the agent has to parse
+     * before it can act on it.
+     */
+    private const VARIANTS_LISTED_PER_PARENT = 10;
+
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly AbstractCartLoadRoute $cartLoadRoute,
@@ -33,6 +45,7 @@ final class ShopwareCartGateway
         private readonly ShopwareDataMapper $mapper,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly CartSessionStore $cartSessions,
+        private readonly AbstractProductListRoute $productListRoute,
     ) {
     }
 
@@ -226,7 +239,117 @@ final class ShopwareCartGateway
             $cart = $this->cartItemAddRoute->add(new Request([], ['items' => $addItems]), $cart, $context, null)->getCart();
         }
 
+        $this->assertRequestedProductsArePresent($cart, $desiredLineItems, $context);
+
         return $cart;
+    }
+
+    /**
+     * Shopware drops a line item it cannot resolve and says nothing about it.
+     *
+     * A product that is not purchasable -- the parent of a variant product is the ordinary case --
+     * is removed during cart calculation without an error on the cart, so the agent received
+     * `201 Created`, `status: success`, no messages, and a cart with nothing in it. Silence is the
+     * worst answer here: an agent has no way to tell "you asked for something unbuyable" from
+     * "your order is fine", and the next call it makes is checkout.
+     *
+     * @param list<UcpLineItem> $desiredLineItems
+     *
+     * @throws ValidationException when a requested product did not end up in the cart
+     */
+    private function assertRequestedProductsArePresent(
+        \Shopware\Core\Checkout\Cart\Cart $cart,
+        array $desiredLineItems,
+        \Shopware\Core\System\SalesChannel\SalesChannelContext $context,
+    ): void {
+        $present = [];
+        foreach ($cart->getLineItems() as $lineItem) {
+            if (LineItem::PRODUCT_LINE_ITEM_TYPE === $lineItem->getType()) {
+                $present[$lineItem->getReferencedId() ?? $lineItem->getId()] = true;
+            }
+        }
+
+        $missing = [];
+        foreach ($desiredLineItems as $item) {
+            if (!isset($present[$item->id])) {
+                $missing[] = $item->id;
+            }
+        }
+
+        $missing = array_values(array_unique($missing));
+        if ([] === $missing) {
+            return;
+        }
+
+        $alternatives = $this->purchasableVariantsOf($missing, $context);
+
+        $errors = [];
+        foreach ($missing as $index => $id) {
+            $errors[] = \sprintf(
+                '$.line_items[%d].item.id "%s" could not be added.%s',
+                $index,
+                $id,
+                isset($alternatives[$id])
+                    ? \sprintf(' It is the parent of a variant product; buy one of its variants instead: %s.', implode(', ', $alternatives[$id]))
+                    : ' The product is not purchasable in this sales channel.',
+            );
+        }
+
+        throw new ValidationException(\sprintf('%d requested line item(s) could not be added to the cart.', \count($missing)), $errors);
+    }
+
+    /**
+     * The buyable variants of any requested id that turns out to be a parent, so the agent can
+     * retry with a real one rather than discovering the catalog a second time.
+     *
+     * Bounded per parent, not globally: a single limit is spent in id order, so one wide product
+     * would starve the other refused parents -- and a parent with no entry here is reported as
+     * "not purchasable", which is false. Any parent the window missed is asked for on its own.
+     *
+     * @param list<string> $ids
+     *
+     * @return array<string, list<string>> parent id => variant ids
+     */
+    private function purchasableVariantsOf(array $ids, \Shopware\Core\System\SalesChannel\SalesChannelContext $context): array
+    {
+        $criteria = $this->variantsCriteria($ids);
+        $criteria->setLimit(\count($ids) * self::VARIANTS_LISTED_PER_PARENT);
+
+        $variants = [];
+        foreach ($this->productListRoute->load($criteria, $context)->getProducts() as $variant) {
+            $parentId = $variant->getParentId();
+            if (null === $parentId || \count($variants[$parentId] ?? []) >= self::VARIANTS_LISTED_PER_PARENT) {
+                continue;
+            }
+
+            $variants[$parentId][] = $variant->getId();
+        }
+
+        foreach ($ids as $id) {
+            if (isset($variants[$id])) {
+                continue;
+            }
+
+            $criteria = $this->variantsCriteria([$id]);
+            $criteria->setLimit(self::VARIANTS_LISTED_PER_PARENT);
+            foreach ($this->productListRoute->load($criteria, $context)->getProducts() as $variant) {
+                $variants[$id][] = $variant->getId();
+            }
+        }
+
+        return $variants;
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    private function variantsCriteria(array $ids): Criteria
+    {
+        $criteria = new Criteria();
+        $criteria->addFilter(new EqualsAnyFilter('parentId', $ids));
+        $criteria->addSorting(new FieldSorting('parentId'), new FieldSorting('id'));
+
+        return $criteria;
     }
 
     /**

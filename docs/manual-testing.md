@@ -140,8 +140,8 @@ repositories against the synced container paths and require only the plugin:
 
 ```bash
 composer config repositories.swag-agentic-commerce '{"type":"path","url":"custom/plugins/SwagAgenticCommerce","options":{"symlink":true}}'
-composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"ucp-php-sdk/core":"0.0.1"}}}'
-composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.1"}}}'
+composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
+composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.7"}}}'
 composer require shopware/agentic-commerce:6.6.9999999-dev --with-all-dependencies
 bin/console plugin:refresh
 bin/console plugin:install --activate SwagAgenticCommerce
@@ -155,10 +155,11 @@ The plugin directly requires `ucp-php-sdk/symfony-bundle`; SDK core is
 resolved transitively by that bundle. Shopware packages are provided by the
 active lane. The local SDK path repositories above are only needed while the
 SDK packages are private/local.
-Use stable `0.0.1` path aliases for both SDK packages. Composer does not
-propagate alpha stability flags from the SDK bundle to the root Shopware
-project, so alpha path aliases can make the transitive core package
-unsatisfiable.
+Force a stable version that lies inside the window `composer.json` requires
+(`0.0.7`; see the README section *The SDK version pin*).
+Composer does not propagate alpha stability flags from the SDK bundle to the
+root Shopware project, so alpha path aliases can make the transitive core
+package unsatisfiable.
 
 The Composer `symlink` option is container-local package behavior. It is not
 the old host-plugin-symlink workflow.
@@ -222,6 +223,10 @@ bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_65_ROOT"
 bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT"
 bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT"
 ```
+
+These resolve the SDK from Packagist at the versions `composer.json` pins, which is what a
+merchant installs. To smoke a local SDK checkout instead, prefix with
+`UCP_SDK_SOURCE=path SDK_ROOT=/path/to/ucp-php-sdk`.
 
 > **Runtime header note:** every `/ucp/...` runtime request must carry a
 > `UCP-Agent` header (ucp-php-sdk request-time validation) or it returns `422`
@@ -421,6 +426,21 @@ Steps:
 - Serve the same parent page from a **non-allowlisted** origin and open it.
   Expected: the browser blocks the frame via the `frame-ancestors` CSP
   directive and logs a CSP violation in the console; no bridge messages flow.
+- Check the token-hygiene headers and the CTA on the embedded response. The
+  embedded URL contains the cart/checkout context token, so it must not reach
+  shared caches, search indexes, or a third-party `Referer`:
+
+  ```bash
+  curl -sD- -o/dev/null "$BASE/ucp/embedded/checkout/$TOKEN" \
+    | grep -iE 'cache-control|referrer-policy|x-robots-tag'
+  curl -s "$BASE/ucp/embedded/checkout/$TOKEN" | grep -o 'rel="[^"]*"'
+  ```
+
+  Expected: `cache-control: no-store, private`, `referrer-policy: no-referrer`,
+  `x-robots-tag: noindex, nofollow`, and the continue-checkout CTA carrying
+  `rel="noopener noreferrer"`. The same request with no `Origin` header must
+  still return `200` — browsers omit `Origin` on iframe navigations, so a `403`
+  here would break the feature in every browser.
 
 ### 2. Real MCP client
 
@@ -496,7 +516,7 @@ Steps:
     -H 'Content-Type: application/json' \
     -H 'Idempotency-Key: manual-test-tokenize-1' \
     -H 'UCP-Agent: manual-tester; profile="http://sw65.localhost:8088/.well-known/ucp"' \
-    -d '{"type":"tokenized","handler_id":"<installed-handler-id>","credential":{},"binding":{"checkout_id":"<checkout-id>"}}'
+    -d '{"type":"tokenized","handler_id":"<installed-handler-id>","credential":{},"binding":{"type":"dev.ucp.shopping.checkout","id":"<checkout-id>"}}'
   ```
 
 - Complete a checkout that uses the token. Expected: a paid Shopware order is

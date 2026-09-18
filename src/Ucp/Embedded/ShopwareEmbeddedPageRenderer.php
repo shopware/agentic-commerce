@@ -41,14 +41,15 @@ final class ShopwareEmbeddedPageRenderer implements EmbeddedPageRendererInterfac
             return null;
         }
 
-        // Cross-origin requests are filtered by EmbeddedResponseListener before
-        // rendering; the fallback keeps same-origin iframes target-pinned.
-        $targetOrigin = $request->headers->get('origin') ?: $request->getSchemeAndHttpHost();
+        // The listener supplies the sales-channel allowlist for origin-less iframe loads.
+        $allowedOrigins = $request->attributes->get('ucp_embedded_allowed_origins', []);
+        $targetOrigin = $request->headers->get('origin');
         $state = [
             'channel' => 'ucp.embedded',
             'type' => $type,
             'id' => $id,
             'targetOrigin' => $targetOrigin,
+            'allowedOrigins' => $allowedOrigins,
             'data' => $data,
         ];
 

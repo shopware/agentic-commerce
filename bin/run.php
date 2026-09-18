@@ -120,6 +120,7 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
+        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir),
         '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
         '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
@@ -167,9 +168,7 @@ function locateShopwareCore(string $pluginDir): string
 function renderShopwarePhpstanIncludes(string $coreDir): string
 {
     $phpStanDir = $coreDir.'/DevOps/StaticAnalyze/PHPStan';
-    $shopwareProjectDir = \dirname($coreDir, 2);
-
-    if (!is_file($shopwareProjectDir.'/vendor/phpstan/phpstan/conf/bleedingEdge.neon')) {
+    if (!includesShopwarePhpstanConfig($coreDir)) {
         return '';
     }
 
@@ -183,9 +182,16 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
     ]);
 }
 
+function renderFutureCompatibilityInclude(string $pluginDir): string
+{
+    $rules = $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon';
+
+    return is_file($rules) ? '    - '.$rules : '';
+}
+
 function renderShopwarePhpstanParameters(string $coreDir): string
 {
-    if (!supportsConfigurableCoversRule($coreDir)) {
+    if (!includesShopwarePhpstanConfig($coreDir) || !supportsConfigurableCoversRule($coreDir)) {
         return '';
     }
 
@@ -199,7 +205,7 @@ function renderShopwarePhpstanParameters(string $coreDir): string
 
 function renderUnexpectedTestCoversIgnore(string $coreDir): string
 {
-    if (supportsConfigurableCoversRule($coreDir)) {
+    if (includesShopwarePhpstanConfig($coreDir) && supportsConfigurableCoversRule($coreDir)) {
         return '';
     }
 
@@ -209,6 +215,11 @@ function renderUnexpectedTestCoversIgnore(string $coreDir): string
         '            identifier: shopware.unexpectedTestCovers',
         "            message: '#.+#'",
     ]);
+}
+
+function includesShopwarePhpstanConfig(string $coreDir): bool
+{
+    return is_file(\dirname($coreDir, 2).'/vendor/phpstan/phpstan/conf/bleedingEdge.neon');
 }
 
 function supportsConfigurableCoversRule(string $coreDir): bool

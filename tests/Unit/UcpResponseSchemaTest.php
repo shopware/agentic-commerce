@@ -20,6 +20,7 @@ use Shopware\Core\Checkout\Promotion\Cart\PromotionCartAddedInformationError;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Enum\UcpCapability;
 use Ucp\Sdk\Enum\UcpProtocolVersion;
@@ -132,7 +133,9 @@ final class UcpResponseSchemaTest extends TestCase
         // installed from a path repository or from vendor/.
         $coreRoot = \dirname((string) (new \ReflectionClass(GeneratedSchemaValidator::class))->getFileName(), 4);
 
-        return new GeneratedSchemaValidator($coreRoot.'/resources/schema/generated/2026-04-08');
+        // The plugin's one version literal, so a spec bump fails in UcpProtocolVersionGuardTest
+        // and nowhere else.
+        return new GeneratedSchemaValidator($coreRoot.'/resources/schema/generated/'.UcpProtocol::VERSION);
     }
 
     private function cartWithPromotion(): Cart

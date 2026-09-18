@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Config;
 
+use Psr\Cache\CacheItemPoolInterface;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
+use Symfony\Component\Messenger\EventListener\StopWorkerOnRestartSignalListener;
 
 /** @internal */
 #[Package('framework')]
@@ -21,7 +23,6 @@ final class UcpConfigService
      */
     private const KEYS = [
         'active',
-        'ucpVersion',
         'profileDomain',
         'enabledCapabilities',
         'enabledTransports',
@@ -40,6 +41,7 @@ final class UcpConfigService
 
     /**
      * @param ?AbstractSalesChannelTypeResolver $salesChannelTypeResolver null skips the type gate
+     * @param ?CacheItemPoolInterface           $restartSignalCachePool   null skips the worker restart signal
      */
     public function __construct(
         private readonly UcpConfigRepositoryInterface $repository,
@@ -48,6 +50,7 @@ final class UcpConfigService
         private readonly ?UcpSigningKeyService $signingKeyService = null,
         private readonly bool $allowHttpLocalWebhookOverride = false,
         private readonly ?AbstractSalesChannelTypeResolver $salesChannelTypeResolver = null,
+        private readonly ?CacheItemPoolInterface $restartSignalCachePool = null,
     ) {
     }
 
@@ -128,16 +131,20 @@ final class UcpConfigService
      */
     public function saveConfig(array $payload, ?string $salesChannelId = null): UcpConfig
     {
+        $previous = $this->getConfig($salesChannelId);
+
         if (null === $salesChannelId) {
             $config = UcpConfig::fromArray($payload, $this->allowHttpLocalWebhookOverride);
             foreach ($config->toArray() as $key => $value) {
                 $this->legacyConfigStore->set(self::DOMAIN.$key, $value, null);
             }
 
+            $this->signalWorkerRestartOnAllowlistChange($previous, $config);
+
             return $config;
         }
 
-        $merged = array_merge($this->getConfig($salesChannelId)->toArray(), $payload);
+        $merged = array_merge($previous->toArray(), $payload);
         $config = UcpConfig::fromArray($merged, $this->allowHttpLocalWebhookOverride);
 
         // Only an explicit `active: true` is refused, so a stale row can still be switched off.
@@ -152,7 +159,36 @@ final class UcpConfigService
             $this->ensureSigningKey($salesChannelId);
         }
 
+        $this->signalWorkerRestartOnAllowlistChange($previous, $config);
+
         return $config;
+    }
+
+    /**
+     * Ask the messenger workers to stop, so the next message runs on a container that knows the
+     * new allowlist. The SDK's UrlSafetyValidator is built once per container and its consumers
+     * are shared, so a long-running worker would otherwise keep refusing webhooks to a host
+     * allowlisted minutes ago. Same signal `PluginLifecycleService` raises after an install.
+     *
+     * Allowlist changes only: restarting workers on every exposure toggle is the worse trade.
+     */
+    private function signalWorkerRestartOnAllowlistChange(UcpConfig $previous, UcpConfig $current): void
+    {
+        if (null === $this->restartSignalCachePool) {
+            return;
+        }
+
+        if ($previous->platformAllowlist === $current->platformAllowlist
+            && $previous->remoteProfileAllowlist === $current->remoteProfileAllowlist
+        ) {
+            return;
+        }
+
+        $item = $this->restartSignalCachePool->getItem(StopWorkerOnRestartSignalListener::RESTART_REQUESTED_TIMESTAMP_KEY);
+        // Compared against the worker's own microtime(true), so it must come from the same clock.
+        // @phpstan-ignore-next-line shopware.noNativeTimeRead
+        $item->set(microtime(true));
+        $this->restartSignalCachePool->save($item);
     }
 
     private function isEligible(string $salesChannelId): bool

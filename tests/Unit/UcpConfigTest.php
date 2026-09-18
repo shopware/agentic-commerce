@@ -83,7 +83,20 @@ final class UcpConfigTest extends TestCase
         self::assertSame('https://merchant.example/checkout/confirm?checkoutId={checkoutId}', $config->continueUrlTemplate);
         self::assertSame('https://agent.example/ucp', $config->webhookUrlOverride);
         self::assertSame('strict', $config->signaturePolicy);
-        self::assertSame(UcpProtocol::VERSION, $config->ucpVersion);
+        self::assertSame(UcpProtocol::VERSION, $config::ucpVersion());
+    }
+
+    public function testItIgnoresAStoredUcpVersionInsteadOfRejectingIt(): void
+    {
+        // The rejection this replaces is what broke every request after the release bump:
+        // stored config still held the previous version, and the plugin answered
+        // `invalid_request` about its own configuration until the rows were edited by hand.
+        // The value was never choosable -- one legal value, from a constant -- so a stored
+        // copy is accepted and discarded rather than validated.
+        $config = UcpConfig::fromArray(['ucpVersion' => '2026-08-25']);
+
+        self::assertSame(UcpProtocol::VERSION, $config::ucpVersion());
+        self::assertSame(UcpProtocol::VERSION, $config->toArray()['ucpVersion']);
     }
 
     #[Test]
@@ -98,7 +111,8 @@ final class UcpConfigTest extends TestCase
         self::assertSame('strict', $config->signaturePolicy);
         self::assertSame(50, $config->catalogResultLimit);
         self::assertSame([
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_CART,
             UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT,
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
@@ -134,7 +148,8 @@ final class UcpConfigTest extends TestCase
         ]);
 
         self::assertSame([
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING,
             UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
         ], $config->runtimeEnabledCapabilityDescriptors());
@@ -241,7 +256,8 @@ final class UcpConfigTest extends TestCase
     {
         $defaultCapabilities = UcpCapabilityCatalog::defaultConfigKeys();
         $defaultDescriptors = [
-            UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+            UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
             UcpCapabilityCatalog::DESCRIPTOR_CART,
             UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT,
             UcpCapabilityCatalog::DESCRIPTOR_CHECKOUT,
@@ -320,7 +336,8 @@ final class UcpConfigTest extends TestCase
                 'allowedProfileHosts' => ['merchant.example'],
                 'allowedAgentDomains' => ['merchant.example'],
                 'enabledCapabilities' => [
-                    UcpCapabilityCatalog::DESCRIPTOR_CATALOG,
+                    UcpCapabilityCatalog::DESCRIPTOR_CATALOG_SEARCH,
+                    UcpCapabilityCatalog::DESCRIPTOR_CATALOG_LOOKUP,
                     UcpCapabilityCatalog::DESCRIPTOR_PAYMENT_TOKENIZATION,
                 ],
                 'transports' => ['rest', 'a2a'],
@@ -450,11 +467,6 @@ final class UcpConfigTest extends TestCase
         yield 'profile domain must be absolute URL' => [
             'payload' => ['profileDomain' => '/profile'],
             'exception' => UcpConfigException::invalidValue('$.profileDomain', 'must be an absolute http(s) URL'),
-        ];
-
-        yield 'unsupported UCP version' => [
-            'payload' => ['ucpVersion' => '0.0.0'],
-            'exception' => UcpConfigException::invalidValue('$.ucpVersion', \sprintf('must be "%s"', UcpProtocol::VERSION)),
         ];
 
         yield 'continue URL must be absolute' => [

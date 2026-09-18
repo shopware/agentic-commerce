@@ -20,7 +20,6 @@ final class UcpConfig
      */
     private const CONFIG_KEYS = [
         'active',
-        'ucpVersion',
         'profileDomain',
         'enabledCapabilities',
         'enabledTransports',
@@ -40,7 +39,18 @@ final class UcpConfig
     /**
      * @var list<string>
      */
-    private const IGNORED_LEGACY_KEYS = ['profileUriStrategy', 'customProfileUri'];
+    /**
+     * Accepted and discarded, so nothing stored has to be rewritten.
+     *
+     * `ucpVersion` joined this list rather than getting a migration. It was never
+     * configuration: the validator only ever accepted UcpProtocol::VERSION, so the column
+     * could hold exactly one legal value, and that value is a compile-time constant. What
+     * storing it did achieve was going stale -- after the bump to 2026-08-25 every sales
+     * channel still held 2026-04-08, and the plugin rejected every request with
+     * `invalid_request` about its own configuration until the rows were edited by hand.
+     * The admin form only ever seeded it from a constant, so nobody could set it either.
+     */
+    private const IGNORED_LEGACY_KEYS = ['profileUriStrategy', 'customProfileUri', 'ucpVersion'];
 
     /**
      * @var list<string>
@@ -63,7 +73,6 @@ final class UcpConfig
      */
     public function __construct(
         public readonly bool $active = false,
-        public readonly string $ucpVersion = UcpProtocol::VERSION,
         public readonly ?string $profileDomain = null,
         public readonly array $enabledCapabilities = [],
         public readonly array $enabledTransports = ['rest'],
@@ -104,7 +113,6 @@ final class UcpConfig
 
         return new self(
             self::boolValue($payload['active'] ?? null, false, '$.active'),
-            self::ucpVersionValue($payload['ucpVersion'] ?? null),
             $profileDomain,
             self::enabledCapabilityList($payload),
             self::enabledTransportList($payload),
@@ -144,7 +152,7 @@ final class UcpConfig
     {
         return [
             'active' => $this->active,
-            'ucpVersion' => $this->ucpVersion,
+            'ucpVersion' => self::ucpVersion(),
             'profileDomain' => $this->profileDomain,
             'enabledCapabilities' => $this->enabledCapabilities,
             'enabledTransports' => $this->enabledTransports,
@@ -234,7 +242,15 @@ final class UcpConfig
         ];
     }
 
-    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false): RuntimeConfiguration
+    /**
+     * @param bool $profileFetchingDevelopmentMode the SDK's development mode, from the plugin's
+     *                                             `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE`
+     *                                             environment variable. It used to reach only the
+     *                                             URL-safety validator, so the SDK's request-context
+     *                                             factory never saw it and its development-mode paths
+     *                                             (a shop acting as its own agent) stayed dark in Shopware.
+     */
+    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false, bool $profileFetchingDevelopmentMode = false): RuntimeConfiguration
     {
         $baseUri = $this->resolveBaseUri($fallbackBaseUri);
         $host = parse_url($baseUri, \PHP_URL_HOST);
@@ -243,7 +259,7 @@ final class UcpConfig
         $allowedAgentDomains = [] !== $this->agentAllowlist ? $this->agentAllowlist : $fallbackHosts;
 
         return new RuntimeConfiguration(
-            $this->ucpVersion,
+            self::ucpVersion(),
             $baseUri,
             SignaturePolicy::from($this->signaturePolicy),
             $this->idempotencyRequired,
@@ -254,6 +270,7 @@ final class UcpConfig
             $this->runtimeEnabledCapabilityDescriptors(),
             $tenantIdentifier,
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
+            $profileFetchingDevelopmentMode,
         );
     }
 
@@ -331,21 +348,16 @@ final class UcpConfig
         return $normalized;
     }
 
-    private static function ucpVersionValue(mixed $value): string
+    /**
+     * The release this plugin serves. One value, from one place, never persisted.
+     *
+     * This plugin does not serve several releases at once, so there is nothing to choose
+     * between -- and a stored copy of an unchoosable value can only ever be right by
+     * coincidence or wrong by a version bump.
+     */
+    public static function ucpVersion(): string
     {
-        if (null === $value || '' === $value) {
-            return UcpProtocol::VERSION;
-        }
-
-        if (!\is_string($value)) {
-            throw self::invalid('$.ucpVersion', 'must be a string');
-        }
-
-        if (UcpProtocol::VERSION !== $value) {
-            throw self::invalid('$.ucpVersion', \sprintf('must be "%s"', UcpProtocol::VERSION));
-        }
-
-        return $value;
+        return UcpProtocol::VERSION;
     }
 
     private static function signaturePolicyValue(mixed $value): string

@@ -295,9 +295,13 @@ The script handles the important differences:
   where no Store API route exists.
 - MCP write tools must expose object payload schemas (`payload` plus `id` where
   needed), not JSON-string payload arguments.
-- Embedded pages require configured `embeddedAllowedOrigins`; the plugin returns
-  controlled `403` responses for missing or non-allowlisted `Origin` headers and
-  sets CSP frame ancestors from `embeddedFrameAncestors`.
+- Embedded pages require configured `embeddedAllowedOrigins`: an unconfigured sales
+  channel is refused with a controlled `403`, and so is a request whose `Origin` is
+  present but not allowlisted. An absent `Origin` is not a denial signal -- browsers
+  omit the header on the iframe and top-level GET navigations the embedded surface is
+  loaded by -- so such a request proceeds and its preflight receives no
+  `Access-Control-Allow-Origin` grant. CSP frame ancestors come from
+  `embeddedFrameAncestors`.
 - Feature-detect Shopware capabilities instead of comparing versions unless a
   version check is the only stable signal.
 - Keep migrations safe across all supported lanes. Do not assume newer core
@@ -354,6 +358,61 @@ The script handles the important differences:
   a general change could negatively affect other plugin behavior.
 - Always do a root cause analysis to identify where the real issue lives.
 
+## Code Shape
+
+These are the rules a review keeps rediscovering. They are measurable on purpose:
+check the number, do not argue with the feeling.
+
+### Comment budget
+
+`src/` sits at roughly **0.24 comment lines per code line**. A diff well above
+that is explaining in the wrong place. Measure before pushing:
+
+```bash
+git diff <base> -- 'src/*.php' | grep '^+' | grep -v '^+++' | sed 's/^+//' | awk '
+/^[[:space:]]*(\/\/|\*|\/\*)/ {c++; next} /^[[:space:]]*$/ {next} {code++}
+END {printf "%.2f\n", c/code}'
+```
+
+- A comment earns its place when it stops a reader from **undoing** something: a
+  constraint not visible locally, a rejected alternative, a rule from upstream.
+  "Shared on purpose, because the SDK class is final" is worth a line.
+- Do not narrate history ("this used to…", "for as long as it has been here"),
+  restate the code, or re-explain the bug. The commit message is where the story
+  goes, and git keeps it.
+- `@param` and `@return` descriptions are **one line**. A parameter that needs a
+  paragraph means the contract belongs in `docs/`, with `@see` pointing there.
+- Class docblock on a small abstraction: about five lines, then `@see docs/…`.
+  This repo has a real `docs/` tree — use it instead of growing a header.
+
+### Constructor size
+
+Current worst offenders, all service classes, none of them good:
+`CheckoutCompleter` (13), `ShopwareCheckoutAdapter` (13), `ShopwareCartGateway`
+(11). `UcpConfig` is a DTO and does not count.
+
+- **Six collaborators is the ceiling** for a service. At seven, say so in the PR.
+- Do not add an argument to a class already over the ceiling without proposing
+  the split first. "Just one more logger" is how all three got there.
+- A cross-cutting dependency (logger, clock, cache pool) landing on several
+  classes at once is a sign the behaviour wants its own collaborator rather than
+  a constructor parameter on each.
+- Adding a dependency only to make one method testable usually means that method
+  wants to be its own class — `UcpCheckoutCompletionPayment` exists precisely
+  because the SDK executor is `final` and the tool could not be mocked.
+
+### Answering reviews
+
+- A review comment is a hypothesis about the code, not an instruction. Verify it
+  against the source first, and say so when the premise is wrong.
+- Fixing the reported instance is half the job: check whether the same mistake
+  sits in the sibling nobody reviewed. The per-parent variant bound and the
+  stale-allowlist bug each had to be fixed twice because the first pass only
+  touched the copy that was pointed at.
+- Answering a reviewer in prose inside the source file is this plugin's main
+  source of comment bloat. Answer in the PR thread; leave a line in the code only
+  if a future reader would otherwise revert the change.
+
 ## Pull Requests
 
 - Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior,
@@ -378,19 +437,22 @@ changelogs (`# <version>`) in the release PR. See the
 README `Release` section for the full flow. Two recurring pitfalls have their own
 subsections there — read them before the change, not after CI is green:
 
-- **SDK version floor.** `ucp-php-sdk/symfony-bundle` is required as an explicit range,
-  currently `>=0.0.5 <0.1.0`, **not** a caret — a caret on `0.0.x` is locked to that exact
-  patch (the plugin's original `^0.0.2` never resolved `0.0.3`) and excluded every future
-  release. Read the lower bound out of `composer.json` rather than from here. The range lets
-  new `0.0.x` releases reach merchants without a plugin change, so SDK breakage can
-  arrive on its own; that is why CI must keep testing against the moving SDK `main`.
-  It still only *permits* a newer tag — an install with an existing lock resolves the
-  older one — so never merge release-bound code that references SDK symbols living
-  only on the SDK `main` branch or an unmerged SDK PR: CI passes against `main` while
-  such an install fatals with `Class "…" not found`. Depending on a new symbol means
-  raising the range's **lower bound** in `composer.json` and keeping the two forced
-  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two
-  in `bin/ci-smoke.sh` at or above it, while leaving `UCP_SDK_REF` on `main`.
+- **SDK version pin.** `ucp-php-sdk/symfony-bundle` is required at the exact version it
+  was tested against, currently `0.0.7` — **not** a caret (a caret on `0.0.x` already means
+  that exact patch; the plugin's original `^0.0.2` never resolved `0.0.3`), **not** a tilde
+  (`~0.0.6` is the open `>=0.0.6 <0.1.0` range) and **not** a `>=a <b` window, which still
+  admits a four-component `0.0.6.1`. Read the pin out of `composer.json` rather than from here. The SDK serves one UCP version
+  per release and switches it outright, so a new SDK release must arrive with a plugin
+  release, never on its own; that is what the pin enforces. CI still tests against the
+  moving SDK `main` so upcoming breakage is caught early, but `main` only *predicts* a tag:
+  never merge release-bound code that references SDK symbols living only on the SDK `main`
+  branch or an unmerged SDK PR — CI passes against `main` while a shop on the published tag
+  fatals with `Class "…" not found`. Moving the window means `composer.json`, the two forced
+  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two in
+  `bin/ci-smoke.sh`, plus — when the spec date moved — `UcpProtocol::VERSION`, which
+  `UcpProtocolVersionGuardTest` holds equal to the SDK's `UcpProtocolVersion::current()`.
+  Leave `UCP_SDK_REF` on `main`. See the README `The SDK version window` section and
+  `docs/ucp-version-support.md`.
 - **Migrations.** The runner never re-runs an applied migration. Never edit the
   effect of a migration already shipped in a tagged release (upgraded shops keep the
   old schema); add a new idempotent forward migration instead. Editing a migration

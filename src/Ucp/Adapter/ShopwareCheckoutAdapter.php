@@ -20,17 +20,19 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
-use Ucp\Sdk\Adapter\CheckoutAdapterInterface;
+use Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
+use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
 #[Package('checkout')]
-final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
+final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterface
 {
     public function __construct(
         private readonly ShopwareCartGateway $cartGateway,
@@ -56,12 +58,14 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $cartId, $request, $discountCodes, $context);
 
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $request->buyer);
+        $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, null, $request->payment);
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $request->buyer,
             $discountCodes,
-            guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment),
+            guestAddress: $addresses['billing'],
+            guestShippingAddress: $addresses['shipping'],
         );
 
         return $this->mapper->toCheckout(
@@ -152,12 +156,15 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $buyer = $request->buyer ?? $this->sessionStore->buyer($metadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
 
+        $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, $metadata, $request->payment);
+
         $this->sessionManager->save(
             $salesChannelContext,
             $status->value,
             $buyer,
             $discountCodes,
-            guestAddress: $this->guestAddressPayloadResolver->resolve($request->fulfillment, $metadata),
+            guestAddress: $addresses['billing'],
+            guestShippingAddress: $addresses['shipping'],
         );
 
         return $this->mapper->toCheckout(
@@ -169,7 +176,44 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         );
     }
 
+    /**
+     * The payment-aware entry point.
+     *
+     * `completeCheckout()` below is kept and still works: the SDK calls this one when the
+     * adapter opts in, and that one otherwise, so nothing that already calls it breaks.
+     */
+    public function completeCheckoutFromRequest(CheckoutCompleteRequest $request, RequestContext $context): Checkout
+    {
+        return $this->completeCheckoutInternal($request->id, $context, self::selectedInstrument($request));
+    }
+
+    /**
+     * The first instrument on a completion, which is as close to "the one the agent chose" as
+     * this release can get.
+     *
+     * `payment.json` models payment as `{"instruments": [...]}` and marks the buyer's choice with
+     * `selected` at the instrument top level. The SDK cannot report it: `PaymentInstrument` has no
+     * such property and `HttpPayloadMapper::toPaymentInstrument()` drops the field, so nothing
+     * reaches this method that could distinguish one instrument from another. An earlier version
+     * looked for `credential['selected']`, one level too deep, which could never be true and made
+     * the first-instrument fallback the only behaviour while reading as though selection worked.
+     *
+     * The asymmetry is upstream: the SDK honours `selected` on create and update, where it reads
+     * the raw payload before mapping, and not on complete, where it maps the whole list. Tracked
+     * in agentic-commerce-alliance/ucp-php-sdk#190; once that ships, select on the property here
+     * and drop this note.
+     */
+    private static function selectedInstrument(CheckoutCompleteRequest $request): ?PaymentInstrument
+    {
+        return $request->instruments[0] ?? null;
+    }
+
     public function completeCheckout(string $id, RequestContext $context): Checkout
+    {
+        return $this->completeCheckoutInternal($id, $context, null);
+    }
+
+    private function completeCheckoutInternal(string $id, RequestContext $context, ?PaymentInstrument $instrument): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
@@ -185,7 +229,7 @@ final class ShopwareCheckoutAdapter implements CheckoutAdapterInterface
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context);
+        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context, $instrument);
     }
 
     /**

@@ -33,13 +33,6 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
 
     protected function setUp(): void
     {
-        // The UCP SDK cart/checkout models are declared as PHP 8.2 `readonly class`es, so this
-        // test cannot even parse them on the PHP 8.1 unit lane (6.5/phpunit-9). The plugin's own
-        // code stays 8.1-safe; this is a pure test-fixture constraint of the SDK dependency.
-        if (\PHP_VERSION_ID < 80200) {
-            self::markTestSkipped('Exercises UCP SDK models declared as PHP 8.2 readonly classes.');
-        }
-
         $this->cart = new Cart('cart-id', [], 'EUR');
         $this->checkout = new Checkout(
             'checkout-id',
@@ -60,7 +53,7 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
         $runtimeConfigurationResolver
             ->method('resolve')
             ->willReturnCallback(static fn (HttpRequest $request): RuntimeConfiguration => new RuntimeConfiguration(
-                '2026-04-08',
+                '2026-08-25',
                 'https://'.(parse_url($request->absoluteUri, \PHP_URL_HOST) ?: 'shop.example'),
             ));
 
@@ -111,6 +104,23 @@ final class ShopwareEmbeddedPageRendererTest extends TestCase
         self::assertStringContainsString('Checkout session', $response->getContent() ?: '');
         self::assertStringContainsString('ready_for_complete', $response->getContent() ?: '');
         self::assertStringContainsString('href="https://shop.example/checkout/confirm"', $response->getContent() ?: '');
+        // The embedded URL carries the checkout token; without noreferrer, clicking the
+        // CTA leaks it to the continue_url host, which is not restricted to our domain.
+        self::assertStringContainsString('rel="noopener noreferrer"', $response->getContent() ?: '');
+    }
+
+    #[Test]
+    public function testOriginLessNavigationDoesNotAssumeTheShopIsTheParent(): void
+    {
+        $request = Request::create('https://shop.example/ucp/embedded/cart/cart-id');
+        $request->attributes->set('ucp_request_context', new RequestContext('shop.example'));
+
+        $response = $this->renderer->render('cart', 'cart-id', $request);
+
+        self::assertNotNull($response);
+        $content = $response->getContent() ?: '';
+        self::assertStringContainsString('"targetOrigin":null', $content);
+        self::assertStringContainsString('"allowedOrigins":[]', $content);
     }
 
     #[Test]

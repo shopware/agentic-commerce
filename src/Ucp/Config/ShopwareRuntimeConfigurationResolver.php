@@ -19,6 +19,7 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
         private readonly UcpConfigService $configService,
         private readonly SalesChannelDomainResolver $domainResolver,
         private readonly ShopwareVersionDetector $versionDetector,
+        private readonly bool $profileFetchingDevelopmentMode = false,
     ) {
     }
 
@@ -31,7 +32,7 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
             $baseUri = $resolution->baseUrl;
         }
 
-        return $config->toRuntimeConfiguration($baseUri, $resolution?->salesChannelId, $this->versionDetector->supportsStoreApiMcp());
+        return $config->toRuntimeConfiguration($baseUri, $resolution?->salesChannelId, $this->versionDetector->supportsStoreApiMcp(), $this->profileFetchingDevelopmentMode);
     }
 
     private function fallbackBaseUri(string $absoluteUri): string

@@ -10,8 +10,8 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Compatibility\Twig;
 
 use Psr\Log\LoggerInterface;
+use Shopware\Core\Content\Seo\SeoUrlPlaceholderHandlerInterface;
 use Shopware\Core\Content\Seo\SeoUrlRoute\SeoUrlRouteRegistry;
-use Shopware\Core\Framework\Adapter\Twig\Extension\SeoUrlFunctionExtension;
 use Shopware\Core\Framework\Log\Package;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
@@ -34,7 +34,7 @@ final class EntitySeoUrlCompatExtension extends AbstractExtension
 {
     public function __construct(
         private readonly SeoUrlRouteRegistry $seoUrlRouteRegistry,
-        private readonly SeoUrlFunctionExtension $seoUrlFunctionExtension,
+        private readonly SeoUrlPlaceholderHandlerInterface $seoUrlPlaceholderHandler,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -61,7 +61,7 @@ final class EntitySeoUrlCompatExtension extends AbstractExtension
             return '';
         }
 
-        return $this->seoUrlFunctionExtension->seoUrl(
+        return $this->seoUrlPlaceholderHandler->generate(
             $route->getConfig()->getRouteName(),
             [$parameterName => $primaryKey],
         );

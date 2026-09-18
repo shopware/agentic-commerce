@@ -33,7 +33,7 @@ final class OrderPermalinkBuilderTest extends TestCase
     public function testPrefersTheConfiguredBaseUriOverTheRequestHost(): void
     {
         $context = new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration(
-            '2026-04-08',
+            '2026-08-25',
             'https://storefront.example/',
         ));
 
