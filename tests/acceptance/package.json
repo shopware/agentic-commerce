@@ -1,0 +1,36 @@
+{
+  "name": "agentic-commerce-acceptance-test-suite",
+  "version": "1.0.0",
+  "private": true,
+  "author": "shopware AG",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "playwright test --grep-invert @UcpKnownBlocked",
+    "test:all": "playwright test",
+    "test:known-blocked": "playwright test --project=UcpKnownBlocked",
+    "lint": "eslint fixtures tests known-blockers.ts playwright.config.ts eslint.config.ts",
+    "lint:fix": "npm run lint -- --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^26.5.1",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.2.1",
+    "eslint-plugin-playwright": "^2.10.2",
+    "globals": "^17.12.0",
+    "jiti": "^2.6.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.0"
+  },
+  "dependencies": {
+    "@playwright/test": "1.62.1",
+    "@shopware-ag/acceptance-test-suite": "12.20.0",
+    "playwright-core": "1.62.1"
+  }
+}
