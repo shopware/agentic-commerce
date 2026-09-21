@@ -2,9 +2,8 @@
 # Assert that a packaged extension zip actually carries the UCP SDK it autoloads.
 #
 # The failure this exists for is silent in every other check. `composer` records a path
-# repository's package in vendor/composer/installed.json and writes an autoload entry
-# pointing at $vendorDir/ucp-php-sdk/<pkg>/src -- and if the package directory was never
-# copied in, nothing complains. `shopware-cli extension validate` does not read vendor/,
+# repository's package in vendor/composer/installed.json -- and if the package directory was
+# never copied in, nothing complains. `shopware-cli extension validate` does not read vendor/,
 # and bin/ci-assert-zip-admin-bundle.sh only reads the administration bundle. So the
 # archive installs, the plugin activates, and the first UCP request dies with
 # `Class "Ucp\Sdk\..." not found`.
@@ -13,9 +12,11 @@
 # running composer, so a path repository aimed at a sibling checkout (`../ucp-php-sdk`)
 # resolves during planning and materialises nothing.
 #
-# Guards three things:
-#   - the two SDK packages have real PHP files under vendor/
-#   - the autoloader points at those same paths
+# Guards four things:
+#   - the two SDK packages have real PHP files and JSON schemas under vendor/
+#   - the plugin manifest declares the psr-4 prefixes for them itself, with config.vendor-dir
+#     set so Shopware's requirement validator still finds the bundled packages
+#   - the archive registers no Composer autoloader of its own
 #   - the archive does not also ship the build-only .sdk/ source copy
 
 set -euo pipefail
@@ -116,22 +117,96 @@ else
   echo "ok: ${schema_count} schema files ship."
 fi
 
-# The autoloader has to agree with what is on disk. If composer recorded the package under
-# a different install path than the one packed, the file count above can pass while nothing
-# is reachable.
-autoload_psr4="$(unzip -p "${zip_file}" "${PLUGIN}/vendor/composer/autoload_psr4.php" 2>/dev/null || true)"
+# Shopware autoloads a plugin's own declared psr-4 prefixes, and the build points them at the
+# bundled packages. If that injection does not happen, nothing else notices: the SDK is on disk,
+# the manifest looks ordinary, and the first request dies with `Class "Ucp\Sdk\..." not found`.
+if ! python3 - "${zip_file}" <<'PYTHON'
+import json
+import posixpath
+import sys
+import zipfile
 
-if [[ -z "${autoload_psr4}" ]]; then
-  echo "FAIL: ${PLUGIN}/vendor/composer/autoload_psr4.php is missing from the archive." >&2
-  echo "      Without it Shopware cannot autoload the SDK at all." >&2
+PLUGIN = 'SwagAgenticCommerce'
+failures = []
+
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    names = set(archive.namelist())
+    manifest = json.loads(archive.read(f'{PLUGIN}/composer.json'))
+    installed = json.loads(archive.read(f'{PLUGIN}/vendor/composer/installed.json'))
+    packages = {
+        package['name']: json.loads(archive.read(f"{PLUGIN}/vendor/{package['name']}/composer.json"))
+        for package in installed['packages']
+    }
+
+psr4 = manifest.get('autoload', {}).get('psr-4', {})
+
+
+def declared(namespace):
+    paths = psr4.get(namespace, [])
+
+    return [paths] if isinstance(paths, str) else list(paths)
+
+
+# vendor-dir is what points RequirementsValidator::validateShippedDependencies() at the
+# installed.json read above. Left at the source checkout's .tools/vendor, the validator finds no
+# shipped dependencies and the install fails on a requirement the archive actually carries.
+vendor_dir = manifest.get('config', {}).get('vendor-dir')
+if vendor_dir != 'vendor':
+    failures.append(f'composer.json config.vendor-dir must be "vendor", got {vendor_dir!r}')
+
+# Every bundled package's own prefixes must be declared by the plugin, pointing into that
+# package. Derived from the packages rather than hardcoded, so this keeps holding when the SDK
+# renames a namespace.
+for name, package in sorted(packages.items()):
+    if name not in manifest.get('require', {}):
+        failures.append(f'{name} is bundled but no longer required in composer.json')
+
+    for namespace, paths in package['autoload']['psr-4'].items():
+        for path in [paths] if isinstance(paths, str) else paths:
+            expected = posixpath.join('vendor', name, path.strip('/')) + '/'
+
+            if expected not in declared(namespace):
+                failures.append(
+                    f'composer.json autoload.psr-4[{namespace!r}] does not map {expected!r}'
+                    f' (declares {declared(namespace)!r})'
+                )
+            elif not any(entry.startswith(f'{PLUGIN}/{expected}') for entry in names):
+                failures.append(f'{expected} is declared in autoload.psr-4 but not in the archive')
+
+# Independent of the derivation above: if the SDK ever ships something unrecognisable, the loop
+# can agree with itself while the classes the plugin names are unreachable.
+for namespace in ('Ucp\\Sdk\\', 'Ucp\\Sdk\\Symfony\\'):
+    if not declared(namespace):
+        failures.append(f'composer.json autoload.psr-4 declares nothing for {namespace!r}')
+
+for failure in failures:
+    print(f'FAIL: {failure}', file=sys.stderr)
+
+if failures:
+    sys.exit(1)
+
+print(f'ok: the plugin manifest autoloads the bundled SDK itself ({len(psr4)} prefixes).')
+PYTHON
+then
+  status=1
+fi
+
+# A plugin-local vendor/autoload.php is a second Composer ClassLoader, and its
+# vendor/composer/installed.php then joins the shop's own in
+# InstalledVersions::getAllRawData() -- where FroshTools reports "2 autoloaders registered" and
+# Composer's aggregate version lookups can answer from the plugin's copy.
+# https://github.com/FriendsOfShopware/FroshTools/issues/469
+composer_runtime="$(printf '%s\n' "${listing}" \
+  | grep -E "^${PLUGIN}/vendor/(autoload\.php|composer/.+)$" || true)"
+
+if [[ "${composer_runtime}" != "${PLUGIN}/vendor/composer/installed.json" ]]; then
+  echo "FAIL: the archive ships a Composer autoloader runtime under vendor/:" >&2
+  printf '%s\n' "${composer_runtime}" | sed 's/^/        /' >&2
+  echo "      Only ${PLUGIN}/vendor/composer/installed.json may ship; the rest registers an" >&2
+  echo "      autoloader the shop does not need and must not see." >&2
   status=1
 else
-  for expected in 'ucp-php-sdk/core/src' 'ucp-php-sdk/symfony-bundle/src'; do
-    if ! printf '%s\n' "${autoload_psr4}" | grep -F "${expected}" >/dev/null; then
-      echo "FAIL: autoload_psr4.php does not map anything to ${expected}." >&2
-      status=1
-    fi
-  done
+  echo "ok: the archive registers no Composer autoloader of its own."
 fi
 
 # .sdk/ is the build-only source the path repositories resolve from. Shipping it too would

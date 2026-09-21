@@ -126,19 +126,15 @@ jobs:
           path: dist
           include-hidden-files: true
 
-      # Neither guard above can prove the archive installs. The SDK was once present, correctly
-      # pointed at, and still never loaded, because Shopware does not require a plugin's own
-      # vendor/autoload.php -- so both checks passed while `plugin:install` failed on every
-      # Shopware version. Only an install onto a shop that does not separately provide the SDK
-      # settles it, and that is a local step until this workflow boots a shop of its own.
-      - name: How to verify this archive actually installs
+      # The zip-install job below installs this archive on 6.5, 6.6 and trunk. This tells a
+      # developer how to repeat it against their own lane, against the downloaded artifact.
+      - name: How to verify this archive on a local lane
         run: |
           {
-            echo "### Before handing this archive to anyone"
+            echo "### Installing this archive on your own lane"
             echo
-            echo 'The checks in this job prove the SDK is *in* the archive and that the autoloader'
-            echo '*points* at it. They cannot prove it loads. Run the install smoke against a lane'
-            echo 'whose shop does not already provide the SDK:'
+            echo 'The zip-install job already did this on 6.5.x, 6.6.x and trunk. To repeat it'
+            echo 'against a local lane, on a shop that does not already provide the SDK:'
             echo
             echo '```'
             echo 'bin/test-zip-install.sh --zip <downloaded>.zip \'
@@ -150,3 +146,64 @@ jobs:
             echo 'It strips the project-level SDK first and refuses to run if the shop can still'
             echo 'resolve it, because that is how the last defect stayed invisible.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Neither the admin-bundle guard nor the SDK guard can prove the archive installs. The SDK was
+  # once present, correctly pointed at, and still never loaded, because Shopware does not require
+  # a plugin's own vendor/autoload.php -- so both checks passed while `plugin:install` failed on
+  # every Shopware version. Only an install onto a shop that does not separately provide the SDK
+  # settles it, on each supported line.
+  zip-install:
+    name: Install the zip (${{ matrix.lane }})
+    needs: package-zip
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: ['6.5.x', '6.6.x', 'trunk']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - name: Check out the lane
+        uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane }}
+          path: shopware
+      - name: Download the built archive
+        uses: actions/download-artifact@v7
+        with:
+          name: SwagAgenticCommerce
+          path: archive
+      # The artifact is uploaded unpacked (see the note at the top of this file), so re-zip the
+      # plugin directory to get back the single-rooted archive the upload endpoint expects.
+      - name: Re-zip the archive
+        run: cd archive && zip -qr "$GITHUB_WORKSPACE/SwagAgenticCommerce.zip" SwagAgenticCommerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh agentic-commerce/bin/test-zip-install.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
+      # CI_SMOKE_SKIP_PLUGIN removes the plugin and both SDK packages from the project before
+      # installing it, which is the whole point: on a shop that can resolve the SDK by another
+      # route, a green install proves nothing about the archive.
+      - name: Boot a shop that has never seen the SDK
+        run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          SHOPWARE_REF: ${{ matrix.lane }}
+          CI_SMOKE_SKIP_PLUGIN: '1'
+          CI_SMOKE_MODE: cold
+          CI_SMOKE_KEEP_STACK: '1'
+      - name: Install the archive the way a merchant does
+        working-directory: shopware
+        run: |
+          set -euo pipefail
+          container="$(docker compose ps -a -q web)"
+          if [[ -z "${container}" ]]; then
+            echo "The lane has no web container; the bootstrap step did not leave the stack up." >&2
+            exit 1
+          fi
+          url="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' compose.yaml | head -n 1)"
+          "$GITHUB_WORKSPACE/agentic-commerce/bin/test-zip-install.sh" \
+            --zip "$GITHUB_WORKSPACE/SwagAgenticCommerce.zip" \
+            --container "${container}" \
+            --shop-url "${url:-http://localhost:8000}"

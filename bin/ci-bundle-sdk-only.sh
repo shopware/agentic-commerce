@@ -44,19 +44,40 @@ PYTHON
 rm -rf vendor
 COMPOSER=.composer-bundled-sdk.json composer update --no-dev --no-scripts --no-interaction --prefer-dist
 
-# Composer records replacement-only packages without a version. Remove those records so
-# InstalledVersions defers to the host's registry instead of hiding its platform versions.
-php <<'PHP'
-<?php
-$path = 'vendor/composer/installed.php';
-$data = require $path;
-foreach ($data['versions'] as $name => $package) {
-    if (isset($package['replaced']) && !isset($package['version'])) {
-        unset($data['versions'][$name]);
-    }
-}
-file_put_contents($path, '<?php return '.var_export($data, true).';'.PHP_EOL);
-PHP
+# Ship the SDK as plugin-owned PSR-4 instead of a second Composer runtime. Shopware registers
+# a plugin's own autoload.psr-4 (KernelPluginLoader::registerPluginNamespaces), so the host's
+# loader resolves Ucp\Sdk\... straight out of the bundled tree. The archive used to carry
+# vendor/autoload.php and have the plugin require it: that registered a second Composer
+# ClassLoader, whose vendor/composer/installed.php then appeared in
+# InstalledVersions::getAllRawData() -- reported by FroshTools as "2 autoloaders registered"
+# and able to shadow the host's own package versions.
+# https://github.com/FriendsOfShopware/FroshTools/issues/469
+python3 - <<'PYTHON'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path('composer.json').read_text())
+psr4 = manifest.setdefault('autoload', {}).setdefault('psr-4', {})
+
+# Read the prefixes off the installed packages instead of hardcoding them, so a namespace the
+# SDK adds or renames cannot silently stop being autoloaded.
+for package in ('core', 'symfony-bundle'):
+    root = Path('vendor/ucp-php-sdk') / package
+    autoload = json.loads((root / 'composer.json').read_text())['autoload']['psr-4']
+    for namespace, paths in autoload.items():
+        if isinstance(paths, str):
+            paths = [paths]
+        psr4[namespace] = [f'{root.as_posix()}/{path.strip("/")}/' for path in paths]
+
+Path('composer.json').write_text(json.dumps(manifest, indent=4) + '\n')
+PYTHON
+
+# installed.json stays: RequirementsValidator::validateShippedDependencies() reads it from the
+# plugin's own vendor-dir to satisfy the ucp-php-sdk requires, and an archive without it fails
+# to install with MissingRequirementException. Everything else Composer generated exists only
+# to register an autoloader, so none of it ships.
+rm -f vendor/autoload.php
+find vendor/composer -mindepth 1 -maxdepth 1 ! -name installed.json -exec rm -rf {} +
 
 rm .composer-bundled-sdk.json .composer-bundled-sdk.lock
 touch .swag-agentic-commerce-bundled-sdk

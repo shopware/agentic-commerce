@@ -1,3 +1,7 @@
+# next version
+
+- Stop registering a second Composer autoloader. The 1.3.0 archive shipped the UCP SDK together with the autoloader Composer generates for it, and the plugin loaded that file itself, because Shopware does not load a plugin's own `vendor/autoload.php`. Every shop that installed the archive therefore ran two Composer registries: FroshTools reported `2 autoloaders registered`, and Composer's aggregated version lookups could answer from the plugin's copy rather than the shop's. The archive now declares the bundled packages in its own `autoload.psr-4`, which Shopware registers on the shop's own class loader, and ships no autoloader at all. Nothing changes for a shop that installs the extension through Composer.
+
 # 1.3.0
 
 - Register the billing and shipping address the agent actually stated. One address was resolved from the fulfillment destination and registered as the billing address, with no shipping address passed at all -- so an agent that stated the two separately had the parcel sent to the billing address, and a digital cart, which has no destination to offer, had no address at all and could not complete. Billing now comes from `payment.instruments[].billing_address` and shipping from the fulfillment destination, each falling back to the other, and a shipping address reaches Shopware only when it differs from billing.

@@ -144,13 +144,18 @@ foreach ($names as $name) {
 file_put_contents('vendor/composer/installed.php', '<?php return '.var_export($versions, true).';');
 PHP
 
-in_shop "mv custom/plugins/${PLUGIN} /tmp/zit-plugin"
-plugin_moved=1
+# A development lane has the plugin source checked out here; a CI lane boots without it
+# (ci-smoke.sh with CI_SMOKE_SKIP_PLUGIN=1 removes it). Either way what must not be present when
+# the archive is uploaded is a second copy of the plugin.
+if in_shop "test -d custom/plugins/${PLUGIN}"; then
+  in_shop "mv custom/plugins/${PLUGIN} /tmp/zit-plugin"
+  plugin_moved=1
+fi
 if in_shop "test -d vendor/ucp-php-sdk"; then
   in_shop "mv vendor/ucp-php-sdk /tmp/zit-sdk"
   sdk_moved=1
 fi
-say "moved the plugin source and the project-level SDK aside"
+say "moved aside: plugin source (${plugin_moved}), project-level SDK (${sdk_moved})"
 
 # The refusal. If the shop still resolves the SDK, a successful install proves nothing about the
 # archive -- which is exactly how the shipped defect stayed invisible.
@@ -225,17 +230,68 @@ else
   status=1
 fi
 
-# The point of the whole exercise: the SDK must come from the plugin's own vendor directory.
-origin=$(in_shop "php -r '
-require \"vendor/autoload.php\";
-require \"custom/plugins/${PLUGIN}/vendor/autoload.php\";
-echo (new ReflectionClass(\"${SDK_PROBE_CLASS//\\/\\\\}\"))->getFileName();
-'" 2>/dev/null || echo "")
-case "${origin}" in
-  */custom/plugins/${PLUGIN}/vendor/*) say "SDK resolved from the archive: ${origin}" ;;
-  "") echo "FAIL: could not resolve ${SDK_PROBE_CLASS} at all after install." >&2; status=1 ;;
-  *) echo "FAIL: SDK resolved from ${origin}, not from the plugin's bundled vendor." >&2; status=1 ;;
+# The point of the whole exercise: the SDK must come from the copy the archive shipped, resolved
+# the way Shopware resolves it. Shopware registers the prefixes a plugin's composer.json declares
+# onto the project's own class loader (KernelPluginLoader::registerPluginNamespaces) and never
+# requires a plugin's vendor/autoload.php -- so that is what this reproduces. An archive that
+# needs anything else installs here and then fatals on a shop we do not own.
+probe_script=$(cat <<'PHP'
+<?php
+chdir('/var/www/html');
+$plugin = 'custom/plugins/'.getenv('ZIT_PLUGIN');
+$loader = require 'vendor/autoload.php';
+$manifest = json_decode(file_get_contents($plugin.'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+foreach ($manifest['autoload']['psr-4'] ?? [] as $namespace => $paths) {
+    $loader->addPsr4($namespace, array_map(
+        static fn (string $path): string => $plugin.'/'.$path,
+        is_array($paths) ? $paths : [$paths],
+    ));
+}
+$class = getenv('ZIT_CLASS');
+echo class_exists($class) ? (new ReflectionClass($class))->getFileName() : 'unresolved';
+PHP
+)
+
+probe=$(printf '%s' "${probe_script}" | docker exec -i -u www-data \
+  -e "ZIT_PLUGIN=${PLUGIN}" -e "ZIT_CLASS=${SDK_PROBE_CLASS}" "${container}" php 2>/dev/null \
+  || echo "error")
+
+case "${probe}" in
+  */custom/plugins/${PLUGIN}/vendor/*) say "SDK resolved from the archive: ${probe}" ;;
+  unresolved | error | "")
+    echo "FAIL: ${SDK_PROBE_CLASS} is not resolvable from the prefixes the archive declares." >&2
+    echo "      Shopware registers those and nothing else; a plugin's own vendor/autoload.php" >&2
+    echo "      is never loaded for it." >&2
+    status=1
+    ;;
+  *) echo "FAIL: SDK resolved from ${probe}, not from the plugin's bundled vendor." >&2; status=1 ;;
 esac
+
+# The archive must not carry a Composer autoloader of its own. One registers a second
+# ClassLoader, whose vendor/composer/installed.php then joins the shop's own in
+# InstalledVersions::getAllRawData() -- reported by FroshTools as "2 autoloaders registered", and
+# able to answer Composer's aggregate version lookups from the plugin's copy.
+# https://github.com/FriendsOfShopware/FroshTools/issues/469
+runtime=$(in_shop "ls -A custom/plugins/${PLUGIN}/vendor/composer | tr '\n' ' '" 2>/dev/null || echo "missing")
+if in_shop "test -f custom/plugins/${PLUGIN}/vendor/autoload.php"; then
+  runtime="autoload.php ${runtime}"
+fi
+
+if [[ "${runtime}" != "installed.json " ]]; then
+  echo "FAIL: the installed plugin carries a Composer runtime under vendor/: ${runtime}" >&2
+  echo "      Only installed.json may be there -- Shopware's requirement validator reads it." >&2
+  status=1
+else
+  say "the installed plugin registers no Composer autoloader"
+fi
+
+datasets=$(in_shop "php -r 'require \"vendor/autoload.php\"; echo count(Composer\\InstalledVersions::getAllRawData());'" 2>/dev/null || echo "error")
+if [[ "${datasets}" == "1" ]]; then
+  say "Composer reports a single registered autoloader dataset"
+else
+  echo "FAIL: Composer reports ${datasets} autoloader datasets, expected 1." >&2
+  status=1
+fi
 
 if [[ "${status}" -eq 0 ]]; then
   echo "== PASS: the archive installs and runs on a shop without the SDK"

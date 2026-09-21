@@ -43,20 +43,53 @@ final class SwagAgenticCommerce extends Plugin
     public const FILE_FORMAT_JSONL = 'jsonl';
 
     /**
-     * Registers the dependencies shipped inside this plugin.
+     * The SDK bundle Shopware registers. A string, not an imported class: whether it can be
+     * resolved at all is precisely what registerBundledDependencies() has to establish.
+     */
+    private const SDK_BUNDLE_CLASS = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
+
+    /**
+     * Makes the dependencies shipped inside this plugin loadable.
      *
-     * Shopware only autoloads a plugin's own `autoload.psr-4` from its composer.json; it never
-     * requires `custom/plugins/<Plugin>/vendor/autoload.php`. So when the plugin is installed
-     * from a store ZIP -- where the UCP SDK is vendored into the archive rather than resolved by
-     * the shop -- every `Ucp\Sdk\...` class is on disk and invisible, and installation fails
-     * with SdkNotAvailableException before anything else runs.
+     * Shopware registers a plugin's own `autoload.psr-4` (KernelPluginLoader::registerPluginNamespaces),
+     * and the store archive declares the bundled UCP SDK there -- so by the time this runs the host's
+     * class loader normally resolves `Ucp\Sdk\...` already and there is nothing to do. Two cases are
+     * left over:
      *
-     * A shop that installs the plugin through Composer already has the SDK on the project
-     * autoloader; there the file is absent and this is a no-op. `require_once` keeps it safe to
-     * call from every entry point, and the project's loader stays first, so a Composer-managed
-     * SDK still wins over the bundled copy.
+     * - Those prefixes are read from the `plugin.autoload` database column, and `plugin:install -r`
+     *   and `plugin:update-all` refresh that column inside a kernel that is already booted. In that
+     *   one process the archive's prefixes are a boot behind, so they are registered here instead.
+     * - A development lane vendors the SDK into the plugin's own `vendor/` and relies on the
+     *   autoloader Composer generates there.
+     *
+     * The store archive deliberately ships no `vendor/autoload.php`. Requiring one registers a second
+     * Composer ClassLoader, which then shows up in Composer's runtime registry
+     * (`InstalledVersions::getAllRawData()`) alongside the shop's own and can shadow its package
+     * versions. Registering a plain closure keeps the first case out of that registry too.
      */
     private function registerBundledDependencies(): void
+    {
+        if (class_exists(self::SDK_BUNDLE_CLASS)) {
+            return;
+        }
+
+        $this->registerBundledNamespaces();
+
+        if (class_exists(self::SDK_BUNDLE_CLASS)) {
+            return;
+        }
+
+        $this->requireBundledAutoloader();
+    }
+
+    /**
+     * Loads the autoloader Composer generated inside the plugin, if one is there.
+     *
+     * Only a development lane has one: it installs the SDK into the plugin's own `vendor/` so a
+     * project-level `composer update` cannot drop it again. The store archive ships none, on
+     * purpose -- see registerBundledDependencies().
+     */
+    private function requireBundledAutoloader(): void
     {
         // getBasePath(), not getPath(): Shopware sets a plugin's path to the directory of its
         // plugin class (<plugin>/src), while the vendor directory sits at the plugin root.
@@ -65,6 +98,94 @@ final class SwagAgenticCommerce extends Plugin
         if (is_file($autoloader)) {
             require_once $autoloader;
         }
+    }
+
+    /**
+     * Registers every `autoload.psr-4` prefix the plugin's composer.json declares besides its own --
+     * that is, the bundled SDK -- on an autoloader of this plugin's own making.
+     */
+    private function registerBundledNamespaces(): void
+    {
+        $prefixes = $this->bundledPsr4Prefixes();
+
+        if ([] === $prefixes) {
+            return;
+        }
+
+        spl_autoload_register(static function (string $class) use ($prefixes): void {
+            foreach ($prefixes as $namespace => $directories) {
+                if (!str_starts_with($class, $namespace)) {
+                    continue;
+                }
+
+                $relative = str_replace('\\', '/', substr($class, \strlen($namespace))).'.php';
+
+                foreach ($directories as $directory) {
+                    if (is_file($directory.$relative)) {
+                        require_once $directory.$relative;
+
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * @return array<string, non-empty-list<string>>
+     */
+    private function bundledPsr4Prefixes(): array
+    {
+        $manifest = $this->getBasePath().'/composer.json';
+
+        if (!is_file($manifest)) {
+            return [];
+        }
+
+        $contents = file_get_contents($manifest);
+
+        if (false === $contents) {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($contents, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+
+        if (!\is_array($decoded)) {
+            return [];
+        }
+
+        $autoload = $decoded['autoload'] ?? null;
+        $psr4 = \is_array($autoload) ? ($autoload['psr-4'] ?? null) : null;
+
+        if (!\is_array($psr4)) {
+            return [];
+        }
+
+        $prefixes = [];
+
+        foreach ($psr4 as $namespace => $paths) {
+            if (!\is_string($namespace) || str_starts_with($namespace, __NAMESPACE__.'\\')) {
+                continue;
+            }
+
+            $directories = [];
+
+            foreach (\is_array($paths) ? $paths : [$paths] as $path) {
+                if (\is_string($path) && '' !== $path) {
+                    $directories[] = rtrim($this->getBasePath().'/'.ltrim($path, '/'), '/').'/';
+                }
+            }
+
+            if ([] !== $directories) {
+                $prefixes[$namespace] = $directories;
+            }
+        }
+
+        return $prefixes;
     }
 
     public function build(ContainerBuilder $container): void
@@ -107,7 +228,7 @@ final class SwagAgenticCommerce extends Plugin
     public function getAdditionalBundles(AdditionalBundleParameters $parameters): array
     {
         $this->registerBundledDependencies();
-        $bundleClass = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
+        $bundleClass = self::SDK_BUNDLE_CLASS;
         if (!class_exists($bundleClass)) {
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
         }
