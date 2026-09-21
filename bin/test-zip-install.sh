@@ -78,7 +78,7 @@ composer_backed_up=0
 registry_backed_up=0
 plugin_moved=0
 sdk_moved=0
-archive_installed=0
+archive_present=0
 # Invoked from the EXIT trap below, which shellcheck cannot see.
 # shellcheck disable=SC2317,SC2329
 restore() {
@@ -95,10 +95,10 @@ restore() {
   fi
   if [[ "${plugin_moved}" -eq 1 ]]; then
     in_shop "rm -rf custom/plugins/${PLUGIN} && mv /tmp/zit-plugin custom/plugins/${PLUGIN}" || true
-  elif [[ "${archive_installed}" -eq 1 ]]; then
+  elif [[ "${archive_present}" -eq 1 ]]; then
     # The lane had no plugin when this started, so putting it back means taking the archive out
-    # again -- files and plugin record both. Leaving it behind would install a store build on a
-    # lane a developer had deliberately cleaned, while this said the lane was restored.
+    # again -- files and plugin record both. Every step is best-effort: the archive may have been
+    # extracted by the upload and never installed, which is the case this whole script exists for.
     api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/deactivate/plugin/${PLUGIN}" >/dev/null || true
     api POST /dev/null -X POST "${shop_url}/api/_action/extension/uninstall/plugin/${PLUGIN}" >/dev/null || true
     in_shop "rm -rf custom/plugins/${PLUGIN}" || true
@@ -113,8 +113,8 @@ restore() {
   fi
   if [[ "${plugin_moved}" -eq 1 ]]; then
     say "lane restored; re-run your bootstrap if the plugin version looks off"
-  elif [[ "${archive_installed}" -eq 1 ]]; then
-    say "archive uninstalled and removed; the lane has no plugin again, as it did before this ran"
+  elif [[ "${archive_present}" -eq 1 ]]; then
+    say "archive taken back out; the lane has no plugin again, as it did before this ran"
   else
     say "nothing was moved, so there is nothing to restore"
   fi
@@ -194,6 +194,10 @@ api() { curl -sS -o "$2" -w '%{http_code}' --max-time 300 -H "Authorization: Bea
 api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null
 # Some lanes answer 500 here on a PHP upload_tmp_dir quirk while still extracting the archive,
 # so the upload status is reported rather than enforced; install is the check that matters.
+# Set before the upload, not after a successful install: the upload extracts the archive into
+# custom/plugins/ and refreshes the plugin record, so from here on the lane holds a copy whether
+# or not anything below succeeds -- and an install that does not is the failure this exists for.
+archive_present=1
 upload=$(api POST /tmp/zit-upload.json -X POST "${shop_url}/api/_action/extension/upload" -F "file=@${zip_file};type=application/zip")
 say "upload: HTTP ${upload}"
 api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null
@@ -210,7 +214,6 @@ except Exception:
     pass' >&2
   exit 1
 fi
-archive_installed=1
 say "install: HTTP 204"
 
 activate=$(api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/activate/plugin/${PLUGIN}")
