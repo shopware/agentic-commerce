@@ -61,13 +61,22 @@ psr4 = manifest.setdefault('autoload', {}).setdefault('psr-4', {})
 
 # Read the prefixes off the installed packages instead of hardcoding them, so a namespace the
 # SDK adds or renames cannot silently stop being autoloaded.
+#
+# One path per namespace, as a plain string: shopware-cli unmarshals autoload.psr-4 values into a
+# Go string, and a JSON array makes every `shopware-cli extension` command fail outright with
+# "cannot unmarshal array into Go struct field .autoload.psr-4". Shopware itself accepts either.
 for package in ('core', 'symfony-bundle'):
     root = Path('vendor/ucp-php-sdk') / package
     autoload = json.loads((root / 'composer.json').read_text())['autoload']['psr-4']
     for namespace, paths in autoload.items():
         if isinstance(paths, str):
             paths = [paths]
-        psr4[namespace] = [f'{root.as_posix()}/{path.strip("/")}/' for path in paths]
+        if len(paths) != 1:
+            raise SystemExit(
+                f'FAIL: ucp-php-sdk/{package} maps {namespace} to {len(paths)} paths. Only a single'
+                ' path per namespace can be shipped; shopware-cli cannot read a list.'
+            )
+        psr4[namespace] = f'{root.as_posix()}/{paths[0].strip("/")}/'
 
 Path('composer.json').write_text(json.dumps(manifest, indent=4) + '\n')
 PYTHON

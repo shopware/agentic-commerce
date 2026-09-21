@@ -140,6 +140,11 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
             $prefixes['Acme\\Bundled\\'] ?? null,
             'Declared paths are resolved against the plugin root and kept as directories.',
         );
+        self::assertSame(
+            [$root.'/vendor/acme/bundled/src/'],
+            $prefixes['Acme\\Listed\\'] ?? null,
+            'A namespace declared with a list of paths resolves the same way.',
+        );
     }
 
     /**
@@ -273,12 +278,16 @@ final class SwagAgenticCommerceBundledDependenciesTest extends TestCase
             '<?php namespace Acme\\Bundled; class '.$class.' {}'."\n",
         );
 
+        // A string is what the archive ships -- shopware-cli cannot read a list, and fails every
+        // `extension` command on one. Composer and Shopware both accept either, so the list form
+        // is declared here too and has to keep working.
         file_put_contents($root.'/composer.json', json_encode([
             'name' => 'shopware/agentic-commerce',
             'autoload' => [
                 'psr-4' => [
                     'Swag\\AgenticCommerce\\' => 'src/',
-                    'Acme\\Bundled\\' => [$path.'/'],
+                    'Acme\\Bundled\\' => $path.'/',
+                    'Acme\\Listed\\' => [$path.'/'],
                 ],
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
