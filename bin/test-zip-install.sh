@@ -78,6 +78,7 @@ composer_backed_up=0
 registry_backed_up=0
 plugin_moved=0
 sdk_moved=0
+archive_installed=0
 # Invoked from the EXIT trap below, which shellcheck cannot see.
 # shellcheck disable=SC2317,SC2329
 restore() {
@@ -94,6 +95,15 @@ restore() {
   fi
   if [[ "${plugin_moved}" -eq 1 ]]; then
     in_shop "rm -rf custom/plugins/${PLUGIN} && mv /tmp/zit-plugin custom/plugins/${PLUGIN}" || true
+  elif [[ "${archive_installed}" -eq 1 ]]; then
+    # The lane had no plugin when this started, so putting it back means taking the archive out
+    # again -- files and plugin record both. Leaving it behind would install a store build on a
+    # lane a developer had deliberately cleaned, while this said the lane was restored.
+    api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/deactivate/plugin/${PLUGIN}" >/dev/null || true
+    api POST /dev/null -X POST "${shop_url}/api/_action/extension/uninstall/plugin/${PLUGIN}" >/dev/null || true
+    in_shop "rm -rf custom/plugins/${PLUGIN}" || true
+    api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null || true
+    in_shop "php bin/console cache:clear --no-warmup" >/dev/null 2>&1 || true
   fi
   if [[ "${sdk_moved}" -eq 1 ]]; then
     in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk vendor/ucp-php-sdk" || true
@@ -101,7 +111,13 @@ restore() {
   if [[ -n "${sync_session}" ]]; then
     mutagen sync resume "${sync_session}" >/dev/null 2>&1 || true
   fi
-  say "lane restored; re-run your bootstrap if the plugin version looks off"
+  if [[ "${plugin_moved}" -eq 1 ]]; then
+    say "lane restored; re-run your bootstrap if the plugin version looks off"
+  elif [[ "${archive_installed}" -eq 1 ]]; then
+    say "archive uninstalled and removed; the lane has no plugin again, as it did before this ran"
+  else
+    say "nothing was moved, so there is nothing to restore"
+  fi
 }
 trap restore EXIT
 
@@ -194,6 +210,7 @@ except Exception:
     pass' >&2
   exit 1
 fi
+archive_installed=1
 say "install: HTTP 204"
 
 activate=$(api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/activate/plugin/${PLUGIN}")

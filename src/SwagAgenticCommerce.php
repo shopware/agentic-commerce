@@ -42,30 +42,21 @@ final class SwagAgenticCommerce extends Plugin
     /** Mirror of ProductExportEntity::FILE_FORMAT_JSONL in 6.7.10+. */
     public const FILE_FORMAT_JSONL = 'jsonl';
 
-    /**
-     * The SDK bundle Shopware registers. A string, not an imported class: whether it can be
-     * resolved at all is precisely what registerBundledDependencies() has to establish.
-     */
+    /** A string, not an import: whether it resolves is what registerBundledDependencies() settles. */
     private const SDK_BUNDLE_CLASS = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
 
     /**
      * Makes the dependencies shipped inside this plugin loadable.
      *
-     * Shopware registers a plugin's own `autoload.psr-4` (KernelPluginLoader::registerPluginNamespaces),
-     * and the store archive declares the bundled UCP SDK there -- so by the time this runs the host's
-     * class loader normally resolves `Ucp\Sdk\...` already and there is nothing to do. Two cases are
-     * left over:
+     * Shopware registers a plugin's `autoload.psr-4`, but out of the `plugin.autoload` database
+     * column, which `plugin:install -r` and `plugin:update-all` refresh inside a kernel that is
+     * already booted -- in that one process the archive's prefixes are a boot behind.
      *
-     * - Those prefixes are read from the `plugin.autoload` database column, and `plugin:install -r`
-     *   and `plugin:update-all` refresh that column inside a kernel that is already booted. In that
-     *   one process the archive's prefixes are a boot behind, so they are registered here instead.
-     * - A development lane vendors the SDK into the plugin's own `vendor/` and relies on the
-     *   autoloader Composer generates there.
+     * The archive must keep shipping no `vendor/autoload.php`: requiring one registers a second
+     * Composer ClassLoader, which joins `InstalledVersions::getAllRawData()` and can shadow the
+     * shop's package versions. A plain closure stays out of that registry.
      *
-     * The store archive deliberately ships no `vendor/autoload.php`. Requiring one registers a second
-     * Composer ClassLoader, which then shows up in Composer's runtime registry
-     * (`InstalledVersions::getAllRawData()`) alongside the shop's own and can shadow its package
-     * versions. Registering a plain closure keeps the first case out of that registry too.
+     * @see README.md, section on runtime dependencies
      */
     private function registerBundledDependencies(): void
     {
@@ -83,11 +74,8 @@ final class SwagAgenticCommerce extends Plugin
     }
 
     /**
-     * Loads the autoloader Composer generated inside the plugin, if one is there.
-     *
-     * Only a development lane has one: it installs the SDK into the plugin's own `vendor/` so a
-     * project-level `composer update` cannot drop it again. The store archive ships none, on
-     * purpose -- see registerBundledDependencies().
+     * Only a development lane has one, having installed the SDK into the plugin's own `vendor/`
+     * so a project-level `composer update` cannot drop it; the archive ships none.
      */
     private function requireBundledAutoloader(): void
     {
@@ -100,10 +88,7 @@ final class SwagAgenticCommerce extends Plugin
         }
     }
 
-    /**
-     * Registers every `autoload.psr-4` prefix the plugin's composer.json declares besides its own --
-     * that is, the bundled SDK -- on an autoloader of this plugin's own making.
-     */
+    /** Registers the prefixes the manifest declares besides the plugin's own: the bundled SDK. */
     private function registerBundledNamespaces(): void
     {
         $prefixes = $this->bundledPsr4Prefixes();
