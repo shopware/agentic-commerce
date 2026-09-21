@@ -190,7 +190,10 @@ jobs:
         run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
         env:
           SHOPWARE_REF: ${{ matrix.lane }}
+          # SKIP_PLUGIN is only accepted together with BOOTSTRAP_ONLY: a run that installs
+          # nothing has no smoke assertions left to make.
           CI_SMOKE_SKIP_PLUGIN: '1'
+          CI_SMOKE_BOOTSTRAP_ONLY: '1'
           CI_SMOKE_MODE: cold
           CI_SMOKE_KEEP_STACK: '1'
       - name: Install the archive the way a merchant does
