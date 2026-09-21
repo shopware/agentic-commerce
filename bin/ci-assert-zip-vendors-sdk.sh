@@ -209,14 +209,18 @@ else
   echo "ok: the archive registers no Composer autoloader of its own."
 fi
 
-# .sdk/ is the build-only source the path repositories resolve from. Shipping it too would
-# put a second copy of the SDK in the archive, which is how a plugin ends up with two
-# versions of the same class on disk.
-if printf '%s\n' "${listing}" | grep "^${PLUGIN}/\.sdk/" >/dev/null; then
-  echo "FAIL: the archive ships the build-only .sdk/ source copy." >&2
-  echo "      Add .sdk to zip.pack.excludes.paths in .shopware-extension.yml." >&2
-  status=1
-fi
+# Build-only trees. .sdk/ is the source the path repositories resolve from -- shipping it too
+# would put a second copy of the SDK in the archive, which is how a plugin ends up with two
+# versions of the same class on disk. .tools/ and node_modules/ are development tooling, and
+# `extension zip --disable-git` copies the working tree verbatim, so a local build in a
+# developer's checkout ships them unless they are excluded.
+for build_only in .sdk .tools node_modules; do
+  if printf '%s\n' "${listing}" | grep "^${PLUGIN}/${build_only}/" >/dev/null; then
+    echo "FAIL: the archive ships the build-only ${build_only}/ tree." >&2
+    echo "      Add ${build_only} to zip.pack.excludes.paths in .shopware-extension.yml." >&2
+    status=1
+  fi
+done
 
 if [[ "${status}" -ne 0 ]]; then
   exit 1
