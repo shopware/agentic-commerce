@@ -12,6 +12,11 @@
 # them, so what this asserts is that the install brought the SDK into the shop -- not that the
 # plugin found a copy it carried.
 #
+# It then takes the SDK away again from the installed, active extension. That is the state an
+# update leaves behind for one request, and 1.3.0 answered 500 on every page in it. Anything
+# wired to the SDK outside the SdkAvailability guard -- a service, a route, a bundle, a class the
+# service glob reflects on -- stops the container compiling and fails that check.
+#
 # Above all it was invisible locally, because every sw-dev lane installs the SDK at project level
 # as a Composer path repository. The class was always reachable by another route, so the bundled
 # copy was never once exercised. The archive was only ever tested where the thing it ships was
@@ -80,6 +85,7 @@ composer_backed_up=0
 registry_backed_up=0
 plugin_moved=0
 sdk_moved=0
+sdk_hidden=0
 archive_present=0
 # Invoked from the EXIT trap below, which shellcheck cannot see.
 # shellcheck disable=SC2317,SC2329
@@ -106,6 +112,9 @@ restore() {
     in_shop "rm -rf custom/plugins/${PLUGIN}" || true
     api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null || true
     in_shop "php bin/console cache:clear --no-warmup" >/dev/null 2>&1 || true
+  fi
+  if [[ "${sdk_hidden}" -eq 1 ]]; then
+    in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk-hidden vendor/ucp-php-sdk" || true
   fi
   if [[ "${sdk_moved}" -eq 1 ]]; then
     in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk vendor/ucp-php-sdk" || true
@@ -316,8 +325,83 @@ else
   status=1
 fi
 
+# ---------------------------------------------------------------------------------------------
+echo "== checking the shop survives its SDK going missing"
+
+# The regression this exists for: an update extracts the new files one request before Shopware
+# runs composer, so an active extension boots with its dependency missing. 1.3.0 answered 500 on
+# every page in that state, storefront included, until someone installed the SDK by hand.
+#
+# Taking the SDK away from an installed, active extension reproduces exactly that, and it is what
+# catches SDK-dependent wiring added outside the SdkAvailability guard -- a service, a route, a
+# bundle, or a class implementing an SDK interface that the service glob then reflects on. Any of
+# those stop the container compiling, and the shop goes down with it.
+in_shop "cp vendor/composer/installed.json /tmp/zit-sdk-registry.json && cp vendor/composer/installed.php /tmp/zit-sdk-registry.php"
+in_shop "mv vendor/ucp-php-sdk /tmp/zit-sdk-hidden"
+sdk_hidden=1
+
+docker exec -i -u www-data "${container}" php <<'PHP' >/dev/null
+<?php
+chdir('/var/www/html');
+$names = ['ucp-php-sdk/core', 'ucp-php-sdk/symfony-bundle'];
+$installed = json_decode(file_get_contents('vendor/composer/installed.json'), true, 512, JSON_THROW_ON_ERROR);
+$installed['packages'] = array_values(array_filter(
+    $installed['packages'],
+    static fn (array $package): bool => !in_array($package['name'], $names, true),
+));
+file_put_contents('vendor/composer/installed.json', json_encode($installed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+$versions = require 'vendor/composer/installed.php';
+foreach ($names as $name) {
+    unset($versions['versions'][$name]);
+}
+file_put_contents('vendor/composer/installed.php', '<?php return '.var_export($versions, true).';');
+PHP
+
+in_shop "rm -rf var/cache/* var/log/swag-agentic-commerce.log"
+
+storefront="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 180 "${shop_url}/" || echo "000")"
+if [[ "${storefront}" == "200" ]]; then
+  say "storefront answers 200 with the extension installed and the SDK gone"
+else
+  echo "FAIL: the storefront answered HTTP ${storefront} without the SDK." >&2
+  echo "      An active extension must not take the shop down while composer has not run yet;" >&2
+  echo "      something is wired to the SDK outside the SdkAvailability guard." >&2
+  status=1
+fi
+
+degraded="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 "${shop_url}/.well-known/ucp" || echo "000")"
+case "${degraded}" in
+  404) say "UCP is switched off rather than failing (HTTP 404)" ;;
+  500)
+    echo "FAIL: /.well-known/ucp answered 500 without the SDK; the routes are still registered." >&2
+    status=1
+    ;;
+  *) echo "FAIL: /.well-known/ucp answered HTTP ${degraded}, expected 404 while degraded." >&2; status=1 ;;
+esac
+
+if in_shop "grep -q 'composer require ucp-php-sdk' var/log/swag-agentic-commerce.log" 2>/dev/null; then
+  say "var/log/swag-agentic-commerce.log names the command that fixes it"
+else
+  echo "FAIL: nothing in var/log/swag-agentic-commerce.log tells the merchant how to recover." >&2
+  status=1
+fi
+
+# And it has to come back on its own, or the degraded state is a one-way door.
+in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk-hidden vendor/ucp-php-sdk"
+in_shop "cp /tmp/zit-sdk-registry.json vendor/composer/installed.json && cp /tmp/zit-sdk-registry.php vendor/composer/installed.php"
+sdk_hidden=0
+in_shop "rm -rf var/cache/*"
+
+recovered="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 180 "${shop_url}/.well-known/ucp" || echo "000")"
+if [[ "${recovered}" == "200" ]]; then
+  say "UCP answers again once the SDK is back, without touching the extension"
+else
+  echo "FAIL: /.well-known/ucp answered HTTP ${recovered} after the SDK was restored." >&2
+  status=1
+fi
+
 if [[ "${status}" -eq 0 ]]; then
-  echo "== PASS: the archive installs and runs on a shop without the SDK"
+  echo "== PASS: the archive installs, runs, and the shop survives losing the SDK"
 fi
 
 exit "${status}"
