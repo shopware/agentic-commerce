@@ -311,7 +311,7 @@ Shopware's migration runner tracks each migration by class + creation timestamp 
 
 ### Test packages on pull requests
 
-Reviewers can get an install-ready ZIP for a pull request without a local build. `.github/workflows/package-zip.yml` builds and validates the extension with the same `shopware/github-actions/build-zip` action the release uses, then uploads it as a `SwagAgenticCommerce.zip` run artifact.
+Reviewers can get an install-ready ZIP for a pull request without a local build. `.github/workflows/package-zip.yml` builds the extension with `shopware-cli`, checks it with `bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-no-vendor.sh`, installs it on 6.5.x, 6.6.x and trunk shops that have never seen the UCP SDK, and uploads it as a `SwagAgenticCommerce.zip` run artifact.
 
 The build is opt-in per PR to keep it off the default CI path:
 

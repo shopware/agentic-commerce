@@ -424,10 +424,68 @@ Current worst offenders, all service classes, none of them good:
 - PR descriptions should summarize what changed and why. Do not add validation
   sections; CI owns validation reporting.
 - Need an install-ready package for a reviewer? Add the `build:zip` label to the
-  PR. `.github/workflows/package-zip.yml` then builds, validates, and uploads a
-  `SwagAgenticCommerce.zip` run artifact, and rebuilds it on every push while the
-  label stays on. It is opt-in on purpose, so do not wire it into the default CI
+  PR. `.github/workflows/package-zip.yml` then builds, validates, installs it on
+  6.5.x/6.6.x/trunk shops without the SDK, and uploads a `SwagAgenticCommerce.zip`
+  run artifact, rebuilding on every push while the label stays on. It is opt-in on purpose, so do not wire it into the default CI
   matrix or the `validation-gate`. See the README `Release` section for details.
+
+## Installation And Update
+
+How the extension reaches a shop, and what must stay true for it to keep arriving. This
+cost a release and a support round once; do not rediscover it.
+
+**Two routes, one dependency story.** A Composer shop resolves the extension and the UCP
+SDK through its own `composer.json`. A store shop uploads a zip, and Shopware then runs
+`composer require shopware/agentic-commerce:<version>` against the project itself, because
+`executeComposerCommands()` returns true. Every Shopware project declares `custom/plugins/*`
+as a path repository, so that require resolves the extracted archive locally and pulls the
+pinned SDK from Packagist into the shop's own `vendor/`. The archive therefore ships **no**
+dependencies — `bin/ci-assert-zip-no-vendor.sh` fails the build if any appear.
+
+**Do not bundle the SDK back into the archive.** Shopware never loads a plugin's
+`vendor/autoload.php`, so a bundled copy only works if the plugin loads it — which registers
+a second Composer `ClassLoader` in the shop, reported by FroshTools as
+`2 autoloaders registered` and able to answer version lookups the shop's own registry should
+own (FriendsOfShopware/FroshTools#469). 1.3.0 shipped that way.
+
+**The update window is the hard part.** An update extracts the new files **one request
+before** Shopware runs Composer. In that request the extension is already active, and its
+dependency is either missing or still the previously pinned version. So:
+
+- `SdkAvailability` decides whether the shop has the SDK this release names. It compares the
+  *installed version* against the constraint in `composer.json`; `class_exists` is not
+  enough, because a shop holding the previous SDK passes that and then fatals on the first
+  class the new code needs.
+- When the answer is no, the extension contributes **nothing** to the container:
+  `services.php` and `routes.php` return without registering anything, and
+  `getAdditionalBundles()` returns none. Half a container is not an option — `services.php`
+  configures the `ucp_sdk` extension and 13 plugin classes implement SDK interfaces, so
+  compilation dies either way.
+- `build()` writes the reason and the command that fixes it to the shop's
+  `var/log/swag-agentic-commerce.log`. A shop that lands there recovers by itself once the
+  SDK arrives; `activate()` bootstraps the SDK schema too, so a late recovery is complete.
+
+Never let a boot path throw when the SDK is absent, and never add SDK-dependent service
+definitions, routes, or bundles outside that guard. Both turn a degraded extension back into
+a shop answering `500` on every page, storefront included.
+
+**Symptoms and what they mean.**
+
+| what you see | what happened |
+| --- | --- |
+| `Unable to load the UCP SDK Symfony bundle from Composer dependencies` in `registerBundles()` | an active extension booted without the SDK, and something threw instead of degrading |
+| `There is no extension able to load the configuration for "ucp_sdk"` from `services.php` | same, one layer deeper: the container was compiled with SDK-dependent config |
+| FroshTools reporting `2 autoloaders registered` | a bundled `vendor/` came back into the archive |
+| `cannot unmarshal array into Go struct field .autoload.psr-4` | `shopware-cli` reads psr-4 values as a string; a JSON array fails every `extension` command |
+| install fails with `MissingRequirementException` for `ucp-php-sdk/*` | `executeComposerCommands()` returned false without the archive carrying the SDK |
+
+**Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a
+built archive through the admin upload endpoint on a shop stripped of the extension and the
+SDK, and refuses to run if the shop can already resolve the SDK. The `zip-install` job in
+`package-zip.yml` runs it on 6.5.x, 6.6.x and trunk. Three scenarios matter and only the
+first is covered by CI today: a fresh install; an update from a version that bundled the
+SDK; and an update where the pinned SDK version moves. The last two are worth doing by hand
+on a lane, because both exercise the window above.
 
 ## Releases
 

@@ -37,6 +37,12 @@ GitHub tag and release.
     route resolution; normal Shopware Composer installation becomes the only
     runtime path.
 
+    **Status.** Done in #112, undone by #219 (which vendored the SDK into the
+    archive to carry an untagged QA build), and restored in #248 -- this time with
+    the plugin able to boot while the SDK is not installed yet, which is what made
+    the bundle look necessary. See the *Installation And Update* section in
+    `AGENTS.md` before touching it again.
+
 - Simplify CI and obsolete packaging support:
   - Delete `package-test-zip`, `zip-install-smoke`, and `publish-test-zip`, plus
     the packaging script and release-candidate documentation.
