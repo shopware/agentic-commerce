@@ -71,6 +71,19 @@ in_shop() { docker exec -u www-data "${container}" sh -c "cd /var/www/html && $1
 
 say() { printf '  %s\n' "$1"; }
 
+# Print curl's status code, or 000 when there is not one. Keeps the code when curl prints it and
+# then exits non-zero anyway, which is how "404000" happened.
+http_status() {
+  local status
+  status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time "${2:-120}" "$1" 2>/dev/null || true)"
+
+  if [[ ! "${status}" =~ ^[0-9]{3}$ ]]; then
+    status="000"
+  fi
+
+  printf '%s' "${status}"
+}
+
 # Authenticate before temporarily removing a plugin that may already be active.
 token=$(curl -sS -X POST "${shop_url}/api/oauth/token" -H 'Content-Type: application/json' \
   -d "{\"client_id\":\"administration\",\"grant_type\":\"password\",\"scopes\":\"write\",\"username\":\"${admin_user}\",\"password\":\"${admin_pass}\"}" \
@@ -359,7 +372,7 @@ PHP
 
 in_shop "rm -rf var/cache/* var/log/swag-agentic-commerce.log"
 
-storefront="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 180 "${shop_url}/" || echo "000")"
+storefront="$(http_status "${shop_url}/" 180)"
 if [[ "${storefront}" == "200" ]]; then
   say "storefront answers 200 with the extension installed and the SDK gone"
 else
@@ -369,7 +382,7 @@ else
   status=1
 fi
 
-degraded="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 "${shop_url}/.well-known/ucp" || echo "000")"
+degraded="$(http_status "${shop_url}/.well-known/ucp")"
 case "${degraded}" in
   404) say "UCP is switched off rather than failing (HTTP 404)" ;;
   500)
@@ -386,17 +399,40 @@ else
   status=1
 fi
 
-# And it has to come back on its own, or the degraded state is a one-way door.
+# And it has to come back, or the degraded state is a one-way door.
 in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk-hidden vendor/ucp-php-sdk"
 in_shop "cp /tmp/zit-sdk-registry.json vendor/composer/installed.json && cp /tmp/zit-sdk-registry.php vendor/composer/installed.php"
 sdk_hidden=0
 in_shop "rm -rf var/cache/*"
 
-recovered="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 180 "${shop_url}/.well-known/ucp" || echo "000")"
+# Deleting var/cache is not enough on its own: the container class name does not change when the
+# SDK comes back, so a worker that already loaded the degraded container keeps serving it.
+# Toggling the extension does change the plugin list, and with it the container, which is also
+# what a merchant reaches for. Shopware clears the cache around both lifecycle calls.
+api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/deactivate/plugin/${PLUGIN}" >/dev/null || true
+api PUT /dev/null -X PUT "${shop_url}/api/_action/extension/activate/plugin/${PLUGIN}" >/dev/null || true
+
+recovered="000"
+for _ in $(seq 1 10); do
+  recovered="$(http_status "${shop_url}/.well-known/ucp" 60)"
+
+  if [[ "${recovered}" == "200" ]]; then
+    break
+  fi
+
+  sleep 3
+done
+
 if [[ "${recovered}" == "200" ]]; then
-  say "UCP answers again once the SDK is back, without touching the extension"
+  say "UCP answers again once the SDK is back and the extension is reactivated"
 else
   echo "FAIL: /.well-known/ucp answered HTTP ${recovered} after the SDK was restored." >&2
+  in_shop "php -r '
+    require \"vendor/autoload.php\";
+    \$root = \"custom/plugins/${PLUGIN}\";
+    printf(\"      SdkAvailability: %s\\n\", Swag\\AgenticCommerce\\SdkAvailability::reason(\$root) ?? \"usable\");
+    printf(\"      vendor/ucp-php-sdk: %s\\n\", is_dir(\"vendor/ucp-php-sdk\") ? \"present\" : \"absent\");
+  '" >&2 || true
   status=1
 fi
 
