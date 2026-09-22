@@ -173,8 +173,10 @@ Feed generation, scheduling, caching, and invalidation are owned by Shopware's p
 
 ### The extension is installed, but UCP and the product feeds do nothing
 
-Look for `var/log/swag-agentic-commerce.log` in the shop. If it exists, the extension has
-switched itself off, and the entry names both the reason and the command that fixes it:
+The extension says so in two places. It writes to PHP's error log — wherever the host sends it,
+often the container output or `php_errors.log` — and, when that directory is writable, to
+`var/log/swag-agentic-commerce.log` in the shop. Both carry the same line, which names the reason
+and the command that fixes it:
 
 ```
 [SwagAgenticCommerce] The extension is inactive: ucp-php-sdk/core 0.0.7 is required but not
@@ -194,6 +196,9 @@ To recover, run the command from the log entry in the shop root (the exact versi
 extension's `composer.json`), then clear the cache. Deactivating and reactivating the extension
 in the administration has the same effect, and is the more reliable one if a worker is still
 serving the old state.
+
+It is not in Shopware's own `var/log/prod-*.log`, and cannot be: the extension decides this while
+the container is being compiled, which is before any logger service exists.
 
 ### Updating from 1.3.0 or older
 
