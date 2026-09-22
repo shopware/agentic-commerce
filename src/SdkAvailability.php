@@ -61,10 +61,12 @@ final class SdkAvailability
         }
 
         $message = \sprintf(
-            '[SwagAgenticCommerce] The extension is inactive: %s. Shopware installs this itself '
-            .'when the plugin is installed or updated; if that did not happen -- an offline shop, '
-            .'or an interrupted update -- run `composer require %s` in the shop root and clear the '
-            .'cache. The extension registers no services, routes or feeds until then.',
+            '[SwagAgenticCommerce] The extension is inactive: %s. It registers no services, routes '
+            .'or feeds until that is fixed. Shopware installs the requirements itself when the '
+            .'extension is installed or updated -- but never on a cluster setup, and not if the '
+            .'shop was offline or the update stopped halfway. Run `composer require %s` in the shop '
+            .'root and clear the cache, or add those packages to the project\'s composer.json if '
+            .'this shop is deployed from a build.',
             $reason,
             implode(' ', array_map(
                 static fn (string $package, string $constraint): string => $package.':'.$constraint,

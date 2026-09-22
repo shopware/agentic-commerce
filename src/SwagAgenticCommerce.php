@@ -117,6 +117,8 @@ final class SwagAgenticCommerce extends Plugin
 
     public function install(InstallContext $installContext): void
     {
+        $this->refuseWhenNothingWillInstallTheSdk();
+
         parent::install($installContext);
 
         $this->bootstrapSdkSchema();
@@ -125,6 +127,8 @@ final class SwagAgenticCommerce extends Plugin
 
     public function update(UpdateContext $updateContext): void
     {
+        $this->refuseWhenNothingWillInstallTheSdk();
+
         parent::update($updateContext);
 
         $this->bootstrapSdkSchema();
@@ -159,6 +163,31 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    /**
+     * Refuses the lifecycle call when the SDK is missing and nothing is going to install it.
+     *
+     * `PluginLifecycleService::executeComposerRequireWhenNeeded()` returns early on a cluster
+     * setup, so the requirements are never resolved and the extension would install without
+     * error and then do nothing at all. Everywhere else a missing SDK is a window Composer
+     * closes by itself, and refusing there would turn a recoverable state into a failed install.
+     */
+    private function refuseWhenNothingWillInstallTheSdk(): void
+    {
+        if (SdkAvailability::isUsable($this->getBasePath())) {
+            return;
+        }
+
+        if (!isset($this->container) || !$this->container->hasParameter('shopware.deployment.cluster_setup')) {
+            return;
+        }
+
+        if (true !== $this->container->getParameter('shopware.deployment.cluster_setup')) {
+            return;
+        }
+
+        throw SdkNotAvailableException::clusterSetupNeedsTheSdkInTheProject(SdkAvailability::reason($this->getBasePath()) ?? 'the UCP SDK is not installed');
     }
 
     private function syncCoreAgenticFiles(): void

@@ -318,6 +318,26 @@ the old state.
 It is not in Shopware's own `var/log/prod-*.log`, and cannot be: the extension decides this while
 the container is being compiled, which is before any logger service exists.
 
+### Cluster setups
+
+A shop running with `shopware.deployment.cluster_setup: true` never lets Shopware run Composer for a
+plugin — `PluginLifecycleService::executeComposerRequireWhenNeeded()` returns early there, by
+design, because the filesystem is shared and built elsewhere. Nothing would install this extension's
+requirements, so installing it from a zip would report success and leave an extension that does
+nothing.
+
+The extension refuses that install instead, naming what is missing:
+
+```
+This shop runs with shopware.deployment.cluster_setup enabled, where Shopware never runs composer
+for a plugin, so nothing will install this extension's requirements: ucp-php-sdk/core 0.0.7 is
+required but not installed. Add them to the project's composer.json and deploy, then install the
+extension.
+```
+
+Add `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` at the versions the extension's
+`composer.json` pins to the project, deploy, and install it again.
+
 ### Updating from 1.3.0 or older
 
 Up to and including 1.3.0 the archive carried the UCP SDK inside itself. Those versions cannot be
