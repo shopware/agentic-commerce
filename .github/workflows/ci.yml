@@ -144,15 +144,15 @@ jobs:
             "php-quality (6.7.12)"
             "php-quality (trunk)"
             "future-compatibility"
-            "shopware-matrix (6.5.x)"
+            "shopware-matrix (6.5.8)"
             "shopware-matrix (6.6.x)"
             "shopware-matrix (trunk)"
             "mysql84-install"
-            "admin-matrix (6.5.x, webpack)"
+            "admin-matrix (6.5.8, webpack)"
             "admin-matrix (6.6.x, webpack)"
             "admin-matrix (6.6.x, vite)"
             "admin-matrix (trunk, vite)"
-            "storefront-matrix (6.5.x)"
+            "storefront-matrix (6.5.8)"
             "storefront-matrix (6.6.x)"
             "storefront-matrix (trunk)"
           )
@@ -395,6 +395,10 @@ jobs:
 
   shopware-matrix:
     runs-on: ubuntu-latest
+    # The 6.5 lane checks out the head of the 6.5.x branch, which is a 6.5.8 patch -- the
+    # oldest release composer.json accepts. Name the check after that floor so it is
+    # visible that the lowest supported version is the one under test.
+    name: shopware-matrix (${{ matrix.lane == '6.5.x' && '6.5.8' || matrix.lane }})
     timeout-minutes: 30
     needs:
       - verify-main-validation
@@ -500,6 +504,7 @@ jobs:
 
   admin-matrix:
     runs-on: ubuntu-latest
+    name: admin-matrix (${{ matrix.lane == '6.5.x' && '6.5.8' || matrix.lane }}, ${{ matrix.mode }})
     timeout-minutes: 45
     needs:
       - verify-main-validation
@@ -552,6 +557,7 @@ jobs:
 
   storefront-matrix:
     runs-on: ubuntu-latest
+    name: storefront-matrix (${{ matrix.lane == '6.5.x' && '6.5.8' || matrix.lane }})
     timeout-minutes: 45
     needs:
       - verify-main-validation
