@@ -182,10 +182,13 @@ on a tighter cadence.
 
 ### Compatibility and transport security
 
-The plugin supports Shopware `6.5.x`, `6.6.x`, and trunk/current `6.7+` from one codebase.
-Capability exposure is feature-detected at runtime: unsupported transports are removed from the UCP
-profile instead of returning dead links. MCP is only advertised when the current lane has the
-required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK
+The plugin supports Shopware `6.5.8` and newer, `6.6.x`, and trunk/current `6.7+` from one codebase.
+`6.5.0.0` through `6.5.7.4` are not supported: they ship Symfony 6.3, while both the plugin's own
+controllers and the UCP SDK need the routing attribute and the `symfony/config` version that arrived
+in Symfony 6.4. A shop on one of those takes the in-line update to `6.5.8.x`, which stays inside the
+same minor. Capability exposure is feature-detected at runtime: unsupported transports are removed
+from the UCP profile instead of returning dead links. MCP is only advertised when the current lane
+has the required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK
 capability layer.
 
 Every UCP sales channel has its own tenant configuration. The default setup is intentionally closed:
