@@ -490,10 +490,14 @@ stay in scope for years. Read them before redesigning any of this, not after.
 **Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a
 built archive through the admin upload endpoint on a shop stripped of the extension and the
 SDK, and refuses to run if the shop can already resolve the SDK. The `zip-install` job in
-`package-zip.yml` runs it on 6.5.x, 6.6.x and trunk. Three scenarios matter and only the
-first is covered by CI today: a fresh install; an update from a version that bundled the
-SDK; and an update where the pinned SDK version moves. The last two are worth doing by hand
-on a lane, because both exercise the window above.
+`package-zip.yml` runs it on 6.5.x, 6.6.x and trunk, and it also takes the SDK away from the
+installed extension again to prove the shop stays up.
+
+Two scenarios are deliberately **not** in CI: an update from a version that bundled the SDK,
+and an update where the pinned SDK version moves. Both need a second archive in the job, and
+the bundled-SDK upgrade happens exactly once, on a small installed base. Both were verified by
+hand for 1.4.0, and the README *Troubleshooting* section tells a merchant what to expect. Do
+not reopen this without a reason that has changed.
 
 ## Releases
 

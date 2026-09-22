@@ -169,6 +169,50 @@ Google XML rows include the required Merchant Center fields, canonical and track
 
 Feed generation, scheduling, caching, and invalidation are owned by Shopware's product export subsystem. The plugin supplies provider-specific templates, provider context, JSONL normalization, and validation. Template defaults set `generateByCronjob: false` and `interval: 86400`; merchants can adjust export behavior through the normal Shopware product export configuration.
 
+## Troubleshooting
+
+### The extension is installed, but UCP and the product feeds do nothing
+
+Look for `var/log/swag-agentic-commerce.log` in the shop. If it exists, the extension has
+switched itself off, and the entry names both the reason and the command that fixes it:
+
+```
+[SwagAgenticCommerce] The extension is inactive: ucp-php-sdk/core 0.0.7 is required but not
+installed. Shopware installs this itself when the plugin is installed or updated; if that did
+not happen -- an offline shop, or an interrupted update -- run `composer require
+ucp-php-sdk/core:0.0.7 ucp-php-sdk/symfony-bundle:0.0.7` in the shop root and clear the cache.
+The extension registers no services, routes or feeds until then.
+```
+
+The extension needs the UCP SDK, and Shopware installs it through Composer when the extension
+is installed or updated. When that has not happened — a shop that cannot reach Packagist, or an
+update that stopped halfway — the extension registers nothing instead of taking the shop down
+with it. The storefront keeps serving, `/.well-known/ucp` answers `404` rather than `500`, and
+the product feeds stay quiet.
+
+To recover, run the command from the log entry in the shop root (the exact versions are in the
+extension's `composer.json`), then clear the cache. Deactivating and reactivating the extension
+in the administration has the same effect, and is the more reliable one if a worker is still
+serving the old state.
+
+### Updating from 1.3.0 or older
+
+Up to and including 1.3.0 the archive carried the UCP SDK inside itself. Those versions cannot
+be updated in place without a short gap: Shopware extracts the new files one request before it
+runs Composer, so between those two steps the old bundled SDK is gone and the new one is not
+installed yet. From 1.4.0 on the extension handles that gap by switching itself off, so the shop
+stays up and the update completes on its own.
+
+Two things to expect on that one upgrade:
+
+- Uploading the archive onto a 1.3.0 install can answer `500` for that single request. The files
+  are extracted regardless; continue with the update and the shop recovers.
+- If the update is interrupted before Composer ran, the shop is in the state described above.
+  The log entry tells you what to run.
+
+Later updates do not have this gap, because the SDK then lives in the shop's own `vendor/` and
+does not disappear when the extension's files are replaced.
+
 ## Local Development (plugin maintainers)
 
 This section is about developing the plugin itself against three Shopware lanes. To run UCP on a shop you already have, see [Set up UCP on a sales channel](#set-up-ucp-on-a-sales-channel) above; the full lane workflow is in [docs/manual-testing.md](docs/manual-testing.md).
