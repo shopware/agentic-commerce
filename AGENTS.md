@@ -479,6 +479,14 @@ a shop answering `500` on every page, storefront included.
 | `cannot unmarshal array into Go struct field .autoload.psr-4` | `shopware-cli` reads psr-4 values as a string; a JSON array fails every `extension` command |
 | install fails with `MissingRequirementException` for `ucp-php-sdk/*` | `executeComposerCommands()` returned false without the archive carrying the SDK |
 
+**The platform intends to remove this window.** shopware/shopware#13630 proposes separating
+`composer require`/`remove` from the plugin lifecycle and running it into a separate vendor
+directory that is swapped in at the end — and names our exact case, "the flag can be set or
+unset from one version to the other", as needing special handling. shopware/shopware#13631
+goes further: require store plugins from the SBP registry instead of downloading zips. Neither
+lets the guard here go: this extension supports 6.5.8 upwards, so shops without those changes
+stay in scope for years. Read them before redesigning any of this, not after.
+
 **Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a
 built archive through the admin upload endpoint on a shop stripped of the extension and the
 SDK, and refuses to run if the shop can already resolve the SDK. The `zip-install` job in
