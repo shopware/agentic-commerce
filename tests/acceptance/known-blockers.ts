@@ -43,7 +43,7 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D5',
-        description: 'The MCP tools are named shopware-ucp-* and take one JSON string as payload; the spec names them create_checkout, get_checkout and so on and carries ucp-agent and idempotency-key per call in meta.',
+        description: 'ucp-agent and idempotency-key are read from the MCP transport\'s HTTP request headers, not from meta on each call as the spec carries them, so a spec-conformant MCP client is rejected with "$.headers.idempotency-key is required". The tool names and the typed array payload were fixed in PR #224.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
         reviewBy: '2026-12-31',
@@ -60,6 +60,13 @@ export const knownBlockers: KnownBlocker[] = [
         description: 'The per-channel remoteProfileAllowlist reaches the request-context check but not the profile fetcher, whose UrlSafetyValidator is built from ucp_sdk.allowed_profile_hosts and never set, so every remote profile fetch is rejected.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/pull/150',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D8',
+        description: 'A sales channel domain with a path prefix does not resolve to its own channel: core\'s RequestTransformer strips the prefix from the request URI before the SDK controllers build their HttpRequest, and SalesChannelDomainResolver resolves from that URI alone. /.well-known/ucp under a prefixed domain serves the host\'s root channel, or the global configuration when the host has no root domain.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
         reviewBy: '2026-12-31',
     },
 ];
