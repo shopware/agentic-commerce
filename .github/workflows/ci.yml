@@ -58,6 +58,22 @@ jobs:
       - name: ShellCheck bin scripts
         run: shellcheck -x bin/*.sh bin/lib/*.sh
 
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Prettier owns the shape -- 100 columns, wrapped prose, one style across every markdown
+      # file. The changelogs keep one line per entry (see .prettierrc.json).
+      - name: Markdown formatting
+        run: npm run lint:md
+      - name: Markdown links
+        run: bin/ci-assert-markdown-links.sh
+
   verify-main-validation:
     runs-on: ubuntu-latest
     outputs:
@@ -137,6 +153,7 @@ jobs:
 
           expected_checks=(
             "shell-lint"
+            "docs-lint"
             "admin-static"
             "php-quality (php-8.1)"
             "php-quality (php-8.2)"

@@ -1,32 +1,27 @@
 # Agent Notes
 
-This repository is a Shopware plugin, not Shopware core. Keep changes compatible
-with Shopware `6.5.x`, `6.6.x`, and the latest/trunk line from one codebase.
-Do not duplicate administration modules, controllers, transport logic, or UCP
-runtime code per Shopware version. Use shared code plus explicit feature
-detection.
+This repository is a Shopware plugin, not Shopware core. Keep changes compatible with Shopware
+`6.5.x`, `6.6.x`, and the latest/trunk line from one codebase. Do not duplicate administration
+modules, controllers, transport logic, or UCP runtime code per Shopware version. Use shared code
+plus explicit feature detection.
 
 ## Shopware Plugin Context
 
-- Shopware uses a custom Data Abstraction Layer. Do not add Doctrine ORM,
-  Doctrine annotations, or ORM-style repositories.
+- Shopware uses a custom Data Abstraction Layer. Do not add Doctrine ORM, Doctrine annotations, or
+  ORM-style repositories.
 - Use DAL `Criteria` and `EntityRepository` for Shopware entity access.
-- Prefer Shopware extension mechanisms that already exist: events,
-  subscribers, routes, DAL entities, Twig blocks/templates, and service
-  decoration only when event timing is not enough.
-- Keep public plugin contracts explicit. REST/Admin/Store API routes, DAL
-  entities, template context, and documented SDK/UCP behavior are the BC
-  surface. Controllers, subscribers, loaders, renderers, and discovery services
-  should be internal unless they are intended extension points.
-- Follow `docs/public-api-boundaries.md` for PHP API scope. Classes,
-  interfaces, and traits in internal-by-default namespaces must carry
-  `@internal`; keep package annotations out of scope unless a task explicitly
-  asks for them.
-- Keep services unit-testable without external systems. Translate framework
-  objects (`Request`, IO, database, filesystem, HTTP) at the edge before calling
-  application services.
-- Prefer public readonly properties for simple transparent value objects. Do
-  not add DTOs only to model a private handoff inside one class.
+- Prefer Shopware extension mechanisms that already exist: events, subscribers, routes, DAL
+  entities, Twig blocks/templates, and service decoration only when event timing is not enough.
+- Keep public plugin contracts explicit. REST/Admin/Store API routes, DAL entities, template
+  context, and documented SDK/UCP behavior are the BC surface. Controllers, subscribers, loaders,
+  renderers, and discovery services should be internal unless they are intended extension points.
+- Follow `docs/public-api-boundaries.md` for PHP API scope. Classes, interfaces, and traits in
+  internal-by-default namespaces must carry `@internal`; keep package annotations out of scope
+  unless a task explicitly asks for them.
+- Keep services unit-testable without external systems. Translate framework objects (`Request`, IO,
+  database, filesystem, HTTP) at the edge before calling application services.
+- Prefer public readonly properties for simple transparent value objects. Do not add DTOs only to
+  model a private handoff inside one class.
 
 ## Validation
 
@@ -41,178 +36,159 @@ composer test:integration  # DB-backed integration suite (real connection, e.g. 
 composer test:functional   # functional suite, boots a real test kernel + Symfony browser
 ```
 
-The scripts delegate through `bin/run.php`, which can resolve tooling from this
-plugin checkout or from a linked Shopware lane. If no local tooling or Shopware
-lane exists, run the narrowest fallback checks, such as `php -l` on touched PHP
-files, and explain what was not runnable.
+The scripts delegate through `bin/run.php`, which can resolve tooling from this plugin checkout or
+from a linked Shopware lane. If no local tooling or Shopware lane exists, run the narrowest fallback
+checks, such as `php -l` on touched PHP files, and explain what was not runnable.
 
-For PHP changes, run the smallest relevant test suite first. Broaden to static
-analysis, integration tests, or lane smoke checks when the touched code affects
-shared runtime behavior, persistence, routes, or administration assets.
+For PHP changes, run the smallest relevant test suite first. Broaden to static analysis, integration
+tests, or lane smoke checks when the touched code affects shared runtime behavior, persistence,
+routes, or administration assets.
 
 ### Test layering: prefer functional over smoke
 
-Cover behavior at the lowest layer that can express it, and prefer a PHP test
-over a shell smoke check whenever the behavior fits one — PHP tests are readable,
-debuggable, and run without a deployed HTTP stack:
+Cover behavior at the lowest layer that can express it, and prefer a PHP test over a shell smoke
+check whenever the behavior fits one — PHP tests are readable, debuggable, and run without a
+deployed HTTP stack:
 
-1. **`unit`** (`tests/Unit`, `composer test`) — pure logic with mocks; no kernel.
-   Mock-only collaboration tests (no kernel boot) live here too — a test that only
-   wires mocks is a unit test regardless of how many collaborators it stubs.
-2. **`integration`** (`tests/Integration`, `composer test:integration`) — DB-backed
-   tests that use a real Doctrine connection through the kernel (e.g. the migration
-   tests). Reserve this tier for tests that genuinely touch the database/kernel;
-   mock-only tests belong in `unit`.
-3. **`functional`** (`tests/Functional`, `composer test:functional`) — boots a
-   real Shopware test kernel and drives UCP runtime routes end-to-end through a
-   real Symfony `KernelBrowser` (the full HttpKernel request/response cycle,
-   kernel events included), against `APP_URL` — the test database's default
-   storefront sales-channel domain — exactly as Shopware's own functional tests
-   do. This is the **preferred** home for route/request-context/capability
-   behavior that used to be asserted by shell smoke. It already covers the
-   request-context guards (missing UCP-Agent → 422, OAuth metadata → 501) and the
-   **catalog/cart/checkout capability flows** — including completing a checkout
-   into a **real Shopware order** and reading it back via its persisted context
-   token. Requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset +
-   `APP_ENV=test`). Like core, the suite assumes a booted kernel (no per-test
-   skip-guards) — run it via `composer test:functional` against a configured lane
-   (e.g. the `shopware-6-6-branch-web` container), never under the fast-path
-   bootstrap. It gates in CI on **every** `shopware-matrix` lane
+1. **`unit`** (`tests/Unit`, `composer test`) — pure logic with mocks; no kernel. Mock-only
+   collaboration tests (no kernel boot) live here too — a test that only wires mocks is a unit test
+   regardless of how many collaborators it stubs.
+2. **`integration`** (`tests/Integration`, `composer test:integration`) — DB-backed tests that use a
+   real Doctrine connection through the kernel (e.g. the migration tests). Reserve this tier for
+   tests that genuinely touch the database/kernel; mock-only tests belong in `unit`.
+3. **`functional`** (`tests/Functional`, `composer test:functional`) — boots a real Shopware test
+   kernel and drives UCP runtime routes end-to-end through a real Symfony `KernelBrowser` (the full
+   HttpKernel request/response cycle, kernel events included), against `APP_URL` — the test
+   database's default storefront sales-channel domain — exactly as Shopware's own functional tests
+   do. This is the **preferred** home for route/request-context/capability behavior that used to be
+   asserted by shell smoke. It already covers the request-context guards (missing UCP-Agent → 422,
+   OAuth metadata → 501) and the **catalog/cart/checkout capability flows** — including completing a
+   checkout into a **real Shopware order** and reading it back via its persisted context token.
+   Requires the booting bootstrap (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`). Like core, the
+   suite assumes a booted kernel (no per-test skip-guards) — run it via `composer test:functional`
+   against a configured lane (e.g. the `shopware-6-6-branch-web` container), never under the
+   fast-path bootstrap. It gates in CI on **every** `shopware-matrix` lane
    (`CI_SMOKE_RUN_FUNCTIONAL=1`).
 
-   The flow tests share `UcpFlowTestBehaviour`, which reproduces the SDK
-   request-context handshake offline: it sets the sales-channel config the smoke
-   sets (`active`, `signaturePolicy=log`, `continueUrlTemplate`), seeds a product
-   with the core `ProductBuilder` fixture, and hands the merchant's own
-   capability-bearing `PlatformProfile` (built via `ProfileBuilderInterface` with
-   `enabledCapabilities`) to a test `AgentProfileFetcherInterface`. The stub (not
-   the SDK profile cache) is required: the real fetcher runs an SSRF URL-safety
-   check that rejects the lane's `*.localhost` host. The override is wired the way
-   core overrides services for tests — a `test`-environment-only service swap
-   (`TestAgentProfileFetcherCompilerPass` replaces the SDK's `HttpAgentProfileFetcher`
-   with `Ucp\Test\StaticAgentProfileFetcher`), so the test just calls `setProfile()`
-   on it; no kernel reboot is needed.
+   The flow tests share `UcpFlowTestBehaviour`, which reproduces the SDK request-context handshake
+   offline: it sets the sales-channel config the smoke sets (`active`, `signaturePolicy=log`,
+   `continueUrlTemplate`), seeds a product with the core `ProductBuilder` fixture, and hands the
+   merchant's own capability-bearing `PlatformProfile` (built via `ProfileBuilderInterface` with
+   `enabledCapabilities`) to a test `AgentProfileFetcherInterface`. The stub (not the SDK profile
+   cache) is required: the real fetcher runs an SSRF URL-safety check that rejects the lane's
+   `*.localhost` host. The override is wired the way core overrides services for tests — a
+   `test`-environment-only service swap (`TestAgentProfileFetcherCompilerPass` replaces the SDK's
+   `HttpAgentProfileFetcher` with `Ucp\Test\StaticAgentProfileFetcher`), so the test just calls
+   `setProfile()` on it; no kernel reboot is needed.
 
-   **Runs on the lane's own phpunit, not the plugin's.** The suite uses Shopware
-   core's test base classes (`IntegrationTestBehaviour`), which are coupled to the
-   lane's phpunit major — 6.5 pins 9.x (the removed `getName()`), 6.6 10.x, trunk
-   11.x — so a single pinned phpunit cannot span all lanes. `bin/run.php` prefers
-   the platform phpunit binary when inside a lane, and `tests/bootstrap.php`
-   registers the plugin's `src` + `Tests` namespaces on the platform autoloader,
-   so the suite runs on whatever phpunit the lane ships. ci-smoke installs
-   Shopware's dev deps (the smoke stack is `--no-dev`) to make that binary
-   available. This is distinct from the **unit/mock** suites, which deliberately
-   run on the plugin's pinned `.tools` phpunit (fast, lane-independent) — do not
-   remove that pin (the PHP-8.1 lane runs against 6.5/phpunit-9, where our
-   attribute-based tests would otherwise break).
+   **Runs on the lane's own phpunit, not the plugin's.** The suite uses Shopware core's test base
+   classes (`IntegrationTestBehaviour`), which are coupled to the lane's phpunit major — 6.5 pins
+   9.x (the removed `getName()`), 6.6 10.x, trunk 11.x — so a single pinned phpunit cannot span all
+   lanes. `bin/run.php` prefers the platform phpunit binary when inside a lane, and
+   `tests/bootstrap.php` registers the plugin's `src` + `Tests` namespaces on the platform
+   autoloader, so the suite runs on whatever phpunit the lane ships. ci-smoke installs Shopware's
+   dev deps (the smoke stack is `--no-dev`) to make that binary available. This is distinct from the
+   **unit/mock** suites, which deliberately run on the plugin's pinned `.tools` phpunit (fast,
+   lane-independent) — do not remove that pin (the PHP-8.1 lane runs against 6.5/phpunit-9, where
+   our attribute-based tests would otherwise break).
 
-**Shell smoke is the last resort, not the default.** Almost any smoke assertion can
-be expressed as a Symfony-browser functional test, so default to that: add a check
-to `bin/lib/smoke/*` only when it genuinely needs the deployed stack (real on-the-wire
-delivery, a live external endpoint, a per-lane JS build). Anything provable through a
-booted kernel belongs in the `functional` suite. When you migrate a smoke assertion
-into a functional test, remove the now-redundant smoke check once the functional suite
-gates in CI, so coverage moves rather than duplicates.
+**Shell smoke is the last resort, not the default.** Almost any smoke assertion can be expressed as
+a Symfony-browser functional test, so default to that: add a check to `bin/lib/smoke/*` only when it
+genuinely needs the deployed stack (real on-the-wire delivery, a live external endpoint, a per-lane
+JS build). Anything provable through a booted kernel belongs in the `functional` suite. When you
+migrate a smoke assertion into a functional test, remove the now-redundant smoke check once the
+functional suite gates in CI, so coverage moves rather than duplicates.
 
 #### What still lives in shell smoke today, and why
 
-These are the checks not yet migrated because they exercise genuine deployed-stack /
-on-the-wire behavior that a booted kernel does not observe directly. They are not
-"impossible as functional tests" in principle — an e2e/browser harness could cover
-most of them — but the booted-kernel suite is the wrong layer for them today:
+These are the checks not yet migrated because they exercise genuine deployed-stack / on-the-wire
+behavior that a booted kernel does not observe directly. They are not "impossible as functional
+tests" in principle — an e2e/browser harness could cover most of them — but the booted-kernel suite
+is the wrong layer for them today:
 
-- **Outbound signed order webhook** (`smoke/checkout.sh`) — asserts the webhook is
-  actually *delivered* to an external capture endpoint with `signature`,
-  `signature-input`, and `content-digest` headers. A booted-kernel test can at most
-  assert the webhook was *dispatched*; the signed HTTP on the wire is e2e.
-- **Tokenize 501** (`smoke/identity.sh`) — the payment endpoint requires a
-  *signed* request; the smoke only reaches it because it fetches a real profile
-  with signing keys over HTTP.
-- **Profile / discovery** (`smoke/discovery.sh`) — lane-aware MCP transport
-  detection (depends on the live Store-API MCP endpoint) and the
-  storefront-rendered `/llms.txt` + `/agents.md` fallbacks (real `Content-Type`
-  and rendering).
-- **Admin & storefront** (`bin/ci-admin-smoke.sh`, `bin/ci-storefront-smoke.sh`) —
-  per-lane JS builds (webpack/Vite) and the rendered admin/storefront shells.
-  (These are closer to a Playwright/browser-e2e concern than a bash one; treat the
-  bash check as a pragmatic build-plus-shell gate, not the ideal long-term home.)
+- **Outbound signed order webhook** (`smoke/checkout.sh`) — asserts the webhook is actually
+  _delivered_ to an external capture endpoint with `signature`, `signature-input`, and
+  `content-digest` headers. A booted-kernel test can at most assert the webhook was _dispatched_;
+  the signed HTTP on the wire is e2e.
+- **Tokenize 501** (`smoke/identity.sh`) — the payment endpoint requires a _signed_ request; the
+  smoke only reaches it because it fetches a real profile with signing keys over HTTP.
+- **Profile / discovery** (`smoke/discovery.sh`) — lane-aware MCP transport detection (depends on
+  the live Store-API MCP endpoint) and the storefront-rendered `/llms.txt` + `/agents.md` fallbacks
+  (real `Content-Type` and rendering).
+- **Admin & storefront** (`bin/ci-admin-smoke.sh`, `bin/ci-storefront-smoke.sh`) — per-lane JS
+  builds (webpack/Vite) and the rendered admin/storefront shells. (These are closer to a
+  Playwright/browser-e2e concern than a bash one; treat the bash check as a pragmatic
+  build-plus-shell gate, not the ideal long-term home.)
 - **Signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
 
 **No capability duplication:** the catalog and cart smoke stages have been removed — their
-capability coverage lives entirely in the `functional` suite now. The `checkout` stage stays
-in smoke solely to drive the signed order webhook; it resolves the seeded product's title and
-price itself (a single `catalog.lookup` as data setup, not a catalog assertion), so it no
-longer depends on a `catalog → cart → checkout` stage chain.
+capability coverage lives entirely in the `functional` suite now. The `checkout` stage stays in
+smoke solely to drive the signed order webhook; it resolves the seeded product's title and price
+itself (a single `catalog.lookup` as data setup, not a catalog assertion), so it no longer depends
+on a `catalog → cart → checkout` stage chain.
 
 ### Shell smoke and lint tooling
 
 The `bin/` smoke scripts share helpers from `bin/lib/`:
 
-- `bin/lib/ucp-http.sh` — curl wrappers (`curl_required`, `ucp_status`,
-  `ucp_expect_status`, `ucp_jsonrpc`), assertions, and `next_idempotency_key`.
-  `ucp_http_init` builds the `UCP-Agent` header and the wrappers auto-inject it,
-  so a runtime request can never silently omit it (the SDK rejects a missing
-  header with `422`).
-- `bin/lib/lane.sh` — container helpers (`web`, `db_query`, …) operating on the
-  sourcing script's `compose` array and `container_runtime`.
-- `bin/lib/smoke/*.sh` — `bin/ci-smoke.sh` is a thin orchestrator that, after
-  bootstrap, sources and runs named stage modules (`discovery`, `identity`,
-  `checkout`). Each prints a `>>> smoke: <stage>` banner, so a
-  failure names the area. Stages share the orchestrator's shell scope (they are
-  sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module
-  and calling it from the orchestrator. Before adding a smoke check, confirm it
-  cannot be a `functional` test (see *Test layering* above) — smoke is
-  for deployed-stack concerns only. With `CI_SMOKE_RUN_FUNCTIONAL=1` (set on
-  every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and
-  runs the functional suite on the lane's own phpunit after the HTTP smoke.
+- `bin/lib/ucp-http.sh` — curl wrappers (`curl_required`, `ucp_status`, `ucp_expect_status`,
+  `ucp_jsonrpc`), assertions, and `next_idempotency_key`. `ucp_http_init` builds the `UCP-Agent`
+  header and the wrappers auto-inject it, so a runtime request can never silently omit it (the SDK
+  rejects a missing header with `422`).
+- `bin/lib/lane.sh` — container helpers (`web`, `db_query`, …) operating on the sourcing script's
+  `compose` array and `container_runtime`.
+- `bin/lib/smoke/*.sh` — `bin/ci-smoke.sh` is a thin orchestrator that, after bootstrap, sources and
+  runs named stage modules (`discovery`, `identity`, `checkout`). Each prints a `>>> smoke: <stage>`
+  banner, so a failure names the area. Stages share the orchestrator's shell scope (they are
+  sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module and calling it from
+  the orchestrator. Before adding a smoke check, confirm it cannot be a `functional` test (see _Test
+  layering_ above) — smoke is for deployed-stack concerns only. With `CI_SMOKE_RUN_FUNCTIONAL=1`
+  (set on every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and runs the
+  functional suite on the lane's own phpunit after the HTTP smoke.
 
-Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI
-`shell-lint` job; `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows
-the `# shellcheck source=` directives so the sourced modules are validated in
-context.
+Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI `shell-lint` job;
+`.shellcheckrc` disables `SC2016` for jq filters). `-x` follows the `# shellcheck source=`
+directives so the sourced modules are validated in context.
 
-Signed / strict-signature request verification is **not** covered by the smoke
-(it sends unsigned requests under log policy); use the conformance suite,
+Signed / strict-signature request verification is **not** covered by the smoke (it sends unsigned
+requests under log policy); use the conformance suite,
 `bin/validate-ucp-store.sh <url> '' conformance`.
 
 ### Composer advisory reporting
 
-Compatibility lanes may need to resolve historical Shopware dependencies with
-known advisories. Keep Composer's security blocking disabled for these disposable
-CI containers, but preserve visibility through the centralized reporting flow:
+Compatibility lanes may need to resolve historical Shopware dependencies with known advisories. Keep
+Composer's security blocking disabled for these disposable CI containers, but preserve visibility
+through the centralized reporting flow:
 
-- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency
-  report. The three `shopware-matrix` lanes (`6.5.x`, `6.6.x`, and `trunk`)
-  capture the dependencies resolved in each installed Shopware environment.
-- Those four sources upload normalized JSON as uniquely named
-  `composer-audit-*` artifacts with short retention. Composer versions that emit
-  no JSON for a clean audit must still produce an empty report.
-- The non-blocking `composer-security-report` job downloads those artifacts,
-  deduplicates advisory IDs, and writes exactly one workflow warning and one job
-  summary for the run.
-- Do not add Composer advisory annotations or summaries to `php-quality`,
-  `admin-matrix`, `storefront-matrix`, MySQL, or individual smoke jobs. A
-  nonzero `composer audit` status can also represent abandoned packages; inspect
-  the JSON `advisories` data instead of treating the exit code as proof of a
-  security advisory.
-- Keep `composer-security-report` outside `validation-gate`. Missing, malformed,
-  or known-vulnerable compatibility reports must remain visible without blocking
-  functional validation.
+- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency report. The three
+  `shopware-matrix` lanes (`6.5.x`, `6.6.x`, and `trunk`) capture the dependencies resolved in each
+  installed Shopware environment.
+- Those four sources upload normalized JSON as uniquely named `composer-audit-*` artifacts with
+  short retention. Composer versions that emit no JSON for a clean audit must still produce an empty
+  report.
+- The non-blocking `composer-security-report` job downloads those artifacts, deduplicates advisory
+  IDs, and writes exactly one workflow warning and one job summary for the run.
+- Do not add Composer advisory annotations or summaries to `php-quality`, `admin-matrix`,
+  `storefront-matrix`, MySQL, or individual smoke jobs. A nonzero `composer audit` status can also
+  represent abandoned packages; inspect the JSON `advisories` data instead of treating the exit code
+  as proof of a security advisory.
+- Keep `composer-security-report` outside `validation-gate`. Missing, malformed, or known-vulnerable
+  compatibility reports must remain visible without blocking functional validation.
 
-Do not reuse a complete installed Shopware tree across these jobs. Lanes use
-different Shopware versions and administration build modes, and the tests mutate
-dependencies, assets, databases, and caches. Composer's download cache can be
-optimized separately without coupling otherwise isolated compatibility jobs.
+Do not reuse a complete installed Shopware tree across these jobs. Lanes use different Shopware
+versions and administration build modes, and the tests mutate dependencies, assets, databases, and
+caches. Composer's download cache can be optimized separately without coupling otherwise isolated
+compatibility jobs.
 
 ## Administration Build Matrix
 
 The administration build system differs by lane:
 
-| Lane | Required admin build validation |
-| --- | --- |
-| `6.5.x` | webpack only |
-| `6.6.x` | webpack and Vite |
-| `trunk` / current `6.7+` | Vite only |
+| Lane                     | Required admin build validation |
+| ------------------------ | ------------------------------- |
+| `6.5.x`                  | webpack only                    |
+| `6.6.x`                  | webpack and Vite                |
+| `trunk` / current `6.7+` | Vite only                       |
 
 Use `bin/ci-admin-smoke.sh <shopware-dir> <mode>` for build validation:
 
@@ -223,150 +199,134 @@ bin/ci-admin-smoke.sh /path/to/shopware-6-6-branch vite
 bin/ci-admin-smoke.sh /path/to/shopware-trunk vite
 ```
 
-A green lane build does **not** mean the released ZIP works. Lane builds compile the
-administration with that lane's own toolchain (webpack or Vite) from source. The ZIP
-instead ships a single pre-compiled bundle produced by shopware-cli's **esbuild**
+A green lane build does **not** mean the released ZIP works. Lane builds compile the administration
+with that lane's own toolchain (webpack or Vite) from source. The ZIP instead ships a single
+pre-compiled bundle produced by shopware-cli's **esbuild**
 (`build.zip.assets.enable_es_build_for_admin` in `.shopware-extension.yml`), written to
 `Resources/public/administration/js/swag-agentic-commerce.js` with a `.vite/entrypoints.json`
 pointing at it — the one layout both discovery paths accept:
 
-| Lane | Reads | Injected as |
-| --- | --- | --- |
-| `6.5.x`, `6.6.x` | `administration/js/<technical-name>.js` | classic script |
-| `6.7+` | `administration/.vite/entrypoints.json` | `type="module"` |
+| Lane             | Reads                                   | Injected as     |
+| ---------------- | --------------------------------------- | --------------- |
+| `6.5.x`, `6.6.x` | `administration/js/<technical-name>.js` | classic script  |
+| `6.7+`           | `administration/.vite/entrypoints.json` | `type="module"` |
 
-That is why the bundle must stay IIFE: a webpack bundle dies in module scope
-(`this` is `undefined`). Packaging is therefore validated separately, by the `zip-artifact`
-CI job running `bin/ci-assert-zip-admin-bundle.sh`. Run it locally against any zip before
-shipping. Changes under `src/Resources/app/administration/` must stay esbuild-compatible:
-no bare (`node_modules`) imports, no `.vue` SFCs, and no Vite-only import suffixes such as
-`?raw`.
+That is why the bundle must stay IIFE: a webpack bundle dies in module scope (`this` is
+`undefined`). Packaging is therefore validated separately, by the `zip-artifact` CI job running
+`bin/ci-assert-zip-admin-bundle.sh`. Run it locally against any zip before shipping. Changes under
+`src/Resources/app/administration/` must stay esbuild-compatible: no bare (`node_modules`) imports,
+no `.vue` SFCs, and no Vite-only import suffixes such as `?raw`.
 
 The script handles the important differences:
 
-- `6.5.x` rejects Vite and relaxes local Node engine checks for webpack
-  validation.
-- `6.6.x` can run both paths; the script toggles `ADMIN_VITE` in
-  `var/config_js_features.json` and restores it afterward.
+- `6.5.x` rejects Vite and relaxes local Node engine checks for webpack validation.
+- `6.6.x` can run both paths; the script toggles `ADMIN_VITE` in `var/config_js_features.json` and
+  restores it afterward.
 - `trunk` rejects webpack and uses Vite.
-- Every build must be followed by an admin shell/browser check. A successful
-  JavaScript build alone is not enough.
+- Every build must be followed by an admin shell/browser check. A successful JavaScript build alone
+  is not enough.
 
 ## Administration Compatibility Rules
 
-- Keep UCP under the `shop` settings group on `6.5.x`/`6.6.x` unless the
-  `commerce` group exists. `trunk` uses `commerce`.
-- Legacy `sw-card` and newer Meteor `mt-card` wrappers differ. Layout fixes must
-  work for both.
-- `6.5.x` can still consume legacy static administration assets. If the browser
-  shows stale labels or layout, check installed assets under
-  `public/bundles/swagagenticcommerce/` before changing source code.
-- Do not copy or sync `var/plugins.json` manually. It is generated per Shopware
-  lane by `bundle:dump`; if UCP is missing from the admin shell, rerun the lane
-  admin smoke instead of reusing metadata from another lane.
-- Treat `src/Resources/public/` and
-  `public/bundles/swagagenticcommerce/` as generated admin output. The lane sync
-  helper ignores these paths and the admin smoke script cleans them before each
-  build to avoid webpack/Vite cross-lane pollution.
+- Keep UCP under the `shop` settings group on `6.5.x`/`6.6.x` unless the `commerce` group exists.
+  `trunk` uses `commerce`.
+- Legacy `sw-card` and newer Meteor `mt-card` wrappers differ. Layout fixes must work for both.
+- `6.5.x` can still consume legacy static administration assets. If the browser shows stale labels
+  or layout, check installed assets under `public/bundles/swagagenticcommerce/` before changing
+  source code.
+- Do not copy or sync `var/plugins.json` manually. It is generated per Shopware lane by
+  `bundle:dump`; if UCP is missing from the admin shell, rerun the lane admin smoke instead of
+  reusing metadata from another lane.
+- Treat `src/Resources/public/` and `public/bundles/swagagenticcommerce/` as generated admin output.
+  The lane sync helper ignores these paths and the admin smoke script cleans them before each build
+  to avoid webpack/Vite cross-lane pollution.
 - Browser validation is mandatory on each lane after admin UI changes.
 
 ## Runtime Compatibility Rules
 
-- Sales-channel UCP config lives in the plugin table
-  `swag_agentic_commerce_ucp_config`. `SystemConfig` is only a legacy fallback
-  and read-through backfill path; do not add new UCP settings there.
-- Gate sales-channel features through `AbstractSalesChannelTypeResolver`, never
-  on a denylist of feed types and never on `SalesChannelTypeClassification::forTypeId()`
-  directly: the enum's built-in map is the resolver's default and an unresolved
-  type stays `Other`. Unknown types are excluded by construction, so neither
-  version probing nor another vendor's type id belongs here. Both classes are
-  `@internal` while the extension is in beta; opening the seam is a deliberate
+- Sales-channel UCP config lives in the plugin table `swag_agentic_commerce_ucp_config`.
+  `SystemConfig` is only a legacy fallback and read-through backfill path; do not add new UCP
+  settings there.
+- Gate sales-channel features through `AbstractSalesChannelTypeResolver`, never on a denylist of
+  feed types and never on `SalesChannelTypeClassification::forTypeId()` directly: the enum's
+  built-in map is the resolver's default and an unresolved type stays `Other`. Unknown types are
+  excluded by construction, so neither version probing nor another vendor's type id belongs here.
+  Both classes are `@internal` while the extension is in beta; opening the seam is a deliberate
   later step.
-- Keep REST, A2A, embedded, and MCP on the shared SDK operation/capability
-  layer. Shopware-specific MCP code is limited to the `/ucp/mcp` proxy and Store
-  API MCP tool registrations.
-- Customer-facing runtime flows must use Store API route boundaries wherever
-  they exist. This is a hard rule for UCP adapters/gateways and especially
-  catalog, cart, checkout, customer, identity, and order flows. Inject the
-  relevant Store API route abstraction instead of using DAL repositories,
-  manually creating customers, or mutating sales-channel context state by hand.
-  Direct repositories are only acceptable for plugin-owned configuration,
-  admin/internal metadata, compatibility discovery, or a documented exception
-  where no Store API route exists.
-- MCP write tools must expose object payload schemas (`payload` plus `id` where
-  needed), not JSON-string payload arguments.
-- Embedded pages require configured `embeddedAllowedOrigins`: an unconfigured sales
-  channel is refused with a controlled `403`, and so is a request whose `Origin` is
-  present but not allowlisted. An absent `Origin` is not a denial signal -- browsers
-  omit the header on the iframe and top-level GET navigations the embedded surface is
-  loaded by -- so such a request proceeds and its preflight receives no
-  `Access-Control-Allow-Origin` grant. CSP frame ancestors come from
+- Keep REST, A2A, embedded, and MCP on the shared SDK operation/capability layer. Shopware-specific
+  MCP code is limited to the `/ucp/mcp` proxy and Store API MCP tool registrations.
+- Customer-facing runtime flows must use Store API route boundaries wherever they exist. This is a
+  hard rule for UCP adapters/gateways and especially catalog, cart, checkout, customer, identity,
+  and order flows. Inject the relevant Store API route abstraction instead of using DAL
+  repositories, manually creating customers, or mutating sales-channel context state by hand. Direct
+  repositories are only acceptable for plugin-owned configuration, admin/internal metadata,
+  compatibility discovery, or a documented exception where no Store API route exists.
+- MCP write tools must expose object payload schemas (`payload` plus `id` where needed), not
+  JSON-string payload arguments.
+- Embedded pages require configured `embeddedAllowedOrigins`: an unconfigured sales channel is
+  refused with a controlled `403`, and so is a request whose `Origin` is present but not
+  allowlisted. An absent `Origin` is not a denial signal -- browsers omit the header on the iframe
+  and top-level GET navigations the embedded surface is loaded by -- so such a request proceeds and
+  its preflight receives no `Access-Control-Allow-Origin` grant. CSP frame ancestors come from
   `embeddedFrameAncestors`.
-- Feature-detect Shopware capabilities instead of comparing versions unless a
-  version check is the only stable signal.
-- Keep migrations safe across all supported lanes. Do not assume newer core
-  tables, constants, entity definitions, services, or administration APIs exist.
+- Feature-detect Shopware capabilities instead of comparing versions unless a version check is the
+  only stable signal.
+- Keep migrations safe across all supported lanes. Do not assume newer core tables, constants,
+  entity definitions, services, or administration APIs exist.
 
 ## Boyscouting Scope
 
-- When asked to make a specific cleanup or behavioral change, look for safe
-  opportunities to apply the same improvement across the touched file.
-- If the same pattern appears in nearby files or a broader low-risk scope,
-  mention that proactively and suggest extending the cleanup.
-- When adding or touching unit tests, look for low-hanging missing coverage
-  paths in the same domain or command surface that can be covered cheaply and
-  locally.
-- Keep the scope aligned with the request: avoid unrelated refactors, but do not
-  miss obvious consistency fixes that make the codebase simpler.
+- When asked to make a specific cleanup or behavioral change, look for safe opportunities to apply
+  the same improvement across the touched file.
+- If the same pattern appears in nearby files or a broader low-risk scope, mention that proactively
+  and suggest extending the cleanup.
+- When adding or touching unit tests, look for low-hanging missing coverage paths in the same domain
+  or command surface that can be covered cheaply and locally.
+- Keep the scope aligned with the request: avoid unrelated refactors, but do not miss obvious
+  consistency fixes that make the codebase simpler.
 
 ## Test Structure
 
-- Write test methods as clear executable examples. Keep scenario-specific data,
-  action, and assertions visible in the test body.
-- Move stable boilerplate such as mock services, the class under test, command
-  testers, and repeated collaborators into `setUp()`/`tearDown()` when that
-  lets tests focus on the scenario.
-- Prefer PHPUnit mocks/stubs for interfaces. Avoid throwaway anonymous classes
-  inside test methods unless the concrete behavior is the subject of the test.
-- Avoid reflection-uninitialized final services in tests. Construct real
-  collaborators with mocks or extract a narrower interface where that is already
-  part of the production design.
-- Keep helpers smaller than the code they replace. Helpers may create entities,
-  files, or value objects, but should not hide meaningful scenario wiring or
-  assertions.
-- Prefer one focused test method per distinct exception or behavior over broad
-  data providers when each case has its own meaning.
-- Use named `yield` cases in data providers. Case names should describe the
-  behavior being proven, not restate raw input values.
-- Do not add `#[CoversClass]`, `#[CoversFunction]`, or `#[CoversNothing]` to
-  integration tests.
-- Do not mock DBAL persistence behavior for adapter confidence. SQL/database
-  adapters should have integration coverage when persistence behavior matters.
+- Write test methods as clear executable examples. Keep scenario-specific data, action, and
+  assertions visible in the test body.
+- Move stable boilerplate such as mock services, the class under test, command testers, and repeated
+  collaborators into `setUp()`/`tearDown()` when that lets tests focus on the scenario.
+- Prefer PHPUnit mocks/stubs for interfaces. Avoid throwaway anonymous classes inside test methods
+  unless the concrete behavior is the subject of the test.
+- Avoid reflection-uninitialized final services in tests. Construct real collaborators with mocks or
+  extract a narrower interface where that is already part of the production design.
+- Keep helpers smaller than the code they replace. Helpers may create entities, files, or value
+  objects, but should not hide meaningful scenario wiring or assertions.
+- Prefer one focused test method per distinct exception or behavior over broad data providers when
+  each case has its own meaning.
+- Use named `yield` cases in data providers. Case names should describe the behavior being proven,
+  not restate raw input values.
+- Do not add `#[CoversClass]`, `#[CoversFunction]`, or `#[CoversNothing]` to integration tests.
+- Do not mock DBAL persistence behavior for adapter confidence. SQL/database adapters should have
+  integration coverage when persistence behavior matters.
 
 ## Bug Fix Root Cause And Scope
 
-- Treat fix suggestions from issues as hypotheses, not instructions to follow
-  blindly. Reason from first principles about the actual failure mode before
-  choosing an implementation.
+- Treat fix suggestions from issues as hypotheses, not instructions to follow blindly. Reason from
+  first principles about the actual failure mode before choosing an implementation.
 - Prefer the least invasive fix that correctly addresses the root cause.
-- Fix issues at the boundary where the root cause actually lives instead of
-  spreading compensating changes across unrelated components.
-- Match the fix location to the bug scope. A plugin-specific bug belongs in the
-  plugin, while a Shopware core bug should be fixed upstream instead of worked
-  around repeatedly here.
-- Conversely, keep feature-specific bugs out of broad shared infrastructure when
-  a general change could negatively affect other plugin behavior.
+- Fix issues at the boundary where the root cause actually lives instead of spreading compensating
+  changes across unrelated components.
+- Match the fix location to the bug scope. A plugin-specific bug belongs in the plugin, while a
+  Shopware core bug should be fixed upstream instead of worked around repeatedly here.
+- Conversely, keep feature-specific bugs out of broad shared infrastructure when a general change
+  could negatively affect other plugin behavior.
 - Always do a root cause analysis to identify where the real issue lives.
 
 ## Code Shape
 
-These are the rules a review keeps rediscovering. They are measurable on purpose:
-check the number, do not argue with the feeling.
+These are the rules a review keeps rediscovering. They are measurable on purpose: check the number,
+do not argue with the feeling.
 
 ### Comment budget
 
-`src/` sits at roughly **0.24 comment lines per code line**. A diff well above
-that is explaining in the wrong place. Measure before pushing:
+`src/` sits at roughly **0.24 comment lines per code line**. A diff well above that is explaining in
+the wrong place. Measure before pushing:
 
 ```bash
 git diff <base> -- 'src/*.php' | grep '^+' | grep -v '^+++' | sed 's/^+//' | awk '
@@ -374,160 +334,153 @@ git diff <base> -- 'src/*.php' | grep '^+' | grep -v '^+++' | sed 's/^+//' | awk
 END {printf "%.2f\n", c/code}'
 ```
 
-- A comment earns its place when it stops a reader from **undoing** something: a
-  constraint not visible locally, a rejected alternative, a rule from upstream.
-  "Shared on purpose, because the SDK class is final" is worth a line.
-- Do not narrate history ("this used to…", "for as long as it has been here"),
-  restate the code, or re-explain the bug. The commit message is where the story
-  goes, and git keeps it.
-- `@param` and `@return` descriptions are **one line**. A parameter that needs a
-  paragraph means the contract belongs in `docs/`, with `@see` pointing there.
-- Class docblock on a small abstraction: about five lines, then `@see docs/…`.
-  This repo has a real `docs/` tree — use it instead of growing a header.
+- A comment earns its place when it stops a reader from **undoing** something: a constraint not
+  visible locally, a rejected alternative, a rule from upstream. "Shared on purpose, because the SDK
+  class is final" is worth a line.
+- Do not narrate history ("this used to…", "for as long as it has been here"), restate the code, or
+  re-explain the bug. The commit message is where the story goes, and git keeps it.
+- `@param` and `@return` descriptions are **one line**. A parameter that needs a paragraph means the
+  contract belongs in `docs/`, with `@see` pointing there.
+- Class docblock on a small abstraction: about five lines, then `@see docs/…`. This repo has a real
+  `docs/` tree — use it instead of growing a header.
 
 ### Constructor size
 
-Current worst offenders, all service classes, none of them good:
-`CheckoutCompleter` (13), `ShopwareCheckoutAdapter` (13), `ShopwareCartGateway`
-(11). `UcpConfig` is a DTO and does not count.
+Current worst offenders, all service classes, none of them good: `CheckoutCompleter` (13),
+`ShopwareCheckoutAdapter` (13), `ShopwareCartGateway` (11). `UcpConfig` is a DTO and does not count.
 
 - **Six collaborators is the ceiling** for a service. At seven, say so in the PR.
-- Do not add an argument to a class already over the ceiling without proposing
-  the split first. "Just one more logger" is how all three got there.
-- A cross-cutting dependency (logger, clock, cache pool) landing on several
-  classes at once is a sign the behaviour wants its own collaborator rather than
-  a constructor parameter on each.
-- Adding a dependency only to make one method testable usually means that method
-  wants to be its own class — `UcpCheckoutCompletionPayment` exists precisely
-  because the SDK executor is `final` and the tool could not be mocked.
+- Do not add an argument to a class already over the ceiling without proposing the split first.
+  "Just one more logger" is how all three got there.
+- A cross-cutting dependency (logger, clock, cache pool) landing on several classes at once is a
+  sign the behaviour wants its own collaborator rather than a constructor parameter on each.
+- Adding a dependency only to make one method testable usually means that method wants to be its own
+  class — `UcpCheckoutCompletionPayment` exists precisely because the SDK executor is `final` and
+  the tool could not be mocked.
 
 ### Answering reviews
 
-- A review comment is a hypothesis about the code, not an instruction. Verify it
-  against the source first, and say so when the premise is wrong.
-- Fixing the reported instance is half the job: check whether the same mistake
-  sits in the sibling nobody reviewed. The per-parent variant bound and the
-  stale-allowlist bug each had to be fixed twice because the first pass only
-  touched the copy that was pointed at.
-- Answering a reviewer in prose inside the source file is this plugin's main
-  source of comment bloat. Answer in the PR thread; leave a line in the code only
-  if a future reader would otherwise revert the change.
+- A review comment is a hypothesis about the code, not an instruction. Verify it against the source
+  first, and say so when the premise is wrong.
+- Fixing the reported instance is half the job: check whether the same mistake sits in the sibling
+  nobody reviewed. The per-parent variant bound and the stale-allowlist bug each had to be fixed
+  twice because the first pass only touched the copy that was pointed at.
+- Answering a reviewer in prose inside the source file is this plugin's main source of comment
+  bloat. Answer in the PR thread; leave a line in the code only if a future reader would otherwise
+  revert the change.
 
 ## Pull Requests
 
-- Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior,
-  and administration UI work should be separate unless the user asks otherwise.
-- Use conventional commit style for commit messages and keep PR titles/messages
-  short.
-- Preserve review history when updating an existing PR after feedback: add a
-  follow-up commit unless the user explicitly asks for an amend or force-push.
-- PR descriptions should summarize what changed and why. Do not add validation
-  sections; CI owns validation reporting.
-- Need an install-ready package for a reviewer? Add the `build:zip` label to the
-  PR. `.github/workflows/package-zip.yml` then builds, validates, installs it on
-  6.5.x/6.6.x/trunk shops without the SDK, and uploads a `SwagAgenticCommerce.zip`
-  run artifact, rebuilding on every push while the label stays on. It is opt-in on purpose, so do not wire it into the default CI
-  matrix or the `validation-gate`. See the README `Release` section for details.
+- Keep PRs focused. Test-only refactors, compatibility fixes, runtime behavior, and administration
+  UI work should be separate unless the user asks otherwise.
+- Use conventional commit style for commit messages and keep PR titles/messages short.
+- Preserve review history when updating an existing PR after feedback: add a follow-up commit unless
+  the user explicitly asks for an amend or force-push.
+- PR descriptions should summarize what changed and why. Do not add validation sections; CI owns
+  validation reporting.
+- Need an install-ready package for a reviewer? Add the `build:zip` label to the PR.
+  `.github/workflows/package-zip.yml` then builds, validates, installs it on 6.5.x/6.6.x/trunk shops
+  without the SDK, and uploads a `SwagAgenticCommerce.zip` run artifact, rebuilding on every push
+  while the label stays on. It is opt-in on purpose, so do not wire it into the default CI matrix or
+  the `validation-gate`. See [docs/releasing.md](docs/releasing.md) for details.
 
 ## Installation And Update
 
-How the extension reaches a shop, and what must stay true for it to keep arriving. This
-cost a release and a support round once; do not rediscover it.
+How the extension reaches a shop, and what must stay true for it to keep arriving. This cost a
+release and a support round once; do not rediscover it.
 
-**Two routes, one dependency story.** A Composer shop resolves the extension and the UCP
-SDK through its own `composer.json`. A store shop uploads a zip, and Shopware then runs
+**Two routes, one dependency story.** A Composer shop resolves the extension and the UCP SDK through
+its own `composer.json`. A store shop uploads a zip, and Shopware then runs
 `composer require shopware/agentic-commerce:<version>` against the project itself, because
-`executeComposerCommands()` returns true. Every Shopware project declares `custom/plugins/*`
-as a path repository, so that require resolves the extracted archive locally and pulls the
-pinned SDK from Packagist into the shop's own `vendor/`. The archive therefore ships **no**
-dependencies — `bin/ci-assert-zip-no-vendor.sh` fails the build if any appear.
+`executeComposerCommands()` returns true. Every Shopware project declares `custom/plugins/*` as a
+path repository, so that require resolves the extracted archive locally and pulls the pinned SDK
+from Packagist into the shop's own `vendor/`. The archive therefore ships **no** dependencies —
+`bin/ci-assert-zip-no-vendor.sh` fails the build if any appear.
 
 **Do not bundle the SDK back into the archive.** Shopware never loads a plugin's
-`vendor/autoload.php`, so a bundled copy only works if the plugin loads it — which registers
-a second Composer `ClassLoader` in the shop, reported by FroshTools as
-`2 autoloaders registered` and able to answer version lookups the shop's own registry should
-own (FriendsOfShopware/FroshTools#469). 1.3.0 shipped that way.
+`vendor/autoload.php`, so a bundled copy only works if the plugin loads it — which registers a
+second Composer `ClassLoader` in the shop, reported by FroshTools as `2 autoloaders registered` and
+able to answer version lookups the shop's own registry should own
+(FriendsOfShopware/FroshTools#469). 1.3.0 shipped that way.
 
-**The update window is the hard part.** An update extracts the new files **one request
-before** Shopware runs Composer. In that request the extension is already active, and its
-dependency is either missing or still the previously pinned version. So:
+**The update window is the hard part.** An update extracts the new files **one request before**
+Shopware runs Composer. In that request the extension is already active, and its dependency is
+either missing or still the previously pinned version. So:
 
 - `SdkAvailability` decides whether the shop has the SDK this release names. It compares the
-  *installed version* against the constraint in `composer.json`; `class_exists` is not
-  enough, because a shop holding the previous SDK passes that and then fatals on the first
-  class the new code needs.
-- When the answer is no, the extension contributes **nothing** to the container:
-  `services.php` and `routes.php` return without registering anything, and
-  `getAdditionalBundles()` returns none. Half a container is not an option — `services.php`
-  configures the `ucp_sdk` extension and 13 plugin classes implement SDK interfaces, so
-  compilation dies either way.
+  _installed version_ against the constraint in `composer.json`; `class_exists` is not enough,
+  because a shop holding the previous SDK passes that and then fatals on the first class the new
+  code needs.
+- When the answer is no, the extension contributes **nothing** to the container: `services.php` and
+  `routes.php` return without registering anything, and `getAdditionalBundles()` returns none. Half
+  a container is not an option — `services.php` configures the `ucp_sdk` extension and 13 plugin
+  classes implement SDK interfaces, so compilation dies either way.
 - `build()` writes the reason and the command that fixes it to the shop's
-  `var/log/swag-agentic-commerce.log`. A shop that lands there recovers by itself once the
-  SDK arrives; `activate()` bootstraps the SDK schema too, so a late recovery is complete.
+  `var/log/swag-agentic-commerce.log`. A shop that lands there recovers by itself once the SDK
+  arrives; `activate()` bootstraps the SDK schema too, so a late recovery is complete.
 
-Never let a boot path throw when the SDK is absent, and never add SDK-dependent service
-definitions, routes, or bundles outside that guard. Both turn a degraded extension back into
-a shop answering `500` on every page, storefront included.
+Never let a boot path throw when the SDK is absent, and never add SDK-dependent service definitions,
+routes, or bundles outside that guard. Both turn a degraded extension back into a shop answering
+`500` on every page, storefront included.
 
 **Symptoms and what they mean.**
 
-| what you see | what happened |
-| --- | --- |
-| `Unable to load the UCP SDK Symfony bundle from Composer dependencies` in `registerBundles()` | an active extension booted without the SDK, and something threw instead of degrading |
-| `There is no extension able to load the configuration for "ucp_sdk"` from `services.php` | same, one layer deeper: the container was compiled with SDK-dependent config |
-| FroshTools reporting `2 autoloaders registered` | a bundled `vendor/` came back into the archive |
-| `cannot unmarshal array into Go struct field .autoload.psr-4` | `shopware-cli` reads psr-4 values as a string; a JSON array fails every `extension` command |
-| install fails with `MissingRequirementException` for `ucp-php-sdk/*` | `executeComposerCommands()` returned false without the archive carrying the SDK |
+| what you see                                                                                  | what happened                                                                               |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `Unable to load the UCP SDK Symfony bundle from Composer dependencies` in `registerBundles()` | an active extension booted without the SDK, and something threw instead of degrading        |
+| `There is no extension able to load the configuration for "ucp_sdk"` from `services.php`      | same, one layer deeper: the container was compiled with SDK-dependent config                |
+| FroshTools reporting `2 autoloaders registered`                                               | a bundled `vendor/` came back into the archive                                              |
+| `cannot unmarshal array into Go struct field .autoload.psr-4`                                 | `shopware-cli` reads psr-4 values as a string; a JSON array fails every `extension` command |
+| install fails with `MissingRequirementException` for `ucp-php-sdk/*`                          | `executeComposerCommands()` returned false without the archive carrying the SDK             |
 
 **The platform intends to remove this window.** shopware/shopware#13630 proposes separating
 `composer require`/`remove` from the plugin lifecycle and running it into a separate vendor
-directory that is swapped in at the end — and names our exact case, "the flag can be set or
-unset from one version to the other", as needing special handling. shopware/shopware#13631
-goes further: require store plugins from the SBP registry instead of downloading zips. Neither
-lets the guard here go: this extension supports 6.5.8 upwards, so shops without those changes
-stay in scope for years. Read them before redesigning any of this, not after.
+directory that is swapped in at the end — and names our exact case, "the flag can be set or unset
+from one version to the other", as needing special handling. shopware/shopware#13631 goes further:
+require store plugins from the SBP registry instead of downloading zips. Neither lets the guard here
+go: this extension supports 6.5.8 upwards, so shops without those changes stay in scope for years.
+Read them before redesigning any of this, not after.
 
-**Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a
-built archive through the admin upload endpoint on a shop stripped of the extension and the
-SDK, and refuses to run if the shop can already resolve the SDK. The `zip-install` job in
-`package-zip.yml` runs it on 6.5.x, 6.6.x and trunk, and it also takes the SDK away from the
-installed extension again to prove the shop stays up.
+**Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a built
+archive through the admin upload endpoint on a shop stripped of the extension and the SDK, and
+refuses to run if the shop can already resolve the SDK. The `zip-install` job in `package-zip.yml`
+runs it on 6.5.x, 6.6.x and trunk, and it also takes the SDK away from the installed extension again
+to prove the shop stays up.
 
-Two scenarios are deliberately **not** in CI: an update from a version that bundled the SDK,
-and an update where the pinned SDK version moves. Both need a second archive in the job, and
-the bundled-SDK upgrade happens exactly once, on a small installed base. Both were verified by
-hand for 1.4.0, and the README *Troubleshooting* section tells a merchant what to expect. Do
-not reopen this without a reason that has changed.
+Two scenarios are deliberately **not** in CI: an update from a version that bundled the SDK, and an
+update where the pinned SDK version moves. Both need a second archive in the job, and the
+bundled-SDK upgrade happens exactly once, on a small installed base. Both were verified by hand for
+1.4.0, and the README _Troubleshooting_ section tells a merchant what to expect. Do not reopen this
+without a reason that has changed.
 
 ## Releases
 
-Store releases run from `main` HEAD via `.github/workflows/store-release.yml` after
-that commit has a green `validation-gate`. Bump `composer.json` `version` and both
-changelogs (`# <version>`) in the release PR. See the
-README `Release` section for the full flow. Two recurring pitfalls have their own
-subsections there — read them before the change, not after CI is green:
+Store releases run from `main` HEAD via `.github/workflows/store-release.yml` after that commit has
+a green `validation-gate`. Bump `composer.json` `version` and both changelogs (`# <version>`) in the
+release PR. See [docs/releasing.md](docs/releasing.md) for the full flow. Two recurring pitfalls
+have their own subsections there — read them before the change, not after CI is green:
 
-- **SDK version pin.** `ucp-php-sdk/symfony-bundle` is required at the exact version it
-  was tested against, currently `0.0.7` — **not** a caret (a caret on `0.0.x` already means
-  that exact patch; the plugin's original `^0.0.2` never resolved `0.0.3`), **not** a tilde
-  (`~0.0.6` is the open `>=0.0.6 <0.1.0` range) and **not** a `>=a <b` window, which still
-  admits a four-component `0.0.6.1`. Read the pin out of `composer.json` rather than from here. The SDK serves one UCP version
-  per release and switches it outright, so a new SDK release must arrive with a plugin
-  release, never on its own; that is what the pin enforces. CI still tests against the
-  moving SDK `main` so upcoming breakage is caught early, but `main` only *predicts* a tag:
-  never merge release-bound code that references SDK symbols living only on the SDK `main`
-  branch or an unmerged SDK PR — CI passes against `main` while a shop on the published tag
-  fatals with `Class "…" not found`. Moving the window means `composer.json`, the two forced
-  `versions` in `ci.yml`'s *Configure private SDK path repositories* step and the two in
-  `bin/ci-smoke.sh`, plus — when the spec date moved — `UcpProtocol::VERSION`, which
-  `UcpProtocolVersionGuardTest` holds equal to the SDK's `UcpProtocolVersion::current()`.
-  Leave `UCP_SDK_REF` on `main`. See the README `The SDK version window` section and
-  `docs/ucp-version-support.md`.
-- **Migrations.** The runner never re-runs an applied migration. Never edit the
-  effect of a migration already shipped in a tagged release (upgraded shops keep the
-  old schema); add a new idempotent forward migration instead. Editing a migration
-  that exists only in the current unreleased cycle is fine — verify with
-  `git show <tag>:<migration-path>` that no release tag contains it.
+- **SDK version pin.** `ucp-php-sdk/symfony-bundle` is required at the exact version it was tested
+  against, currently `0.0.7` — **not** a caret (a caret on `0.0.x` already means that exact patch;
+  the plugin's original `^0.0.2` never resolved `0.0.3`), **not** a tilde (`~0.0.6` is the open
+  `>=0.0.6 <0.1.0` range) and **not** a `>=a <b` window, which still admits a four-component
+  `0.0.6.1`. Read the pin out of `composer.json` rather than from here. The SDK serves one UCP
+  version per release and switches it outright, so a new SDK release must arrive with a plugin
+  release, never on its own; that is what the pin enforces. CI still tests against the moving SDK
+  `main` so upcoming breakage is caught early, but `main` only _predicts_ a tag: never merge
+  release-bound code that references SDK symbols living only on the SDK `main` branch or an unmerged
+  SDK PR — CI passes against `main` while a shop on the published tag fatals with
+  `Class "…" not found`. Moving the window means `composer.json`, the two forced `versions` in
+  `ci.yml`'s _Configure private SDK path repositories_ step and the two in `bin/ci-smoke.sh`, plus —
+  when the spec date moved — `UcpProtocol::VERSION`, which `UcpProtocolVersionGuardTest` holds equal
+  to the SDK's `UcpProtocolVersion::current()`. Leave `UCP_SDK_REF` on `main`. See _The SDK version
+  pin_ in [docs/releasing.md](docs/releasing.md) and
+  [docs/ucp-version-support.md](docs/ucp-version-support.md).
+- **Migrations.** The runner never re-runs an applied migration. Never edit the effect of a
+  migration already shipped in a tagged release (upgraded shops keep the old schema); add a new
+  idempotent forward migration instead. Editing a migration that exists only in the current
+  unreleased cycle is fine — verify with `git show <tag>:<migration-path>` that no release tag
+  contains it.
 
 ## Further References
 
