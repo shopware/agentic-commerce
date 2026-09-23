@@ -67,6 +67,7 @@ final class UcpProfileRouteScopeWhitelistTest extends TestCase
     private function controllerEvent(): ControllerEvent
     {
         $request = Request::create('https://shop.example/.well-known/ucp');
+        $request->attributes->set('_route', 'ucp_sdk_symfony_profile__invoke');
         $request->attributes->set(PlatformRequest::ATTRIBUTE_ROUTE_SCOPE, [StorefrontRouteScope::ID]);
 
         return new ControllerEvent(
