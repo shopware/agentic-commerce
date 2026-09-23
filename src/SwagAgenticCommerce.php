@@ -9,6 +9,7 @@ use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
 use Shopware\Core\Framework\Plugin;
 use Shopware\Core\Framework\Plugin\Context\ActivateContext;
 use Shopware\Core\Framework\Plugin\Context\InstallContext;
+use Shopware\Core\Framework\Plugin\Context\UninstallContext;
 use Shopware\Core\Framework\Plugin\Context\UpdateContext;
 use Shopware\Core\Kernel;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
@@ -18,6 +19,7 @@ use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
+use Swag\AgenticCommerce\Lifecycle\PluginDataRemover;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingDismissal;
@@ -152,6 +154,22 @@ final class SwagAgenticCommerce extends Plugin
 
         $this->syncCoreAgenticFiles();
         $this->resetOnboardingDismissal();
+    }
+
+    /**
+     * Honours the "remove all data" choice a merchant makes in the Extensions UI.
+     * Without this the plugin's own tables outlive it, so a reinstall finds a
+     * shop that still looks configured and never offers onboarding again.
+     */
+    public function uninstall(UninstallContext $uninstallContext): void
+    {
+        parent::uninstall($uninstallContext);
+
+        if ($uninstallContext->keepUserData()) {
+            return;
+        }
+
+        PluginDataRemover::removeAll(Kernel::getConnection());
     }
 
     public function executeComposerCommands(): bool
