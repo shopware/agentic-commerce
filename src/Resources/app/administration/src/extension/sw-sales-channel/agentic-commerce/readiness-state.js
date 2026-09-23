@@ -91,20 +91,44 @@ export function readinessTasks(readiness) {
             done: steps.installed?.done === true,
             locked: false,
             count: null,
+            pending: 0,
         },
         {
             key: TASK_PREPARED,
             done: preparedDone,
             locked: false,
             count: steps.prepared?.count ?? 0,
+            // Channels added after the first run are still preparable, so the
+            // step stays actionable even once it counts as done.
+            pending: unpreparedChannels(readiness).length,
         },
         {
             key: TASK_CONNECTED,
             done: steps.connected?.done === true,
             locked: !preparedDone,
             count: steps.connected?.count ?? 0,
+            pending: 0,
         },
     ];
+}
+
+/**
+ * Which description a task row shows. A prepared step with channels still
+ * waiting gets its own line rather than the plain "done" one, otherwise a
+ * merchant who adds a storefront later is told everything is complete.
+ */
+export function taskDescriptionKey(task) {
+    if (task?.key === TASK_PREPARED && task?.done && (task?.pending ?? 0) > 0) {
+        return `${SNIPPET_ROOT}.tasks.prepared.pendingDescription`;
+    }
+
+    return `${SNIPPET_ROOT}.tasks.${task?.key}.${task?.done ? 'doneDescription' : 'description'}`;
+}
+
+export function taskActionKey(task) {
+    return task?.done
+        ? `${SNIPPET_ROOT}.tasks.${task?.key}.actionMore`
+        : `${SNIPPET_ROOT}.tasks.${task?.key}.action`;
 }
 
 export function preparedChannels(readiness) {

@@ -33,7 +33,14 @@ final class ShopReadinessProvider
 
     public function readiness(Context $context): ShopReadiness
     {
-        $views = $this->salesChannelViewProvider->all($context);
+        // A deactivated sales channel serves nobody, so exposing UCP on it would
+        // achieve nothing; it is left out of the readiness picture entirely
+        // rather than offered as work. The `ucp:*` commands still list it, which
+        // is why the filter lives here and not in the shared view provider.
+        $views = array_values(array_filter(
+            $this->salesChannelViewProvider->all($context),
+            static fn (SalesChannelView $view): bool => $view->active,
+        ));
         $salesChannelIds = array_map(static fn (SalesChannelView $view): string => $view->id, $views);
 
         $configs = $this->configService->getConfigs($salesChannelIds);

@@ -14,6 +14,8 @@ import {
     preparedChannels,
     actionableChannelFindings,
     hasChannelsToPrepare,
+    taskDescriptionKey,
+    taskActionKey,
 } from '../../../../extension/sw-sales-channel/agentic-commerce/readiness-state';
 
 const { Mixin } = Shopware;
@@ -107,6 +109,14 @@ registerOrOverride('sw-settings-agentic-commerce-index', {
 
         taskLabel(task, suffix) {
             return `swagAgenticCommerce.settings.tasks.${task.key}.${suffix}`;
+        },
+
+        taskDescription(task) {
+            return taskDescriptionKey(task);
+        },
+
+        taskAction(task) {
+            return taskActionKey(task);
         },
 
         openPrepare() {

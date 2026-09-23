@@ -42,13 +42,16 @@
           "title": "Prepare existing sales channels",
           "description": "Enable the required UCP and AI-file settings without configuring each sales channel by hand.",
           "doneDescription": "{count} sales channel(s) prepared.",
-          "action": "Prepare sales channels"
+          "action": "Prepare sales channels",
+          "pendingDescription": "{count} prepared, {pending} sales channel(s) not prepared yet.",
+          "actionMore": "Prepare {count} more"
         },
         "connected": {
           "title": "Connect to an AI provider",
           "description": "Create an agentic sales channel once your storefronts are prepared.",
           "doneDescription": "{count} agentic sales channel(s) connected.",
-          "action": "Create sales channel"
+          "action": "Create sales channel",
+          "actionMore": "Create another sales channel"
         }
       }
     },

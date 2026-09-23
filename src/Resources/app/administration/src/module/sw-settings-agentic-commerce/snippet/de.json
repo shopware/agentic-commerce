@@ -42,13 +42,16 @@
           "title": "Bestehende Verkaufskanäle vorbereiten",
           "description": "Aktiviere die nötigen UCP- und KI-Datei-Einstellungen, ohne jeden Verkaufskanal einzeln zu konfigurieren.",
           "doneDescription": "{count} Verkaufskanal/-kanäle vorbereitet.",
-          "action": "Verkaufskanäle vorbereiten"
+          "action": "Verkaufskanäle vorbereiten",
+          "pendingDescription": "{count} vorbereitet, {pending} Verkaufskanal/-kanäle noch nicht.",
+          "actionMore": "{count} weitere vorbereiten"
         },
         "connected": {
           "title": "Mit einem KI-Anbieter verbinden",
           "description": "Erstelle einen Agentic-Verkaufskanal, sobald deine Storefronts vorbereitet sind.",
           "doneDescription": "{count} Agentic-Verkaufskanal/-kanäle verbunden.",
-          "action": "Verkaufskanal erstellen"
+          "action": "Verkaufskanal erstellen",
+          "actionMore": "Weiteren Verkaufskanal erstellen"
         }
       }
     },

@@ -11,6 +11,8 @@ import {
     hasChannelsToPrepare,
     prepareRows,
     defaultPrepareSelection,
+    taskDescriptionKey,
+    taskActionKey,
     STATUS_READY,
     STATUS_ACTION_NEEDED,
 } from 'Resources/extension/sw-sales-channel/agentic-commerce/readiness-state';
@@ -89,6 +91,43 @@ describe('readiness-state', () => {
 
         expect(readinessTasks(unprepared).find((task) => task.key === 'connected').locked).toBe(true);
         expect(readinessTasks(readiness()).find((task) => task.key === 'connected').locked).toBe(false);
+    });
+
+    it('keeps the prepared step actionable when a channel was added later', () => {
+        // One prepared, one new: the step counts as done for the progress bar but
+        // a merchant must still be able to reach the new channel.
+        const task = readinessTasks(readiness()).find((t) => t.key === 'prepared');
+
+        expect(task.done).toBe(true);
+        expect(task.pending).toBe(1);
+        expect(taskDescriptionKey(task)).toBe('swagAgenticCommerce.settings.tasks.prepared.pendingDescription');
+        expect(taskActionKey(task)).toBe('swagAgenticCommerce.settings.tasks.prepared.actionMore');
+    });
+
+    it('reports the prepared step as plainly done once nothing is left', () => {
+        const allPrepared = readiness({
+            channels: [
+                { id: 'a', name: 'Storefront', prepared: true, activeProductCount: 1, domains: [], findings: [] },
+            ],
+        });
+        const task = readinessTasks(allPrepared).find((t) => t.key === 'prepared');
+
+        expect(task.pending).toBe(0);
+        expect(taskDescriptionKey(task)).toBe('swagAgenticCommerce.settings.tasks.prepared.doneDescription');
+    });
+
+    it('describes an untouched step with its plain description', () => {
+        const nothingPrepared = readiness({
+            steps: {
+                installed: { done: true },
+                prepared: { done: false, count: 0 },
+                connected: { done: false, count: 0 },
+            },
+        });
+        const task = readinessTasks(nothingPrepared).find((t) => t.key === 'prepared');
+
+        expect(taskDescriptionKey(task)).toBe('swagAgenticCommerce.settings.tasks.prepared.description');
+        expect(taskActionKey(task)).toBe('swagAgenticCommerce.settings.tasks.prepared.action');
     });
 
     it('splits prepared from unprepared channels', () => {

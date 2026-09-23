@@ -75,17 +75,17 @@
                                         {{ $t(taskLabel(task, 'title')) }}
                                     </div>
                                     <div class="sw-settings-agentic-commerce__task-desc">
-                                        {{ $t(taskLabel(task, task.done ? 'doneDescription' : 'description'), { count: task.count }) }}
+                                        {{ $t(taskDescription(task), { count: task.count, pending: task.pending }) }}
                                     </div>
                                 </div>
 
                                 <mt-button
-                                    v-if="task.key === 'prepared' && !task.done"
+                                    v-if="task.key === 'prepared' && hasChannelsToPrepare"
                                     size="small"
                                     variant="primary"
-                                    :disabled="!canPrepare || !hasChannelsToPrepare"
+                                    :disabled="!canPrepare"
                                     @click="openPrepare"
-                                >{{ $t('swagAgenticCommerce.settings.tasks.prepared.action') }}</mt-button>
+                                >{{ $t(taskAction(task), { count: task.pending }) }}</mt-button>
 
                                 <mt-button
                                     v-else-if="task.key === 'connected' && !task.done"
@@ -95,7 +95,7 @@
                                 >{{ $t('swagAgenticCommerce.settings.tasks.connected.action') }}</mt-button>
 
                                 <span
-                                    v-else
+                                    v-else-if="task.done"
                                     class="sw-settings-agentic-commerce__task-state"
                                 >{{ $t('swagAgenticCommerce.settings.taskComplete') }}</span>
                             </li>
