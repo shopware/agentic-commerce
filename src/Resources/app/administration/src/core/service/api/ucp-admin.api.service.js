@@ -38,6 +38,12 @@ class UcpAdminApiService extends ApiService {
         return this.httpClient.post('/_admin/ucp/onboarding/bulk-enable', payload, this.options());
     }
 
+    // Creates one agentic feed channel per { storefrontSalesChannelId, provider }
+    // pair; responds 200 with a per-pair outcome even when some of them failed.
+    createFeedChannels(payload) {
+        return this.httpClient.post('/_admin/ucp/onboarding/feed-channels', payload, this.options());
+    }
+
     // The whole settings page in one read: status, the three setup steps, and
     // every offerable channel with its outstanding findings.
     getReadiness() {

@@ -126,7 +126,9 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
+use Swag\AgenticCommerce\Ucp\Onboarding\AgenticFeedChannelCreator;
 use Swag\AgenticCommerce\Ucp\Onboarding\DoctrineDbalOnboardingMetrics;
+use Swag\AgenticCommerce\Ucp\Onboarding\FeedChannelLookup;
 use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingMetricsInterface;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
@@ -410,6 +412,11 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$logger', service('logger')->nullOnInvalid());
 
     $services->alias(OnboardingMetricsInterface::class, DoctrineDbalOnboardingMetrics::class);
+    $services->set(FeedChannelLookup::class)
+        ->arg('$productExportRepository', service('product_export.repository'));
+    $services->set(AgenticFeedChannelCreator::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'))
+        ->arg('$productStreamRepository', service('product_stream.repository'));
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);

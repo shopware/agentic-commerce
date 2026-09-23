@@ -1,5 +1,6 @@
 import './page/sw-settings-agentic-commerce-index';
 import './page/sw-settings-agentic-commerce-prepare';
+import './page/sw-settings-agentic-commerce-feeds';
 import { settingsGroup } from '../../extension/sw-sales-channel/agentic-commerce/settings-group';
 
 /**
@@ -31,6 +32,14 @@ Shopware.Module.register('sw-settings-agentic-commerce', {
         prepare: {
             component: 'sw-settings-agentic-commerce-prepare',
             path: 'prepare',
+            meta: {
+                parentPath: 'sw.settings.agentic.commerce.index',
+                privilege: 'ucp.editor',
+            },
+        },
+        feeds: {
+            component: 'sw-settings-agentic-commerce-feeds',
+            path: 'feeds',
             meta: {
                 parentPath: 'sw.settings.agentic.commerce.index',
                 privilege: 'ucp.editor',

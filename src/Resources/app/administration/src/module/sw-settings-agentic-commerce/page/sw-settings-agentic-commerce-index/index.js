@@ -17,6 +17,11 @@ import {
     taskDescriptionKey,
     taskActionKey,
 } from '../../../../extension/sw-sales-channel/agentic-commerce/readiness-state';
+import {
+    connectedFeeds,
+    hasMissingFeeds,
+    copyText,
+} from '../../../../extension/sw-sales-channel/agentic-commerce/feed-flow';
 
 const { Mixin } = Shopware;
 
@@ -27,8 +32,8 @@ const { Mixin } = Shopware;
  * three setup steps and every offerable channel with its outstanding findings.
  * All the rules about what that means live in readiness-state.js.
  *
- * The prepare action routes to the Understand / Select / Review flow, which
- * re-reads this endpoint when it returns, so the page reflects what was applied.
+ * The prepare and connect actions route to their own flows; this page re-reads
+ * the endpoint when it is entered again, so it reflects what was applied.
  */
 registerOrOverride('sw-settings-agentic-commerce-index', {
     template: useMtComponents() ? templateMt : templateSw,
@@ -81,6 +86,14 @@ registerOrOverride('sw-settings-agentic-commerce-index', {
             return this.readiness.steps?.prepared?.count ?? 0;
         },
 
+        connectedFeeds() {
+            return connectedFeeds(this.readiness);
+        },
+
+        hasMissingFeeds() {
+            return hasMissingFeeds(this.readiness);
+        },
+
         agenticChannelCount() {
             return this.readiness.steps?.connected?.count ?? 0;
         },
@@ -123,8 +136,22 @@ registerOrOverride('sw-settings-agentic-commerce-index', {
             this.$router.push({ name: 'sw.settings.agentic.commerce.prepare' });
         },
 
-        onCreateAgenticChannel() {
-            this.$router.push({ name: 'sw.sales.channel.list' });
+        openFeeds() {
+            this.$router.push({ name: 'sw.settings.agentic.commerce.feeds' });
+        },
+
+        channelRoute(salesChannelId) {
+            return { name: 'sw.sales.channel.detail', params: { id: salesChannelId } };
+        },
+
+        copyFeedUrl(url) {
+            return copyText(url)
+                .then(() => {
+                    this.createNotificationSuccess({ message: this.$t('swagAgenticCommerce.feeds.copied') });
+                })
+                .catch(() => {
+                    this.createNotificationError({ message: this.$t('swagAgenticCommerce.feeds.copyFailed') });
+                });
         },
     },
 });

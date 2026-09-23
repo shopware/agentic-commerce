@@ -10,8 +10,11 @@ use Shopware\Core\Framework\Routing\ApiRouteScope;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
+use Swag\AgenticCommerce\Ucp\Onboarding\AgenticFeedChannelCreator;
 use Swag\AgenticCommerce\Ucp\Onboarding\BulkUcpActivator;
 use Swag\AgenticCommerce\Ucp\Onboarding\ChannelActivationOutcome;
+use Swag\AgenticCommerce\Ucp\Onboarding\FeedChannelOutcome;
+use Swag\AgenticCommerce\Ucp\Onboarding\FeedProvider;
 use Swag\AgenticCommerce\Ucp\Onboarding\ShopReadinessProvider;
 use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,8 +27,9 @@ use Ucp\Sdk\Enum\Transport;
  *
  * `readiness` is the settings page in one read: status, the three setup steps and
  * every offerable channel with its outstanding findings. `bulk-enable` is what the
- * prepare flow posts; it responds 200 with per-channel outcomes even when some
- * channels failed, because partial success is the normal case for a bulk operation.
+ * prepare flow posts and `feed-channels` what the connect flow posts; both respond
+ * 200 with per-item outcomes even when some failed, because partial success is the
+ * normal case for a bulk operation.
  *
  * @internal
  */
@@ -36,6 +40,7 @@ final class UcpOnboardingController
     public function __construct(
         private readonly BulkUcpActivator $activator,
         private readonly ShopReadinessProvider $readinessProvider,
+        private readonly AgenticFeedChannelCreator $feedChannelCreator,
     ) {
     }
 
@@ -79,6 +84,67 @@ final class UcpOnboardingController
                 'failed' => $this->count($outcomes, static fn (ChannelActivationOutcome $o): bool => $o->isFailed()),
             ],
         ]);
+    }
+
+    #[Route(
+        path: '/api/_admin/ucp/onboarding/feed-channels',
+        name: 'api.action.swag_agentic_commerce.ucp.onboarding.feed_channels',
+        methods: ['POST'],
+        defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.editor']],
+    )]
+    public function feedChannels(Request $request, Context $context): JsonResponse
+    {
+        try {
+            $payload = $request->toArray();
+        } catch (JsonException) {
+            throw UcpConfigException::invalidJsonPayload();
+        }
+
+        $outcomes = $this->feedChannelCreator->create($this->feedRequests($payload), $context);
+
+        return new JsonResponse([
+            'data' => [
+                'results' => $outcomes,
+                'created' => \count(array_filter($outcomes, static fn (FeedChannelOutcome $o): bool => $o->isCreated())),
+                'skipped' => \count(array_filter($outcomes, static fn (FeedChannelOutcome $o): bool => $o->isSkipped())),
+                'failed' => \count(array_filter($outcomes, static fn (FeedChannelOutcome $o): bool => $o->isFailed())),
+            ],
+        ]);
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     *
+     * @return list<array{storefrontSalesChannelId: string, provider: FeedProvider}>
+     */
+    private function feedRequests(array $payload): array
+    {
+        $feeds = $payload['feeds'] ?? null;
+        if (!\is_array($feeds) || !array_is_list($feeds) || [] === $feeds) {
+            throw UcpConfigException::invalidValue('$.feeds', 'must be a non-empty list');
+        }
+
+        $requests = [];
+        foreach ($feeds as $index => $feed) {
+            $path = \sprintf('$.feeds[%d]', $index);
+            if (!\is_array($feed)) {
+                throw UcpConfigException::invalidValue($path, 'must be an object');
+            }
+
+            $storefrontId = $feed['storefrontSalesChannelId'] ?? null;
+            if (!\is_string($storefrontId) || '' === trim($storefrontId)) {
+                throw UcpConfigException::invalidValue($path.'.storefrontSalesChannelId', 'must be a non-empty string');
+            }
+
+            $provider = \is_string($feed['provider'] ?? null) ? FeedProvider::tryFrom($feed['provider']) : null;
+            if (null === $provider) {
+                throw UcpConfigException::invalidValue($path.'.provider', \sprintf('must be one of "%s"', implode('", "', array_column(FeedProvider::cases(), 'value'))));
+            }
+
+            $requests[trim($storefrontId).'|'.$provider->value] = ['storefrontSalesChannelId' => trim($storefrontId), 'provider' => $provider];
+        }
+
+        return array_values($requests);
     }
 
     /**

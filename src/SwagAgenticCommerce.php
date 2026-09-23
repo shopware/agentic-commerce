@@ -36,6 +36,9 @@ final class SwagAgenticCommerce extends Plugin
      */
     public const SALES_CHANNEL_TYPE_AGENTIC_COMMERCE = '5e29f9890c4d4d519a1c7f9d5c24b7c1';
 
+    /** Plugin-owned stream the onboarding-created feed channels export: every active product. */
+    public const DEFAULT_PRODUCT_STREAM_ID = '0195a9c0a1b07b8e9d2f4c6e8a1b3d5f';
+
     public const OPEN_AI_PRODUCT_EXPORT_CONFIG_DOMAIN = 'SwagAgenticCommerce.openAiProductExport';
 
     public const GOOGLE_PRODUCT_EXPORT_CONFIG_DOMAIN = 'SwagAgenticCommerce.googleProductExport';

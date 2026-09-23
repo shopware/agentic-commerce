@@ -48,12 +48,14 @@
         },
         "connected": {
           "title": "Connect to an AI provider",
-          "description": "Create an agentic sales channel once your storefronts are prepared.",
+          "description": "Create a product feed for OpenAI or Google Shopping from your storefront.",
           "doneDescription": "{count} agentic sales channel(s) connected.",
-          "action": "Create sales channel",
-          "actionMore": "Create another sales channel"
+          "action": "Connect AI provider",
+          "addAction": "Add provider"
         }
-      }
+      },
+      "connectedTitle": "Connected AI providers",
+      "connectedInactive": "Inactive"
     },
     "prepare": {
       "title": "Prepare sales channels",
@@ -97,6 +99,59 @@
         "back": "Back",
         "continue": "Continue",
         "apply": "Apply changes",
+        "done": "Done"
+      }
+    },
+    "feeds": {
+      "title": "Connect AI provider",
+      "steps": {
+        "choose": "Choose providers",
+        "review": "Review",
+        "result": "Result"
+      },
+      "choose": {
+        "heading": "Choose AI providers",
+        "lede": "Shopware creates one agentic sales channel per provider, pre-configured from your storefront. You can fine-tune it later under Sales Channels.",
+        "selected": "{count} selected",
+        "selectAll": "Select all",
+        "deselectAll": "Deselect all",
+        "noDomain": "No domain",
+        "domainHint": "Add a domain to this storefront to create a feed.",
+        "willCreate": "Will be created",
+        "empty": "There is no storefront sales channel yet. Create one first, then connect it here."
+      },
+      "providers": {
+        "openAi": {
+          "label": "OpenAI",
+          "description": "JSONL product feed for ChatGPT shopping"
+        },
+        "google": {
+          "label": "Google Shopping",
+          "description": "RSS/XML feed for Google Merchant Center"
+        },
+        "unknown": "Unknown provider"
+      },
+      "connected": "Connected",
+      "copy": "Copy",
+      "copied": "Feed URL copied to the clipboard.",
+      "copyFailed": "The feed URL could not be copied.",
+      "openChannel": "Open sales channel",
+      "review": {
+        "heading": "Review",
+        "summary": "{count} agentic sales channel(s) will be created.",
+        "notice": "Nothing else changes. Existing channels are left untouched."
+      },
+      "result": {
+        "heading": "Result",
+        "summary": "{created} created, {skipped} already connected, {failed} failed.",
+        "created": "Created",
+        "skipped": "Already connected",
+        "failed": "Failed"
+      },
+      "actions": {
+        "back": "Back",
+        "continue": "Continue",
+        "apply": "Create sales channels",
         "done": "Done"
       }
     }

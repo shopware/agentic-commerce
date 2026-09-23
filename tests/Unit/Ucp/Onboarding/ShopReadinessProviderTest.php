@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Tests\Unit\Ucp\Onboarding;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Content\ProductExport\ProductExportCollection;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
@@ -26,6 +27,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
 use Swag\AgenticCommerce\Ucp\Onboarding\ChannelFindingsResolver;
 use Swag\AgenticCommerce\Ucp\Onboarding\ChannelReadiness;
+use Swag\AgenticCommerce\Ucp\Onboarding\FeedChannelLookup;
 use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingMetricsInterface;
 use Swag\AgenticCommerce\Ucp\Onboarding\ShopReadiness;
 use Swag\AgenticCommerce\Ucp\Onboarding\ShopReadinessProvider;
@@ -176,7 +178,28 @@ final class ShopReadinessProviderTest extends TestCase
             $configService,
             new ChannelFindingsResolver(new UcpConfigValidator(), $this->signingKeyService($withSigningKey)),
             $this->metrics($productCounts, $agenticSalesChannelCount),
+            new FeedChannelLookup($this->emptyProductExportRepository()),
         );
+    }
+
+    /**
+     * @return EntityRepository<ProductExportCollection>
+     */
+    private function emptyProductExportRepository(): EntityRepository
+    {
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->method('search')->willReturnCallback(
+            static fn (Criteria $criteria, Context $context): EntitySearchResult => new EntitySearchResult(
+                'product_export',
+                0,
+                new ProductExportCollection(),
+                null,
+                $criteria,
+                $context,
+            ),
+        );
+
+        return $repository;
     }
 
     /**

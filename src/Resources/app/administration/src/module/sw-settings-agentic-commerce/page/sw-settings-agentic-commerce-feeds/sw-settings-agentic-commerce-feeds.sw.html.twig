@@ -1,0 +1,295 @@
+{% block sw_settings_agentic_commerce_feeds %}
+<sw-page class="sw-agentic-feeds">
+
+    {% block sw_settings_agentic_commerce_feeds_header %}
+    <template #smart-bar-header>
+        <h2>{{ $t('swagAgenticCommerce.feeds.title') }}</h2>
+    </template>
+    {% endblock %}
+
+    {% block sw_settings_agentic_commerce_feeds_content %}
+    <template #content>
+        <sw-card-view>
+            <sw-skeleton v-if="isLoading" />
+
+            <template v-else>
+                {% block sw_settings_agentic_commerce_feeds_stepper %}
+                <ol class="sw-agentic-feeds__steps">
+                    <li
+                        v-for="item in steps"
+                        :key="item.key"
+                        class="sw-agentic-feeds__step"
+                        :class="'sw-agentic-feeds__step--' + item.state"
+                    >
+                        <span class="sw-agentic-feeds__step-num">{{ item.state === 'done' ? '✓' : item.number }}</span>
+                        <span>{{ $t(item.label) }}</span>
+                    </li>
+                </ol>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_feeds_choose %}
+                <sw-card
+                    v-if="isChooseStep"
+                    position-identifier="sw-agentic-feeds-choose"
+                    :title="$t('swagAgenticCommerce.feeds.choose.heading')"
+                >
+                    <p class="sw-agentic-feeds__lede">{{ $t('swagAgenticCommerce.feeds.choose.lede') }}</p>
+
+                    <p
+                        v-if="rows.length === 0"
+                        class="sw-agentic-feeds__empty"
+                    >{{ $t('swagAgenticCommerce.feeds.choose.empty') }}</p>
+
+                    <template v-else>
+                        <div class="sw-agentic-feeds__toolbar">
+                            <span class="sw-agentic-feeds__count">
+                                {{ $t('swagAgenticCommerce.feeds.choose.selected', { count: selectedCount }) }}
+                            </span>
+                            <span
+                                v-if="selectableCount > 0"
+                                class="sw-agentic-feeds__toolbar-actions"
+                            >
+                                <a href="#" @click.prevent="selectAll">{{ $t('swagAgenticCommerce.feeds.choose.selectAll') }}</a>
+                                <a href="#" @click.prevent="deselectAll">{{ $t('swagAgenticCommerce.feeds.choose.deselectAll') }}</a>
+                            </span>
+                        </div>
+
+                        <section
+                            v-for="row in rows"
+                            :key="row.id"
+                            class="sw-agentic-feeds__storefront"
+                        >
+                            <header class="sw-agentic-feeds__storefront-head">
+                                <span class="sw-agentic-feeds__storefront-name">{{ row.name }}</span>
+                                <span
+                                    v-if="row.primaryDomain"
+                                    class="sw-agentic-feeds__storefront-domain"
+                                >{{ row.primaryDomain }}</span>
+                                <span
+                                    v-else
+                                    class="sw-agentic-feeds__warning"
+                                >{{ $t('swagAgenticCommerce.feeds.choose.noDomain') }}</span>
+                            </header>
+
+                            <div class="sw-agentic-feeds__tiles">
+                                <div
+                                    v-for="provider in providers"
+                                    :key="provider.key"
+                                    class="sw-agentic-feeds__tile"
+                                    :class="tileClasses(row, provider)"
+                                    :data-provider="provider.key"
+                                    :role="isSelectable(row, provider) ? 'checkbox' : null"
+                                    :tabindex="isSelectable(row, provider) ? 0 : null"
+                                    :aria-checked="isSelectable(row, provider) ? String(isSelected(row, provider)) : null"
+                                    :aria-disabled="!isSelectable(row, provider) && !feedOf(row, provider) ? 'true' : null"
+                                    @click="onToggleTile(row, provider)"
+                                    @keydown.space.prevent="onToggleTile(row, provider)"
+                                    @keydown.enter.prevent="onToggleTile(row, provider)"
+                                >
+                                    <div class="sw-agentic-feeds__tile-head">
+                                        <span
+                                            class="sw-agentic-feeds__tile-mark"
+                                            :class="'sw-agentic-feeds__tile-mark--' + provider.key"
+                                        >{{ provider.mark }}</span>
+
+                                        <div class="sw-agentic-feeds__tile-text">
+                                            <div class="sw-agentic-feeds__tile-title">{{ $t(provider.labelKey) }}</div>
+                                            <div class="sw-agentic-feeds__tile-desc">{{ $t(provider.descriptionKey) }}</div>
+                                        </div>
+
+                                        <span
+                                            v-if="feedOf(row, provider)"
+                                            class="sw-agentic-feeds__pill sw-agentic-feeds__pill--success"
+                                        >{{ $t('swagAgenticCommerce.feeds.connected') }}</span>
+                                        <span
+                                            v-else
+                                            class="sw-agentic-feeds__check"
+                                            aria-hidden="true"
+                                        >{{ isSelected(row, provider) ? '✓' : '' }}</span>
+                                    </div>
+
+                                    <div
+                                        v-if="feedOf(row, provider)"
+                                        class="sw-agentic-feeds__tile-feed"
+                                    >
+                                        <div class="sw-agentic-feeds__url-row">
+                                            <span
+                                                class="sw-agentic-feeds__url"
+                                                :title="feedOf(row, provider).feedUrl"
+                                            >{{ feedOf(row, provider).feedUrl }}</span>
+                                            <button
+                                                type="button"
+                                                class="sw-agentic-feeds__copy"
+                                                :title="$t('swagAgenticCommerce.feeds.copy')"
+                                                @click.stop="copyFeedUrl(feedOf(row, provider).feedUrl)"
+                                            >
+                                                <sw-icon
+                                                    name="regular-copy"
+                                                    size="14px"
+                                                />
+                                                <span>{{ $t('swagAgenticCommerce.feeds.copy') }}</span>
+                                            </button>
+                                        </div>
+                                        <router-link
+                                            v-if="feedOf(row, provider).salesChannelId"
+                                            class="sw-agentic-feeds__link"
+                                            :to="channelRoute(feedOf(row, provider).salesChannelId)"
+                                        >{{ $t('swagAgenticCommerce.feeds.openChannel') }}</router-link>
+                                    </div>
+
+                                    <div
+                                        v-else
+                                        class="sw-agentic-feeds__tile-foot"
+                                    >
+                                        <span class="sw-agentic-feeds__format">{{ provider.format }}</span>
+                                        <span
+                                            v-if="!row.hasDomain"
+                                            class="sw-agentic-feeds__hint"
+                                        >{{ $t('swagAgenticCommerce.feeds.choose.domainHint') }}</span>
+                                        <span
+                                            v-else-if="isSelected(row, provider)"
+                                            class="sw-agentic-feeds__hint sw-agentic-feeds__hint--selected"
+                                        >{{ $t('swagAgenticCommerce.feeds.choose.willCreate') }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </template>
+                </sw-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_feeds_review %}
+                <sw-card
+                    v-if="isReviewStep"
+                    position-identifier="sw-agentic-feeds-review"
+                    :title="$t('swagAgenticCommerce.feeds.review.heading')"
+                >
+                    <div class="sw-agentic-feeds__review-head">
+                        {{ $t('swagAgenticCommerce.feeds.review.summary', { count: selectedCount }) }}
+                    </div>
+                    <div class="sw-agentic-feeds__tags">
+                        <span
+                            v-for="item in selectedItems"
+                            :key="item.key"
+                            class="sw-agentic-feeds__tag"
+                        >{{ item.storefrontName }} → {{ $t(item.providerLabelKey) }}</span>
+                    </div>
+                    <div class="sw-agentic-feeds__notice">{{ $t('swagAgenticCommerce.feeds.review.notice') }}</div>
+                </sw-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_feeds_result %}
+                <sw-card
+                    v-if="hasResult"
+                    position-identifier="sw-agentic-feeds-result"
+                    :title="$t('swagAgenticCommerce.feeds.result.heading')"
+                >
+                    <p class="sw-agentic-feeds__lede">
+                        {{ $t('swagAgenticCommerce.feeds.result.summary', resultCounts) }}
+                    </p>
+
+                    <ul class="sw-agentic-feeds__results">
+                        <li
+                            v-for="outcome in resultRows"
+                            :key="outcome.key"
+                            class="sw-agentic-feeds__result"
+                            :class="'sw-agentic-feeds__result--' + outcome.status"
+                        >
+                            <div class="sw-agentic-feeds__result-head">
+                                <span class="sw-agentic-feeds__result-title">
+                                    {{ outcome.storefrontName }} → {{ $t(outcome.providerLabelKey) }}
+                                </span>
+                                <span
+                                    v-if="outcome.status === 'created'"
+                                    class="sw-agentic-feeds__pill sw-agentic-feeds__pill--success"
+                                >{{ $t('swagAgenticCommerce.feeds.result.created') }}</span>
+                                <span
+                                    v-else-if="outcome.status === 'skipped'"
+                                    class="sw-agentic-feeds__pill sw-agentic-feeds__pill--neutral"
+                                >{{ $t('swagAgenticCommerce.feeds.result.skipped') }}</span>
+                                <span
+                                    v-else
+                                    class="sw-agentic-feeds__pill sw-agentic-feeds__pill--error"
+                                >{{ $t('swagAgenticCommerce.feeds.result.failed') }}</span>
+                            </div>
+
+                            <p
+                                v-if="outcome.status === 'failed'"
+                                class="sw-agentic-feeds__result-message"
+                            >{{ outcome.message }}</p>
+
+                            <template v-else>
+                                <div class="sw-agentic-feeds__result-channel">{{ outcome.salesChannelName }}</div>
+                                <div
+                                    v-if="outcome.feedUrl"
+                                    class="sw-agentic-feeds__url-row"
+                                >
+                                    <span
+                                        class="sw-agentic-feeds__url"
+                                        :title="outcome.feedUrl"
+                                    >{{ outcome.feedUrl }}</span>
+                                    <button
+                                        type="button"
+                                        class="sw-agentic-feeds__copy"
+                                        :title="$t('swagAgenticCommerce.feeds.copy')"
+                                        @click="copyFeedUrl(outcome.feedUrl)"
+                                    >
+                                        <sw-icon
+                                            name="regular-copy"
+                                            size="14px"
+                                        />
+                                        <span>{{ $t('swagAgenticCommerce.feeds.copy') }}</span>
+                                    </button>
+                                </div>
+                                <router-link
+                                    v-if="outcome.salesChannelId"
+                                    class="sw-agentic-feeds__link"
+                                    :to="channelRoute(outcome.salesChannelId)"
+                                >{{ $t('swagAgenticCommerce.feeds.openChannel') }}</router-link>
+                            </template>
+                        </li>
+                    </ul>
+                </sw-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_feeds_actions %}
+                <div class="sw-agentic-feeds__actions">
+                    <template v-if="hasResult">
+                        <sw-button
+                            size="small"
+                            variant="primary"
+                            @click="onClose"
+                        >{{ $t('swagAgenticCommerce.feeds.actions.done') }}</sw-button>
+                    </template>
+
+                    <template v-else>
+                        <sw-button
+                            size="small"
+                            @click="onBack"
+                        >{{ $t('swagAgenticCommerce.feeds.actions.back') }}</sw-button>
+
+                        <sw-button
+                            v-if="!isReviewStep"
+                            size="small"
+                            variant="primary"
+                            :disabled="!canContinue"
+                            @click="onNext"
+                        >{{ $t('swagAgenticCommerce.feeds.actions.continue') }}</sw-button>
+
+                        <sw-button
+                            v-else
+                            size="small"
+                            variant="primary"
+                            :disabled="applyDisabled"
+                            :isLoading="isApplying"
+                            @click="apply"
+                        >{{ $t('swagAgenticCommerce.feeds.actions.apply') }}</sw-button>
+                    </template>
+                </div>
+                {% endblock %}
+            </template>
+        </sw-card-view>
+    </template>
+    {% endblock %}
+</sw-page>
+{% endblock %}

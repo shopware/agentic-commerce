@@ -229,6 +229,108 @@ $sw-agentic-warning-bg: #fff5eb;
         padding: 5px 8px;
     }
 
+    &__connect-action {
+        flex-shrink: 0;
+    }
+
+    &__feed-main {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    &__feed-name {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    &__feed-link {
+        color: #0870ff;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &__provider-badge {
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 650;
+        padding: 3px 8px;
+
+        &--open-ai {
+            background: #ecfdf3;
+            color: #067647;
+        }
+
+        &--google {
+            background: #eef7ff;
+            color: #0877c9;
+        }
+    }
+
+    &__inactive {
+        background: $sw-agentic-warning-bg;
+        border-radius: 999px;
+        color: $sw-agentic-warning;
+        font-size: 11px;
+        font-weight: 650;
+        padding: 3px 8px;
+    }
+
+    &__feed-url-row {
+        align-items: center;
+        background: #f9fafb;
+        border: 1px solid #eaecf0;
+        border-radius: 6px;
+        display: flex;
+        gap: 8px;
+        max-width: 640px;
+        min-width: 0;
+        padding: 4px 4px 4px 10px;
+    }
+
+    &__feed-url {
+        color: #475467;
+        flex: 1;
+        font-family: monospace;
+        font-size: 12px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__copy {
+        align-items: center;
+        background: #fff;
+        border: 1px solid $sw-agentic-border;
+        border-radius: 5px;
+        color: #344054;
+        cursor: pointer;
+        display: inline-flex;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 600;
+        gap: 5px;
+        padding: 4px 8px;
+
+        &:hover {
+            border-color: #189eff;
+            color: #0870ff;
+        }
+
+        &:focus-visible {
+            outline: 2px solid #189eff;
+            outline-offset: 1px;
+        }
+    }
+
     &__metric {
         border-bottom: 1px solid #edf0f3;
         display: flex;

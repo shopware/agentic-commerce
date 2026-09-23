@@ -91,9 +91,19 @@
                                 <sw-button
                                     v-else-if="task.key === 'connected' && !task.done"
                                     size="small"
-                                    :disabled="task.locked"
-                                    @click="onCreateAgenticChannel"
+                                    variant="primary"
+                                    class="sw-settings-agentic-commerce__connect-action"
+                                    :disabled="task.locked || !canPrepare"
+                                    @click="openFeeds"
                                 >{{ $t('swagAgenticCommerce.settings.tasks.connected.action') }}</sw-button>
+
+                                <sw-button
+                                    v-else-if="task.key === 'connected' && hasMissingFeeds"
+                                    size="small"
+                                    class="sw-settings-agentic-commerce__connect-action"
+                                    :disabled="!canPrepare"
+                                    @click="openFeeds"
+                                >{{ $t('swagAgenticCommerce.settings.tasks.connected.addAction') }}</sw-button>
 
                                 <span
                                     v-else-if="task.done"
@@ -142,6 +152,66 @@
                             <span class="sw-settings-agentic-commerce__ready-pill">
                                 {{ $t('swagAgenticCommerce.settings.preparedPill') }}
                             </span>
+                        </div>
+                    </div>
+                    {% endblock %}
+
+                    {% block sw_settings_agentic_commerce_index_connected %}
+                    <div
+                        v-if="connectedFeeds.length > 0"
+                        class="sw-settings-agentic-commerce__prepared sw-settings-agentic-commerce__connected"
+                    >
+                        <div class="sw-settings-agentic-commerce__prepared-title">
+                            {{ $t('swagAgenticCommerce.settings.connectedTitle') }}
+                        </div>
+                        <div
+                            v-for="feed in connectedFeeds"
+                            :key="feed.key"
+                            class="sw-settings-agentic-commerce__prepared-row sw-settings-agentic-commerce__feed-row"
+                            :data-provider="feed.providerKey"
+                        >
+                            <div class="sw-settings-agentic-commerce__feed-main">
+                                <div class="sw-settings-agentic-commerce__feed-name">
+                                    <router-link
+                                        v-if="feed.salesChannelId"
+                                        class="sw-settings-agentic-commerce__prepared-name sw-settings-agentic-commerce__feed-link"
+                                        :to="channelRoute(feed.salesChannelId)"
+                                    >{{ feed.salesChannelName }}</router-link>
+                                    <span
+                                        v-else
+                                        class="sw-settings-agentic-commerce__prepared-name"
+                                    >{{ feed.salesChannelName }}</span>
+                                    <span
+                                        class="sw-settings-agentic-commerce__provider-badge"
+                                        :class="'sw-settings-agentic-commerce__provider-badge--' + feed.providerKey"
+                                    >{{ $t(feed.providerLabelKey) }}</span>
+                                    <span
+                                        v-if="!feed.active"
+                                        class="sw-settings-agentic-commerce__inactive"
+                                    >{{ $t('swagAgenticCommerce.settings.connectedInactive') }}</span>
+                                </div>
+                                <div
+                                    v-if="feed.feedUrl"
+                                    class="sw-settings-agentic-commerce__feed-url-row"
+                                >
+                                    <span
+                                        class="sw-settings-agentic-commerce__feed-url"
+                                        :title="feed.feedUrl"
+                                    >{{ feed.feedUrl }}</span>
+                                    <button
+                                        type="button"
+                                        class="sw-settings-agentic-commerce__copy"
+                                        :title="$t('swagAgenticCommerce.feeds.copy')"
+                                        @click="copyFeedUrl(feed.feedUrl)"
+                                    >
+                                        <sw-icon
+                                            name="regular-copy"
+                                            size="14px"
+                                        />
+                                        <span>{{ $t('swagAgenticCommerce.feeds.copy') }}</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endblock %}

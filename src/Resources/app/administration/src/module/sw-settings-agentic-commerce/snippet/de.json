@@ -48,12 +48,14 @@
         },
         "connected": {
           "title": "Mit einem KI-Anbieter verbinden",
-          "description": "Erstelle einen Agentic-Verkaufskanal, sobald deine Storefronts vorbereitet sind.",
+          "description": "Erstelle aus deiner Storefront einen Produkt-Feed für OpenAI oder Google Shopping.",
           "doneDescription": "{count} Agentic-Verkaufskanal/-kanäle verbunden.",
-          "action": "Verkaufskanal erstellen",
-          "actionMore": "Weiteren Verkaufskanal erstellen"
+          "action": "KI-Anbieter verbinden",
+          "addAction": "Anbieter hinzufügen"
         }
-      }
+      },
+      "connectedTitle": "Verbundene KI-Anbieter",
+      "connectedInactive": "Inaktiv"
     },
     "prepare": {
       "title": "Verkaufskanäle vorbereiten",
@@ -97,6 +99,59 @@
         "back": "Zurück",
         "continue": "Weiter",
         "apply": "Änderungen anwenden",
+        "done": "Fertig"
+      }
+    },
+    "feeds": {
+      "title": "KI-Anbieter verbinden",
+      "steps": {
+        "choose": "Anbieter wählen",
+        "review": "Prüfen",
+        "result": "Ergebnis"
+      },
+      "choose": {
+        "heading": "KI-Anbieter wählen",
+        "lede": "Shopware erstellt pro Anbieter einen Agentic-Verkaufskanal, vorkonfiguriert aus deiner Storefront. Feinabstimmen kannst du ihn später unter Verkaufskanäle.",
+        "selected": "{count} ausgewählt",
+        "selectAll": "Alle auswählen",
+        "deselectAll": "Auswahl aufheben",
+        "noDomain": "Keine Domain",
+        "domainHint": "Füge dieser Storefront eine Domain hinzu, um einen Feed zu erstellen.",
+        "willCreate": "Wird erstellt",
+        "empty": "Es gibt noch keinen Storefront-Verkaufskanal. Lege zuerst einen an und verbinde ihn dann hier."
+      },
+      "providers": {
+        "openAi": {
+          "label": "OpenAI",
+          "description": "JSONL-Produkt-Feed für das Shopping in ChatGPT"
+        },
+        "google": {
+          "label": "Google Shopping",
+          "description": "RSS/XML-Feed für das Google Merchant Center"
+        },
+        "unknown": "Unbekannter Anbieter"
+      },
+      "connected": "Verbunden",
+      "copy": "Kopieren",
+      "copied": "Feed-URL in die Zwischenablage kopiert.",
+      "copyFailed": "Die Feed-URL konnte nicht kopiert werden.",
+      "openChannel": "Verkaufskanal öffnen",
+      "review": {
+        "heading": "Prüfen",
+        "summary": "{count} Agentic-Verkaufskanal/-kanäle werden erstellt.",
+        "notice": "Sonst ändert sich nichts. Bestehende Kanäle bleiben unverändert."
+      },
+      "result": {
+        "heading": "Ergebnis",
+        "summary": "{created} erstellt, {skipped} bereits verbunden, {failed} fehlgeschlagen.",
+        "created": "Erstellt",
+        "skipped": "Bereits verbunden",
+        "failed": "Fehlgeschlagen"
+      },
+      "actions": {
+        "back": "Zurück",
+        "continue": "Weiter",
+        "apply": "Verkaufskanäle erstellen",
         "done": "Fertig"
       }
     }

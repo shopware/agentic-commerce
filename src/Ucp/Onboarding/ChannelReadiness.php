@@ -24,14 +24,18 @@ final class ChannelReadiness implements \JsonSerializable
     /**
      * @param list<SalesChannelDomainView> $domains
      * @param list<Finding>                $findings
+     * @param list<FeedChannelView>        $feeds    Agentic Commerce channels exporting this storefront
      */
     public function __construct(
         public readonly string $id,
         public readonly ?string $name,
+        public readonly string $typeId,
+        public readonly bool $storefront,
         public readonly array $domains,
         public readonly int $activeProductCount,
         public readonly bool $prepared,
         public readonly array $findings = [],
+        public readonly array $feeds = [],
     ) {
     }
 
@@ -48,6 +52,8 @@ final class ChannelReadiness implements \JsonSerializable
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'typeId' => $this->typeId,
+            'storefront' => $this->storefront,
             'domains' => array_map(
                 static fn (SalesChannelDomainView $domain): array => $domain->jsonSerialize(),
                 $this->domains,
@@ -55,6 +61,7 @@ final class ChannelReadiness implements \JsonSerializable
             'activeProductCount' => $this->activeProductCount,
             'prepared' => $this->prepared,
             'findings' => array_map(static fn (Finding $finding): array => $finding->toArray(), $this->findings),
+            'feeds' => array_map(static fn (FeedChannelView $feed): array => $feed->jsonSerialize(), $this->feeds),
         ];
     }
 }

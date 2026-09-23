@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Onboarding;
 
+use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -16,7 +17,8 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
  * Every input already exists: {@see SalesChannelViewProvider} filters to the
  * channels UCP can be activated on, {@see UcpConfigService} says which of them
  * are exposed, {@see ChannelFindingsResolver} says what is still wrong with the
- * exposed ones, and {@see OnboardingMetricsInterface} supplies the two counts.
+ * exposed ones, {@see OnboardingMetricsInterface} supplies the two counts and
+ * {@see FeedChannelLookup} lists the feed channels already exporting each storefront.
  *
  * @internal
  */
@@ -28,6 +30,7 @@ final class ShopReadinessProvider
         private readonly UcpConfigService $configService,
         private readonly ChannelFindingsResolver $findingsResolver,
         private readonly OnboardingMetricsInterface $metrics,
+        private readonly FeedChannelLookup $feedChannelLookup,
     ) {
     }
 
@@ -45,6 +48,11 @@ final class ShopReadinessProvider
 
         $configs = $this->configService->getConfigs($salesChannelIds);
         $productCounts = $this->metrics->activeProductCounts($salesChannelIds);
+        $storefrontIds = array_values(array_map(
+            static fn (SalesChannelView $view): string => $view->id,
+            array_filter($views, static fn (SalesChannelView $view): bool => self::isStorefront($view)),
+        ));
+        $feeds = $this->feedChannelLookup->forStorefronts($storefrontIds, $context);
 
         $channels = [];
         $preparedCount = 0;
@@ -64,10 +72,13 @@ final class ShopReadinessProvider
             $channels[] = new ChannelReadiness(
                 $view->id,
                 $view->name,
+                $view->typeId,
+                self::isStorefront($view),
                 $view->domains,
                 $productCounts[$view->id] ?? 0,
                 $prepared,
                 $findings,
+                $feeds[$view->id] ?? [],
             );
         }
 
@@ -79,6 +90,11 @@ final class ShopReadinessProvider
             $agenticSalesChannelCount,
             $channels,
         );
+    }
+
+    private static function isStorefront(SalesChannelView $view): bool
+    {
+        return Defaults::SALES_CHANNEL_TYPE_STOREFRONT === $view->typeId;
     }
 
     /**
