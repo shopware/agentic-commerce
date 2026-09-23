@@ -14,4 +14,17 @@ final class SdkNotAvailableException extends \RuntimeException
     {
         return new self('Unable to load the UCP SDK Symfony bundle from Composer dependencies.');
     }
+
+    /**
+     * A cluster setup is the one deployment where nothing will install the SDK later.
+     */
+    public static function clusterSetupNeedsTheSdkInTheProject(string $reason): self
+    {
+        return new self(\sprintf(
+            'This shop runs with shopware.deployment.cluster_setup enabled, where Shopware never '
+            .'runs composer for a plugin, so nothing will install this extension\'s requirements: %s. '
+            .'Add them to the project\'s composer.json and deploy, then install the extension.',
+            $reason,
+        ));
+    }
 }

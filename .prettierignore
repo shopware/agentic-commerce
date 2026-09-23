@@ -1,0 +1,7 @@
+# Not ours to format.
+node_modules/
+.tools/
+vendor/
+var/
+dist/
+src/Resources/app/**/node_modules/

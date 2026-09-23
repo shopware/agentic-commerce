@@ -42,34 +42,24 @@ final class SwagAgenticCommerce extends Plugin
     /** Mirror of ProductExportEntity::FILE_FORMAT_JSONL in 6.7.10+. */
     public const FILE_FORMAT_JSONL = 'jsonl';
 
-    /**
-     * Registers the dependencies shipped inside this plugin.
-     *
-     * Shopware only autoloads a plugin's own `autoload.psr-4` from its composer.json; it never
-     * requires `custom/plugins/<Plugin>/vendor/autoload.php`. So when the plugin is installed
-     * from a store ZIP -- where the UCP SDK is vendored into the archive rather than resolved by
-     * the shop -- every `Ucp\Sdk\...` class is on disk and invisible, and installation fails
-     * with SdkNotAvailableException before anything else runs.
-     *
-     * A shop that installs the plugin through Composer already has the SDK on the project
-     * autoloader; there the file is absent and this is a no-op. `require_once` keeps it safe to
-     * call from every entry point, and the project's loader stays first, so a Composer-managed
-     * SDK still wins over the bundled copy.
-     */
-    private function registerBundledDependencies(): void
-    {
-        // getBasePath(), not getPath(): Shopware sets a plugin's path to the directory of its
-        // plugin class (<plugin>/src), while the vendor directory sits at the plugin root.
-        $autoloader = $this->getBasePath().'/vendor/autoload.php';
-
-        if (is_file($autoloader)) {
-            require_once $autoloader;
-        }
-    }
+    /** Shopware resolves this through the project autoloader; a missing SDK is a failed install. */
+    private const SDK_BUNDLE_CLASS = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
 
     public function build(ContainerBuilder $container): void
     {
-        $this->registerBundledDependencies();
+        // parent::build() loads services.php, which registers nothing while the SDK is missing.
+        // This is the one place with a container to read the log directory from, and it runs when
+        // the degraded container is compiled rather than on every request.
+        if (!SdkAvailability::isUsable($this->getBasePath())) {
+            $logsDir = $container->hasParameter('kernel.logs_dir') ? $container->getParameter('kernel.logs_dir') : null;
+
+            SdkAvailability::logUnusable($this->getBasePath(), \is_string($logsDir) ? $logsDir : null);
+
+            parent::build($container);
+
+            return;
+        }
+
         parent::build($container);
 
         $container->addCompilerPass(
@@ -106,11 +96,14 @@ final class SwagAgenticCommerce extends Plugin
      */
     public function getAdditionalBundles(AdditionalBundleParameters $parameters): array
     {
-        $this->registerBundledDependencies();
-        $bundleClass = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
-        if (!class_exists($bundleClass)) {
-            throw SdkNotAvailableException::bundleCouldNotBeLoaded();
+        // Both bundles below need services this plugin only registers with a usable SDK, so a
+        // zip install between extraction and `composer require` contributes nothing rather than
+        // taking the shop down with it.
+        if (!SdkAvailability::isUsable($this->getBasePath())) {
+            return [];
         }
+
+        $bundleClass = self::SDK_BUNDLE_CLASS;
 
         /** @var list<Bundle> $bundles */
         $bundles = [new $bundleClass()];
@@ -124,7 +117,8 @@ final class SwagAgenticCommerce extends Plugin
 
     public function install(InstallContext $installContext): void
     {
-        $this->registerBundledDependencies();
+        $this->refuseWhenNothingWillInstallTheSdk();
+
         parent::install($installContext);
 
         $this->bootstrapSdkSchema();
@@ -133,7 +127,8 @@ final class SwagAgenticCommerce extends Plugin
 
     public function update(UpdateContext $updateContext): void
     {
-        $this->registerBundledDependencies();
+        $this->refuseWhenNothingWillInstallTheSdk();
+
         parent::update($updateContext);
 
         $this->bootstrapSdkSchema();
@@ -142,17 +137,20 @@ final class SwagAgenticCommerce extends Plugin
 
     public function activate(ActivateContext $activateContext): void
     {
-        $this->registerBundledDependencies();
         parent::activate($activateContext);
 
+        $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
     }
 
+    /**
+     * Shopware resolves the requirements of a zip-installed plugin only if this is true, and the
+     * archive ships none of them. Returning false means bundling them, and a plugin-local
+     * `vendor/autoload.php` puts a second Composer ClassLoader in the shop.
+     */
     public function executeComposerCommands(): bool
     {
-        // A packaged SDK is already complete. Re-resolving it would discard the version
-        // selected at build time, and cannot resolve an untagged QA build from Packagist.
-        return !is_file($this->getBasePath().'/.swag-agentic-commerce-bundled-sdk');
+        return true;
     }
 
     /**
@@ -165,6 +163,31 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    /**
+     * Refuses the lifecycle call when the SDK is missing and nothing is going to install it.
+     *
+     * `PluginLifecycleService::executeComposerRequireWhenNeeded()` returns early on a cluster
+     * setup, so the requirements are never resolved and the extension would install without
+     * error and then do nothing at all. Everywhere else a missing SDK is a window Composer
+     * closes by itself, and refusing there would turn a recoverable state into a failed install.
+     */
+    private function refuseWhenNothingWillInstallTheSdk(): void
+    {
+        if (SdkAvailability::isUsable($this->getBasePath())) {
+            return;
+        }
+
+        if (!isset($this->container) || !$this->container->hasParameter('shopware.deployment.cluster_setup')) {
+            return;
+        }
+
+        if (true !== $this->container->getParameter('shopware.deployment.cluster_setup')) {
+            return;
+        }
+
+        throw SdkNotAvailableException::clusterSetupNeedsTheSdkInTheProject(SdkAvailability::reason($this->getBasePath()) ?? 'the UCP SDK is not installed');
     }
 
     private function syncCoreAgenticFiles(): void
@@ -185,6 +208,12 @@ final class SwagAgenticCommerce extends Plugin
 
     private function bootstrapSdkSchema(): void
     {
+        // An install or update can land in the window where the SDK is not there yet. Activation
+        // runs this again, so the tables appear as soon as the shop has one.
+        if (!SdkAvailability::isUsable($this->getBasePath())) {
+            return;
+        }
+
         if (!class_exists(SchemaBootstrapper::class)) {
             throw SdkNotAvailableException::bundleCouldNotBeLoaded();
         }

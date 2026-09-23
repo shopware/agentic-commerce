@@ -1,33 +1,31 @@
 # Payment Tokenization Handler Guide
 
-`SwagAgenticCommerce` intentionally does not ship a fake payment tokenizer.
-The bundled `ShopwareInvoicePaymentHandler` describes an offline invoice-style
-payment flow and returns `supportsTokenization() === false`.
+`SwagAgenticCommerce` intentionally does not ship a fake payment tokenizer. The bundled
+`ShopwareInvoicePaymentHandler` describes an offline invoice-style payment flow and returns
+`supportsTokenization() === false`.
 
-Real UCP payment tokenization must be implemented by a PSP/payment plugin that
-can safely exchange payment credentials for a reusable PSP token.
+Real UCP payment tokenization must be implemented by a PSP/payment plugin that can safely exchange
+payment credentials for a reusable PSP token.
 
 ## Runtime Contract
 
-A sales channel advertises payment tokenization only when all conditions are
-true:
+A sales channel advertises payment tokenization only when all conditions are true:
 
-- A service implementing `Ucp\Sdk\Contract\PaymentHandlerInterface` is
-  registered with the `ucp_sdk.payment_handler` tag.
+- A service implementing `Ucp\Sdk\Contract\PaymentHandlerInterface` is registered with the
+  `ucp_sdk.payment_handler` tag.
 - That handler returns `true` from `supportsTokenization()`.
 - The sales channel config enables the `payment_tokenization` capability.
 
 Until then:
 
 - `/.well-known/ucp` must expose an empty `payment_handlers` object.
-- `/.well-known/ucp` must not advertise
-  `dev.ucp.shopping.payment_tokenization`.
+- `/.well-known/ucp` must not advertise `dev.ucp.shopping.payment_tokenization`.
 - `POST /ucp/v1/tokenize` must return a controlled `501`.
 
 ## Example PSP Handler
 
-This is the expected shape for a real implementation. Keep the actual PSP
-client, credential validation, and token vaulting inside the payment plugin.
+This is the expected shape for a real implementation. Keep the actual PSP client, credential
+validation, and token vaulting inside the payment plugin.
 
 ```php
 <?php
@@ -130,10 +128,9 @@ After installing the PSP plugin:
 2. Fetch `/.well-known/ucp` and verify:
    - `dev.ucp.shopping.payment_tokenization` is present in `capabilities`.
    - `payment_handlers` contains the PSP handler id.
-3. Call `POST /ucp/v1/tokenize` with the PSP handler id and a valid test
-   credential.
-4. Verify checkout can use the returned token without exposing raw credentials
-   to Shopware core or this plugin.
+3. Call `POST /ucp/v1/tokenize` with the PSP handler id and a valid test credential.
+4. Verify checkout can use the returned token without exposing raw credentials to Shopware core or
+   this plugin.
 
 ## Non-Goals
 
