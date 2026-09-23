@@ -20,6 +20,7 @@ use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
+use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingDismissal;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -129,6 +130,7 @@ final class SwagAgenticCommerce extends Plugin
 
         $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
+        $this->resetOnboardingDismissal();
     }
 
     public function update(UpdateContext $updateContext): void
@@ -146,6 +148,7 @@ final class SwagAgenticCommerce extends Plugin
         parent::activate($activateContext);
 
         $this->syncCoreAgenticFiles();
+        $this->resetOnboardingDismissal();
     }
 
     public function executeComposerCommands(): bool
@@ -165,6 +168,15 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    /**
+     * A dismissal lives in core's `user_config`, which an uninstall leaves behind, so a fresh
+     * install would otherwise never offer the onboarding dialog to an admin who once said no.
+     */
+    private function resetOnboardingDismissal(): void
+    {
+        OnboardingDismissal::reset(Kernel::getConnection());
     }
 
     private function syncCoreAgenticFiles(): void

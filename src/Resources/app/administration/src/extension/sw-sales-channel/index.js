@@ -12,3 +12,4 @@ import './view/sw-sales-channel-detail-agentic-commerce-integration';
 import './view/sw-sales-channel-detail-agentic-commerce-statistics';
 import './view/sw-sales-channel-detail-product-comparison';
 import './routes.init';
+import './onboarding.init';

@@ -1,0 +1,101 @@
+{
+  "swagAgenticCommerce": {
+    "settings": {
+      "title": "Agentic Commerce",
+      "description": "Check whether your shop is prepared for AI discovery and complete the remaining setup.",
+      "readinessTitle": "AI readiness",
+      "stepsComplete": "{completed} of {total} steps complete",
+      "taskComplete": "Complete",
+      "findingsTitle": "Worth checking",
+      "preparedTitle": "Prepared sales channels",
+      "preparedMeta": "UCP and AI files enabled. {count} active products.",
+      "preparedPill": "Prepared",
+      "metricsTitle": "Shop readiness",
+      "metricExtension": "Extension",
+      "metricInstalled": "Installed",
+      "metricPrepared": "Prepared sales channels",
+      "metricAgentic": "Agentic sales channels",
+      "status": {
+        "setup_needed": {
+          "heading": "Your shop is not AI prepared yet",
+          "copy": "Agentic Commerce is installed. Prepare your existing sales channels first, then connect them to an AI provider.",
+          "pill": "Setup needed"
+        },
+        "action_needed": {
+          "heading": "There is still something to do",
+          "copy": "Some of your sales channels are prepared. Finish the remaining steps so AI agents can actually reach them.",
+          "pill": "Action needed"
+        },
+        "ready": {
+          "heading": "Your shop is AI prepared",
+          "copy": "Your sales channels are prepared and an agentic sales channel is connected to an AI provider.",
+          "pill": "AI prepared"
+        }
+      },
+      "tasks": {
+        "installed": {
+          "title": "Agentic Commerce installed",
+          "description": "The extension is active in this shop.",
+          "doneDescription": "The extension is active in this shop."
+        },
+        "prepared": {
+          "title": "Prepare existing sales channels",
+          "description": "Enable the required UCP and AI-file settings without configuring each sales channel by hand.",
+          "doneDescription": "{count} sales channel(s) prepared.",
+          "action": "Prepare sales channels"
+        },
+        "connected": {
+          "title": "Connect to an AI provider",
+          "description": "Create an agentic sales channel once your storefronts are prepared.",
+          "doneDescription": "{count} agentic sales channel(s) connected.",
+          "action": "Create sales channel"
+        }
+      }
+    },
+    "prepare": {
+      "title": "Prepare sales channels",
+      "steps": {
+        "understand": "Understand",
+        "select": "Select",
+        "review": "Review"
+      },
+      "understand": {
+        "heading": "What Shopware will change",
+        "copy": "Agentic Commerce uses additional product-data endpoints. For the sales channels you select, Shopware enables the following where they are not already active.",
+        "ucpTitle": "Universal Commerce Protocol",
+        "ucpCopy": "Makes structured product and commerce information available to AI agents over UCP, and creates a signing key for the channel.",
+        "filesTitle": "AI files",
+        "filesCopy": "Publishes machine-readable files that tell AI services how they may interact with this sales channel.",
+        "notice": "Nothing changes until you confirm. Settings that are already enabled stay unchanged, and channels that are already prepared are not offered."
+      },
+      "select": {
+        "heading": "Choose sales channels",
+        "selected": "{count} selected",
+        "selectAll": "Select all",
+        "deselectAll": "Deselect all",
+        "products": "{count} active products",
+        "noDomain": "No domain, agents cannot reach this channel",
+        "empty": "Every sales channel that can be exposed is already prepared.",
+        "notice": "Only missing settings are enabled. Existing ones are left unchanged."
+      },
+      "review": {
+        "heading": "Review changes",
+        "summary": "{count} sales channel(s) will be prepared.",
+        "notice": "Shopware enables UCP and the AI files where required. Existing enabled settings will not be changed."
+      },
+      "result": {
+        "heading": "Result",
+        "summary": "{enabled} prepared, {skipped} already set up, {failed} failed.",
+        "enabled": "Prepared",
+        "skipped": "Already set up",
+        "findingsTitle": "Worth checking"
+      },
+      "actions": {
+        "back": "Back",
+        "continue": "Continue",
+        "apply": "Apply changes",
+        "done": "Done"
+      }
+    }
+  }
+}

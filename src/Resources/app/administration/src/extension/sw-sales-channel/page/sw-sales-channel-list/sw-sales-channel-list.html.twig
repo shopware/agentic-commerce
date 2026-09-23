@@ -31,3 +31,23 @@
     </sw-status>
 </template>
 {% endblock %}
+
+{# Sits in sw-card's default slot, which mt-card renders above the #grid slot,
+   so the hint reads as part of the card instead of floating above it. #}
+{% block sw_sales_channel_list_grid %}
+<div
+    v-if="showUcpOnboardingHint"
+    class="sw-sales-channel-list__ucp-onboarding"
+>
+    <span class="sw-sales-channel-list__ucp-onboarding-text">
+        {{ $t('swagAgenticCommerce.onboarding.hintNothingExposed') }}
+    </span>
+    <router-link
+        class="sw-sales-channel-list__ucp-onboarding-link"
+        :to="{ name: 'sw.settings.agentic.commerce.index' }"
+    >{{ $t('swagAgenticCommerce.onboarding.reopenAction') }}</router-link>
+</div>
+
+{% parent %}
+{% endblock %}
+

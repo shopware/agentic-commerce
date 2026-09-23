@@ -1,4 +1,6 @@
 import template from './sw-sales-channel-list.html.twig';
+import './sw-sales-channel-list.scss';
+import { needsOnboarding } from '../../agentic-commerce/onboarding-state';
 
 const { Component } = Shopware;
 
@@ -9,6 +11,10 @@ const { Component } = Shopware;
  * instead we fetch the per-channel active state via the existing
  * `ucpAdminApiService.getSalesChannels()` endpoint and look it up by id in the
  * `#column-ucpActive` slot.
+ *
+ * The same response decides whether to show the hint row that points at
+ * Settings > Agentic Commerce. It appears only while nothing is exposed, so it
+ * disappears once the merchant is set up.
  */
 export const swSalesChannelListOverride = {
     template,
@@ -18,12 +24,24 @@ export const swSalesChannelListOverride = {
     data() {
         return {
             ucpActiveMap: {},
+            ucpSalesChannels: [],
         };
     },
 
     computed: {
         canViewUcpStatus() {
             return this.acl?.can?.('ucp.viewer') === true;
+        },
+
+        canManageUcpOnboarding() {
+            return this.acl?.can?.('ucp.editor') === true;
+        },
+
+        // Only while the shop has nothing exposed, so the row disappears once
+        // the merchant is set up. needsOnboarding() is false for an empty list,
+        // which also keeps it hidden until the channels have loaded.
+        showUcpOnboardingHint() {
+            return this.canManageUcpOnboarding && needsOnboarding(this.ucpSalesChannels);
         },
 
         salesChannelColumns() {
@@ -70,14 +88,16 @@ export const swSalesChannelListOverride = {
                 return;
             }
 
-            service
+            return service
                 .getSalesChannels()
                 .then((response) => {
+                    const salesChannels = response?.data?.data ?? [];
                     const map = {};
-                    (response?.data?.data ?? []).forEach((salesChannel) => {
+                    salesChannels.forEach((salesChannel) => {
                         map[salesChannel.id] = Boolean(salesChannel.ucp?.active);
                     });
                     this.ucpActiveMap = map;
+                    this.ucpSalesChannels = salesChannels;
                 })
                 .catch(() => {});
         },

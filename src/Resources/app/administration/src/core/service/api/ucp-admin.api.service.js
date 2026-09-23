@@ -32,6 +32,18 @@ class UcpAdminApiService extends ApiService {
         return this.httpClient.post(this.basePath(salesChannelId, '/profile-preview'), payload, this.options());
     }
 
+    // Applies one exposure payload to several channels; responds 200 with a
+    // per-channel outcome even when some of them failed.
+    bulkEnable(payload) {
+        return this.httpClient.post('/_admin/ucp/onboarding/bulk-enable', payload, this.options());
+    }
+
+    // The whole settings page in one read: status, the three setup steps, and
+    // every offerable channel with its outstanding findings.
+    getReadiness() {
+        return this.httpClient.get('/_admin/ucp/onboarding/readiness', this.options());
+    }
+
     basePath(salesChannelId, suffix = '') {
         return `/_admin/ucp/sales-channels/${encodeURIComponent(salesChannelId)}${suffix}`;
     }

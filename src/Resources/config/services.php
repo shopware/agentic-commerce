@@ -72,6 +72,7 @@ use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareDiscountAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareOrderAdapter;
 use Swag\AgenticCommerce\Ucp\Admin\Api\UcpAdminController;
+use Swag\AgenticCommerce\Ucp\Admin\Api\UcpOnboardingController;
 use Swag\AgenticCommerce\Ucp\Capability\CartCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CatalogCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CheckoutCapability;
@@ -125,6 +126,8 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
+use Swag\AgenticCommerce\Ucp\Onboarding\DoctrineDbalOnboardingMetrics;
+use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingMetricsInterface;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
@@ -358,6 +361,9 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride)
         ->tag('controller.service_arguments');
 
+    $services->set(UcpOnboardingController::class)
+        ->tag('controller.service_arguments');
+
     $services->set(FallbackAgenticFileController::class)
         ->tag('controller.service_arguments');
 
@@ -403,6 +409,7 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'))
         ->arg('$logger', service('logger')->nullOnInvalid());
 
+    $services->alias(OnboardingMetricsInterface::class, DoctrineDbalOnboardingMetrics::class);
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);

@@ -1,0 +1,29 @@
+.sw-sales-channel-list {
+    &__ucp-onboarding {
+        align-items: center;
+        background: #f9fafb;
+        border: 1px solid #d1d9e0;
+        border-radius: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+    }
+
+    &__ucp-onboarding-text {
+        color: #52667a;
+        font-size: 13px;
+    }
+
+    &__ucp-onboarding-link {
+        color: #0870ff;
+        font-size: 13px;
+        text-decoration: none;
+
+        &:hover,
+        &:focus {
+            text-decoration: underline;
+        }
+    }
+}

@@ -1,0 +1,176 @@
+{% block sw_settings_agentic_commerce_index %}
+<sw-page class="sw-settings-agentic-commerce">
+
+    {% block sw_settings_agentic_commerce_index_header %}
+    <template #smart-bar-header>
+        <h2>{{ $t('swagAgenticCommerce.settings.title') }}</h2>
+    </template>
+    {% endblock %}
+
+    {% block sw_settings_agentic_commerce_index_content %}
+    <template #content>
+        <sw-card-view>
+            <sw-skeleton v-if="isLoading" />
+
+            <template v-else>
+                {% block sw_settings_agentic_commerce_index_status %}
+                <sw-card
+                    position-identifier="sw-settings-agentic-commerce-status"
+                    class="sw-settings-agentic-commerce__status-card"
+                    :title="$t('swagAgenticCommerce.settings.title')"
+                >
+                    <div class="sw-settings-agentic-commerce__status-top">
+                        <div class="sw-settings-agentic-commerce__status-identity">
+                            <span
+                                class="sw-settings-agentic-commerce__status-icon"
+                                :class="'sw-settings-agentic-commerce__status-icon--' + statusVariant"
+                            >{{ statusVariant === 'success' ? '✓' : '!' }}</span>
+                            <div>
+                                <div class="sw-settings-agentic-commerce__status-heading">
+                                    {{ $t(statusSnippets.heading) }}
+                                </div>
+                                <p class="sw-settings-agentic-commerce__status-copy">
+                                    {{ $t(statusSnippets.copy) }}
+                                </p>
+                            </div>
+                        </div>
+                        <span
+                            class="sw-settings-agentic-commerce__pill"
+                            :class="'sw-settings-agentic-commerce__pill--' + statusVariant"
+                        >{{ $t(statusSnippets.pill) }}</span>
+                    </div>
+
+                    {% block sw_settings_agentic_commerce_index_readiness %}
+                    <div class="sw-settings-agentic-commerce__readiness">
+                        <div class="sw-settings-agentic-commerce__readiness-head">
+                            <span class="sw-settings-agentic-commerce__readiness-title">
+                                {{ $t('swagAgenticCommerce.settings.readinessTitle') }}
+                            </span>
+                            <span class="sw-settings-agentic-commerce__readiness-count">
+                                {{ $t('swagAgenticCommerce.settings.stepsComplete', {
+                                    completed: readiness.completedSteps,
+                                    total: readiness.totalSteps
+                                }) }}
+                            </span>
+                        </div>
+
+                        <div class="sw-settings-agentic-commerce__progress">
+                            <span :style="{ width: progressPercent + '%' }"></span>
+                        </div>
+
+                        <ul class="sw-settings-agentic-commerce__tasks">
+                            <li
+                                v-for="task in tasks"
+                                :key="task.key"
+                                class="sw-settings-agentic-commerce__task"
+                            >
+                                <span
+                                    class="sw-settings-agentic-commerce__task-dot"
+                                    :class="task.done
+                                        ? 'sw-settings-agentic-commerce__task-dot--done'
+                                        : 'sw-settings-agentic-commerce__task-dot--todo'"
+                                >{{ task.done ? '✓' : '!' }}</span>
+
+                                <div class="sw-settings-agentic-commerce__task-body">
+                                    <div class="sw-settings-agentic-commerce__task-title">
+                                        {{ $t(taskLabel(task, 'title')) }}
+                                    </div>
+                                    <div class="sw-settings-agentic-commerce__task-desc">
+                                        {{ $t(taskLabel(task, task.done ? 'doneDescription' : 'description'), { count: task.count }) }}
+                                    </div>
+                                </div>
+
+                                <sw-button
+                                    v-if="task.key === 'prepared' && !task.done"
+                                    size="small"
+                                    variant="primary"
+                                    :disabled="!canPrepare || !hasChannelsToPrepare"
+                                    @click="openPrepare"
+                                >{{ $t('swagAgenticCommerce.settings.tasks.prepared.action') }}</sw-button>
+
+                                <sw-button
+                                    v-else-if="task.key === 'connected' && !task.done"
+                                    size="small"
+                                    :disabled="task.locked"
+                                    @click="onCreateAgenticChannel"
+                                >{{ $t('swagAgenticCommerce.settings.tasks.connected.action') }}</sw-button>
+
+                                <span
+                                    v-else
+                                    class="sw-settings-agentic-commerce__task-state"
+                                >{{ $t('swagAgenticCommerce.settings.taskComplete') }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                    {% endblock %}
+
+                    {% block sw_settings_agentic_commerce_index_findings %}
+                    <sw-alert
+                        v-if="findings.length > 0"
+                        variant="warning"
+                        class="sw-settings-agentic-commerce__findings"
+                        :title="$t('swagAgenticCommerce.settings.findingsTitle')"
+                    >
+                        <ul>
+                            <li
+                                v-for="(finding, index) in findings"
+                                :key="index"
+                            >{{ finding.salesChannelName }}: {{ finding.message }}</li>
+                        </ul>
+                    </sw-alert>
+                    {% endblock %}
+
+                    {% block sw_settings_agentic_commerce_index_prepared %}
+                    <div
+                        v-if="preparedChannels.length > 0"
+                        class="sw-settings-agentic-commerce__prepared"
+                    >
+                        <div class="sw-settings-agentic-commerce__prepared-title">
+                            {{ $t('swagAgenticCommerce.settings.preparedTitle') }}
+                        </div>
+                        <div
+                            v-for="channel in preparedChannels"
+                            :key="channel.id"
+                            class="sw-settings-agentic-commerce__prepared-row"
+                        >
+                            <div>
+                                <div class="sw-settings-agentic-commerce__prepared-name">{{ channel.name }}</div>
+                                <div class="sw-settings-agentic-commerce__prepared-meta">
+                                    {{ $t('swagAgenticCommerce.settings.preparedMeta', { count: channel.activeProductCount }) }}
+                                </div>
+                            </div>
+                            <span class="sw-settings-agentic-commerce__ready-pill">
+                                {{ $t('swagAgenticCommerce.settings.preparedPill') }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endblock %}
+                </sw-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_index_metrics %}
+                <sw-card
+                    position-identifier="sw-settings-agentic-commerce-metrics"
+                    :title="$t('swagAgenticCommerce.settings.metricsTitle')"
+                >
+                    <div class="sw-settings-agentic-commerce__metric">
+                        <span>{{ $t('swagAgenticCommerce.settings.metricExtension') }}</span>
+                        <strong>{{ $t('swagAgenticCommerce.settings.metricInstalled') }}</strong>
+                    </div>
+                    <div class="sw-settings-agentic-commerce__metric">
+                        <span>{{ $t('swagAgenticCommerce.settings.metricPrepared') }}</span>
+                        <strong>{{ preparedCount }}</strong>
+                    </div>
+                    <div class="sw-settings-agentic-commerce__metric">
+                        <span>{{ $t('swagAgenticCommerce.settings.metricAgentic') }}</span>
+                        <strong>{{ agenticChannelCount }}</strong>
+                    </div>
+                </sw-card>
+                {% endblock %}
+            </template>
+
+        </sw-card-view>
+    </template>
+    {% endblock %}
+</sw-page>
+{% endblock %}
