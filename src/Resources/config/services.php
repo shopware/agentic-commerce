@@ -127,6 +127,7 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileRouteScopeWhitelist;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -355,6 +356,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(UcpOrderGetTool::class)->tag('shopware.store_api_mcp.tool');
 
     $services->set(StoreApiMcpRouteScopeWhitelist::class)
+        ->tag('shopware.route_scope_whitelist');
+
+    $services->set(UcpProfileRouteScopeWhitelist::class)
         ->tag('shopware.route_scope_whitelist');
 
     // Public controllers.
