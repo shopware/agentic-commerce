@@ -58,6 +58,24 @@ final class ApiCatalogControllerTest extends TestCase
         ], $payload);
     }
 
+    public function testItServesTheUcpProfileOnTheRootStorefrontDomain(): void
+    {
+        $this->setUcpActive(true);
+
+        $browser = KernelLifecycleManager::createBrowser($this->getKernel());
+        $browser->request('GET', $this->baseUrl().'/.well-known/ucp');
+        $response = $browser->getResponse();
+
+        static::assertSame(Response::HTTP_OK, $response->getStatusCode());
+        static::assertSame('application/json', $response->headers->get('Content-Type'));
+
+        $payload = json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertArrayHasKey('ucp', $payload);
+        static::assertIsArray($payload['ucp']);
+        static::assertArrayHasKey('capabilities', $payload['ucp']);
+    }
+
     public function testItReturns404ForAnUnexposedSalesChannel(): void
     {
         // The sales channel is not exposed for agentic commerce (UCP config inactive).
