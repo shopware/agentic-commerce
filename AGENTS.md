@@ -482,6 +482,34 @@ have their own subsections there — read them before the change, not after CI i
   unreleased cycle is fine — verify with `git show <tag>:<migration-path>` that no release tag
   contains it.
 
+### Changelog entries
+
+`CHANGELOG.md` and `CHANGELOG_de-DE.md` are what a merchant reads in the Store,
+and `shopware-cli extension get-changelog` turns the top section into the GitHub
+release body. The 1.3.0 section is the reference shape — match it.
+
+- **Structure.** One `# <version>` H1 per release, newest first, and nothing else
+  at heading level: no `# Changelog` title, no `## Added` groups. The
+  store-release preflight greps for `# ${version}` and `get-changelog` reads every
+  H1 as a version. Under the heading one flat bullet list — no nesting, no
+  `Fixed:`/`Added:` labels, no blank lines between bullets.
+- **A bullet is one paragraph, outcome first.** The opening sentence says what the
+  plugin now does, in the vocabulary of the shop and the agent. When someone could
+  have been relying on the old behaviour, the rest of the paragraph says what it
+  did, what that cost, and what happens instead. A self-explanatory change stops
+  after the first sentence — most of 1.1.0 is a single sentence per bullet.
+- **Name what the reader can check** — `payment.instruments[].billing_address`,
+  `catalog.product`, `422`, `ucp_negotiation`, `0.0.7` — in backticks. Not PHP
+  class names, file paths, PR numbers, commit scopes or branch names; the commit
+  message is where those belong.
+- **Order inside a version:** behaviour an existing shop notices, then new
+  capabilities, then compatibility and packaging notes.
+- **The two files carry the same bullets in the same order, one to one.** Translate
+  a bullet; never summarize two into one. 1.3.0 had drifted to 19 English against
+  18 German bullets in a different order: the empty-search and unknown-cart changes
+  had been folded into one sentence, so a German reader got neither in full.
+- ASCII `--` for a parenthetical dash, `„…“` for German quotation marks.
+
 ## Further References
 
 - [docs/shopware-version-differences.md](docs/shopware-version-differences.md)
