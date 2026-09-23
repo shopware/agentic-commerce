@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Routing\RouteScopeListener;
@@ -22,6 +23,7 @@ use Ucp\Sdk\Symfony\Controller\ProfileController;
 use Ucp\Sdk\Symfony\UcpSdkConfiguration;
 
 /** @internal */
+#[CoversClass(UcpProfileRouteScopeWhitelist::class)]
 final class UcpProfileRouteScopeWhitelistTest extends TestCase
 {
     #[Test]
@@ -69,7 +71,7 @@ final class UcpProfileRouteScopeWhitelistTest extends TestCase
 
         return new ControllerEvent(
             $this->createStub(HttpKernelInterface::class),
-            [$this->profileController(), '__invoke'],
+            \Closure::fromCallable($this->profileController()),
             $request,
             HttpKernelInterface::MAIN_REQUEST,
         );
