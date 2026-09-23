@@ -55,7 +55,8 @@ final class UcpOAuthScopeRegistry
     }
 
     /**
-     * Expands an empty request to every supported scope and rejects anything else.
+     * An empty request gets the core scopes only, so installing an extension never widens what a
+     * client that omits `scope` is granted; anything unsupported is rejected.
      */
     public function normalize(string $scope): string
     {
@@ -63,7 +64,7 @@ final class UcpOAuthScopeRegistry
 
         $requested = array_values(array_filter(explode(' ', trim($scope)), static fn (string $entry): bool => '' !== $entry));
         if ([] === $requested) {
-            return implode(' ', $supported);
+            return implode(' ', self::CORE_SCOPES);
         }
 
         $unsupported = array_values(array_diff($requested, $supported));

@@ -57,12 +57,12 @@ final class UcpOAuthScopeRegistryTest extends TestCase
     }
 
     #[Test]
-    public function testAnEmptyRequestExpandsToEverySupportedScope(): void
+    public function testAnEmptyRequestGrantsOnlyTheCoreScopes(): void
     {
         $registry = $this->registryWith('com.vendor.scope:manage');
 
         static::assertSame(
-            'dev.ucp.shopping.cart:manage dev.ucp.shopping.order:read dev.ucp.shopping.order:manage com.vendor.scope:manage',
+            'dev.ucp.shopping.cart:manage dev.ucp.shopping.order:read dev.ucp.shopping.order:manage',
             $registry->normalize('  '),
         );
     }
