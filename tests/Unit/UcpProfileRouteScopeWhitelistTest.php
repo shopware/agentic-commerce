@@ -53,6 +53,7 @@ final class UcpProfileRouteScopeWhitelistTest extends TestCase
 
         $requestStack = new RequestStack();
         $mainRequest = Request::create('https://shop.example/.well-known/ucp');
+        $mainRequest->attributes->set('_route', 'ucp_sdk_symfony_profile__invoke');
         $requestStack->push($mainRequest);
 
         $listener = new RouteScopeListener(
