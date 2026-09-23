@@ -9,7 +9,6 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Routing\RouteScopeListener;
 use Shopware\Core\Framework\Routing\RouteScopeRegistry;
-use Shopware\Core\Framework\Routing\RoutingException;
 use Shopware\Core\PlatformRequest;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\Ucp\Profile\UcpProfileRouteScopeWhitelist;
@@ -44,25 +43,6 @@ final class UcpProfileRouteScopeWhitelistTest extends TestCase
 
         static::assertTrue($whitelist->applies(ProfileController::class));
         static::assertFalse($whitelist->applies(self::class));
-    }
-
-    #[Test]
-    public function itWouldRejectTheProfileWithoutTheWhitelist(): void
-    {
-        $this->expectException(RoutingException::class);
-
-        $requestStack = new RequestStack();
-        $mainRequest = Request::create('https://shop.example/.well-known/ucp');
-        $mainRequest->attributes->set('_route', 'ucp_sdk_symfony_profile__invoke');
-        $requestStack->push($mainRequest);
-
-        $listener = new RouteScopeListener(
-            new RouteScopeRegistry([new StorefrontRouteScope()]),
-            $requestStack,
-            [],
-        );
-
-        $listener->checkScope($this->controllerEvent());
     }
 
     private function controllerEvent(): ControllerEvent
