@@ -76,13 +76,6 @@ jobs:
 
           echo "Validated main HEAD ${GITHUB_SHA} with CI gate ${gate_id}."
 
-      - name: Prepare the released SDK runtime
-        run: |
-          set -euo pipefail
-          composer config vendor-dir vendor
-          composer update --with ucp-php-sdk/symfony-bundle:0.0.7 --with ucp-php-sdk/core:0.0.7 --no-dev --no-scripts --no-interaction --prefer-dist
-          bin/ci-bundle-sdk-only.sh
-
       - name: Install shopware-cli
         uses: shopware/shopware-cli-action@v3
 
@@ -92,7 +85,7 @@ jobs:
           shopware-cli extension zip . --disable-git --release
           shopware-cli extension validate SwagAgenticCommerce.zip
           bin/ci-assert-zip-admin-bundle.sh SwagAgenticCommerce.zip
-          bin/ci-assert-zip-vendors-sdk.sh SwagAgenticCommerce.zip
+          bin/ci-assert-zip-no-vendor.sh SwagAgenticCommerce.zip
           mkdir -p dist
           unzip -q SwagAgenticCommerce.zip -d dist
 

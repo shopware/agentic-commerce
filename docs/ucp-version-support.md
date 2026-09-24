@@ -1,9 +1,9 @@
 # UCP version support
 
-What UCP version this plugin serves, where that is decided, and what an SDK release that
-moves the spec date means for a shop. The reasoning behind the single-version policy lives in
-the SDK's `docs/ucp-version-support-policy.md` and is not repeated here; that document is the
-decision of record.
+What UCP version this plugin serves, where that is decided, and what an SDK release that moves the
+spec date means for a shop. The reasoning behind the single-version policy lives in the SDK's
+`docs/ucp-version-support-policy.md` and is not repeated here; that document is the decision of
+record.
 
 ## What the plugin serves
 
@@ -11,37 +11,36 @@ Exactly one UCP version: the one the linked `ucp-php-sdk` release serves. Today 
 `2026-08-25`.
 
 It is written down once, in `src/Ucp/UcpProtocol.php` as `UcpProtocol::VERSION`. The capability
-catalog and the payment handler stamp it into the profile, and the schema test validates
-responses against the SDK's generated schemas for that date.
+catalog and the payment handler stamp it into the profile, and the schema test validates responses
+against the SDK's generated schemas for that date.
 
-The plugin does **not** pass `ucp_sdk.version` to the SDK bundle. An SDK release serves exactly
-one protocol version and defaults to it, so the only value that could ever be right is the one
-the SDK already holds -- and passing it is the one way the two can come to disagree. Version
-1.2.x shipped `version: '2026-04-08'` in a bundled `ucp_sdk.yaml` alongside a `>=0.0.5 <0.1.0`
-SDK window: `composer update` resolved SDK 0.0.6, which had dropped that version, and the
-container build failed inside `assets:install` part-way through a Shopware core upgrade, with
-the error naming asset installation rather than the configuration line responsible. Two changes
-close that off -- the SDK window is a single patch now, and the version is not configured at
-all.
+The plugin does **not** pass `ucp_sdk.version` to the SDK bundle. An SDK release serves exactly one
+protocol version and defaults to it, so the only value that could ever be right is the one the SDK
+already holds -- and passing it is the one way the two can come to disagree. Version 1.2.x shipped
+`version: '2026-04-08'` in a bundled `ucp_sdk.yaml` alongside a `>=0.0.5 <0.1.0` SDK window:
+`composer update` resolved SDK 0.0.6, which had dropped that version, and the container build failed
+inside `assets:install` part-way through a Shopware core upgrade, with the error naming asset
+installation rather than the configuration line responsible. Two changes close that off -- the SDK
+window is a single patch now, and the version is not configured at all.
 
 `UcpProtocolVersionGuardTest` asserts that the constant equals the SDK's
-`UcpProtocolVersion::current()`. The constant is deliberately **not** derived from the enum: an
-SDK release that moved to a new spec date would otherwise silently change what every shop
-advertises while `ShopwareDataMapper` still emitted the previous shapes. The failing test is
-the intended way for a spec bump to surface.
+`UcpProtocolVersion::current()`. The constant is deliberately **not** derived from the enum: an SDK
+release that moved to a new spec date would otherwise silently change what every shop advertises
+while `ShopwareDataMapper` still emitted the previous shapes. The failing test is the intended way
+for a spec bump to surface.
 
 ## A merchant cannot choose a version
 
-There is no UCP version setting in the administration, and a `ucpVersion` value stored in an
-older `swag_agentic_commerce_ucp_config` row is read and discarded (`UcpConfig`). The column
-could only ever hold one legal value, and that value is a compile-time constant of the plugin
-release. After the `2026-08-25` bump every sales channel still held `2026-04-08` and the plugin
-rejected its own configuration until the rows were edited by hand; that is why the value is no
-longer persisted at all.
+There is no UCP version setting in the administration, and a `ucpVersion` value stored in an older
+`swag_agentic_commerce_ucp_config` row is read and discarded (`UcpConfig`). The column could only
+ever hold one legal value, and that value is a compile-time constant of the plugin release. After
+the `2026-08-25` bump every sales channel still held `2026-04-08` and the plugin rejected its own
+configuration until the rows were edited by hand; that is why the value is no longer persisted at
+all.
 
-UCP itself offers no cheaper way to serve an older version than a whole second profile with its
-own endpoints and keys (`supported_versions` in the specification maps each older date to such
-a profile). The plugin does not build one, for the reasons in the SDK policy document.
+UCP itself offers no cheaper way to serve an older version than a whole second profile with its own
+endpoints and keys (`supported_versions` in the specification maps each older date to such a
+profile). The plugin does not build one, for the reasons in the SDK policy document.
 
 ## What an SDK spec bump means for a shop
 
@@ -59,33 +58,38 @@ From the shop's point of view an upgrade to such a release changes the version i
 
 ## Seeing which versions agents actually speak
 
-Whether refusing the previous version costs a shop anything depends on which versions the
-agents pin, and that is not public information. SDK `0.0.7` and newer report the version
-an agent's profile named on every request, and `VersionNegotiationCounter` in this plugin
-counts it: one log record per request per distinct combination of observed version, served
-version, outcome and agent profile host, written at kernel terminate on the monolog channel
-`ucp_negotiation` at `info` level. Only the profile **host** is recorded, never the full URI
-or any request content.
+Whether refusing the previous version costs a shop anything depends on which versions the agents
+pin, and that is not public information. SDK `0.0.7` and newer report the version an agent's profile
+named on every request, and `VersionNegotiationCounter` in this plugin counts it: one log record per
+request per distinct combination of observed version, served version, outcome and agent profile
+host, written at kernel terminate on the monolog channel `ucp_negotiation` at `info` level. Only the
+profile **host** is recorded, never the full URI or any request content.
 
-Shopware's default production logging keeps only errors, so to retain these records give the
-channel a handler in the shop's `config/packages/prod/monolog.yaml`:
+Shopware's default production logging keeps only errors, so to retain these records give the channel
+a handler in the shop's `config/packages/prod/monolog.yaml`:
 
 ```yaml
 monolog:
-    handlers:
-        ucp_negotiation:
-            type: stream
-            path: '%kernel.logs_dir%/ucp-negotiation.log'
-            level: info
-            channels: ['ucp_negotiation']
+  handlers:
+    ucp_negotiation:
+      type: stream
+      path: "%kernel.logs_dir%/ucp-negotiation.log"
+      level: info
+      channels: ["ucp_negotiation"]
 ```
 
 Each record's context looks like:
 
 ```json
-{"observed_version": "2026-04-08", "served_version": "2026-08-25", "outcome": "rejected", "profile_host": "agent.example", "count": 1}
+{
+  "observed_version": "2026-04-08",
+  "served_version": "2026-08-25",
+  "outcome": "rejected",
+  "profile_host": "agent.example",
+  "count": 1
+}
 ```
 
-The share of `rejected` records, grouped by `observed_version`, is what the SDK policy names as
-its revisit trigger. SDK `0.0.7` is the first release that reports it; against `0.0.6` the listener
-was inert and wrote nothing.
+The share of `rejected` records, grouped by `observed_version`, is what the SDK policy names as its
+revisit trigger. SDK `0.0.7` is the first release that reports it; against `0.0.6` the listener was
+inert and wrote nothing.

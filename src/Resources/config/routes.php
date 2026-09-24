@@ -7,10 +7,17 @@ use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\PlatformRequest;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
+use Swag\AgenticCommerce\SdkAvailability;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 use Ucp\Sdk\Symfony\UcpSdkBundle;
 
 return static function (RoutingConfigurator $routes): void {
+    // The controllers below are services this plugin only registers when the SDK is usable, and
+    // the SDK's own routes come from a bundle that is not loaded otherwise. See SdkAvailability.
+    if (!SdkAvailability::isUsable(\dirname(__DIR__, 3))) {
+        return;
+    }
+
     $routes->import('../../Ucp/Admin/Api/', 'attribute');
     $routes->import('../../Ucp/Mcp/Api/', 'attribute');
 

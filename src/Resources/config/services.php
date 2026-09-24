@@ -62,6 +62,7 @@ use Swag\AgenticCommerce\Content\ProductExport\Twig\AgenticProductExportExtensio
 use Swag\AgenticCommerce\Content\ProductExport\Validator\GoogleProductExportValidator;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\JsonlRowParser;
 use Swag\AgenticCommerce\Content\ProductExport\Validator\OpenAiProductExportValidator;
+use Swag\AgenticCommerce\SdkAvailability;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
@@ -161,6 +162,14 @@ use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
 return static function (ContainerConfigurator $container): void {
+    // Without a usable SDK this file cannot be loaded at all: the ucp_sdk extension below belongs
+    // to a bundle that is not registered, and the service glob reflects on classes implementing
+    // SDK interfaces. Registering nothing keeps the shop bootable until Composer has installed it
+    // -- see SdkAvailability, and SwagAgenticCommerce::build() for the log entry.
+    if (!SdkAvailability::isUsable(\dirname(__DIR__, 3))) {
+        return;
+    }
+
     $appUrlHost = parse_url((string) EnvironmentHelper::getVariable('APP_URL', ''), \PHP_URL_HOST);
     $appUrlHost = \is_string($appUrlHost) ? rtrim(strtolower($appUrlHost), '.') : '';
     $allowHttpLocalWebhookOverride = 'prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')
