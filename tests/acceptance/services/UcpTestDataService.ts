@@ -74,6 +74,7 @@ export interface UcpProfileDocument {
     ucp: {
         version: string
         services: Record<string, { transport: string, endpoint: string }[]>
+        capabilities: Record<string, { version: string, extends?: string[] | null }[]>
     }
     signing_keys: { kid: string, alg: string, crv: string }[]
 }
@@ -199,6 +200,17 @@ export class UcpTestDataService extends TestDataService {
         expect(response.ok(), await response.text()).toBeTruthy();
 
         return ((await response.json()) as { data: UcpConfigPayload }).data;
+    }
+
+    /**
+     * The profile the shop would serve for this channel, resolved by id. `/.well-known/ucp` under
+     * a path-prefixed domain cannot give this today (known blocker D8).
+     */
+    async getProfilePreview(salesChannelId: string): Promise<UcpProfileDocument['ucp']> {
+        const response = await this.AdminApiClient.get(`./_admin/ucp/sales-channels/${salesChannelId}/profile-preview`);
+        expect(response.ok(), await response.text()).toBeTruthy();
+
+        return ((await response.json()) as { data: { ucp: UcpProfileDocument['ucp'] } }).data.ucp;
     }
 
     /**

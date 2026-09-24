@@ -103,11 +103,22 @@ declare global {
     var Shopware: unknown;
 }
 
+let privilegeMapping: Promise<PrivilegeMapping> | undefined;
+
 /**
  * Evaluates the Administration ACL file with a stub `Shopware` global that records every
  * `addPrivilegeMappingEntry` call, so the privilege sets come from the shipped source.
+ *
+ * Node evaluates an ES module once per process, so a second import would register nothing;
+ * the first result is kept for every later caller in the worker.
  */
-export async function readAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
+export function readAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
+    privilegeMapping ??= evaluateAdminPrivilegeMapping();
+
+    return privilegeMapping;
+}
+
+async function evaluateAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
     const aclFile = path.join(
         resolvePluginDir(),
         'src', 'Resources', 'app', 'administration', 'src', 'extension', 'sw-sales-channel', 'acl', 'index.js',

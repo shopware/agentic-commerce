@@ -1,6 +1,8 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import { FEED_SALES_CHANNEL_TYPE_ID, UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED, UcpTestDataService } from '@services/UcpTestDataService';
 import type { UcpProfileDocument } from '@services/UcpTestDataService';
+import { readAdminPrivilegeMapping, resolveRole } from '@services/pluginSource';
+import { UCP_ROLES } from '@fixtures/UcpAclUsers';
 
 test.describe('Isolated UCP test data @Setup', () => {
     test('the worker channel sits on its own path-prefixed domain', ({ DefaultSalesChannel, SalesChannelBaseConfig }) => {
@@ -59,6 +61,50 @@ test.describe('Test agent profile host @Setup', () => {
         const publishedProfile = (await servedProfile.json()) as UcpProfileDocument;
         expect(publishedProfile.signing_keys).toEqual([expect.objectContaining({ kid: agent.kid, alg: 'ES256', crv: 'P-256' })]);
         expect(publishedProfile.ucp.version).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    test('the published profile negotiates every capability an activated channel serves', async ({ UcpAgentProfileHost, TestDataService, page }) => {
+        const negotiatingChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(negotiatingChannel.salesChannel.id);
+        const servedByChannel = await TestDataService.getProfilePreview(negotiatingChannel.salesChannel.id);
+
+        const agent = await UcpAgentProfileHost.publish();
+        const servedProfile = await page.request.get(new URL(`ucp-acceptance-agents/${agent.kid}.json`, process.env.APP_URL).toString());
+        const publishedProfile = ((await servedProfile.json()) as UcpProfileDocument).ucp;
+
+        expect(publishedProfile.version, 'the SDK refuses a profile at another protocol version').toBe(servedByChannel.version);
+        expect(Object.keys(servedByChannel.capabilities).length).toBeGreaterThan(0);
+
+        const negotiated = Object.keys(servedByChannel.capabilities).filter(name => (publishedProfile.capabilities[name] ?? [])
+            .some(agentEntry => servedByChannel.capabilities[name].some(channelEntry => channelEntry.version === agentEntry.version)));
+        expect(negotiated.sort(), 'every capability the channel serves survives the SDK\'s intersection')
+            .toEqual(Object.keys(servedByChannel.capabilities).sort());
+
+        for (const name of negotiated) {
+            const bases = publishedProfile.capabilities[name][0].extends ?? [];
+            expect(bases.length === 0 || bases.some(base => negotiated.includes(base)), `${name} extends a capability that did not survive`).toBe(true);
+        }
+    });
+
+    test('a capabilities override replaces the default set', async ({ UcpAgentProfileHost, page }) => {
+        const agentWithoutCapabilities = await UcpAgentProfileHost.publish({ capabilities: {} });
+
+        const servedProfile = await page.request.get(new URL(`ucp-acceptance-agents/${agentWithoutCapabilities.kid}.json`, process.env.APP_URL).toString());
+
+        expect(((await servedProfile.json()) as UcpProfileDocument).ucp.capabilities).toEqual({});
+    });
+});
+
+test.describe('UCP privilege mapping @Setup', () => {
+    test('a second read in the same worker still yields every UCP role', async () => {
+        const firstRead = await readAdminPrivilegeMapping();
+        const repeatedRead = await readAdminPrivilegeMapping();
+
+        expect(repeatedRead.size).toBeGreaterThan(0);
+        expect(repeatedRead).toBe(firstRead);
+        for (const role of UCP_ROLES) {
+            expect(resolveRole(repeatedRead, role).keys).toContain(role);
+        }
     });
 });
 
