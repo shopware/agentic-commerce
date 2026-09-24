@@ -89,6 +89,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentInstrumentResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
@@ -329,6 +330,11 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(ShopwareInvoicePaymentHandler::class)
         ->tag('ucp_sdk.payment_handler');
+
+    // The documented seam to turn the instrument the agent presented into the
+    // concrete payment method a provider can charge. Registered as a service so
+    // a provider plugin can alias or decorate it; see docs/completion-payment.md.
+    $services->set(PaymentInstrumentResolver::class);
 
     // Scheduled tasks.
     $services->set(CleanupExpiredOAuthTokensTask::class)
