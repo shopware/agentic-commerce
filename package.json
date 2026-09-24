@@ -6,6 +6,8 @@
     "ci:admin-static": "npm run lint:admin && npm run test:admin",
     "lint:admin": "eslint src/Resources/app/administration/src tests/jest/administration tests/e2e playwright.config.js --cache --cache-location .eslintcache",
     "lint:admin:fix": "npm run lint:admin -- --fix",
+    "lint:md": "prettier --check '**/*.md'",
+    "lint:md:fix": "prettier --write '**/*.md'",
     "test:admin": "jest --config tests/jest/administration/jest.config.js --ci",
     "test:admin:watch": "jest --config tests/jest/administration/jest.config.js --watch",
     "test:e2e": "playwright test",
@@ -39,6 +41,7 @@
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "jest-junit": "^17.0.0",
+    "prettier": "^3.9.8",
     "typescript-eslint": "^8.56.1"
   }
 }

@@ -23,13 +23,15 @@ build:
     pack:
       excludes:
         paths:
-          # Build-only: the workflow copies the SDK packages here and composer resolves
-          # them from here into vendor/. Shipping this as well would put two copies of
-          # the SDK in the archive.
-          - .sdk
+          # Development tooling, never part of a release. The source manifest points Composer
+          # at .tools/vendor and npm fills node_modules; `extension zip --disable-git` copies
+          # the working tree verbatim, so without these a local build ships PHPUnit, PHPStan
+          # and the whole npm tree.
+          - .tools
           - bin
           - docs
           - eslint.config.mjs
+          - node_modules
           - package.json
           - package-lock.json
           - playwright.config.js
