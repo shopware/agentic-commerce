@@ -13,7 +13,7 @@ use Shopware\Core\Framework\Uuid\Uuid;
 #[Package('checkout')]
 final class DoctrineDbalCheckoutCompletionStore implements CheckoutCompletionStoreInterface
 {
-    private const TABLE = 'swag_agentic_commerce_ucp_checkout_completion';
+    public const TABLE = 'swag_agentic_commerce_ucp_checkout_completion';
 
     public function __construct(
         private readonly Connection $connection,

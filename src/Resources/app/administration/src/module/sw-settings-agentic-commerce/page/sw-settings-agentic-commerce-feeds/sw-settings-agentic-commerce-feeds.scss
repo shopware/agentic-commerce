@@ -10,6 +10,10 @@ $sw-agentic-error-bg: #fef3f2;
 $sw-agentic-warning: #a8400f;
 $sw-agentic-warning-bg: #fbe8e0;
 
+// sw-card-view caps its cards at this width and centres them. Anything rendered
+// alongside a card has to match, or it floats out to the content edge.
+$sw-agentic-card-width: 960px;
+
 .sw-agentic-feeds {
     &__steps {
         align-items: center;
@@ -17,8 +21,10 @@ $sw-agentic-warning-bg: #fbe8e0;
         flex-wrap: wrap;
         gap: 10px 24px;
         list-style: none;
-        margin: 0 0 20px;
+        margin: 0 auto 20px;
+        max-width: $sw-agentic-card-width;
         padding: 0;
+        width: 100%;
     }
 
     &__step {
@@ -471,6 +477,9 @@ $sw-agentic-warning-bg: #fbe8e0;
         display: flex;
         gap: 10px;
         justify-content: flex-end;
-        margin-top: 8px;
+        margin: 8px auto 0;
+        max-width: $sw-agentic-card-width;
+        padding-bottom: 8px;
+        width: 100%;
     }
 }

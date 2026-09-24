@@ -6,6 +6,8 @@
  * `step`, `selectedIds` and the response.
  */
 
+import { toggleArrayValue } from './ucp-form-state';
+
 export const STEP_UNDERSTAND = 'understand';
 export const STEP_SELECT = 'select';
 export const STEP_REVIEW = 'review';
@@ -71,13 +73,7 @@ export function canLeaveStep(step, selectedIds = []) {
 }
 
 export function toggleSelection(selectedIds = [], id, selected) {
-    const next = selectedIds.filter((entry) => entry !== id);
-
-    if (selected) {
-        next.push(id);
-    }
-
-    return next;
+    return toggleArrayValue(selectedIds, id, selected);
 }
 
 export function selectedRows(rows = [], selectedIds = []) {

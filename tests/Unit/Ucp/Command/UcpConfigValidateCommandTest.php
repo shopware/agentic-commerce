@@ -28,6 +28,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
+use Swag\AgenticCommerce\Ucp\Onboarding\ChannelFindingsResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -123,8 +124,7 @@ class UcpConfigValidateCommandTest extends TestCase
             $viewProvider,
             new SalesChannelResolver($viewProvider),
             $configService,
-            $signingKeyService,
-            new UcpConfigValidator(),
+            new ChannelFindingsResolver(new UcpConfigValidator(), $signingKeyService),
         );
     }
 
@@ -138,6 +138,7 @@ class UcpConfigValidateCommandTest extends TestCase
         $entity->setUniqueIdentifier(self::CHANNEL_ID);
         $entity->setName('Storefront');
         $entity->setTypeId('0191cccccccc7000cccccccccccccccc');
+        $entity->setActive(true);
 
         $searchResult = $this->createMock(EntitySearchResult::class);
         $searchResult->method('getEntities')->willReturn(new SalesChannelCollection([$entity]));

@@ -7,6 +7,10 @@ namespace Swag\AgenticCommerce\Lifecycle;
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
+use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
+use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
 use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingDismissal;
 
 /**
@@ -38,18 +42,18 @@ final class PluginDataRemover
      * @var list<string>
      */
     public const PLUGIN_TABLES = [
-        'swag_agentic_commerce_ucp_oauth_access_token',
-        'swag_agentic_commerce_ucp_oauth_refresh_token',
-        'swag_agentic_commerce_ucp_oauth_code',
-        'swag_agentic_commerce_ucp_checkout_completion',
-        'swag_agentic_commerce_ucp_config',
+        DoctrineDbalUcpOAuthStore::ACCESS_TOKEN_TABLE,
+        DoctrineDbalUcpOAuthStore::REFRESH_TOKEN_TABLE,
+        DoctrineDbalUcpOAuthStore::CODE_TABLE,
+        DoctrineDbalCheckoutCompletionStore::TABLE,
+        DoctrineDbalUcpConfigRepository::TABLE,
     ];
 
     /**
      * @var list<string>
      */
     public const CONFIG_DOMAINS = [
-        'SwagAgenticCommerce.config.',
+        UcpConfigService::DOMAIN,
         SwagAgenticCommerce::OPEN_AI_PRODUCT_EXPORT_CONFIG_DOMAIN,
         SwagAgenticCommerce::GOOGLE_PRODUCT_EXPORT_CONFIG_DOMAIN,
     ];

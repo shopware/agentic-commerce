@@ -207,6 +207,7 @@ final class BulkUcpActivatorTest extends TestCase
         $salesChannel->setId($id);
         $salesChannel->setName($name);
         $salesChannel->setTypeId($typeId);
+        $salesChannel->setActive(true);
 
         $domains = new SalesChannelDomainCollection();
         if (null !== $domainUrl) {

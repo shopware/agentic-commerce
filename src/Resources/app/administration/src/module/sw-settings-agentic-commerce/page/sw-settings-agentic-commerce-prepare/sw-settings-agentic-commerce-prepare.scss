@@ -8,22 +8,16 @@ $sw-agentic-warning-bg: #fbe8e0;
 $sw-agentic-card-width: 960px;
 
 .sw-agentic-prepare {
-    &__steps,
-    &__actions {
-        margin-left: auto;
-        margin-right: auto;
-        max-width: $sw-agentic-card-width;
-        width: 100%;
-    }
-
     &__steps {
         align-items: center;
         display: flex;
         flex-wrap: wrap;
         gap: 10px 24px;
         list-style: none;
-        margin-bottom: 20px;
+        margin: 0 auto 20px;
+        max-width: $sw-agentic-card-width;
         padding: 0;
+        width: 100%;
     }
 
     &__step {
@@ -231,7 +225,9 @@ $sw-agentic-card-width: 960px;
         display: flex;
         gap: 10px;
         justify-content: flex-end;
-        margin-top: 8px;
+        margin: 8px auto 0;
+        max-width: $sw-agentic-card-width;
         padding-bottom: 8px;
+        width: 100%;
     }
 }

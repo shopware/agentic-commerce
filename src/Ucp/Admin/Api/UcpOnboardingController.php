@@ -8,7 +8,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\ApiRouteScope;
 use Shopware\Core\PlatformRequest;
-use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Onboarding\AgenticFeedChannelCreator;
 use Swag\AgenticCommerce\Ucp\Onboarding\BulkUcpActivator;
@@ -20,7 +20,6 @@ use Symfony\Component\HttpFoundation\Exception\JsonException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
-use Ucp\Sdk\Enum\Transport;
 
 /**
  * Backs the Agentic Commerce onboarding surface.
@@ -69,10 +68,12 @@ final class UcpOnboardingController
             throw UcpConfigException::invalidJsonPayload();
         }
 
+        [$capabilities, $transports] = $this->exposure($payload);
+
         $outcomes = $this->activator->activate(
             $this->salesChannelIds($payload),
-            $this->capabilities($payload),
-            $this->transports($payload),
+            $capabilities,
+            $transports,
             $context,
         );
 
@@ -172,66 +173,26 @@ final class UcpOnboardingController
     }
 
     /**
+     * Validates the exposure subset by building the very config object the save
+     * path builds, so the rules and their messages live in exactly one place
+     * ({@see UcpConfig::fromArray}). Done up front rather than per channel: a
+     * malformed capability is a bad request, not a per-channel outcome.
+     *
      * @param array<array-key, mixed> $payload
      *
-     * @return list<string>
+     * @return array{0: list<string>, 1: list<string>}
      */
-    private function capabilities(array $payload): array
+    private function exposure(array $payload): array
     {
-        if (!\array_key_exists('enabledCapabilities', $payload)) {
-            return UcpCapabilityCatalog::defaultConfigKeys();
-        }
+        $config = UcpConfig::fromArray(array_filter(
+            [
+                'enabledCapabilities' => $payload['enabledCapabilities'] ?? null,
+                'enabledTransports' => $payload['enabledTransports'] ?? null,
+            ],
+            static fn (mixed $value): bool => null !== $value,
+        ));
 
-        $capabilities = $this->stringList($payload['enabledCapabilities'], '$.enabledCapabilities');
-        foreach ($capabilities as $capability) {
-            if (!\in_array($capability, UcpCapabilityCatalog::allConfigKeys(), true)) {
-                throw UcpConfigException::invalidValue('$.enabledCapabilities', \sprintf('unsupported capability "%s"', $capability));
-            }
-        }
-
-        return $capabilities;
-    }
-
-    /**
-     * @param array<array-key, mixed> $payload
-     *
-     * @return list<string>
-     */
-    private function transports(array $payload): array
-    {
-        if (!\array_key_exists('enabledTransports', $payload)) {
-            return ['rest'];
-        }
-
-        $transports = $this->stringList($payload['enabledTransports'], '$.enabledTransports');
-        foreach ($transports as $transport) {
-            if (null === Transport::tryFrom($transport)) {
-                throw UcpConfigException::invalidValue('$.enabledTransports', \sprintf('unsupported transport "%s"', $transport));
-            }
-        }
-
-        return $transports;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function stringList(mixed $value, string $path): array
-    {
-        if (!\is_array($value) || !array_is_list($value)) {
-            throw UcpConfigException::invalidValue($path, 'must be a list');
-        }
-
-        $normalized = [];
-        foreach ($value as $index => $entry) {
-            if (!\is_string($entry) || '' === trim($entry)) {
-                throw UcpConfigException::invalidValue(\sprintf('%s[%d]', $path, $index), 'must be a non-empty string');
-            }
-
-            $normalized[] = trim($entry);
-        }
-
-        return array_values(array_unique($normalized));
+        return [$config->enabledCapabilities, $config->enabledTransports];
     }
 
     /**

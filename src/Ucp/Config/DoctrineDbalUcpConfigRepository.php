@@ -15,7 +15,7 @@ use Shopware\Core\Framework\Uuid\Uuid;
 #[Package('framework')]
 final class DoctrineDbalUcpConfigRepository implements UcpConfigRepositoryInterface
 {
-    private const TABLE = 'swag_agentic_commerce_ucp_config';
+    public const TABLE = 'swag_agentic_commerce_ucp_config';
 
     public function __construct(
         private readonly Connection $connection,

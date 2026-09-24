@@ -16,7 +16,7 @@ use Symfony\Component\Messenger\EventListener\StopWorkerOnRestartSignalListener;
 #[Package('framework')]
 final class UcpConfigService
 {
-    private const DOMAIN = 'SwagAgenticCommerce.config.';
+    public const DOMAIN = 'SwagAgenticCommerce.config.';
 
     /**
      * @var list<string>

@@ -77,6 +77,7 @@ final class SalesChannelViewProviderTest extends TestCase
             'name' => 'Storefront-channel',
             'typeId' => Defaults::SALES_CHANNEL_TYPE_STOREFRONT,
             'transactional' => true,
+            'active' => true,
             'domains' => [[
                 'id' => 'domain-id',
                 'url' => 'https://shop.example',
@@ -177,6 +178,7 @@ final class SalesChannelViewProviderTest extends TestCase
             $salesChannel->setUniqueIdentifier($id);
             $salesChannel->setName(ucfirst($id));
             $salesChannel->setTypeId($typeId);
+            $salesChannel->setActive(true);
 
             if ($withDomain) {
                 $domain = new SalesChannelDomainEntity();

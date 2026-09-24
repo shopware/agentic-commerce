@@ -1,3 +1,5 @@
+export { hasFailures } from './prepare-flow';
+
 /**
  * The Choose / Review / Result flow that creates agentic feed channels.
  *
@@ -180,9 +182,6 @@ export function feedResultRows(result, rows = []) {
     });
 }
 
-export function hasFailures(result) {
-    return (result?.failed ?? 0) > 0;
-}
 
 /**
  * Every existing feed, flattened for the settings page overview.
