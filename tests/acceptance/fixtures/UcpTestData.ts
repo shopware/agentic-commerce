@@ -34,8 +34,12 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes, UcpConso
         await use(service);
 
         if (!skipCleanUp) {
-            await service.cleanUpUcpEntities();
-            await service.cleanUp();
+            try {
+                await service.cleanUpUcpEntities();
+            }
+            finally {
+                await service.cleanUp();
+            }
         }
     },
 });

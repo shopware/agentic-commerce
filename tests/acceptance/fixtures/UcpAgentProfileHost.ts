@@ -24,7 +24,7 @@ export interface TestAgent {
     profileUrl: string
     agentHeader: string
     publicJwk: PublicSigningKeyJwk
-    /** PKCS#8 PEM. The signer (#190) signs with it. */
+    /** PKCS#8 PEM, for signing requests as this agent. */
     privateKeyPem: string
     profile: Record<string, unknown>
 }

@@ -15,7 +15,7 @@ export interface KnownBlocker {
 export const knownBlockers: KnownBlocker[] = [
     {
         key: 'D1',
-        description: 'The SDK signs and verifies over @method, @target-uri and content-digest and rejects a signature without created or expires. The spec covers @method, @authority and @path, makes created optional and has no expires, so a spec-conformant agent is rejected under the strict signature policy.',
+        description: 'SDK verification requires created, which the spec makes optional, so a spec-conformant signature without it is rejected under the strict signature policy. The SDK\'s own signing side still covers @method and @target-uri and always adds expires and alg. Its verifier already rebuilds the base from the components the client declares, @authority and @path included.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
         reviewBy: '2026-12-31',
