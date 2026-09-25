@@ -1,0 +1,224 @@
+{% block sw_settings_agentic_commerce_prepare %}
+<sw-page class="sw-agentic-prepare">
+
+    {% block sw_settings_agentic_commerce_prepare_header %}
+    <template #smart-bar-header>
+        <h2>{{ $t('swagAgenticCommerce.prepare.title') }}</h2>
+    </template>
+    {% endblock %}
+
+    {% block sw_settings_agentic_commerce_prepare_content %}
+    <template #content>
+        <sw-card-view>
+            <sw-skeleton v-if="isLoading" />
+
+            <template v-else>
+                {% block sw_settings_agentic_commerce_prepare_stepper %}
+                <ol
+                    v-if="!hasResult"
+                    class="sw-agentic-prepare__steps"
+                >
+                    <li
+                        v-for="item in steps"
+                        :key="item.key"
+                        class="sw-agentic-prepare__step"
+                        :class="'sw-agentic-prepare__step--' + item.state"
+                    >
+                        <span class="sw-agentic-prepare__step-num">{{ item.state === 'done' ? '✓' : item.number }}</span>
+                        <span>{{ $t(item.label) }}</span>
+                    </li>
+                </ol>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_prepare_understand %}
+                <mt-card
+                    v-if="isUnderstandStep && !hasResult"
+                    position-identifier="sw-agentic-prepare-understand"
+                    :title="$t('swagAgenticCommerce.prepare.understand.heading')"
+                >
+                    <p class="sw-agentic-prepare__lede">{{ $t('swagAgenticCommerce.prepare.understand.copy') }}</p>
+
+                    <div class="sw-agentic-prepare__change">
+                        <span class="sw-agentic-prepare__change-icon">UCP</span>
+                        <div>
+                            <div class="sw-agentic-prepare__change-title">{{ $t('swagAgenticCommerce.prepare.understand.ucpTitle') }}</div>
+                            <div class="sw-agentic-prepare__change-desc">{{ $t('swagAgenticCommerce.prepare.understand.ucpCopy') }}</div>
+                        </div>
+                    </div>
+
+                    <div class="sw-agentic-prepare__change">
+                        <span class="sw-agentic-prepare__change-icon">AI</span>
+                        <div>
+                            <div class="sw-agentic-prepare__change-title">{{ $t('swagAgenticCommerce.prepare.understand.filesTitle') }}</div>
+                            <div class="sw-agentic-prepare__change-desc">{{ $t('swagAgenticCommerce.prepare.understand.filesCopy') }}</div>
+                        </div>
+                    </div>
+
+                    <div class="sw-agentic-prepare__notice">{{ $t('swagAgenticCommerce.prepare.understand.notice') }}</div>
+                </mt-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_prepare_select %}
+                <mt-card
+                    v-if="isSelectStep && !hasResult"
+                    position-identifier="sw-agentic-prepare-select"
+                    :title="$t('swagAgenticCommerce.prepare.select.heading')"
+                >
+                    <p
+                        v-if="rows.length === 0"
+                        class="sw-agentic-prepare__empty"
+                    >{{ $t('swagAgenticCommerce.prepare.select.empty') }}</p>
+
+                    <template v-else>
+                        <div class="sw-agentic-prepare__toolbar">
+                            <span class="sw-agentic-prepare__count">
+                                {{ $t('swagAgenticCommerce.prepare.select.selected', { count: selectedCount }) }}
+                            </span>
+                            <span class="sw-agentic-prepare__toolbar-actions">
+                                <a href="#" @click.prevent="selectAll">{{ $t('swagAgenticCommerce.prepare.select.selectAll') }}</a>
+                                <a href="#" @click.prevent="deselectAll">{{ $t('swagAgenticCommerce.prepare.select.deselectAll') }}</a>
+                            </span>
+                        </div>
+
+                        <ul class="sw-agentic-prepare__channels">
+                            <li
+                                v-for="row in rows"
+                                :key="row.id"
+                                class="sw-agentic-prepare__channel"
+                                :class="{ 'sw-agentic-prepare__channel--selected': isSelected(row.id) }"
+                            >
+                                <mt-checkbox
+                                    :label="row.name"
+                                    :disabled="!canPrepare"
+                                    :checked="isSelected(row.id)"
+                                    @update:checked="(checked) => onToggle(row.id, checked)"
+                                />
+                                <div class="sw-agentic-prepare__channel-meta">
+                                    <span v-if="row.primaryDomain">{{ row.primaryDomain }}</span>
+                                    <span>{{ $t('swagAgenticCommerce.prepare.select.products', { count: row.activeProductCount }) }}</span>
+                                    <span
+                                        v-if="!row.hasDomain"
+                                        class="sw-agentic-prepare__warning"
+                                    >{{ $t('swagAgenticCommerce.prepare.select.noDomain') }}</span>
+                                </div>
+                            </li>
+                        </ul>
+
+                        <div class="sw-agentic-prepare__notice">{{ $t('swagAgenticCommerce.prepare.select.notice') }}</div>
+                    </template>
+                </mt-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_prepare_review %}
+                <mt-card
+                    v-if="isReviewStep && !hasResult"
+                    position-identifier="sw-agentic-prepare-review"
+                    :title="$t('swagAgenticCommerce.prepare.review.heading')"
+                >
+                    <div class="sw-agentic-prepare__review-head">
+                        {{ $t('swagAgenticCommerce.prepare.review.summary', { count: selectedCount }) }}
+                    </div>
+                    <div class="sw-agentic-prepare__tags">
+                        <span
+                            v-for="row in selectedRows"
+                            :key="row.id"
+                            class="sw-agentic-prepare__tag"
+                        >{{ row.name }}</span>
+                    </div>
+                    <div class="sw-agentic-prepare__notice">{{ $t('swagAgenticCommerce.prepare.review.notice') }}</div>
+                </mt-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_prepare_result %}
+                <mt-card
+                    v-if="hasResult"
+                    position-identifier="sw-agentic-prepare-result"
+                    :title="$t('swagAgenticCommerce.prepare.result.heading')"
+                >
+                    <p class="sw-agentic-prepare__lede">
+                        {{ $t('swagAgenticCommerce.prepare.result.summary', {
+                            enabled: result.enabled, skipped: result.skipped, failed: result.failed
+                        }) }}
+                    </p>
+
+                    <ul class="sw-agentic-prepare__channels">
+                        <li
+                            v-for="outcome in result.results"
+                            :key="outcome.salesChannelId"
+                            class="sw-agentic-prepare__channel"
+                        >
+                            <span>{{ outcome.salesChannelName }}</span>
+                            <span class="sw-agentic-prepare__channel-meta">
+                                <sw-status
+                                    v-if="outcome.status === 'enabled'"
+                                    color="green"
+                                >{{ $t('swagAgenticCommerce.prepare.result.enabled') }}</sw-status>
+                                <sw-status
+                                    v-else-if="outcome.status === 'skipped'"
+                                    color="gray"
+                                >{{ $t('swagAgenticCommerce.prepare.result.skipped') }}</sw-status>
+                                <sw-status
+                                    v-else
+                                    color="red"
+                                >{{ outcome.message }}</sw-status>
+                            </span>
+                        </li>
+                    </ul>
+
+                    <mt-banner
+                        v-if="findings.length > 0"
+                        variant="attention"
+                        class="sw-agentic-prepare__findings"
+                        :title="$t('swagAgenticCommerce.prepare.result.findingsTitle')"
+                    >
+                        <ul>
+                            <li
+                                v-for="(finding, index) in findings"
+                                :key="index"
+                            >{{ finding.salesChannelName }}: {{ finding.message }}</li>
+                        </ul>
+                    </mt-banner>
+                </mt-card>
+                {% endblock %}
+
+                {% block sw_settings_agentic_commerce_prepare_actions %}
+                <div class="sw-agentic-prepare__actions">
+                    <template v-if="hasResult">
+                        <mt-button
+                            size="small"
+                            variant="primary"
+                            @click="onClose"
+                        >{{ $t('swagAgenticCommerce.prepare.actions.done') }}</mt-button>
+                    </template>
+
+                    <template v-else>
+                        <mt-button
+                            size="small"
+                            @click="onBack"
+                        >{{ $t('swagAgenticCommerce.prepare.actions.back') }}</mt-button>
+
+                        <mt-button
+                            v-if="!isReviewStep"
+                            size="small"
+                            variant="primary"
+                            :disabled="!canContinue"
+                            @click="onNext"
+                        >{{ $t('swagAgenticCommerce.prepare.actions.continue') }}</mt-button>
+
+                        <mt-button
+                            v-else
+                            size="small"
+                            variant="primary"
+                            :disabled="applyDisabled"
+                            :is-loading="isApplying"
+                            @click="apply"
+                        >{{ $t('swagAgenticCommerce.prepare.actions.apply') }}</mt-button>
+                    </template>
+                </div>
+                {% endblock %}
+            </template>
+        </sw-card-view>
+    </template>
+    {% endblock %}
+</sw-page>
+{% endblock %}

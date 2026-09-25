@@ -1,0 +1,485 @@
+$sw-agentic-border: #dfe3e8;
+$sw-agentic-muted: #667085;
+$sw-agentic-text: #344054;
+$sw-agentic-brand: #189eff;
+$sw-agentic-brand-bg: #eef7ff;
+$sw-agentic-success: #11845b;
+$sw-agentic-success-bg: #edf8f3;
+$sw-agentic-error: #b42318;
+$sw-agentic-error-bg: #fef3f2;
+$sw-agentic-warning: #a8400f;
+$sw-agentic-warning-bg: #fbe8e0;
+
+// sw-card-view caps its cards at this width and centres them. Anything rendered
+// alongside a card has to match, or it floats out to the content edge.
+$sw-agentic-card-width: 960px;
+
+.sw-agentic-feeds {
+    &__steps {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 24px;
+        list-style: none;
+        margin: 0 auto 20px;
+        max-width: $sw-agentic-card-width;
+        padding: 0;
+        width: 100%;
+    }
+
+    &__step {
+        align-items: center;
+        color: #98a2b3;
+        display: flex;
+        font-size: 13px;
+        gap: 8px;
+
+        &--active {
+            color: $sw-agentic-text;
+            font-weight: 650;
+
+            .sw-agentic-feeds__step-num {
+                background: $sw-agentic-brand;
+                color: #fff;
+            }
+        }
+
+        &--done .sw-agentic-feeds__step-num {
+            background: $sw-agentic-success;
+            color: #fff;
+        }
+    }
+
+    &__step-num {
+        align-items: center;
+        background: #eef1f4;
+        border-radius: 50%;
+        color: $sw-agentic-muted;
+        display: flex;
+        font-weight: 650;
+        height: 26px;
+        justify-content: center;
+        width: 26px;
+    }
+
+    &__lede {
+        color: #475467;
+        line-height: 1.55;
+        margin: 0 0 20px;
+    }
+
+    &__empty {
+        color: $sw-agentic-muted;
+        margin: 0;
+    }
+
+    &__toolbar {
+        align-items: center;
+        display: flex;
+        gap: 16px;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    &__count {
+        background: $sw-agentic-brand-bg;
+        border-radius: 999px;
+        color: #1769aa;
+        font-size: 12px;
+        font-weight: 650;
+        padding: 5px 10px;
+    }
+
+    &__toolbar-actions {
+        display: flex;
+        gap: 14px;
+
+        a {
+            color: #0870ff;
+            font-size: 13px;
+            text-decoration: none;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+    }
+
+    &__storefront {
+        border: 1px solid $sw-agentic-border;
+        border-radius: 10px;
+        margin-bottom: 14px;
+        padding: 16px;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    &__storefront-head {
+        align-items: baseline;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        margin-bottom: 14px;
+    }
+
+    &__storefront-name {
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    &__storefront-domain {
+        color: $sw-agentic-muted;
+        font-size: 13px;
+    }
+
+    &__warning {
+        background: $sw-agentic-warning-bg;
+        border-radius: 4px;
+        color: $sw-agentic-warning;
+        font-size: 12px;
+        padding: 2px 8px;
+    }
+
+    &__tiles {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    &__tile {
+        background: #fff;
+        border: 1px solid $sw-agentic-border;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+        padding: 14px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+
+        &:hover {
+            border-color: #9fd3fb;
+        }
+
+        &:focus-visible {
+            outline: 2px solid $sw-agentic-brand;
+            outline-offset: 2px;
+        }
+
+        &--selected {
+            background: #f7fbff;
+            border-color: $sw-agentic-brand;
+            box-shadow: 0 0 0 3px rgba(24, 158, 255, 0.12);
+
+            &:hover {
+                border-color: $sw-agentic-brand;
+            }
+
+            .sw-agentic-feeds__check {
+                background: $sw-agentic-brand;
+                border-color: $sw-agentic-brand;
+                color: #fff;
+            }
+        }
+
+        &--connected {
+            background: #fbfefc;
+            border-color: #b7e4cf;
+            cursor: default;
+
+            &:hover {
+                border-color: #b7e4cf;
+            }
+        }
+
+        &--disabled {
+            background: #f9fafb;
+            cursor: not-allowed;
+
+            &:hover {
+                border-color: $sw-agentic-border;
+            }
+
+            .sw-agentic-feeds__tile-mark,
+            .sw-agentic-feeds__tile-text {
+                opacity: 0.55;
+            }
+
+            .sw-agentic-feeds__check {
+                background: #f2f4f7;
+            }
+        }
+    }
+
+    &__tile-head {
+        align-items: flex-start;
+        display: flex;
+        gap: 12px;
+    }
+
+    &__tile-mark {
+        align-items: center;
+        border-radius: 8px;
+        display: flex;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 700;
+        height: 36px;
+        justify-content: center;
+        width: 36px;
+
+        &--open-ai {
+            background: #ecfdf3;
+            color: #067647;
+        }
+
+        &--google {
+            background: $sw-agentic-brand-bg;
+            color: #0877c9;
+        }
+    }
+
+    &__tile-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__tile-title {
+        font-size: 14px;
+        font-weight: 650;
+        margin-bottom: 3px;
+    }
+
+    &__tile-desc {
+        color: $sw-agentic-muted;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    &__check {
+        align-items: center;
+        border: 1.5px solid #c4cdd6;
+        border-radius: 5px;
+        color: transparent;
+        display: flex;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 700;
+        height: 20px;
+        justify-content: center;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+        width: 20px;
+    }
+
+    &__tile-foot {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+    }
+
+    &__format {
+        background: #f2f4f7;
+        border-radius: 4px;
+        color: #475467;
+        font-family: monospace;
+        font-size: 11px;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+        padding: 2px 6px;
+    }
+
+    &__hint {
+        color: $sw-agentic-muted;
+        font-size: 12px;
+
+        &--selected {
+            color: #1769aa;
+            font-weight: 600;
+        }
+    }
+
+    &__pill {
+        border-radius: 999px;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 650;
+        padding: 4px 10px;
+        white-space: nowrap;
+
+        &--success {
+            background: $sw-agentic-success-bg;
+            color: $sw-agentic-success;
+        }
+
+        &--neutral {
+            background: #f2f4f7;
+            color: #475467;
+        }
+
+        &--error {
+            background: $sw-agentic-error-bg;
+            color: $sw-agentic-error;
+        }
+    }
+
+    &__tile-feed {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    &__url-row {
+        align-items: center;
+        background: #f9fafb;
+        border: 1px solid #eaecf0;
+        border-radius: 6px;
+        display: flex;
+        gap: 8px;
+        min-width: 0;
+        padding: 4px 4px 4px 10px;
+    }
+
+    &__url {
+        color: #475467;
+        flex: 1;
+        font-family: monospace;
+        font-size: 12px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__copy {
+        align-items: center;
+        background: #fff;
+        border: 1px solid $sw-agentic-border;
+        border-radius: 5px;
+        color: $sw-agentic-text;
+        cursor: pointer;
+        display: inline-flex;
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 600;
+        gap: 5px;
+        padding: 4px 8px;
+
+        &:hover {
+            border-color: $sw-agentic-brand;
+            color: #0870ff;
+        }
+
+        &:focus-visible {
+            outline: 2px solid $sw-agentic-brand;
+            outline-offset: 1px;
+        }
+    }
+
+    &__link {
+        align-self: flex-start;
+        color: #0870ff;
+        font-size: 13px;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &__review-head {
+        font-weight: 650;
+        margin-bottom: 12px;
+    }
+
+    &__tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    &__tag {
+        background: #f2f4f7;
+        border-radius: 6px;
+        color: #475467;
+        font-size: 13px;
+        padding: 5px 9px;
+    }
+
+    &__notice {
+        background: #fafcff;
+        border: 1px solid #dfe7ef;
+        border-radius: 8px;
+        color: #475467;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-top: 18px;
+        padding: 13px 14px;
+    }
+
+    &__results {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    &__result {
+        border: 1px solid $sw-agentic-border;
+        border-left-width: 3px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+        padding: 12px 14px;
+
+        &--created {
+            border-left-color: $sw-agentic-success;
+        }
+
+        &--skipped {
+            border-left-color: #98a2b3;
+        }
+
+        &--failed {
+            border-left-color: $sw-agentic-error;
+        }
+    }
+
+    &__result-head {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+    }
+
+    &__result-title {
+        font-weight: 650;
+    }
+
+    &__result-channel {
+        color: $sw-agentic-muted;
+        font-size: 13px;
+    }
+
+    &__result-message {
+        color: $sw-agentic-error;
+        font-size: 13px;
+        margin: 0;
+    }
+
+    &__actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin: 8px auto 0;
+        max-width: $sw-agentic-card-width;
+        padding-bottom: 8px;
+        width: 100%;
+    }
+}

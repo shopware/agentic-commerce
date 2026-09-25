@@ -6,13 +6,11 @@ namespace Swag\AgenticCommerce\Ucp\Command;
 
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Log\Package;
-use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Finding;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Severity;
-use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
-use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainView;
+use Swag\AgenticCommerce\Ucp\Onboarding\ChannelFindingsResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -34,8 +32,7 @@ final class UcpConfigValidateCommand extends Command
         private readonly SalesChannelViewProvider $salesChannelViewProvider,
         private readonly SalesChannelResolver $salesChannelResolver,
         private readonly UcpConfigService $configService,
-        private readonly UcpSigningKeyService $signingKeyService,
-        private readonly UcpConfigValidator $validator,
+        private readonly ChannelFindingsResolver $findingsResolver,
     ) {
         parent::__construct();
     }
@@ -114,13 +111,7 @@ final class UcpConfigValidateCommand extends Command
                 continue;
             }
 
-            $channelFindings = $this->validator->validate(
-                $id,
-                $name,
-                $config,
-                $this->signingKeyService->all($id),
-                array_map(static fn (SalesChannelDomainView $domain): array => $domain->jsonSerialize(), $channel->domains),
-            );
+            $channelFindings = $this->findingsResolver->resolve($id, $name, $config, $channel);
 
             $checked[] = ['id' => $id, 'name' => $name, 'findings' => $channelFindings];
             $findings = array_merge($findings, $channelFindings);
@@ -193,10 +184,8 @@ final class UcpConfigValidateCommand extends Command
      */
     private function exitCode(array $findings, bool $strict): int
     {
-        foreach ($findings as $finding) {
-            if (Severity::Error === $finding->severity) {
-                return self::FAILURE;
-            }
+        if ($this->findingsResolver->hasError($findings)) {
+            return self::FAILURE;
         }
 
         if ($strict) {
