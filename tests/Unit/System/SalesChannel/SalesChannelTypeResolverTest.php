@@ -70,8 +70,11 @@ final class SalesChannelTypeResolverTest extends TestCase
             expectedReads: 1,
         ));
 
-        static::assertSame(SalesChannelTypeClassification::Storefront, $resolver->resolve('storefront-channel'));
-        static::assertSame(SalesChannelTypeClassification::Storefront, $resolver->resolve('storefront-channel'));
+        $first = $resolver->resolve('storefront-channel');
+        $second = $resolver->resolve('storefront-channel');
+
+        static::assertSame(SalesChannelTypeClassification::Storefront, $first);
+        static::assertSame(SalesChannelTypeClassification::Storefront, $second);
         static::assertSame(
             ['storefront-channel' => SalesChannelTypeClassification::Storefront],
             $resolver->resolveMany(['storefront-channel', 'storefront-channel']),
@@ -82,8 +85,11 @@ final class SalesChannelTypeResolverTest extends TestCase
     {
         $resolver = new SalesChannelTypeResolver($this->repository([], expectedReads: 1));
 
-        static::assertSame(SalesChannelTypeClassification::Other, $resolver->resolve('feed-channel'));
-        static::assertSame(SalesChannelTypeClassification::Other, $resolver->resolve('feed-channel'));
+        $first = $resolver->resolve('feed-channel');
+        $second = $resolver->resolve('feed-channel');
+
+        static::assertSame(SalesChannelTypeClassification::Other, $first);
+        static::assertSame(SalesChannelTypeClassification::Other, $second);
     }
 
     public function testItReadsOnlyTheIdsItHasNotSeenYet(): void
