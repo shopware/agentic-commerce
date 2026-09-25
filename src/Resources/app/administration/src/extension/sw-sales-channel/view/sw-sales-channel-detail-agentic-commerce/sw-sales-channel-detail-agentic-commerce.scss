@@ -95,6 +95,12 @@
         }
     }
 
+    // Documentation pointer directly under the capability/transport lists —
+    // the option grid already carries the 12px gap above it.
+    &__docs-hint {
+        margin: 0;
+    }
+
     // Signing keys rendered as a lightweight table: aligned columns (key id /
     // algorithm / status / actions) so the action buttons never shift with the
     // key-name length, and the actions column pins to the right. The Create key
