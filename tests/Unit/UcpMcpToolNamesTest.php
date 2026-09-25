@@ -8,11 +8,13 @@ use Composer\InstalledVersions;
 use Mcp\Capability\Attribute\McpTool;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
+use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 
 /**
  * Every UCP MCP tool must carry the name the specification's OpenRPC document gives it, and
- * must be advertised on a fresh MCP session.
+ * must belong to the UCP toolset that `/ucp/mcp` pins, so it is advertised on a fresh `/ucp/mcp`
+ * session (see UcpMcpProxyController and UcpMcpDiscoveryFlowTest).
  *
  * Both halves were wrong at once and invisible the same way. The tools were named
  * `shopware-ucp-*`, so a spec-following agent that looked for `create_cart` found nothing;
@@ -58,7 +60,7 @@ final class UcpMcpToolNamesTest extends TestCase
         }
     }
 
-    public function testEveryToolIsAdvertisedOnAFreshSession(): void
+    public function testEveryToolIsInTheUcpToolset(): void
     {
         foreach ($this->toolClasses() as $class) {
             $groups = [];
@@ -70,7 +72,9 @@ final class UcpMcpToolNamesTest extends TestCase
                 }
             }
 
-            self::assertSame(['discovery'], $groups, \sprintf('%s must sit in the always-advertised "discovery" group, or a spec-following agent never sees it.', $class));
+            // Not core's reserved "discovery" group: that would put the tool on every Store API
+            // connection. /ucp/mcp pins this toolset instead (shopware/agentic-commerce#254).
+            self::assertSame([UcpMcpToolset::NAME], $groups, \sprintf('%s must sit in the "%s" toolset, which /ucp/mcp pins at connect time.', $class, UcpMcpToolset::NAME));
         }
     }
 

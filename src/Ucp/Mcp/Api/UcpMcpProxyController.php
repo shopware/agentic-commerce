@@ -15,6 +15,7 @@ use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
+use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -106,6 +107,8 @@ final class UcpMcpProxyController
 
     private function dispatchToStoreApiMcp(Request $request, string $accessKey, ?RequestContext $context = null): Response
     {
+        $this->pinUcpToolset($request);
+
         $subRequest = Request::create(
             '/store-api/_mcp'.('' !== $request->getQueryString() ? '?'.$request->getQueryString() : ''),
             $request->getMethod(),
@@ -128,6 +131,25 @@ final class UcpMcpProxyController
         $subRequest->headers->remove('cookie');
 
         return $this->httpKernel->handle($subRequest, HttpKernelInterface::SUB_REQUEST);
+    }
+
+    /**
+     * Advertises the UCP tools on the first `tools/list` of a `/ucp/mcp` connection, without putting
+     * them on every Store API connection. Core reads the pinned toolsets from the main request's
+     * query (it deliberately ignores sub-requests), so the pin goes on this request, merged with any
+     * toolsets the client asked for. It runs after the signature check, and only the query bag
+     * changes, so the signed URI stays as the client sent it.
+     */
+    private function pinUcpToolset(Request $request): void
+    {
+        $requested = $request->query->all()[UcpMcpToolset::QUERY_PARAMETER] ?? '';
+        $toolsets = \is_string($requested) ? array_filter(array_map(trim(...), explode(',', $requested)), static fn (string $name): bool => '' !== $name) : [];
+
+        if (!\in_array(UcpMcpToolset::NAME, $toolsets, true)) {
+            $toolsets[] = UcpMcpToolset::NAME;
+        }
+
+        $request->query->set(UcpMcpToolset::QUERY_PARAMETER, implode(',', array_unique($toolsets)));
     }
 
     /**
