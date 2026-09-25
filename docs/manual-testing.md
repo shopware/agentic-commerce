@@ -115,7 +115,7 @@ project/container.
 
 ## Install The Plugin And SDK
 
-The normal local path repository setup is handled by:
+Set up a lane with the helper:
 
 ```bash
 ~/scripts/agentic-commerce/bootstrap-lane 65
@@ -123,31 +123,37 @@ The normal local path repository setup is handled by:
 ~/scripts/agentic-commerce/bootstrap-lane trunk
 ```
 
-If you must install manually inside a lane container, configure Composer path repositories against
-the synced container paths and require only the plugin:
+To install by hand inside a lane container, no Composer configuration is needed:
 
 ```bash
-composer config repositories.swag-agentic-commerce '{"type":"path","url":"custom/plugins/SwagAgenticCommerce","options":{"symlink":true}}'
-composer config repositories.ucp-sdk-core '{"type":"path","url":"custom/ucp-php-sdk/packages/core","options":{"symlink":true,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
-composer config repositories.ucp-sdk-symfony '{"type":"path","url":"custom/ucp-php-sdk/packages/symfony-bundle","options":{"symlink":true,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.7"}}}'
-composer require shopware/agentic-commerce:6.6.9999999-dev --with-all-dependencies
 bin/console plugin:refresh
 bin/console plugin:install --activate SwagAgenticCommerce
 ```
 
-Use the matching lane version when requiring the plugin manually: `6.5.9999999-dev` for 6.5,
-`6.6.9999999-dev` for 6.6, and `6.7.9999999-dev` for trunk/current 6.7.
+The Shopware project already lists `custom/plugins/*` as a Composer path repository, and the
+plugin's `composer.json` carries its own version, so Composer finds the plugin where it is.
+`plugin:install` then runs `composer require` for the plugin, which downloads the UCP SDK from
+Packagist at the exact version the plugin pins. A merchant's shop gets the SDK the same way. See
+[The SDK version pin](releasing.md#the-sdk-version-pin) and
+[Dependencies in a release](releasing.md#dependencies-in-a-release).
 
-The plugin directly requires `ucp-php-sdk/symfony-bundle`; SDK core is resolved transitively by that
-bundle. Shopware packages are provided by the active lane. The local SDK path repositories above are
-only needed while the SDK packages are private/local. Force a stable version that lies inside the
-window `composer.json` requires (`0.0.7`; see _The SDK version pin_ in
-[releasing.md](releasing.md)). Composer does not propagate alpha stability flags from the SDK bundle
-to the root Shopware project, so alpha path aliases can make the transitive core package
-unsatisfiable.
+Do not add `ucp-sdk-*` path repositories or require a `-dev` version of the plugin. To test SDK
+changes that are not released yet, run `bin/ci-smoke.sh` with `UCP_SDK_SOURCE=path`, see
+[Which SDK a CI job resolves](releasing.md#which-sdk-a-ci-job-resolves).
 
-The Composer `symlink` option is container-local package behavior. It is not the old
-host-plugin-symlink workflow.
+## Install A Built Package
+
+To test the package a merchant installs, rather than a lane checkout, download a built ZIP:
+
+- For a pull request, open its `zip-artifact` check and download `SwagAgenticCommerce` from the
+  run's **Artifacts**. The extension list shows it as `Agentic Commerce (PR #<number>)`.
+- For a pre-release, download the ZIP attached to the GitHub release `<version> (pre-release)`. The
+  extension list shows it as `Agentic Commerce (pre-release <version>)`.
+
+Upload it under **Extensions → My extensions → Upload extension**. The shop must reach Packagist,
+because Shopware installs the UCP SDK with Composer during the install. See
+[Test packages on pull requests](releasing.md#test-packages-on-pull-requests) and
+[Pre-releases for testing](releasing.md#pre-releases-for-testing) for how both are built.
 
 ## Recommended Test Order
 

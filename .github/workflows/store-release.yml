@@ -1,5 +1,11 @@
 name: Release to Store
 
+# A dispatch from main builds, and with `publish` uploads, a Store release. Pushing a tag such as
+# v1.3.1-rc.1 builds a test package instead: the same archive stamped with the tag's version,
+# install-tested on 6.5, 6.6 and trunk, attached to a GitHub pre-release. That path never reaches
+# the Store.
+# Both build through package-zip.yml, so the archive that ships has been installed first.
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +14,13 @@ on:
         required: true
         default: false
         type: boolean
+  push:
+    # A hyphen is required, so a release tag never starts this. The patterns are deliberately wider
+    # than a valid tag: a malformed one, or one missing the v, fails validation with a message
+    # instead of silently building nothing.
+    tags:
+      - 'v*-*'
+      - '[0-9]*-*'
 
 permissions:
   actions: write
@@ -19,9 +32,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: ${{ inputs.publish && 'Publish release' || 'Build release package' }}
+  release-metadata:
+    name: Validate release metadata
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -32,7 +51,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="$(jq -er '.version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"))' composer.json)"
+          version="$(jq -er '.version' composer.json)"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "composer.json declares ${version}, which is not a release version. Pre-releases are built by pushing a tag such as v1.3.1-rc.1." >&2
+            exit 1
+          fi
 
           for changelog in CHANGELOG.md CHANGELOG_de-DE.md; do
             if ! grep -Fqx "# ${version}" "${changelog}"; then
@@ -76,41 +99,165 @@ jobs:
 
           echo "Validated main HEAD ${GITHUB_SHA} with CI gate ${gate_id}."
 
+  release-package:
+    name: Build and install-test the release package
+    needs: release-metadata
+    permissions:
+      contents: read
+    uses: ./.github/workflows/package-zip.yml
+
+  release-publish:
+    name: Publish release
+    needs: [release-metadata, release-package]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the install-tested archive
+        uses: actions/download-artifact@v7
+        with:
+          name: SwagAgenticCommerce-archive
+          path: ${{ github.workspace }}
+
+      - name: Confirm the archive carries the release version
+        env:
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          stamped="$(unzip -p SwagAgenticCommerce.zip SwagAgenticCommerce/composer.json | jq -r '.version')"
+          if [[ "${stamped}" != "${VERSION}" ]]; then
+            echo "The archive carries version ${stamped}, not ${VERSION}." >&2
+            exit 1
+          fi
+
       - name: Install shopware-cli
         uses: shopware/shopware-cli-action@v3
 
-      - name: Build and validate release package
-        run: |
-          set -euo pipefail
-          shopware-cli extension zip . --disable-git --release
-          shopware-cli extension validate SwagAgenticCommerce.zip
-          bin/ci-assert-zip-admin-bundle.sh SwagAgenticCommerce.zip
-          bin/ci-assert-zip-no-vendor.sh SwagAgenticCommerce.zip
-          mkdir -p dist
-          unzip -q SwagAgenticCommerce.zip -d dist
-
-      - name: Upload installable artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: SwagAgenticCommerce
-          path: dist
-          include-hidden-files: true
-
       - name: Upload the validated package to the Store
-        if: inputs.publish
         env:
           SHOPWARE_CLI_ACCOUNT_CLIENT_ID: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_ID }}
           SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET: ${{ secrets.SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET }}
         run: shopware-cli account producer extension upload SwagAgenticCommerce.zip
 
       - name: Tag the validated source and publish the GitHub release
-        if: inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.metadata.outputs.version }}
+          VERSION: ${{ needs.release-metadata.outputs.version }}
         run: |
           set -euo pipefail
           shopware-cli extension get-changelog SwagAgenticCommerce.zip > /tmp/plugin-release-notes.md
           gh release create "${VERSION}" SwagAgenticCommerce.zip \
             --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" \
             --title "${VERSION}" --notes-file /tmp/plugin-release-notes.md
+
+  prerelease-metadata:
+    name: Validate pre-release tag
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate the tag
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Composer and shopware-cli accept only these three suffixes. Build metadata (+x) is
+          # dropped on install, so the shop would store the package as the release itself.
+          if [[ ! "${TAG}" =~ ^v(([0-9]+\.[0-9]+\.[0-9]+)-(alpha|beta|rc)\.[0-9]+)$ ]]; then
+            echo "Pre-release tags look like v1.3.1-rc.1: a v, the version, and an alpha, beta or rc suffix. Got ${TAG}." >&2
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          base="${BASH_REMATCH[2]}"
+
+          # Shopware offers an update only to a higher version, and 1.3.1-rc.1 sorts below 1.3.1.
+          if git show-ref --verify --quiet "refs/tags/${base}" || git show-ref --verify --quiet "refs/tags/v${base}"; then
+            echo "${base} is already released, so no shop running it would be offered ${version}." >&2
+            exit 1
+          fi
+          current="$(jq -er '.version' composer.json)"
+          if [[ "$(printf '%s\n%s\n' "${current}" "${base}" | sort -V | head -n 1)" != "${current}" ]]; then
+            echo "${version} is older than ${current}, the version the tagged commit declares." >&2
+            exit 1
+          fi
+
+          echo "tag=${TAG}" >>"${GITHUB_OUTPUT}"
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+
+  prerelease-package:
+    name: Build and install-test the pre-release
+    needs: prerelease-metadata
+    permissions:
+      contents: read
+    uses: ./.github/workflows/package-zip.yml
+    with:
+      overwrite_version: ${{ needs.prerelease-metadata.outputs.version }}
+      label_stamp: prerelease
+
+  prerelease-publish:
+    name: Publish the GitHub pre-release
+    needs: [prerelease-metadata, prerelease-package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download the install-tested archive
+        uses: actions/download-artifact@v7
+        with:
+          name: SwagAgenticCommerce-archive
+          path: ${{ runner.temp }}/archive
+
+      - name: Confirm the archive is stamped as this pre-release
+        env:
+          VERSION: ${{ needs.prerelease-metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          mv "${RUNNER_TEMP}/archive/SwagAgenticCommerce.zip" "SwagAgenticCommerce-${VERSION}.zip"
+          manifest="$(unzip -p "SwagAgenticCommerce-${VERSION}.zip" SwagAgenticCommerce/composer.json)"
+          if [[ "$(jq -r '.version' <<<"${manifest}")" != "${VERSION}" ]]; then
+            echo "The archive does not carry version ${VERSION}." >&2
+            exit 1
+          fi
+          if ! jq -e --arg v "${VERSION}" '.extra.label["en-GB"] | endswith("(pre-release \($v))")' <<<"${manifest}" >/dev/null; then
+            echo "The archive's label does not mark it as pre-release ${VERSION}." >&2
+            exit 1
+          fi
+
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prerelease-metadata.outputs.tag }}
+          VERSION: ${{ needs.prerelease-metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          previous="$(git tag --list --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          {
+            echo '> [!WARNING]'
+            echo '> Pre-release for testing. It is not in the Shopware Store and is not meant for production shops.'
+            echo
+            echo "Built from ${GITHUB_SHA}. Upload it under **Extensions → My extensions → Upload extension**; the extension list labels it as a pre-release."
+            if [[ -n "${previous}" ]]; then
+              echo
+              echo "## Changes since ${previous}"
+              echo
+              git log --no-merges --format='- %s (%h)' "${previous}..${GITHUB_SHA}"
+            fi
+          } > "${RUNNER_TEMP}/prerelease-notes.md"
+          gh release create "${TAG}" "SwagAgenticCommerce-${VERSION}.zip" \
+            --repo "${GITHUB_REPOSITORY}" --verify-tag --prerelease --latest=false \
+            --title "${VERSION} (pre-release)" --notes-file "${RUNNER_TEMP}/prerelease-notes.md"

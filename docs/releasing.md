@@ -1,9 +1,11 @@
 # Release
 
 Store releases use `.github/workflows/store-release.yml`. Manual dispatch is safe by default: with
-`publish` disabled, the workflow builds and validates the same Shopware CLI package without
-uploading it. With `publish` enabled, it only releases the current `main` HEAD after that exact
-commit has a successful `validation-gate` check.
+`publish` disabled, the workflow builds, validates and install-tests the package without uploading
+it. With `publish` enabled, it only releases the current `main` HEAD after that exact commit has a
+successful `validation-gate` check, and it uploads the same archive the install test used. Pushing a
+pre-release tag runs the same workflow for a test build instead, see
+[Pre-releases for testing](#pre-releases-for-testing).
 
 Prepare a release in a pull request by updating:
 
@@ -17,6 +19,40 @@ label.
 
 Repository administrators must configure `SHOPWARE_CLI_ACCOUNT_CLIENT_ID` and
 `SHOPWARE_CLI_ACCOUNT_CLIENT_SECRET` as GitHub Actions secrets before publishing.
+
+## Pre-releases for testing
+
+Push a tag such as `v1.3.1-rc.1` to build a test package. It needs no change to `composer.json` or
+the changelogs:
+
+```bash
+git tag v1.3.1-rc.1 <commit>
+git push origin v1.3.1-rc.1
+```
+
+`store-release.yml` then builds the archive with `1.3.1-rc.1` as its version and runs the same
+archive guards as a release. It installs the archive on 6.5.x, 6.6.x and trunk shops that have never
+seen the UCP SDK, and attaches it to a GitHub release marked as a pre-release. This path never
+uploads to the Store and uses no Store secrets. GitHub reads the workflow from the tagged commit, so
+the commit must contain this workflow.
+
+The tag must have the form `v<major>.<minor>.<patch>-<alpha|beta|rc>.<n>`. Only a tag with a hyphen
+starts the workflow, so a release tag never does. A tag with a hyphen but the wrong form, such as
+`1.3.1-rc.1` without the `v` or `v1.3.1-rc1`, fails with a message that shows the right one.
+Composer and `shopware-cli` accept only the three suffixes: `1.4.0-ucptest1` fails
+`extension validate`, and build metadata such as `1.3.1+test` is dropped on install, so the shop
+would store the package as `1.3.1`. The workflow also refuses a base version that is already
+released or older than the `composer.json` version on the tagged commit, because Shopware offers an
+update only to a higher version. `1.3.1-rc.1` sorts above `1.3.0` and below `1.3.1`, so a test shop
+moves from the release to the pre-release and later to the final release without an uninstall.
+
+An installed pre-release stays recognisable. Shopware stores its version as `1.3.1-RC1`, and the
+extension list shows the label `Agentic Commerce (pre-release 1.3.1-rc.1)`, or
+`Agentic Commerce (Vorabversion 1.3.1-rc.1)` in German. The next plugin refresh after the final
+release is installed restores the normal label.
+
+> A published tag cannot be rebuilt, because its GitHub release already exists. Push the next number
+> (`v1.3.1-rc.2`) rather than moving a tag.
 
 ## The SDK version pin
 
@@ -100,23 +136,23 @@ re-executes one it has already marked applied**. This has a hard consequence for
 
 ## Test packages on pull requests
 
-Reviewers can get an install-ready ZIP for a pull request without a local build.
-`.github/workflows/package-zip.yml` builds the extension with `shopware-cli`, checks it with
-`bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-no-vendor.sh`, installs it on 6.5.x,
-6.6.x and trunk shops that have never seen the UCP SDK, and uploads it as a
-`SwagAgenticCommerce.zip` run artifact.
+Every pull request gets an install-ready ZIP. The `zip-artifact` job in `ci.yml` calls
+`.github/workflows/package-zip.yml`, which builds the extension the way a Store release does, checks
+it with `bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-no-vendor.sh`, installs it on
+6.5.x, 6.6.x and trunk shops that have never seen the UCP SDK, and uploads it as the
+`SwagAgenticCommerce` run artifact.
 
-The build is opt-in per PR to keep it off the default CI path:
-
-1. Add the `build:zip` label to the pull request. The label triggers a build right away, and every
-   later push rebuilds the ZIP while the label stays on. Remove the label to stop rebuilding.
-2. Open the workflow run from the PR checks (or the Actions tab) and download
-   `SwagAgenticCommerce.zip` from the run's **Artifacts**.
-3. Install it in a Shopware shop via **Extensions → My extensions → Upload extension**, or with
+1. Open the pull request's `zip-artifact` check, go to the run's **Summary**, and download
+   `SwagAgenticCommerce` from **Artifacts**. Artifacts are kept for 14 days.
+2. Install it in a Shopware shop via **Extensions → My extensions → Upload extension**, or with
    `bin/console plugin:install --activate` after unzipping into `custom/plugins`.
 
-Create the `build:zip` label once under **Issues → Labels** (any color/description) if it does not
-exist yet; the workflow matches it by name.
+The build keeps the version from `composer.json` and appends the pull request number to the
+extension label, for example `Agentic Commerce (PR #256)`, so an installed copy is not mistaken for
+the release. The same run also carries `SwagAgenticCommerce-archive`, the archive the install and
+publish jobs use. A browser download of it arrives zipped twice, so ignore it.
+
+To package any other branch or tag, run the **Package extension zip** workflow by hand.
 
 ## Dependencies in a release
 
@@ -143,9 +179,5 @@ and the fix to the shop's `var/log/swag-agentic-commerce.log`. The plugin contri
 container rather than half of it, which is what keeps the storefront answering while Composer
 catches up.
 
-Local lanes and CI still configure path repositories for the public SDK checkout so compatibility
-can be tested against `UCP_SDK_REF` before an SDK release. Those path repositories force the SDK to
-a version that must satisfy the `composer.json` range — at or above its lower bound (see _Bumping
-the SDK version floor_ above), and the plugin path repository exposes the release version from
-`composer.json` so Shopware's plugin lifecycle resolves the same package version during
-`plugin:install`.
+Only the `sdk-main-compatibility` job and local smoke runs with `UCP_SDK_SOURCE=path` use path
+repositories for the SDK, see [Which SDK a CI job resolves](#which-sdk-a-ci-job-resolves).

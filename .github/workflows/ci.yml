@@ -172,6 +172,10 @@ jobs:
             "storefront-matrix (6.5.8)"
             "storefront-matrix (6.6.x)"
             "storefront-matrix (trunk)"
+            "zip-artifact / Package extension zip"
+            "zip-artifact / Install the zip (6.5.x)"
+            "zip-artifact / Install the zip (6.6.x)"
+            "zip-artifact / Install the zip (trunk)"
           )
 
           for check_name in "${expected_checks[@]}"; do
@@ -390,25 +394,18 @@ jobs:
         env:
           ADMIN_PATH: ${{ github.workspace }}/shopware/src/Administration/Resources/app/administration
 
-  # Packaging is release-blocking on its own: a zip can build, pass
-  # `shopware-cli extension validate`, install cleanly, and still ship an administration
-  # that never loads on any lane. Build the real artifact and inspect it. The esbuild
-  # asset build takes a few seconds, so this is cheap enough to gate every run.
+  # Builds the archive the way a Store release does, installs it on 6.5, 6.6 and trunk, and leaves
+  # it as the run's downloadable SwagAgenticCommerce artifact. A pull request build carries its PR
+  # number in the extension label, so an installed copy never passes for the release.
   zip-artifact:
-    runs-on: ubuntu-latest
     needs:
       - verify-main-validation
     if: needs.verify-main-validation.outputs.run_full_matrix == 'true'
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Install shopware-cli
-        uses: shopware/shopware-cli-action@v3
-      - name: Build the extension zip
-        run: shopware-cli extension zip . --git-commit "${{ github.sha }}" --release
-      - name: Assert the zip ships a usable administration bundle
-        run: bin/ci-assert-zip-admin-bundle.sh "SwagAgenticCommerce-${{ github.sha }}.zip"
+    permissions:
+      contents: read
+    uses: ./.github/workflows/package-zip.yml
+    with:
+      label_stamp: ${{ github.event_name == 'pull_request' && 'pull-request' || 'none' }}
 
   shopware-matrix:
     runs-on: ubuntu-latest
