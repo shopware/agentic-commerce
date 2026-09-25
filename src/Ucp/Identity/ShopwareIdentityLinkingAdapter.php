@@ -20,19 +20,11 @@ use Ucp\Sdk\Model\RequestContext;
 #[Package('framework')]
 final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInterface
 {
-    /**
-     * @var list<string>
-     */
-    private const SUPPORTED_SCOPES = [
-        'dev.ucp.shopping.cart:manage',
-        'dev.ucp.shopping.order:read',
-        'dev.ucp.shopping.order:manage',
-    ];
-
     public function __construct(
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly DoctrineDbalUcpOAuthStore $oauthStore,
         private readonly OAuthClientBindingValidator $clientBindingValidator = new OAuthClientBindingValidator(),
+        private readonly UcpOAuthScopeRegistry $scopeRegistry = new UcpOAuthScopeRegistry(),
     ) {
     }
 
@@ -44,7 +36,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
             issuer: $baseUri,
             authorizationEndpoint: $baseUri.'/ucp/v1/oauth/authorize',
             tokenEndpoint: $baseUri.'/ucp/v1/oauth/token',
-            scopesSupported: self::SUPPORTED_SCOPES,
+            scopesSupported: $this->scopeRegistry->supported(),
             grantTypesSupported: ['authorization_code', 'refresh_token'],
             tokenEndpointAuthMethodsSupported: ['none'],
         );
@@ -63,7 +55,7 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
             throw new OAuthException('Only PKCE S256 code challenge method is supported.');
         }
 
-        $scope = $this->normalizeScope($request->scope);
+        $scope = $this->scopeRegistry->normalize($request->scope);
         $salesChannel = $this->contextResolver->resolveSalesChannel($context);
         $customerContext = $this->contextResolver->resolve($this->contextToken($context), $context);
         $customer = $customerContext->getCustomer();
@@ -208,21 +200,6 @@ final class ShopwareIdentityLinkingAdapter implements IdentityLinkingAdapterInte
         $baseUri = null !== $context->runtimeConfiguration ? $context->runtimeConfiguration->baseUri : 'https://'.$context->host;
 
         return rtrim($baseUri, '/');
-    }
-
-    private function normalizeScope(string $scope): string
-    {
-        $requested = array_values(array_filter(explode(' ', trim($scope)), static fn (string $entry): bool => '' !== $entry));
-        if ([] === $requested) {
-            return implode(' ', self::SUPPORTED_SCOPES);
-        }
-
-        $unsupported = array_values(array_diff($requested, self::SUPPORTED_SCOPES));
-        if ([] !== $unsupported) {
-            throw new OAuthException(\sprintf('Unsupported OAuth scope "%s".', $unsupported[0]));
-        }
-
-        return implode(' ', array_values(array_unique($requested)));
     }
 
     private function contextToken(RequestContext $context): string
