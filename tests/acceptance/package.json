@@ -12,7 +12,7 @@
     "test": "playwright test --grep-invert @UcpKnownBlocked",
     "test:all": "playwright test",
     "test:known-blocked": "playwright test --project=UcpKnownBlocked",
-    "lint": "eslint fixtures tests known-blockers.ts playwright.config.ts eslint.config.ts",
+    "lint": "eslint fixtures services tests known-blockers.ts playwright.config.ts eslint.config.ts",
     "lint:fix": "npm run lint -- --fix",
     "typecheck": "tsc --noEmit"
   },
