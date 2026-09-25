@@ -110,6 +110,7 @@ use Swag\AgenticCommerce\Ucp\Http\ConfiguredUrlSafetyValidatorFactory;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
+use Swag\AgenticCommerce\Ucp\Identity\UcpOAuthScopeRegistry;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCartCancelTool;
@@ -321,6 +322,9 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(UcpExtensionAvailability::class)
         ->arg('$identityLinkingAdapterIterable', tagged_iterator('ucp_sdk.adapter.identity_linking'));
+
+    $services->set(UcpOAuthScopeRegistry::class)
+        ->arg('$scopeProviders', tagged_iterator('swag_agentic_commerce.ucp.oauth_scope_provider'));
 
     // Tagged service registrations.
 

@@ -10,8 +10,11 @@ use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
+use Swag\AgenticCommerce\Ucp\Identity\AbstractUcpOAuthScopeProvider;
 use Swag\AgenticCommerce\Ucp\Identity\DoctrineDbalUcpOAuthStore;
+use Swag\AgenticCommerce\Ucp\Identity\OAuthClientBindingValidator;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
+use Swag\AgenticCommerce\Ucp\Identity\UcpOAuthScopeRegistry;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Exception\OAuthException;
@@ -25,14 +28,8 @@ final class ShopwareIdentityLinkingAdapterTest extends TestCase
 
     protected function setUp(): void
     {
-        $contextResolver = new SalesChannelContextResolver(
-            new SalesChannelDomainResolver($this->createMock(EntityRepository::class)),
-            $this->createMock(SalesChannelContextServiceInterface::class),
-            $this->createMock(SalesChannelContextPersister::class),
-        );
-
         $this->adapter = new ShopwareIdentityLinkingAdapter(
-            $contextResolver,
+            $this->contextResolver(),
             new DoctrineDbalUcpOAuthStore($this->createMock(Connection::class)),
         );
     }
@@ -82,6 +79,41 @@ final class ShopwareIdentityLinkingAdapterTest extends TestCase
                 refreshToken: 'ucp_refresh_existing',
             ),
             new RequestContext('shop.example'),
+        );
+    }
+
+    #[Test]
+    public function testTheOAuthMetadataAdvertisesCoreAndRegisteredScopes(): void
+    {
+        $adapter = new ShopwareIdentityLinkingAdapter(
+            $this->contextResolver(),
+            new DoctrineDbalUcpOAuthStore($this->createMock(Connection::class)),
+            new OAuthClientBindingValidator(),
+            new UcpOAuthScopeRegistry([new class extends AbstractUcpOAuthScopeProvider {
+                public function getScopes(): array
+                {
+                    return ['com.shopware.quote:manage'];
+                }
+            }]),
+        );
+
+        static::assertSame(
+            [
+                'dev.ucp.shopping.cart:manage',
+                'dev.ucp.shopping.order:read',
+                'dev.ucp.shopping.order:manage',
+                'com.shopware.quote:manage',
+            ],
+            $adapter->getMetadata(new RequestContext('shop.example'))->scopesSupported,
+        );
+    }
+
+    private function contextResolver(): SalesChannelContextResolver
+    {
+        return new SalesChannelContextResolver(
+            new SalesChannelDomainResolver($this->createMock(EntityRepository::class)),
+            $this->createMock(SalesChannelContextServiceInterface::class),
+            $this->createMock(SalesChannelContextPersister::class),
         );
     }
 }
