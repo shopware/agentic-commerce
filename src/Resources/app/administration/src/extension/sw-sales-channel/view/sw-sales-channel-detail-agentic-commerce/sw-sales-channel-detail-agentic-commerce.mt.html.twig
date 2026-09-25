@@ -120,6 +120,17 @@
                         </div>
                         {% endblock %}
                     </div>
+
+                    {% block sw_sales_channel_detail_agentic_commerce_ucp_docs_link %}
+                    <p class="sw-sales-channel-detail-agentic-commerce__docs-hint">
+                        <sw-external-link
+                            class="sw-sales-channel-detail-agentic-commerce__docs-link"
+                            :href="$t('sw-sales-channel.detail.agenticCommerce.ucp.docsUrl')"
+                        >
+                            {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.docsLinkLabel') }}
+                        </sw-external-link>
+                    </p>
+                    {% endblock %}
                 </div>
             </template>
             {% endblock %}

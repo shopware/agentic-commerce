@@ -45,6 +45,13 @@ test.describe('UCP sales-channel admin tab', () => {
                 await expect(tabRoot.getByText(transport, { exact: true })).toBeVisible();
             }
 
+            const docsLink = tabRoot.locator('.sw-sales-channel-detail-agentic-commerce__docs-link').first();
+            await expect(docsLink).toBeVisible();
+            await expect(docsLink).toHaveAttribute(
+                'href',
+                /^https:\/\/docs\.shopware\.com\/.+\/agentic-commerce#ucp-universal-commerce-protocol$/,
+            );
+
             const previewTab = tabRoot.getByText('Preview', { exact: true });
             if (await previewTab.isVisible().catch(() => false)) {
                 await previewTab.click();

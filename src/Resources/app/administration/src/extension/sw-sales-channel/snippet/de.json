@@ -42,6 +42,8 @@
           "transportA2aDescription": "A2A – Agent-zu-Agent-Protokoll.",
           "transportEmbeddedDescription": "Embedded – eingebettete In-Context-Oberfläche.",
           "transportMcpDescription": "MCP – Model-Context-Protocol-Server.",
+          "docsLinkLabel": "Mehr über die UCP-Einstellungen in der Dokumentation erfahren",
+          "docsUrl": "https://docs.shopware.com/de/shopware-6-de/erweiterungen/agentic-commerce#ucp-universal-commerce-protocol",
           "previewLabel": "Profilvorschau"
         },
         "openAiSettingsTitle": "OpenAI-Einstellungen",
