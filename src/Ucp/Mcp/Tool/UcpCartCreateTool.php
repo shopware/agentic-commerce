@@ -8,6 +8,7 @@ use Mcp\Capability\Attribute\McpTool;
 use Mcp\Capability\Attribute\Schema;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
@@ -18,7 +19,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
  * @internal
  */
 #[McpTool(name: 'create_cart', title: 'UCP Cart Create', description: 'Create a cart through the shared UCP cart capability. The payload parameter is a JSON object matching the UCP cart.create request. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
-#[McpToolGroup('discovery')]
+#[McpToolGroup(UcpMcpToolset::NAME)]
 #[Package('checkout')]
 final class UcpCartCreateTool
 {

@@ -18,6 +18,7 @@ use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\AdvertiseUcpToolsWithoutToolsetPinningPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -81,6 +82,10 @@ final class SwagAgenticCommerce extends Plugin
         // allowlists instead of the SDK bundle's static (empty) semantic config, so
         // configured remote profile hosts are actually fetchable.
         $container->addCompilerPass(new ReplaceSdkUrlSafetyValidatorPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
+
+        // Keeps the UCP MCP tools on the first tools/list on Shopware releases without connect-time
+        // toolset pinning. Runs after core's MCP discovery pass (priority 20).
+        $container->addCompilerPass(new AdvertiseUcpToolsWithoutToolsetPinningPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 0);
 
         // In the test environment, swap the SDK's HTTP agent-profile fetcher for a fixed,
         // test-supplied one so the functional suite can negotiate the UCP handshake offline.
