@@ -28,7 +28,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: store-release
+  # A queued run replaces the pending one in its group, so a pre-release tag pushed while a Store
+  # publish waits would drop the publish. Each tag gets its own group; Store dispatches share one.
+  group: store-release-${{ github.event_name == 'push' && github.ref || 'store' }}
   cancel-in-progress: false
 
 jobs:
@@ -245,7 +247,9 @@ jobs:
           VERSION: ${{ needs.prerelease-metadata.outputs.version }}
         run: |
           set -euo pipefail
-          previous="$(git tag --list --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          # The nearest release in the tagged commit's own history. Version-sorting all tags would
+          # rank a v-prefixed tag above every bare release tag.
+          previous="$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' --exclude '*-*' "${GITHUB_SHA}" 2>/dev/null || true)"
           {
             echo '> [!WARNING]'
             echo '> Pre-release for testing. It is not in the Shopware Store and is not meant for production shops.'

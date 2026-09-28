@@ -49,9 +49,9 @@ permissions:
   contents: read
 
 concurrency:
-  # A called workflow sees the caller's context. Without github.workflow, a CI run and a Store
-  # release on the same ref would share this group and one would cancel the other.
-  group: package-zip-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # A called workflow sees the caller's context. Only a pull request's superseded runs cancel each
+  # other; every other run gets its own group, so a main push or a release is never cancelled.
+  group: package-zip-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
