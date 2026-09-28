@@ -20,13 +20,21 @@ Public contracts:
   extensions. A third party extends the class, implements `getTechnicalName()` and
   `buildProviderContext()`, and tags its service with that tag;
   `AgenticCommerceProductExportProviderRegistry` picks it up via `tagged_iterator`.
+- `Swag\AgenticCommerce\Ucp\Identity\AbstractUcpOAuthScopeProvider` plus the
+  `swag_agentic_commerce.ucp.oauth_scope_provider` service tag for UCP OAuth scopes. A third party
+  extends the class, returns its scopes from `getScopes()`, and tags its service;
+  `UcpOAuthScopeRegistry` merges them with the scopes this plugin's own capabilities answer for.
+  Registered scopes are advertised in `scopes_supported` on
+  `/.well-known/oauth-authorization-server` and are grantable in an authorization request; an
+  unregistered scope is still rejected with `Unsupported OAuth scope`. The extension authorizes its
+  own routes -- the scope string is carried on the token, nothing else is granted by registering it.
 
 Internal by default:
 
-Every class, interface, trait, and enum under `src/` carries `@internal`, except the provider base
-class listed above. Test classes under `tests/` carry `@internal` too, so the BC checker does not
-capture them. Do not replace this with a per-namespace list; such a list silently omits namespaces
-added later.
+Every class, interface, trait, and enum under `src/` carries `@internal`, except the base classes
+listed above. Test classes under `tests/` carry `@internal` too, so the BC checker does not capture
+them. Do not replace this with a per-namespace list; such a list silently omits namespaces added
+later.
 
 If a PHP class should become a public extension point, document its contract here before removing
 `@internal`.
