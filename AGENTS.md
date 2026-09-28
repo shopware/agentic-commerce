@@ -378,11 +378,11 @@ Current worst offenders, all service classes, none of them good: `CheckoutComple
   the user explicitly asks for an amend or force-push.
 - PR descriptions should summarize what changed and why. Do not add validation sections; CI owns
   validation reporting.
-- Need an install-ready package for a reviewer? Add the `build:zip` label to the PR.
-  `.github/workflows/package-zip.yml` then builds, validates, installs it on 6.5.x/6.6.x/trunk shops
-  without the SDK, and uploads a `SwagAgenticCommerce.zip` run artifact, rebuilding on every push
-  while the label stays on. It is opt-in on purpose, so do not wire it into the default CI matrix or
-  the `validation-gate`. See [docs/releasing.md](docs/releasing.md) for details.
+- Need an install-ready package for a reviewer? Every PR already has one. The `zip-artifact` job in
+  `ci.yml` calls `.github/workflows/package-zip.yml`, which builds, validates and installs it on
+  6.5.x/6.6.x/trunk shops without the SDK, then uploads it as the `SwagAgenticCommerce` run artifact
+  with the PR number in its label. `package-zip.yml` is the only place the archive is built; Store
+  releases and pre-release tags call it too. See [docs/releasing.md](docs/releasing.md) for details.
 
 ## Installation And Update
 
@@ -444,8 +444,8 @@ Read them before redesigning any of this, not after.
 **Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a built
 archive through the admin upload endpoint on a shop stripped of the extension and the SDK, and
 refuses to run if the shop can already resolve the SDK. The `zip-install` job in `package-zip.yml`
-runs it on 6.5.x, 6.6.x and trunk, and it also takes the SDK away from the installed extension again
-to prove the shop stays up.
+runs it on every pull request, on 6.5.x, 6.6.x and trunk, and it also takes the SDK away from the
+installed extension again to prove the shop stays up.
 
 Two scenarios are deliberately **not** in CI: an update from a version that bundled the SDK, and an
 update where the pinned SDK version moves. Both need a second archive in the job, and the
@@ -457,8 +457,10 @@ without a reason that has changed.
 
 Store releases run from `main` HEAD via `.github/workflows/store-release.yml` after that commit has
 a green `validation-gate`. Bump `composer.json` `version` and both changelogs (`# <version>`) in the
-release PR. See [docs/releasing.md](docs/releasing.md) for the full flow. Two recurring pitfalls
-have their own subsections there — read them before the change, not after CI is green:
+release PR. A test package comes from a pre-release tag such as `v1.3.1-rc.1` instead, which builds
+through the same workflow and never reaches the Store. See [docs/releasing.md](docs/releasing.md)
+for the full flow. Two recurring pitfalls have their own subsections there — read them before the
+change, not after CI is green:
 
 - **SDK version pin.** `ucp-php-sdk/symfony-bundle` is required at the exact version it was tested
   against, currently `0.0.7` — **not** a caret (a caret on `0.0.x` already means that exact patch;
