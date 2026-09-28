@@ -103,6 +103,7 @@ final class SalesChannelViewProvider
             $salesChannel->getTypeId(),
             $typeClassification->isTransactional(),
             $domains,
+            $salesChannel->getActive(),
         );
     }
 }

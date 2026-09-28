@@ -9,6 +9,7 @@ use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
 use Shopware\Core\Framework\Plugin;
 use Shopware\Core\Framework\Plugin\Context\ActivateContext;
 use Shopware\Core\Framework\Plugin\Context\InstallContext;
+use Shopware\Core\Framework\Plugin\Context\UninstallContext;
 use Shopware\Core\Framework\Plugin\Context\UpdateContext;
 use Shopware\Core\Kernel;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
@@ -18,8 +19,10 @@ use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
+use Swag\AgenticCommerce\Lifecycle\PluginDataRemover;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
+use Swag\AgenticCommerce\Ucp\Onboarding\OnboardingDismissal;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -34,6 +37,9 @@ final class SwagAgenticCommerce extends Plugin
      * Stable UUID shared across all versions so sales channels survive plugin/core transitions.
      */
     public const SALES_CHANNEL_TYPE_AGENTIC_COMMERCE = '5e29f9890c4d4d519a1c7f9d5c24b7c1';
+
+    /** Plugin-owned stream the onboarding-created feed channels export: every active product. */
+    public const DEFAULT_PRODUCT_STREAM_ID = '0195a9c0a1b07b8e9d2f4c6e8a1b3d5f';
 
     public const OPEN_AI_PRODUCT_EXPORT_CONFIG_DOMAIN = 'SwagAgenticCommerce.openAiProductExport';
 
@@ -123,6 +129,7 @@ final class SwagAgenticCommerce extends Plugin
 
         $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
+        $this->resetOnboardingDismissal();
     }
 
     public function update(UpdateContext $updateContext): void
@@ -141,6 +148,23 @@ final class SwagAgenticCommerce extends Plugin
 
         $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
+        $this->resetOnboardingDismissal();
+    }
+
+    /**
+     * Honours the "remove all data" choice a merchant makes in the Extensions UI.
+     * Without this the plugin's own tables outlive it, so a reinstall finds a
+     * shop that still looks configured and never offers onboarding again.
+     */
+    public function uninstall(UninstallContext $uninstallContext): void
+    {
+        parent::uninstall($uninstallContext);
+
+        if ($uninstallContext->keepUserData()) {
+            return;
+        }
+
+        PluginDataRemover::removeAll(Kernel::getConnection());
     }
 
     /**
@@ -163,6 +187,15 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    /**
+     * A dismissal lives in core's `user_config`, which an uninstall leaves behind, so a fresh
+     * install would otherwise never offer the onboarding dialog to an admin who once said no.
+     */
+    private function resetOnboardingDismissal(): void
+    {
+        OnboardingDismissal::reset(Kernel::getConnection());
     }
 
     /**

@@ -52,6 +52,14 @@ Shopware.Service('privileges').addPrivilegeMappingEntry({
         editor: {
             privileges: [
                 'system_config:update',
+                'system_config:create',
+                // Creating agentic feed channels from the settings wizard.
+                'sales_channel:create',
+                'sales_channel:update',
+                'product_export:create',
+                'product_export:read',
+                'product_stream:create',
+                'product_stream:read',
             ],
             dependencies: [
                 'ucp.viewer',

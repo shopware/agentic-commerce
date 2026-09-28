@@ -14,7 +14,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Finding;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Severity;
-use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
+use Swag\AgenticCommerce\Ucp\Onboarding\ChannelFindingsResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -60,7 +60,7 @@ final class UcpSetupCommand extends Command
         private readonly SalesChannelViewProvider $salesChannelViewProvider,
         private readonly UcpConfigService $configService,
         private readonly UcpSigningKeyService $signingKeyService,
-        private readonly UcpConfigValidator $validator,
+        private readonly ChannelFindingsResolver $findingsResolver,
     ) {
         parent::__construct();
     }
@@ -156,19 +156,13 @@ final class UcpSetupCommand extends Command
             return self::FAILURE;
         }
 
-        $findings = $this->validator->validate(
-            $salesChannelId,
-            $channel->name ?? '',
-            $config,
-            $keys,
-            array_map(static fn (SalesChannelDomainView $domain): array => $domain->jsonSerialize(), $channel->domains),
-        );
+        $findings = $this->findingsResolver->resolve($salesChannelId, $channel->name, $config, $channel);
         $this->renderFindings($io, $findings);
 
         $this->renderSummary($io, $config, $channel);
         $this->renderNextSteps($io, $dev, $agentHosts, $domainHosts, $salesChannelId);
 
-        return $this->hasErrors($findings) ? self::FAILURE : self::SUCCESS;
+        return $this->findingsResolver->hasError($findings) ? self::FAILURE : self::SUCCESS;
     }
 
     /**
@@ -318,19 +312,5 @@ final class UcpSetupCommand extends Command
         $steps[] = 'Give the platform the profile URL above; it discovers everything else from there.';
         $steps[] = \sprintf('Before go-live: <info>bin/console ucp:config:validate --sales-channel=%s --strict</info>', $salesChannelId);
         $io->listing($steps);
-    }
-
-    /**
-     * @param list<Finding> $findings
-     */
-    private function hasErrors(array $findings): bool
-    {
-        foreach ($findings as $finding) {
-            if (Severity::Error === $finding->severity) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

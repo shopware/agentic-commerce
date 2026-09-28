@@ -15,10 +15,10 @@ final class DoctrineDbalUcpOAuthStore
 {
     private const ACCESS_TOKEN_TTL = 3600;
     private const AUTHORIZATION_CODE_TTL = 600;
-    private const CODE_TABLE = 'swag_agentic_commerce_ucp_oauth_code';
-    private const ACCESS_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_access_token';
+    public const CODE_TABLE = 'swag_agentic_commerce_ucp_oauth_code';
+    public const ACCESS_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_access_token';
     private const REFRESH_TOKEN_TTL = 2592000;
-    private const REFRESH_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_refresh_token';
+    public const REFRESH_TOKEN_TABLE = 'swag_agentic_commerce_ucp_oauth_refresh_token';
 
     /**
      * Upper bound of rows removed per DELETE so a large backlog cannot produce a single unbounded

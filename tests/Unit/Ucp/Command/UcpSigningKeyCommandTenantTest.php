@@ -150,6 +150,7 @@ class UcpSigningKeyCommandTenantTest extends TestCase
         $entity->setUniqueIdentifier($id);
         $entity->setName($name);
         $entity->setTypeId('0191cccccccc7000cccccccccccccccc');
+        $entity->setActive(true);
 
         return $entity;
     }

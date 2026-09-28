@@ -7,6 +7,27 @@
       "columnUcp": "UCP",
       "ucpExposed": "Bereitgestellt",
       "ucpOff": "Aus"
+    },
+    "onboarding": {
+      "title": "Agentic Commerce aktivieren",
+      "intro": "Wähle aus, in welchen Verkaufskanälen KI-Agenten einkaufen dürfen. Jeder ausgewählte Kanal wird über das Universal Commerce Protocol mit den unten stehenden Funktionen bereitgestellt und erhält automatisch einen Signaturschlüssel. Du kannst alles später unter Agentic Commerce im jeweiligen Kanal ändern.",
+      "channelsLabel": "Verkaufskanäle",
+      "noChannels": "Es kann noch kein Verkaufskanal bereitgestellt werden. UCP benötigt einen Storefront- oder Headless-Kanal, der einen Kauf abschließen kann.",
+      "hintNothingExposed": "Noch kein Verkaufskanal ist für KI-Agenten geöffnet.",
+      "noDomainWarning": "Keine Domain, Agenten erreichen diesen Kanal nicht",
+      "notNow": "Jetzt nicht",
+      "enableAction": "{count} Kanal/Kanäle aktivieren",
+      "reopenAction": "Agentic Commerce einrichten",
+      "resultSummary": "{enabled} aktiviert, {skipped} bereits eingerichtet, {failed} fehlgeschlagen.",
+      "statusEnabled": "Aktiviert",
+      "statusSkipped": "Bereits eingerichtet",
+      "warningsTitle": "Bitte prüfen",
+      "notification": {
+        "title": "Agentic Commerce erfolgreich installiert",
+        "message": "Die Erweiterung ist installiert und sollte jetzt konfiguriert werden. Du kannst sie jetzt einrichten oder später unter Einstellungen > Agentic Commerce.",
+        "setUpNow": "Jetzt einrichten",
+        "doItLater": "Später"
+      }
     }
   },
   "sw-sales-channel": {

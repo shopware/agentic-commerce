@@ -7,6 +7,27 @@
       "columnUcp": "UCP",
       "ucpExposed": "Exposed",
       "ucpOff": "Off"
+    },
+    "onboarding": {
+      "title": "Enable Agentic Commerce",
+      "intro": "Choose which sales channels AI agents may shop from. Each selected channel is exposed over the Universal Commerce Protocol with the capabilities below, and gets a signing key automatically. You can change all of it later under Agentic Commerce on the channel.",
+      "channelsLabel": "Sales channels",
+      "noChannels": "No sales channel can be exposed yet. UCP needs a storefront or headless channel that can complete a purchase.",
+      "hintNothingExposed": "No sales channel is open to AI agents yet.",
+      "noDomainWarning": "No domain, agents cannot reach this channel",
+      "notNow": "Not now",
+      "enableAction": "Enable {count} channel(s)",
+      "reopenAction": "Set up Agentic Commerce",
+      "resultSummary": "{enabled} enabled, {skipped} already set up, {failed} failed.",
+      "statusEnabled": "Enabled",
+      "statusSkipped": "Already set up",
+      "warningsTitle": "Worth checking",
+      "notification": {
+        "title": "Agentic Commerce installed successfully",
+        "message": "The extension is installed and should now be configured. You can set it up now, or later under Settings > Agentic Commerce.",
+        "setUpNow": "Set up now",
+        "doItLater": "Do it later"
+      }
     }
   },
   "sw-sales-channel": {

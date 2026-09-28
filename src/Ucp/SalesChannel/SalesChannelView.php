@@ -19,11 +19,12 @@ final class SalesChannelView implements \JsonSerializable
         public readonly string $typeId,
         public readonly bool $transactional,
         public readonly array $domains,
+        public readonly bool $active = true,
     ) {
     }
 
     /**
-     * @return array{id: string, name: string|null, typeId: string, transactional: bool, domains: list<array{id: string, url: string, languageId: string, currencyId: string|null}>}
+     * @return array{id: string, name: string|null, typeId: string, transactional: bool, active: bool, domains: list<array{id: string, url: string, languageId: string, currencyId: string|null}>}
      */
     public function jsonSerialize(): array
     {
@@ -32,6 +33,7 @@ final class SalesChannelView implements \JsonSerializable
             'name' => $this->name,
             'typeId' => $this->typeId,
             'transactional' => $this->transactional,
+            'active' => $this->active,
             'domains' => array_map(
                 static fn (SalesChannelDomainView $domain): array => $domain->jsonSerialize(),
                 $this->domains,

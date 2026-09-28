@@ -127,6 +127,7 @@ class UcpConfigSetCommandTest extends TestCase
         $entity->setUniqueIdentifier(self::STORE_ID);
         $entity->setName('Storefront');
         $entity->setTypeId('0191cccccccc7000cccccccccccccccc');
+        $entity->setActive(true);
 
         $searchResult = $this->createMock(EntitySearchResult::class);
         $searchResult->method('getEntities')->willReturn(new SalesChannelCollection([$entity]));

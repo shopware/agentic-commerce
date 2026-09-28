@@ -5,6 +5,7 @@ import './init/defaults.init';
 import './core/service/api/ucp-admin.api.service.js';
 import './extension/sw-customer/acl';
 import './extension/sw-sales-channel';
+import './module/sw-settings-agentic-commerce';
 
 // Core ships the list-column tracking module natively from 6.7.10+.
 if (!coreShipsAgenticCommerce) {

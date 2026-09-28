@@ -1,0 +1,159 @@
+{
+  "swagAgenticCommerce": {
+    "settings": {
+      "title": "Agentic Commerce",
+      "description": "Prüfe, ob dein Shop für die KI-Discovery vorbereitet ist, und schließe die restliche Einrichtung ab.",
+      "readinessTitle": "KI-Bereitschaft",
+      "stepsComplete": "{completed} von {total} Schritten abgeschlossen",
+      "taskComplete": "Abgeschlossen",
+      "findingsTitle": "Bitte prüfen",
+      "preparedTitle": "Vorbereitete Verkaufskanäle",
+      "preparedMeta": "UCP und KI-Dateien aktiviert. {count} aktive Produkte.",
+      "preparedPill": "Vorbereitet",
+      "metricsTitle": "Shop-Bereitschaft",
+      "metricExtension": "Erweiterung",
+      "metricInstalled": "Installiert",
+      "metricPrepared": "Vorbereitete Verkaufskanäle",
+      "metricAgentic": "Agentic-Verkaufskanäle",
+      "status": {
+        "setup_needed": {
+          "heading": "Dein Shop ist noch nicht KI-bereit",
+          "copy": "Agentic Commerce ist installiert. Bereite zuerst deine bestehenden Verkaufskanäle vor und verbinde sie dann mit einem KI-Anbieter.",
+          "pill": "Einrichtung nötig"
+        },
+        "action_needed": {
+          "heading": "Es ist noch etwas zu tun",
+          "copy": "Einige deiner Verkaufskanäle sind vorbereitet. Schließe die übrigen Schritte ab, damit KI-Agenten sie auch erreichen können.",
+          "pill": "Aktion nötig"
+        },
+        "ready": {
+          "heading": "Dein Shop ist KI-bereit",
+          "copy": "Deine Verkaufskanäle sind vorbereitet und ein Agentic-Verkaufskanal ist mit einem KI-Anbieter verbunden.",
+          "pill": "KI-bereit"
+        }
+      },
+      "tasks": {
+        "installed": {
+          "title": "Agentic Commerce installiert",
+          "description": "Die Erweiterung ist in diesem Shop aktiv.",
+          "doneDescription": "Die Erweiterung ist in diesem Shop aktiv."
+        },
+        "prepared": {
+          "title": "Bestehende Verkaufskanäle vorbereiten",
+          "description": "Aktiviere die nötigen UCP- und KI-Datei-Einstellungen, ohne jeden Verkaufskanal einzeln zu konfigurieren.",
+          "doneDescription": "{count} Verkaufskanal/-kanäle vorbereitet.",
+          "action": "Verkaufskanäle vorbereiten",
+          "pendingDescription": "{count} vorbereitet, {pending} Verkaufskanal/-kanäle noch nicht.",
+          "actionMore": "{count} weitere vorbereiten"
+        },
+        "connected": {
+          "title": "Mit einem KI-Anbieter verbinden",
+          "description": "Erstelle aus deiner Storefront einen Produkt-Feed für OpenAI oder Google Shopping.",
+          "doneDescription": "{count} Agentic-Verkaufskanal/-kanäle verbunden.",
+          "action": "KI-Anbieter verbinden",
+          "addAction": "Anbieter hinzufügen"
+        }
+      },
+      "connectedTitle": "Verbundene KI-Anbieter",
+      "connectedInactive": "Inaktiv"
+    },
+    "prepare": {
+      "title": "Verkaufskanäle vorbereiten",
+      "steps": {
+        "understand": "Verstehen",
+        "select": "Auswählen",
+        "review": "Prüfen"
+      },
+      "understand": {
+        "heading": "Was Shopware ändert",
+        "copy": "Agentic Commerce nutzt zusätzliche Produktdaten-Endpunkte. Für die ausgewählten Verkaufskanäle aktiviert Shopware Folgendes, sofern es noch nicht aktiv ist.",
+        "ucpTitle": "Universal Commerce Protocol",
+        "ucpCopy": "Stellt strukturierte Produkt- und Commerce-Informationen über UCP für KI-Agenten bereit und erzeugt einen Signaturschlüssel für den Kanal.",
+        "filesTitle": "KI-Dateien",
+        "filesCopy": "Veröffentlicht maschinenlesbare Dateien, die KI-Diensten mitteilen, wie sie mit diesem Verkaufskanal interagieren dürfen.",
+        "notice": "Bis zur Bestätigung ändert sich nichts. Bereits aktive Einstellungen bleiben unverändert, und bereits vorbereitete Kanäle werden nicht angeboten."
+      },
+      "select": {
+        "heading": "Verkaufskanäle auswählen",
+        "selected": "{count} ausgewählt",
+        "selectAll": "Alle auswählen",
+        "deselectAll": "Auswahl aufheben",
+        "products": "{count} aktive Produkte",
+        "noDomain": "Keine Domain, Agenten erreichen diesen Kanal nicht",
+        "empty": "Alle bereitstellbaren Verkaufskanäle sind bereits vorbereitet.",
+        "notice": "Es werden nur fehlende Einstellungen aktiviert. Bestehende bleiben unverändert."
+      },
+      "review": {
+        "heading": "Änderungen prüfen",
+        "summary": "{count} Verkaufskanal/-kanäle werden vorbereitet.",
+        "notice": "Shopware aktiviert UCP und die KI-Dateien, wo nötig. Bereits aktive Einstellungen werden nicht geändert."
+      },
+      "result": {
+        "heading": "Ergebnis",
+        "summary": "{enabled} vorbereitet, {skipped} bereits eingerichtet, {failed} fehlgeschlagen.",
+        "enabled": "Vorbereitet",
+        "skipped": "Bereits eingerichtet",
+        "findingsTitle": "Bitte prüfen"
+      },
+      "actions": {
+        "back": "Zurück",
+        "continue": "Weiter",
+        "apply": "Änderungen anwenden",
+        "done": "Fertig"
+      }
+    },
+    "feeds": {
+      "title": "KI-Anbieter verbinden",
+      "steps": {
+        "choose": "Anbieter wählen",
+        "review": "Prüfen",
+        "result": "Ergebnis"
+      },
+      "choose": {
+        "heading": "KI-Anbieter wählen",
+        "lede": "Shopware erstellt pro Anbieter einen Agentic-Verkaufskanal, vorkonfiguriert aus deiner Storefront. Feinabstimmen kannst du ihn später unter Verkaufskanäle.",
+        "selected": "{count} ausgewählt",
+        "selectAll": "Alle auswählen",
+        "deselectAll": "Auswahl aufheben",
+        "noDomain": "Keine Domain",
+        "domainHint": "Füge dieser Storefront eine Domain hinzu, um einen Feed zu erstellen.",
+        "willCreate": "Wird erstellt",
+        "empty": "Es gibt noch keinen Storefront-Verkaufskanal. Lege zuerst einen an und verbinde ihn dann hier."
+      },
+      "providers": {
+        "openAi": {
+          "label": "OpenAI",
+          "description": "JSONL-Produkt-Feed für das Shopping in ChatGPT"
+        },
+        "google": {
+          "label": "Google Shopping",
+          "description": "RSS/XML-Feed für das Google Merchant Center"
+        },
+        "unknown": "Unbekannter Anbieter"
+      },
+      "connected": "Verbunden",
+      "copy": "Kopieren",
+      "copied": "Feed-URL in die Zwischenablage kopiert.",
+      "copyFailed": "Die Feed-URL konnte nicht kopiert werden.",
+      "openChannel": "Verkaufskanal öffnen",
+      "review": {
+        "heading": "Prüfen",
+        "summary": "{count} Agentic-Verkaufskanal/-kanäle werden erstellt.",
+        "notice": "Sonst ändert sich nichts. Bestehende Kanäle bleiben unverändert."
+      },
+      "result": {
+        "heading": "Ergebnis",
+        "summary": "{created} erstellt, {skipped} bereits verbunden, {failed} fehlgeschlagen.",
+        "created": "Erstellt",
+        "skipped": "Bereits verbunden",
+        "failed": "Fehlgeschlagen"
+      },
+      "actions": {
+        "back": "Zurück",
+        "continue": "Weiter",
+        "apply": "Verkaufskanäle erstellen",
+        "done": "Fertig"
+      }
+    }
+  }
+}
