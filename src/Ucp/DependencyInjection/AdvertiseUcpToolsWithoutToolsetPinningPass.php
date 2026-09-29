@@ -18,7 +18,8 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
  * those releases this pass adds the UCP tools to the endpoint's default surface, which is what the
  * plugin did before. From 6.7.15.0 on it does nothing.
  *
- * Runs after core's McpToolDiscoveryCompilerPass (priority 20), which writes the parameter.
+ * Must run after core's McpToolDiscoveryCompilerPass, which resets the parameter before writing it,
+ * so it is registered below that pass's priority on every release line.
  *
  * @internal
  */

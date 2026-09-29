@@ -25,16 +25,16 @@ final class UcpMcpDiscoveryFlowTest extends TestCase
 
     private const ACCEPT = 'application/json, text/event-stream';
 
-    protected function setUp(): void
-    {
-        if (!UcpMcpToolset::coreSupportsConnectTimeToolsets() || !static::getContainer()->get(ShopwareVersionDetector::class)->supportsStoreApiMcp()) {
-            self::markTestSkipped('Needs the Store API MCP endpoint with connect-time toolset selection (Shopware 6.7.15.0+).');
-        }
-    }
+    /** Progressive disclosure on the Store API endpoint; below this the UCP tools were never deferred. */
+    private const PROGRESSIVE_DISCLOSURE_VERSION = '6.7.14.0';
+
+    /** Connect-time toolset pinning; below this the UCP tools reach /ucp/mcp through the fallback pass. */
+    private const CONNECT_TIME_TOOLSETS_VERSION = '6.7.15.0';
 
     #[Test]
     public function testUcpToolsAreListedOnAFreshUcpMcpSession(): void
     {
+        $this->requireShopware(self::PROGRESSIVE_DISCLOSURE_VERSION);
         $this->configureUcpRuntime();
         static::getContainer()->get(UcpConfigService::class)->saveConfig(['enabledTransports' => ['rest', 'mcp']], $this->ucpSalesChannelId);
 
@@ -48,6 +48,7 @@ final class UcpMcpDiscoveryFlowTest extends TestCase
     #[Test]
     public function testAPlainStoreApiSessionOnlyAdvertisesTheDiscoveryTools(): void
     {
+        $this->requireShopware(self::CONNECT_TIME_TOOLSETS_VERSION);
         $this->configureUcpRuntime();
         $accessKey = static::getContainer()->get(Connection::class)->fetchOne(
             'SELECT access_key FROM sales_channel WHERE id = UNHEX(:id)',
@@ -59,6 +60,24 @@ final class UcpMcpDiscoveryFlowTest extends TestCase
 
         self::assertNotContains('search_catalog', $tools, 'The UCP tools must not be on every Store API connection.');
         self::assertContains('shopware-toolsets-list', $tools);
+    }
+
+    #[Test]
+    public function testTheProductionProbeFindsConnectTimeToolsets(): void
+    {
+        $this->requireShopware(self::CONNECT_TIME_TOOLSETS_VERSION);
+
+        // Gated on the version, not on the probe: a probe broken by a core rename must fail here
+        // rather than silently re-enable the fallback pass on every Store API connection.
+        self::assertTrue(UcpMcpToolset::coreSupportsConnectTimeToolsets(), 'Core supports connect-time toolsets, but UcpMcpToolset no longer detects them.');
+    }
+
+    private function requireShopware(string $minimumVersion): void
+    {
+        $detector = static::getContainer()->get(ShopwareVersionDetector::class);
+        if (!$detector->supportsStoreApiMcp() || !$detector->isAtLeast($minimumVersion)) {
+            self::markTestSkipped(\sprintf('Needs the Store API MCP endpoint on Shopware %s or newer.', $minimumVersion));
+        }
     }
 
     /**

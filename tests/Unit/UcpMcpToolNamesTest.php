@@ -72,9 +72,7 @@ final class UcpMcpToolNamesTest extends TestCase
                 }
             }
 
-            // Not core's reserved "discovery" group: that would put the tool on every Store API
-            // connection. /ucp/mcp pins this toolset instead (shopware/agentic-commerce#254).
-            self::assertSame([UcpMcpToolset::NAME], $groups, \sprintf('%s must sit in the "%s" toolset, which /ucp/mcp pins at connect time.', $class, UcpMcpToolset::NAME));
+            self::assertSame([UcpMcpToolset::NAME], $groups, \sprintf('%s must sit in the "%s" toolset, which /ucp/mcp pins at connect time (#254).', $class, UcpMcpToolset::NAME));
         }
     }
 
