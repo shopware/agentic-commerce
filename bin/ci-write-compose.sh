@@ -32,7 +32,7 @@ case "${LANE}" in
     # A release-line version, not 6.7.9999999-dev: version-gated code and tests must see
     # 6.7.14 here, or they would take this lane for one with connect-time MCP toolsets.
     image="ghcr.io/shopware/docker-dev:php8.4-node24-caddy"
-    root_version="6.7.14.9999999-dev"
+    root_version="6.7.14.x-dev"
     ;;
   trunk|6.7.x)
     image="ghcr.io/shopware/docker-dev:php8.4-node24-caddy"
