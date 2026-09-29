@@ -33,13 +33,25 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes, UcpConso
 
         await use(service);
 
-        if (!skipCleanUp) {
+        if (skipCleanUp) {
+            return;
+        }
+
+        // The ATS cleanup always runs, and neither failure may replace the other in the report.
+        const cleanupErrors: unknown[] = [];
+        for (const cleanup of [() => service.cleanUpUcpEntities(), () => service.cleanUp()]) {
             try {
-                await service.cleanUpUcpEntities();
+                await cleanup();
             }
-            finally {
-                await service.cleanUp();
+            catch (error) {
+                cleanupErrors.push(error);
             }
+        }
+        if (cleanupErrors.length === 1) {
+            throw cleanupErrors[0];
+        }
+        if (cleanupErrors.length > 1) {
+            throw new Error(cleanupErrors.map(error => (error instanceof Error ? error.message : String(error))).join('\n\nthen:\n'));
         }
     },
 });

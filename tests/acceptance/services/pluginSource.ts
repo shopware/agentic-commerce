@@ -24,9 +24,14 @@ function isPluginDir(dir: string): boolean {
         return false;
     }
 
-    const composer = JSON.parse(fs.readFileSync(composerJson, 'utf8')) as { name?: string };
+    try {
+        const composer = JSON.parse(fs.readFileSync(composerJson, 'utf8')) as { name?: string };
 
-    return composer.name === PLUGIN_COMPOSER_NAME;
+        return composer.name === PLUGIN_COMPOSER_NAME;
+    }
+    catch {
+        return false;
+    }
 }
 
 /**
@@ -54,7 +59,8 @@ export function resolveShopwareDir(): string {
 
 /**
  * The plugin checkout whose sources the fixtures read: `PLUGIN_DIR`, else the suite's own parent,
- * else `custom/plugins/agentic-commerce` under the Shopware project.
+ * else whichever `custom/plugins` directory holds the plugin's Composer package. Its directory
+ * name differs between installs (`SwagAgenticCommerce` from a store archive and in CI).
  */
 export function resolvePluginDir(): string {
     const candidates = [
@@ -63,7 +69,8 @@ export function resolvePluginDir(): string {
     ].filter((candidate): candidate is string => typeof candidate === 'string');
 
     try {
-        candidates.push(path.join(resolveShopwareDir(), 'custom', 'plugins', 'agentic-commerce'));
+        const pluginsDir = path.join(resolveShopwareDir(), 'custom', 'plugins');
+        candidates.push(...fs.readdirSync(pluginsDir).map(entry => path.join(pluginsDir, entry)));
     }
     catch {
         // No Shopware dir: only the explicit candidates remain.
@@ -113,7 +120,10 @@ let privilegeMapping: Promise<PrivilegeMapping> | undefined;
  * the first result is kept for every later caller in the worker.
  */
 export function readAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
-    privilegeMapping ??= evaluateAdminPrivilegeMapping();
+    privilegeMapping ??= evaluateAdminPrivilegeMapping().catch((error: unknown) => {
+        privilegeMapping = undefined;
+        throw error;
+    });
 
     return privilegeMapping;
 }

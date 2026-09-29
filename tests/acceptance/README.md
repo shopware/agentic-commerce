@@ -105,37 +105,64 @@ so a spec never has to know which file a fixture came from.
 
 Every Playwright worker owns its test data. The ATS `DefaultSalesChannel` fixture gives each worker
 a storefront-type sales channel on the path-prefixed domain `${APP_URL}test-<uuid>/`, so the
-Administration shows the Agentic Commerce tab for it and its `/.well-known/ucp` is its own. The
-plugin fixtures build on that:
+Administration shows the Agentic Commerce tab for it. That domain does not give the worker a profile
+of its own yet: `/.well-known/ucp` under a prefixed domain resolves another channel (known blocker
+D8), so specs read a channel's profile through the Admin API preview until that is fixed. The plugin
+fixtures build on the worker channel.
 
-| Fixture               | Scope  | What it provides                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TestDataService`     | test   | `UcpTestDataService`, the ATS `TestDataService` plus UCP: `createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`, `activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `listUcpSalesChannels()`. Its `cleanUpUcpEntities()` runs before the ATS registry: it resets the UCP rows it wrote on surviving channels, drops the signing keys of channels it created when `bin/console` is reachable, and deletes those channels.                                                                                                                                                                                                                                                                                 |
-| `UcpAgentProfileHost` | worker | `publish()` generates an ES256 key pair and writes the agent's profile, public key included, to `<SHOPWARE_DIR>/public/ucp-acceptance-agents/<kid>.json`. The shop fetches it from `UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`), the web container's own document root, the only plain-http host the SDK admits and only in development mode. The profile carries every shopping capability the UCP specification defines at the protocol version, so the SDK has something to negotiate; `publish({ capabilities })` replaces that set for negative specs. The fixture verifies the file is served through `APP_URL` and throws otherwise. It never falls back to the shop's own profile. Files are removed at worker teardown. |
-| `UcpAclUsers`         | test   | `as('ucp.viewer' \| 'ucp.editor' \| 'ucp.key_rotator')` creates an ACL role and a non-admin user, logs into the Administration in a separate page context and returns it. The privilege sets are read from `src/Resources/app/administration/src/extension/sw-sales-channel/acl/index.js`, with core's `sales_channel.viewer` set added so the user can reach the sales channel at all.                                                                                                                                                                                                                                                                                                                                                            |
-| `UcpConsole`          | worker | Runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`, the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its allow-list.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+**`TestDataService`** (test scope) is `UcpTestDataService`, the ATS `TestDataService` plus UCP:
+`createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`,
+`activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()` and
+`listUcpSalesChannels()`. `activateUcp()` enables every capability and the REST transport and
+allowlists the agent profile host on all three per-channel lists, because the SDK falls back to the
+shop's own host for an empty list and would refuse a `localhost` profile. Its cleanup runs before
+the ATS registry's. It restores the UCP config each surviving channel had before the first write,
+deletes the signing keys of the channels it created and activated when `UcpConsole` reaches
+`bin/console`, and deletes the channels it created. Every step runs even when an earlier one fails,
+and the failures are reported together.
 
-`activateUcp()` enables every capability and the REST transport and allowlists the agent profile
-host on all three per-channel lists, because the SDK falls back to the shop's own host for an empty
-list and would refuse a `localhost` profile.
+**`UcpAgentProfileHost`** (worker scope) has `publish()`, which generates an ES256 key pair and
+writes the agent's profile, public key included, to
+`<SHOPWARE_DIR>/public/ucp-acceptance-agents/<kid>.json`. The profile carries every shopping
+capability the UCP specification defines at the protocol version, so the SDK has something to
+negotiate, and `publish({ capabilities })` replaces that set for negative specs. The shop fetches
+the profile from `UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`), the web container's
+own document root, the only plain-http host the SDK admits and only in development mode. The fixture
+verifies the file is served through `APP_URL` and throws otherwise. It never falls back to the
+shop's own profile. A worker removes its own files at teardown.
+
+**`UcpAclUsers`** (test scope) has `as('ucp.viewer' | 'ucp.editor' | 'ucp.key_rotator')`, which
+creates an ACL role and a non-admin user, logs into the Administration in a separate page context
+and returns it. The privilege sets are read from
+`src/Resources/app/administration/src/extension/sw-sales-channel/acl/index.js`, with core's
+`sales_channel.viewer` set added so the user can reach the sales channel at all.
+
+**`UcpConsole`** (worker scope) runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`,
+the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
+allow-list. Before the first command it probes the real prefix once. When that probe fails, the key
+cleanup is skipped and the `@UcpConsole` spec fails.
 
 The lane has to run with `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1` for the
 shop to fetch a test agent's profile from `localhost` over plain http.
 
 ### What the fixtures need from their host
 
-Three things beyond `APP_URL`, each resolved from an environment variable and each failing loudly
-when it cannot be:
+Beyond `APP_URL`, two fixtures touch the Shopware project directly. Each resolves what it needs from
+an environment variable when it is first used, and fails loudly when it cannot:
 
-| Variable       | Default                                                     | Needed by                                                                |
-| -------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console` | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there |
-| `PLUGIN_DIR`   | the plugin checkout this suite sits in                      | reading `UcpProtocol::VERSION` and the Administration ACL file           |
-| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                | `UcpConsole`                                                             |
+| Variable       | Default                                                                                                     | Needed by                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there |
+| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION` and the Administration ACL file           |
+| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                             |
 
-A runner that reaches Shopware only over HTTP therefore cannot run the whole suite. It needs the
-project mounted, and a `UCP_CONSOLE` that resolves, or the `@UcpConsole` spec fails rather than
-silently skipping.
+A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
+profile host and the console need the project mounted.
+
+`UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
+machine where `docker` is only an alias for `podman`, the default prefix is not found and the
+signing keys of created channels are left behind. Set `UCP_CONSOLE` to a command that reaches the
+web container without an alias.
 
 ## Environment
 

@@ -29,25 +29,6 @@ export interface UcpConfigPayload {
     idempotencyRequired: boolean
 }
 
-/** `UcpConfig::fromArray([])`: what a sales channel has before anyone touches its UCP tab. */
-export const DEFAULT_UCP_CONFIG: UcpConfigPayload = {
-    active: false,
-    profileDomain: null,
-    enabledCapabilities: [],
-    enabledTransports: ['rest'],
-    continueUrlTemplate: null,
-    platformAllowlist: [],
-    remoteProfileAllowlist: [],
-    agentAllowlist: [],
-    embeddedAllowedOrigins: [],
-    embeddedFrameAncestors: [],
-    discoveryBudget: 10,
-    catalogResultLimit: 50,
-    webhookUrlOverride: null,
-    signaturePolicy: 'strict',
-    idempotencyRequired: true,
-};
-
 export const ALL_UCP_CAPABILITIES = ['catalog', 'cart', 'discount', 'checkout', 'order'];
 
 export interface UcpSalesChannel {
@@ -97,7 +78,9 @@ export class UcpTestDataService extends TestDataService {
     private readonly console?: UcpConsole;
 
     private readonly createdSalesChannelIds: string[] = [];
-    private readonly ucpConfigWrittenSalesChannelIds = new Set<string>();
+    /** Activation provisions a signing key, so only these channels have keys to delete. */
+    private readonly activatedSalesChannelIds = new Set<string>();
+    private readonly originalConfigBySalesChannelId = new Map<string, UcpConfigPayload>();
 
     constructor(AdminApiClient: FixtureTypes['AdminApiContext'], IdProvider: FixtureTypes['IdProvider'], options: UcpDataServiceOptions) {
         super(AdminApiClient, IdProvider, options);
@@ -218,9 +201,16 @@ export class UcpTestDataService extends TestDataService {
      * fine. Returns the response unasserted, for specs that expect a refusal.
      */
     async saveUcpConfig(salesChannelId: string, payload: Partial<UcpConfigPayload>) {
-        this.ucpConfigWrittenSalesChannelIds.add(salesChannelId);
+        if (!this.createdSalesChannelIds.includes(salesChannelId) && !this.originalConfigBySalesChannelId.has(salesChannelId)) {
+            this.originalConfigBySalesChannelId.set(salesChannelId, await this.getUcpConfig(salesChannelId));
+        }
 
-        return this.AdminApiClient.fetch(`./_admin/ucp/sales-channels/${salesChannelId}/config`, { method: 'PUT', data: payload });
+        const configWrite = await this.AdminApiClient.fetch(`./_admin/ucp/sales-channels/${salesChannelId}/config`, { method: 'PUT', data: payload });
+        if (configWrite.ok() && payload.active === true) {
+            this.activatedSalesChannelIds.add(salesChannelId);
+        }
+
+        return configWrite;
     }
 
     /**
@@ -250,36 +240,41 @@ export class UcpTestDataService extends TestDataService {
     }
 
     /**
-     * Resets the UCP rows this service wrote on surviving channels, drops the signing keys of the
-     * channels it created when a console is reachable, and deletes those channels. The ATS
-     * registry then removes their categories and customer groups.
+     * Every step runs even when an earlier one fails: a channel left behind blocks the ATS
+     * registry from deleting its category and customer group.
      */
     async cleanUpUcpEntities(): Promise<void> {
         if (!this.shouldCleanUp) {
             return;
         }
 
-        for (const salesChannelId of this.ucpConfigWrittenSalesChannelIds) {
-            if (this.createdSalesChannelIds.includes(salesChannelId)) {
-                continue;
-            }
-            const response = await this.AdminApiClient.fetch(`./_admin/ucp/sales-channels/${salesChannelId}/config`, {
+        const failures: string[] = [];
+
+        for (const [salesChannelId, originalConfig] of this.originalConfigBySalesChannelId) {
+            const restore = await this.AdminApiClient.fetch(`./_admin/ucp/sales-channels/${salesChannelId}/config`, {
                 method: 'PUT',
-                data: DEFAULT_UCP_CONFIG,
+                data: originalConfig,
             });
-            expect(response.ok(), await response.text()).toBeTruthy();
+            if (!restore.ok()) {
+                failures.push(`restoring the UCP config of ${salesChannelId}: ${restore.status()} ${await restore.text()}`);
+            }
         }
 
         if (this.console?.isAvailable()) {
-            for (const salesChannelId of this.createdSalesChannelIds) {
-                for (const key of this.console.listSigningKeys(salesChannelId)) {
-                    this.console.deleteSigningKey(salesChannelId, key.kid);
+            for (const salesChannelId of this.createdSalesChannelIds.filter(id => this.activatedSalesChannelIds.has(id))) {
+                try {
+                    for (const signingKey of this.console.listSigningKeys(salesChannelId)) {
+                        this.console.deleteSigningKey(salesChannelId, signingKey.kid);
+                    }
+                }
+                catch (error) {
+                    failures.push(`deleting the signing keys of ${salesChannelId}: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
         }
 
         if (this.createdSalesChannelIds.length > 0) {
-            const response = await this.AdminApiClient.post('./_action/sync', {
+            const deletion = await this.AdminApiClient.post('./_action/sync', {
                 data: {
                     'delete-sales-channel': {
                         entity: 'sales_channel',
@@ -288,7 +283,13 @@ export class UcpTestDataService extends TestDataService {
                     },
                 },
             });
-            expect(response.ok(), await response.text()).toBeTruthy();
+            if (!deletion.ok()) {
+                failures.push(`deleting the created sales channels: ${deletion.status()} ${await deletion.text()}`);
+            }
+        }
+
+        if (failures.length > 0) {
+            throw new Error(`UCP test data cleanup failed:\n- ${failures.join('\n- ')}`);
         }
     }
 }

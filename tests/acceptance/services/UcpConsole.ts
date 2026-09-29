@@ -32,9 +32,14 @@ export class ConsoleUnavailableError extends Error {
  */
 export class UcpConsole {
     private availability: boolean | null = null;
+    private resolvedShopwareDir: string | null = null;
 
+    /**
+     * @param shopwareDir resolved on first use, so a runner that reaches the shop only over HTTP
+     *                    can use every fixture that never runs a command
+     */
     constructor(
-        private readonly shopwareDir: string,
+        private readonly shopwareDir: () => string,
         private readonly commandPrefix: string[],
         private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
     ) {
@@ -44,24 +49,59 @@ export class UcpConsole {
         const prefix = (process.env.UCP_CONSOLE ?? '').trim();
 
         return new UcpConsole(
-            resolveShopwareDir(),
+            resolveShopwareDir,
             prefix === '' ? DEFAULT_COMMAND : prefix.split(/\s+/),
             Number(process.env.UCP_CONSOLE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS),
         );
     }
 
     describe(): string {
-        return `${this.commandPrefix.join(' ')} (in ${this.shopwareDir})`;
+        let directory: string;
+        try {
+            directory = this.projectDir();
+        }
+        catch {
+            directory = 'no Shopware project found';
+        }
+
+        return `${this.commandPrefix.join(' ')} (in ${directory})`;
     }
 
-    /** Whether the configured executable exists on this machine. Cached per instance. */
+    /**
+     * Whether the configured prefix reaches the lane's `bin/console`. Probes with the real
+     * command, since a binary that exists can still target a wrong or stopped container.
+     * Cached per instance.
+     */
     isAvailable(): boolean {
         if (this.availability === null) {
-            const probe = spawnSync(this.commandPrefix[0], ['--version'], { encoding: 'utf8', timeout: 10_000 });
-            this.availability = probe.error === undefined && probe.status === 0;
+            try {
+                this.availability = this.spawn('ucp:signing-keys:list', ['--help']).status === 0;
+            }
+            catch {
+                this.availability = false;
+            }
         }
 
         return this.availability;
+    }
+
+    private projectDir(): string {
+        this.resolvedShopwareDir ??= this.shopwareDir();
+
+        return this.resolvedShopwareDir;
+    }
+
+    private spawn(command: string, args: string[]) {
+        const [executable, ...prefixArgs] = this.commandPrefix;
+        const argv = [executable, ...prefixArgs, command, ...args, '--no-interaction'];
+        const consoleProcess = spawnSync(executable, argv.slice(1), {
+            cwd: this.projectDir(),
+            encoding: 'utf8',
+            timeout: this.timeoutMs,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        return { argv, ...consoleProcess };
     }
 
     run(command: string, args: string[] = []): ConsoleResult {
@@ -74,23 +114,16 @@ export class UcpConsole {
             );
         }
 
-        const [executable, ...prefixArgs] = this.commandPrefix;
-        const argv = [executable, ...prefixArgs, command, ...args, '--no-interaction'];
-        const result = spawnSync(executable, argv.slice(1), {
-            cwd: this.shopwareDir,
-            encoding: 'utf8',
-            timeout: this.timeoutMs,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
+        const { argv, ...consoleProcess } = this.spawn(command, args);
 
-        if (result.error) {
-            throw new Error(`${argv.join(' ')} failed to start: ${result.error.message}`);
+        if (consoleProcess.error) {
+            throw new Error(`${argv.join(' ')} failed to start: ${consoleProcess.error.message}`);
         }
-        if (result.status !== 0) {
-            throw new Error(`${argv.join(' ')} exited with ${result.status}\n${result.stderr}${result.stdout}`);
+        if (consoleProcess.status !== 0) {
+            throw new Error(`${argv.join(' ')} exited with ${consoleProcess.status}\n${consoleProcess.stderr}${consoleProcess.stdout}`);
         }
 
-        return { argv, status: result.status, stdout: result.stdout, stderr: result.stderr };
+        return { argv, status: consoleProcess.status, stdout: consoleProcess.stdout, stderr: consoleProcess.stderr };
     }
 
     generateSigningKey(salesChannelId: string, kid: string, algorithm = 'ES256'): ConsoleResult {

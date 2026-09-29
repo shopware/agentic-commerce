@@ -81,7 +81,7 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
             ])];
 
             const aclRole = await TestDataService.createAclRole({ name: `${TestDataService.namePrefix}${role}-${aclRoleSuffix()}`, privileges });
-            const user = await TestDataService.createUser({ admin: false });
+            const user = await createUserRetryingTokenConflicts(TestDataService);
             await TestDataService.assignAclRoleUser(aclRole.id, user.id);
 
             const page = await loginToAdministration(await createNewAdminPageContext(browser, SalesChannelBaseConfig), user, AdminApiContext);
@@ -107,6 +107,22 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
         }
     },
 });
+
+const USER_CREATION_ATTEMPTS = 3;
+
+// Core revokes refresh tokens on every user insert, which MariaDB 11.6+ snapshot isolation rejects (error 1020) while other workers log in.
+async function createUserRetryingTokenConflicts(testDataService: UcpTestDataFixtureTypes['TestDataService']): Promise<User> {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await testDataService.createUser({ admin: false });
+        }
+        catch (error) {
+            if (attempt === USER_CREATION_ATTEMPTS) {
+                throw error;
+            }
+        }
+    }
+}
 
 function aclRoleSuffix(): string {
     return Math.random().toString(36).slice(2, 8);

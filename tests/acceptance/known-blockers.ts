@@ -43,7 +43,7 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D5',
-        description: 'ucp-agent and idempotency-key are read from the MCP transport\'s HTTP request headers, not from meta on each call as the spec carries them, so a spec-conformant MCP client is rejected with "$.headers.idempotency-key is required". The tool names and the typed array payload were fixed in PR #224.',
+        description: 'ucp-agent and idempotency-key are read from the MCP transport\'s HTTP request headers, not from meta on each call as the spec carries them, so a spec-conformant MCP client is rejected with "$.headers.idempotency-key is required". The tool names and the structured object payload were fixed in PR #224.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
         reviewBy: '2026-12-31',
@@ -64,9 +64,9 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D8',
-        description: 'A sales channel domain with a path prefix does not resolve to its own channel: core\'s RequestTransformer strips the prefix from the request URI before the SDK controllers build their HttpRequest, and SalesChannelDomainResolver resolves from that URI alone. /.well-known/ucp under a prefixed domain serves the host\'s root channel, or the global configuration when the host has no root domain.',
+        description: 'The UCP profile of a path-prefixed domain, such as /de/, advertises the root domain\'s endpoints and the capabilities of the root domain\'s sales channel. Core\'s RequestTransformer removes the path from the request URI before the plugin looks up the sales channel.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/264',
         reviewBy: '2026-12-31',
     },
 ];
