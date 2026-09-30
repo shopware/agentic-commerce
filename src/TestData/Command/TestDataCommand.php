@@ -219,7 +219,7 @@ final class TestDataCommand extends Command
                 return null;
             }
 
-            return array_values(array_map('strval', $salesChannelIds));
+            return array_map('strval', $salesChannelIds);
         }
 
         $salesChannelIds = [];

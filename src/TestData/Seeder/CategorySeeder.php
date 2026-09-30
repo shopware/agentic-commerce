@@ -96,8 +96,8 @@ final class CategorySeeder implements TestDataSeederInterface
             return false;
         }
 
-        $childIds = $this->categoryRepository->searchIds((new Criteria())->addFilter(new EqualsAnyFilter('parentId', $treeIds)), $context)->getIds();
-        $this->deleteExisting($this->categoryRepository, array_values(array_map('strval', $childIds)), $context);
+        $childIds = self::stringIds($this->categoryRepository->searchIds((new Criteria())->addFilter(new EqualsAnyFilter('parentId', $treeIds)), $context));
+        $this->deleteExisting($this->categoryRepository, $childIds, $context);
 
         return $this->deleteExisting($this->categoryRepository, $treeIds, $context);
     }
@@ -123,7 +123,7 @@ final class CategorySeeder implements TestDataSeederInterface
     {
         $criteria = (new Criteria())->addFilter(new PrefixFilter('name', TestDataIds::NAME_PREFIX));
 
-        return array_values(array_map('strval', $this->categoryRepository->searchIds($criteria, $context)->getIds()));
+        return self::stringIds($this->categoryRepository->searchIds($criteria, $context));
     }
 
     /**

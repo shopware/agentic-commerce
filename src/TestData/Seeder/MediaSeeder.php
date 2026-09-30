@@ -89,8 +89,8 @@ final class MediaSeeder implements TestDataSeederInterface
     public function remove(Context $context): bool
     {
         $folderId = TestDataIds::id(self::IMAGE_FOLDER);
-        $imageIds = $this->mediaRepository->searchIds((new Criteria())->addFilter(new EqualsFilter('mediaFolderId', $folderId)), $context)->getIds();
-        $hasRemovedAny = $this->deleteExisting($this->mediaRepository, [TestDataIds::id(FoundationSeeder::MEDIA_GUIDE), TestDataIds::id(FoundationSeeder::MEDIA_ALBUM), ...array_values(array_map('strval', $imageIds))], $context);
+        $imageIds = self::stringIds($this->mediaRepository->searchIds((new Criteria())->addFilter(new EqualsFilter('mediaFolderId', $folderId)), $context));
+        $hasRemovedAny = $this->deleteExisting($this->mediaRepository, [TestDataIds::id(FoundationSeeder::MEDIA_GUIDE), TestDataIds::id(FoundationSeeder::MEDIA_ALBUM), ...$imageIds], $context);
 
         return $this->deleteExisting($this->mediaFolderRepository, [$folderId], $context) || $hasRemovedAny;
     }

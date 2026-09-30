@@ -119,7 +119,7 @@ final class TestDataCommandTest extends TestCase
     // `type` exists from Shopware 6.7.7; before that the downloads alone set the `is-download` state.
     private static function isDigital(ProductEntity $product): bool
     {
-        $type = $product->get('type');
+        $type = $product->has('type') ? $product->get('type') : null;
         if (\is_string($type)) {
             return 'digital' === $type;
         }

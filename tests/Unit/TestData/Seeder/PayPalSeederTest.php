@@ -58,7 +58,8 @@ class PayPalSeederTest extends TestCase
             self::salesChannel(self::SHOP_ID, 'Shop', self::INVOICE_ID, [self::INVOICE_ID, self::PAYPAL_ID]),
             self::salesChannel(self::HEADLESS_ID, 'Headless', self::PAYPAL_ID, [self::PAYPAL_ID, self::PAY_LATER_ID]),
         ])]);
-        $this->systemConfig->set('SwagPayPal.settings.clientId', 'live-client');
+        // Before Shopware 6.7 the config stub does not fall back from a sales channel to the global value.
+        $this->systemConfig->set('SwagPayPal.settings.clientId', 'live-client', self::SHOP_ID);
 
         $reportLines = $this->seeder()->create([self::SHOP_ID, self::HEADLESS_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\TestData;
 
 use Shopware\Core\Content\Product\ProductDefinition;
-use Shopware\Core\Content\Product\ProductTypeRegistry;
 use Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry;
 use Shopware\Core\Framework\Log\Package;
 
@@ -27,12 +26,12 @@ final class TestDataEnvironment
 
     /**
      * @param array<string, mixed> $activePlugins       `kernel.active_plugins`, keyed by plugin base class
-     * @param ?ProductTypeRegistry $productTypeRegistry null before Shopware 6.7.7
+     * @param ?object              $productTypeRegistry core's `ProductTypeRegistry`, which Shopware ships from 6.7.7; null before
      */
     public function __construct(
         private readonly array $activePlugins,
         private readonly DefinitionInstanceRegistry $definitionRegistry,
-        private readonly ?ProductTypeRegistry $productTypeRegistry,
+        private readonly ?object $productTypeRegistry,
     ) {
     }
 
@@ -64,7 +63,7 @@ final class TestDataEnvironment
             return 'SwagCommercial is not installed or not active.';
         }
 
-        if (null === $this->productTypeRegistry || !$this->definitionRegistry->has(self::BUNDLE_ITEM_ENTITY)) {
+        if (null === $this->productTypeRegistry || !method_exists($this->productTypeRegistry, 'hasType') || !$this->definitionRegistry->has(self::BUNDLE_ITEM_ENTITY)) {
             return 'Product bundles need SwagCommercial with product bundles on Shopware 6.7.14 or newer.';
         }
 

@@ -89,7 +89,7 @@ class TestDataEnvironmentTest extends TestCase
         );
     }
 
-    private function productTypeRegistry(bool $hasBundleType): ProductTypeRegistry
+    private function productTypeRegistry(bool $hasBundleType): object
     {
         if (!class_exists(ProductTypeRegistry::class)) {
             static::markTestSkipped('ProductTypeRegistry ships with Shopware 6.7.7.');

@@ -20,7 +20,6 @@ use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
 use Shopware\Core\Content\Media\MediaService;
-use Shopware\Core\Content\Product\ProductTypeRegistry;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
@@ -424,7 +423,7 @@ return static function (ContainerConfigurator $container): void {
             ->arg('$activePlugins', param('kernel.active_plugins'))
             ->arg('$definitionRegistry', service(DefinitionInstanceRegistry::class))
             // Absent before Shopware 6.7.7, where no product type (and so no bundle) exists.
-            ->arg('$productTypeRegistry', service(ProductTypeRegistry::class)->nullOnInvalid());
+            ->arg('$productTypeRegistry', service('Shopware\\Core\\Content\\Product\\ProductTypeRegistry')->nullOnInvalid());
 
         $services->set(TestDataTax::class)
             ->arg('$taxRepository', service('tax.repository'));

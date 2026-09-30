@@ -89,12 +89,13 @@ final class PayPalSeeder implements TestDataSeederInterface
                 continue;
             }
 
+            $unassignedPaymentMethodIds = array_values(array_map(static fn (PaymentMethodEntity $method): string => $method->getId(), $unassignedPaymentMethods->getElements()));
             $this->salesChannelRepository->update([[
                 'id' => $salesChannel->getId(),
-                'paymentMethods' => array_map(static fn (string $id): array => ['id' => $id], array_values($unassignedPaymentMethods->getIds())),
+                'paymentMethods' => array_map(static fn (string $id): array => ['id' => $id], $unassignedPaymentMethodIds),
             ]], $context);
 
-            $paymentMethodIdsBySalesChannelId[$salesChannel->getId()] = array_values($unassignedPaymentMethods->getIds());
+            $paymentMethodIdsBySalesChannelId[$salesChannel->getId()] = $unassignedPaymentMethodIds;
             $reportLines[] = $channelName.': added '.implode(', ', $unassignedPaymentMethods->map(
                 static fn (PaymentMethodEntity $method): string => (string) ($method->getTranslation('name') ?? $method->getName()),
             ));
