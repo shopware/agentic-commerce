@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
-  echo "Usage: bin/ci-write-compose.sh <shopware-dir> [6.5.x|6.6.x|trunk]" >&2
+  echo "Usage: bin/ci-write-compose.sh <shopware-dir> [6.5.x|6.6.x|6.7.14.x|trunk]" >&2
   exit 1
 fi
 
@@ -27,6 +27,12 @@ case "${LANE}" in
   6.6.x)
     image="ghcr.io/shopware/docker-dev:php8.3-node24-caddy"
     root_version="6.6.9999999-dev"
+    ;;
+  6.7.14.x)
+    # A release-line version, not 6.7.9999999-dev: version-gated code and tests must see
+    # 6.7.14 here, or they would take this lane for one with connect-time MCP toolsets.
+    image="ghcr.io/shopware/docker-dev:php8.4-node24-caddy"
+    root_version="6.7.14.x-dev"
     ;;
   trunk|6.7.x)
     image="ghcr.io/shopware/docker-dev:php8.4-node24-caddy"
