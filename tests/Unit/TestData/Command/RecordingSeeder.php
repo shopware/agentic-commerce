@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit\TestData\Command;
 
 use Shopware\Core\Framework\Context;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 use Swag\AgenticCommerce\TestData\Seeder\TestDataSeederInterface;
 
 /**
@@ -17,6 +18,8 @@ use Swag\AgenticCommerce\TestData\Seeder\TestDataSeederInterface;
  */
 final class RecordingSeeder implements TestDataSeederInterface
 {
+    public ?PickedProducts $lastSelection = null;
+
     /**
      * @param \ArrayObject<int, string> $seederCalls  shared across seeders to observe the order
      * @param list<string>              $createdLines
@@ -46,9 +49,10 @@ final class RecordingSeeder implements TestDataSeederInterface
         return $this->isPresent;
     }
 
-    public function create(array $salesChannelIds, Context $context): array
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array
     {
         $this->seederCalls->append('create '.$this->name.' '.implode(',', $salesChannelIds));
+        $this->lastSelection = $pickedProducts;
 
         if (null !== $this->failure) {
             throw $this->failure;

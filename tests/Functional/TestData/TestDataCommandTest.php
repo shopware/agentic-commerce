@@ -45,11 +45,12 @@ final class TestDataCommandTest extends TestCase
         $context = Context::createDefaultContext();
         $command = new CommandTester($this->command());
 
-        $command->execute(['--sales-channel' => [TestDefaults::SALES_CHANNEL]]);
+        $command->execute(['--sales-channel' => [TestDefaults::SALES_CHANNEL]], ['interactive' => false]);
         $display = $command->getDisplay();
         static::assertSame(0, $command->getStatusCode(), $display);
         static::assertMatchesRegularExpression('/Products: .*\s+created/', $display);
         static::assertMatchesRegularExpression('/Promotions: .*\s+created/', $display);
+        static::assertMatchesRegularExpression('/Category tree\s+created/', $display);
         static::assertMatchesRegularExpression('/\(Dynamic Access\)\s+(created|skipped)/', $display);
         static::assertMatchesRegularExpression('/\(Shopware Commercial\)\s+(created|skipped)/', $display);
 
@@ -76,7 +77,7 @@ final class TestDataCommandTest extends TestCase
         )->getEntities()->map(static fn ($promotion): ?string => $promotion->getCode());
         static::assertEqualsCanonicalizing([PromotionSeeder::PERCENTAGE_CODE, PromotionSeeder::FREE_SHIPPING_CODE], array_values($promotionCodes));
 
-        $command->execute(['--remove' => true]);
+        $command->execute(['--remove' => true], ['interactive' => false]);
         static::assertSame(0, $command->getStatusCode(), $command->getDisplay());
 
         static::assertSame(0, $this->productRepository()->searchIds(
@@ -85,7 +86,16 @@ final class TestDataCommandTest extends TestCase
         )->getTotal());
         static::assertSame(0, $this->promotionRepository()->searchIds(new Criteria([TestDataIds::id(PromotionSeeder::PERCENTAGE_PROMOTION), TestDataIds::id(PromotionSeeder::FREE_SHIPPING_PROMOTION), TestDataIds::id(PromotionSeeder::AUTOMATIC_PROMOTION)]), $context)->getTotal());
         static::assertSame(0, $this->ruleRepository()->searchIds(new Criteria([TestDataIds::id(FoundationSeeder::RULE_SALES_CHANNEL), TestDataIds::id(PromotionSeeder::RULE_CART_HAS_TIER_PRODUCT), TestDataIds::id(DynamicAccessSeeder::RULE_CUSTOMER_LOGGED_IN)]), $context)->getTotal());
+        static::assertSame(0, $this->countTestCategories($context));
         static::assertSame(0, $this->mediaRepository()->searchIds(new Criteria([TestDataIds::id(FoundationSeeder::MEDIA_GUIDE), TestDataIds::id(FoundationSeeder::MEDIA_ALBUM)]), $context)->getTotal());
+    }
+
+    private function countTestCategories(Context $context): int
+    {
+        $repository = static::getContainer()->get('category.repository');
+        static::assertInstanceOf(EntityRepository::class, $repository);
+
+        return $repository->searchIds((new Criteria())->addFilter(new PrefixFilter('name', TestDataIds::NAME_PREFIX)), $context)->getTotal();
     }
 
     /**

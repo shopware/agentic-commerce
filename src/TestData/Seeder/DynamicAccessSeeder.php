@@ -10,6 +10,7 @@ use Shopware\Core\Content\Rule\RuleCollection;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 use Swag\AgenticCommerce\TestData\TestDataIds;
 
@@ -25,6 +26,7 @@ final class DynamicAccessSeeder implements TestDataSeederInterface
 
     public const RULE_CUSTOMER_LOGGED_IN = 'rule.customer-logged-in';
     public const MEMBERS_ONLY_PRODUCT = 'product.members-only';
+    public const NUMBER_SUFFIX = 'MEMBERS-ONLY';
 
     /**
      * @param EntityRepository<ProductCollection> $productRepository
@@ -33,7 +35,7 @@ final class DynamicAccessSeeder implements TestDataSeederInterface
     public function __construct(
         private readonly EntityRepository $productRepository,
         private readonly EntityRepository $ruleRepository,
-        private readonly TestDataTax $tax,
+        private readonly ProductReferences $productReferences,
         private readonly TestDataEnvironment $environment,
     ) {
     }
@@ -53,44 +55,32 @@ final class DynamicAccessSeeder implements TestDataSeederInterface
         return $this->idExists($this->productRepository, TestDataIds::id(self::MEMBERS_ONLY_PRODUCT), $context);
     }
 
-    public function create(array $salesChannelIds, Context $context): array
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array
     {
         $ruleId = TestDataIds::id(self::RULE_CUSTOMER_LOGGED_IN);
 
         $this->ruleRepository->upsert([[
             'id' => $ruleId,
-            'name' => TestDataIds::name('Customer logged in'),
+            'name' => TestDataIds::prefixedName('Customer logged in'),
             'description' => 'Dynamic Access shows the members-only test product to logged-in customers only.',
             'priority' => 100,
-            'customFields' => TestDataIds::marker(),
+            'customFields' => TestDataIds::markerCustomField(),
             'conditions' => RuleConditions::single(self::RULE_CUSTOMER_LOGGED_IN, CustomerLoggedInRule::RULE_NAME, ['isLoggedIn' => true]),
         ]], $context);
 
-        $tax = $this->tax->resolve($context);
-
+        $builder = $this->productReferences->payloadBuilder($pickedProducts, $salesChannelIds, $context);
         $this->productRepository->create([[
-            'id' => TestDataIds::id(self::MEMBERS_ONLY_PRODUCT),
-            'productNumber' => TestDataIds::productNumber('MEMBERS-ONLY'),
-            'name' => TestDataIds::name('Members-only Notebook'),
-            'description' => 'Restricted by Dynamic Access to logged-in customers.',
-            'type' => 'physical',
-            'active' => true,
-            'stock' => 100,
-            'weight' => 0.35,
-            'taxId' => $tax->getId(),
-            'price' => [TestDataTax::price(39.99, $tax)],
-            'customFields' => TestDataIds::marker(),
-            'visibilities' => ProductSeeder::visibilities($salesChannelIds),
+            ...$builder->productPayload(self::MEMBERS_ONLY_PRODUCT, self::NUMBER_SUFFIX),
             TestDataEnvironment::DYNAMIC_ACCESS_PRODUCT_FIELD => [['id' => $ruleId]],
         ]], $context);
 
-        return [TestDataIds::productNumber('MEMBERS-ONLY').': rule '.TestDataIds::name('Customer logged in')];
+        return [$builder->reportLine(self::MEMBERS_ONLY_PRODUCT, self::NUMBER_SUFFIX).', rule '.TestDataIds::prefixedName('Customer logged in')];
     }
 
     public function remove(Context $context): bool
     {
-        $removed = $this->deleteExisting($this->productRepository, [TestDataIds::id(self::MEMBERS_ONLY_PRODUCT)], $context);
+        $hasRemovedAny = $this->deleteExisting($this->productRepository, [TestDataIds::id(self::MEMBERS_ONLY_PRODUCT)], $context);
 
-        return $this->deleteExisting($this->ruleRepository, [TestDataIds::id(self::RULE_CUSTOMER_LOGGED_IN)], $context) || $removed;
+        return $this->deleteExisting($this->ruleRepository, [TestDataIds::id(self::RULE_CUSTOMER_LOGGED_IN)], $context) || $hasRemovedAny;
     }
 }

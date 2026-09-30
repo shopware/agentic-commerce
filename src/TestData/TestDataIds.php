@@ -25,20 +25,35 @@ final class TestDataIds
         return Uuid::fromStringToHex('swag-agentic-commerce.test-data.'.$key);
     }
 
+    public static function mediaId(string $role, string $shot): string
+    {
+        return self::id('media.'.$role.'.'.$shot);
+    }
+
+    public static function propertyOptionId(string $group, string $optionKey): string
+    {
+        return self::id($group.'.'.$optionKey);
+    }
+
     public static function productNumber(string $suffix): string
     {
         return self::PRODUCT_NUMBER_PREFIX.$suffix;
     }
 
-    public static function name(string $name): string
+    public static function prefixedName(string $name): string
     {
         return self::NAME_PREFIX.$name;
+    }
+
+    public static function prefixedTranslatedName(TranslatedText $name): TranslatedText
+    {
+        return new TranslatedText(self::prefixedName($name->english), self::prefixedName($name->german));
     }
 
     /**
      * @return array<string, true>
      */
-    public static function marker(): array
+    public static function markerCustomField(): array
     {
         return [self::MARKER => true];
     }

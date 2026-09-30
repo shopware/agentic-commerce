@@ -378,38 +378,31 @@ validate the storefront shell and seed catalog data before commerce flow testing
 
 ## Test Data
 
-`swag-agentic-commerce:test-data` creates a fixed catalogue for catalog, cart,
-checkout and feed testing, and removes it again. It is registered only outside
-`APP_ENV=prod` and refuses to run there.
+One command creates products to test with, and removes them again. It does not run on `APP_ENV=prod`.
 
 ```bash
 bin/console swag-agentic-commerce:test-data --sales-channel "Native en-US shop"
 bin/console swag-agentic-commerce:test-data --remove
 ```
 
-`--sales-channel` takes an id or a name and can be repeated. Without it, the
-command targets every sales channel with UCP enabled and fails when there is
-none. A group that already exists is reported as `already present` and left
-untouched; run `--remove` first to recreate it.
+The command asks whether to use the product catalogue: products with photos and German texts, a 16 MB download. Press Enter for yes. `--offline` gives you simple products without photos instead. Every run prints a seed; `--seed <n>` gives you the same products again.
 
-| Group | Needs | Creates |
-|---|---|---|
-| Foundation | — | pricing rule for the target channels, property groups `Format` and `Material`, custom field set `swag_ac_test`, two private download files |
-| Products | — | `SWAG-AC-TEST-PHYSICAL` (A5 and A4 physical, PDF digital), `SWAG-AC-TEST-DIGITAL` (MP3 and FLAC digital, Vinyl physical), `SWAG-AC-TEST-TIER-PRICES` (29.99, 26.99 from 5, 23.99 from 10), `SWAG-AC-TEST-CUSTOM-FIELDS`, `SWAG-AC-TEST-PROPERTIES` |
-| Dynamic Access | active SwagDynamicAccess | `SWAG-AC-TEST-MEMBERS-ONLY`, visible to logged-in customers only |
-| Bundle | active SwagCommercial with product bundles and a licence carrying `PRODUCT_BUNDLE` (Shopware 6.7.14 or newer) | `SWAG-AC-TEST-BUNDLE`: A5 notebook and tote bag at 10 % off |
-| Promotions | — | code `AC-TEST-10` (10 % off), code `AC-TEST-SHIP` (free shipping), automatic 5.00 off carts containing `SWAG-AC-TEST-TIER-PRICES` |
-| PayPal | active SwagPayPal | assigns PayPal's active payment methods to the target channels; warns when PayPal has no API credentials |
+Everything it creates starts with `[AC Test]`, product numbers with `SWAG-AC-TEST-`:
 
-A group whose plugin is missing is reported as `skipped` with the reason.
+| Product number | What to test with it |
+|---|---|
+| `SWAG-AC-TEST-PHYSICAL` | Variants, one of them a digital download |
+| `SWAG-AC-TEST-DIGITAL` | A digital product with a physical variant |
+| `SWAG-AC-TEST-COLOURS` | Colour or flavour variants with swatches (catalogue only) |
+| `SWAG-AC-TEST-TIER-PRICES` | Lower prices from 5 and from 10 pieces |
+| `SWAG-AC-TEST-CUSTOM-FIELDS` | Custom fields |
+| `SWAG-AC-TEST-PROPERTIES` | Properties |
+| `SWAG-AC-TEST-MEMBERS-ONLY` | Visible to logged-in customers only (needs Dynamic Access) |
+| `SWAG-AC-TEST-BUNDLE` | A bundle at 10 % off (needs Shopware Commercial) |
 
-Every entity gets a deterministic id derived from a fixed key, and `--remove`
-deletes exactly those ids in reverse order. Products and rules are also named
-with the prefix `[AC Test]`, products are numbered with `SWAG-AC-TEST-`, and
-entities with custom fields carry `swagAgenticCommerceTestData: true`. The
-PayPal assignments the command added are recorded in the system config key
-`SwagAgenticCommerce.testData.paypalAssignments`; removal deletes only those and
-never unassigns a channel's default payment method.
+You also get a category "[AC Test] Test products", the promotion codes `AC-TEST-10` (10 % off) and `AC-TEST-SHIP` (free shipping), and, with PayPal installed, PayPal's payment methods in the sales channel.
+
+If the command reports `already present`, run `--remove` first. `--remove` deletes only what the command created.
 
 ## Manual-Only Scenarios
 

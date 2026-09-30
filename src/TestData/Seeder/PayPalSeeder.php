@@ -16,6 +16,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\PrefixFilter;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 
 /**
@@ -61,7 +62,7 @@ final class PayPalSeeder implements TestDataSeederInterface
         return [] !== $this->recordedPaymentMethodIdsBySalesChannelId();
     }
 
-    public function create(array $salesChannelIds, Context $context): array
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array
     {
         $criteria = (new Criteria())
             ->addFilter(new EqualsFilter('active', true))

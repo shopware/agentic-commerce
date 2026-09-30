@@ -19,20 +19,26 @@ use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
 final class TaxFixture
 {
     public const TAX_ID = '0191dddddddd7000dddddddddddddddd';
+    public const REDUCED_TAX_ID = '0191eeeeeeee7000eeeeeeeeeeeeeeee';
 
     /**
      * @return StaticEntityRepository<TaxCollection>
      */
-    public static function repository(): StaticEntityRepository
+    public static function repository(int $searches = 1): StaticEntityRepository
     {
-        $tax = new TaxEntity();
-        $tax->setId(self::TAX_ID);
-        $tax->setUniqueIdentifier(self::TAX_ID);
-        $tax->setTaxRate(19.0);
-
         /** @var StaticEntityRepository<TaxCollection> $repository */
-        $repository = new StaticEntityRepository([new TaxCollection([$tax])]);
+        $repository = new StaticEntityRepository(array_fill(0, $searches, new TaxCollection([self::tax(self::TAX_ID, 19.0), self::tax(self::REDUCED_TAX_ID, 7.0)])));
 
         return $repository;
+    }
+
+    private static function tax(string $id, float $taxRate): TaxEntity
+    {
+        $tax = new TaxEntity();
+        $tax->setId($id);
+        $tax->setUniqueIdentifier($id);
+        $tax->setTaxRate($taxRate);
+
+        return $tax;
     }
 }

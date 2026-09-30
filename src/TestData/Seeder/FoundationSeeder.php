@@ -4,23 +4,22 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\TestData\Seeder;
 
-use Shopware\Core\Content\Media\Aggregate\MediaFolder\MediaFolderCollection;
-use Shopware\Core\Content\Media\MediaCollection;
-use Shopware\Core\Content\Media\MediaService;
-use Shopware\Core\Content\Product\Aggregate\ProductDownload\ProductDownloadDefinition;
 use Shopware\Core\Content\Property\PropertyGroupCollection;
 use Shopware\Core\Content\Property\PropertyGroupDefinition;
 use Shopware\Core\Content\Rule\RuleCollection;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Rule\Rule;
 use Shopware\Core\Framework\Rule\SalesChannelRule;
 use Shopware\Core\System\CustomField\Aggregate\CustomFieldSet\CustomFieldSetCollection;
 use Shopware\Core\System\CustomField\CustomFieldTypes;
+use Shopware\Core\System\SystemConfig\SystemConfigService;
+use Swag\AgenticCommerce\TestData\PickedProducts;
+use Swag\AgenticCommerce\TestData\ShopLanguages;
+use Swag\AgenticCommerce\TestData\ShopLanguagesLoader;
 use Swag\AgenticCommerce\TestData\TestDataIds;
+use Swag\AgenticCommerce\TestData\TranslatedText;
 
 /**
  * The other groups reference these ids, so this group is created first and removed last.
@@ -33,50 +32,36 @@ final class FoundationSeeder implements TestDataSeederInterface
     use DeletesExistingIds;
 
     public const RULE_SALES_CHANNEL = 'rule.sales-channel';
-    public const GROUP_FORMAT = 'property-group.format';
-    public const GROUP_MATERIAL = 'property-group.material';
+    /** Always removed; any other group a catalogue brings is recorded in CREATED_GROUPS_CONFIG_KEY. */
+    public const PROPERTY_GROUPS = ['format', 'material', 'colour', 'size', 'flavour'];
+    public const CREATED_GROUPS_CONFIG_KEY = 'SwagAgenticCommerce.testData.propertyGroups';
     public const CUSTOM_FIELD_SET = 'custom-field-set';
     public const CUSTOM_FIELD_SET_NAME = 'swag_ac_test';
     public const CUSTOM_FIELD_CARE_NOTE = 'swag_ac_test_care_note';
     public const CUSTOM_FIELD_WARRANTY_YEARS = 'swag_ac_test_warranty_years';
     public const CUSTOM_FIELD_RECYCLABLE = 'swag_ac_test_recyclable';
+    public const CUSTOM_FIELD_INGREDIENTS = 'swag_ac_test_ingredients';
+    public const CUSTOM_FIELD_ALLERGENS = 'swag_ac_test_allergens';
     public const MEDIA_GUIDE = 'media.guide';
     public const MEDIA_ALBUM = 'media.album';
-
-    public const FORMAT_OPTIONS = [
-        'format.printed-a5' => 'Printed A5',
-        'format.printed-a4' => 'Printed A4',
-        'format.pdf' => 'PDF',
-        'format.mp3' => 'MP3',
-        'format.flac' => 'FLAC',
-        'format.vinyl' => 'Vinyl',
-    ];
-
-    public const MATERIAL_OPTIONS = [
-        'material.recycled-paper' => 'Recycled paper',
-        'material.linen' => 'Linen',
-    ];
 
     /**
      * @param EntityRepository<RuleCollection>           $ruleRepository
      * @param EntityRepository<PropertyGroupCollection>  $propertyGroupRepository
      * @param EntityRepository<CustomFieldSetCollection> $customFieldSetRepository
-     * @param EntityRepository<MediaCollection>          $mediaRepository
-     * @param EntityRepository<MediaFolderCollection>    $mediaFolderRepository
      */
     public function __construct(
         private readonly EntityRepository $ruleRepository,
         private readonly EntityRepository $propertyGroupRepository,
         private readonly EntityRepository $customFieldSetRepository,
-        private readonly EntityRepository $mediaRepository,
-        private readonly EntityRepository $mediaFolderRepository,
-        private readonly MediaService $mediaService,
+        private readonly ShopLanguagesLoader $shopLanguagesLoader,
+        private readonly SystemConfigService $systemConfigService,
     ) {
     }
 
     public function label(): string
     {
-        return 'Pricing rule, property groups, custom fields, download files';
+        return 'Pricing rule, property groups, custom fields';
     }
 
     public function unavailableReason(): ?string
@@ -86,18 +71,20 @@ final class FoundationSeeder implements TestDataSeederInterface
 
     public function exists(Context $context): bool
     {
-        return $this->idExists($this->mediaRepository, TestDataIds::id(self::MEDIA_ALBUM), $context);
+        return $this->idExists($this->ruleRepository, TestDataIds::id(self::RULE_SALES_CHANNEL), $context);
     }
 
-    public function create(array $salesChannelIds, Context $context): array
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array
     {
+        $shopLanguages = $this->shopLanguagesLoader->load($context);
+
         $this->ruleRepository->upsert([
             [
                 'id' => TestDataIds::id(self::RULE_SALES_CHANNEL),
-                'name' => TestDataIds::name('Target sales channels'),
+                'name' => TestDataIds::prefixedName('Target sales channels'),
                 'description' => 'Drives the advanced prices, so every cart in the target sales channels qualifies.',
                 'priority' => 100,
-                'customFields' => TestDataIds::marker(),
+                'customFields' => TestDataIds::markerCustomField(),
                 'conditions' => RuleConditions::single(self::RULE_SALES_CHANNEL, SalesChannelRule::RULE_NAME, [
                     'operator' => Rule::OPERATOR_EQ,
                     'salesChannelIds' => $salesChannelIds,
@@ -105,62 +92,107 @@ final class FoundationSeeder implements TestDataSeederInterface
             ],
         ], $context);
 
-        $this->propertyGroupRepository->upsert([
-            $this->propertyGroup(self::GROUP_FORMAT, 'Format', self::FORMAT_OPTIONS),
-            $this->propertyGroup(self::GROUP_MATERIAL, 'Material', self::MATERIAL_OPTIONS),
-        ], $context);
+        $optionsByGroup = self::usedOptionsByGroup($pickedProducts);
+        $groupSummaries = [];
+        $groupPayloads = [];
+        foreach ($optionsByGroup as $groupKey => $optionByKey) {
+            $propertyGroupDefinition = $pickedProducts->catalogue->propertyGroupByKey[$groupKey];
+            $groupPayloads[] = $this->propertyGroupPayload($groupKey, $propertyGroupDefinition['name'], $propertyGroupDefinition['display'], $optionByKey, $shopLanguages);
+            $groupSummaries[] = \sprintf('%s (%s)', $propertyGroupDefinition['name']->english, implode(', ', array_map(static fn (array $option): string => $option['name']->english, $optionByKey)));
+        }
+        if ([] !== $groupPayloads) {
+            $this->propertyGroupRepository->upsert($groupPayloads, $context);
+            $this->systemConfigService->set(self::CREATED_GROUPS_CONFIG_KEY, array_values(array_unique([...$this->createdPropertyGroupKeys(), ...array_keys($optionsByGroup)])));
+        }
 
         $this->customFieldSetRepository->upsert([[
             'id' => TestDataIds::id(self::CUSTOM_FIELD_SET),
             'name' => self::CUSTOM_FIELD_SET_NAME,
-            'config' => ['label' => ['en-GB' => TestDataIds::name('Agentic Commerce'), 'de-DE' => TestDataIds::name('Agentic Commerce')]],
+            'config' => ['label' => ['en-GB' => TestDataIds::prefixedName('Agentic Commerce'), 'de-DE' => TestDataIds::prefixedName('Agentic Commerce')]],
             'relations' => [['id' => TestDataIds::id(self::CUSTOM_FIELD_SET.'.relation.product'), 'entityName' => 'product']],
             'customFields' => [
-                $this->customField(self::CUSTOM_FIELD_CARE_NOTE, CustomFieldTypes::TEXT, 'Care note', 'Pflegehinweis', 1),
-                $this->customField(self::CUSTOM_FIELD_WARRANTY_YEARS, CustomFieldTypes::INT, 'Warranty (years)', 'Garantie (Jahre)', 2),
-                $this->customField(self::CUSTOM_FIELD_RECYCLABLE, CustomFieldTypes::BOOL, 'Recyclable', 'Recycelbar', 3),
+                $this->customFieldPayload(self::CUSTOM_FIELD_CARE_NOTE, CustomFieldTypes::TEXT, new TranslatedText('Care note', 'Pflegehinweis'), 1),
+                $this->customFieldPayload(self::CUSTOM_FIELD_WARRANTY_YEARS, CustomFieldTypes::INT, new TranslatedText('Warranty (years)', 'Garantie (Jahre)'), 2),
+                $this->customFieldPayload(self::CUSTOM_FIELD_RECYCLABLE, CustomFieldTypes::BOOL, new TranslatedText('Recyclable', 'Recycelbar'), 3),
+                $this->customFieldPayload(self::CUSTOM_FIELD_INGREDIENTS, CustomFieldTypes::TEXT, new TranslatedText('Ingredients', 'Zutaten'), 4),
+                $this->customFieldPayload(self::CUSTOM_FIELD_ALLERGENS, CustomFieldTypes::TEXT, new TranslatedText('Allergens', 'Allergene'), 5),
             ],
         ]], $context);
 
-        $this->createDownload(self::MEDIA_GUIDE, 'swag-ac-test-guide', 'pdf', 'application/pdf', self::minimalPdf(), $context);
-        $this->createDownload(self::MEDIA_ALBUM, 'swag-ac-test-album', 'txt', 'text/plain', "Agentic Commerce test album download.\n", $context);
-
         return [
-            'Rule: '.TestDataIds::name('Target sales channels'),
-            'Property groups: Format ('.implode(', ', self::FORMAT_OPTIONS).'), Material ('.implode(', ', self::MATERIAL_OPTIONS).')',
+            'Rule: '.TestDataIds::prefixedName('Target sales channels'),
+            'Property groups: '.implode(', ', $groupSummaries),
             'Custom field set: '.self::CUSTOM_FIELD_SET_NAME,
-            'Downloads: swag-ac-test-guide.pdf, swag-ac-test-album.txt',
         ];
     }
 
     public function remove(Context $context): bool
     {
-        $removed = $this->deleteExisting($this->mediaRepository, [TestDataIds::id(self::MEDIA_GUIDE), TestDataIds::id(self::MEDIA_ALBUM)], $context);
-        $removed = $this->deleteExisting($this->customFieldSetRepository, [TestDataIds::id(self::CUSTOM_FIELD_SET)], $context) || $removed;
-        $removed = $this->deleteExisting($this->propertyGroupRepository, [TestDataIds::id(self::GROUP_FORMAT), TestDataIds::id(self::GROUP_MATERIAL)], $context) || $removed;
+        $hasRemovedAny = $this->deleteExisting($this->customFieldSetRepository, [TestDataIds::id(self::CUSTOM_FIELD_SET)], $context);
+        $propertyGroupKeys = array_values(array_unique([...self::PROPERTY_GROUPS, ...$this->createdPropertyGroupKeys()]));
+        $hasRemovedAny = $this->deleteExisting($this->propertyGroupRepository, array_map(static fn (string $propertyGroupKey): string => TestDataIds::id('property-group.'.$propertyGroupKey), $propertyGroupKeys), $context) || $hasRemovedAny;
+        $this->systemConfigService->delete(self::CREATED_GROUPS_CONFIG_KEY);
 
-        return $this->deleteExisting($this->ruleRepository, [TestDataIds::id(self::RULE_SALES_CHANNEL)], $context) || $removed;
+        return $this->deleteExisting($this->ruleRepository, [TestDataIds::id(self::RULE_SALES_CHANNEL)], $context) || $hasRemovedAny;
     }
 
     /**
-     * @param array<string, string> $options
+     * The first product naming an option wins.
+     *
+     * @return array<string, array<string, array{name: TranslatedText, color: ?string}>>
+     */
+    private static function usedOptionsByGroup(PickedProducts $pickedProducts): array
+    {
+        $optionsByGroup = [];
+        foreach ($pickedProducts->productByRole as $product) {
+            foreach ($product->optionKeysByGroup as $group => $optionKeys) {
+                foreach ($optionKeys as $optionKey) {
+                    $optionsByGroup[$group][$optionKey] ??= ['name' => $pickedProducts->catalogue->propertyGroupByKey[$group]['options'][$optionKey], 'color' => null];
+                }
+            }
+
+            foreach ($product->variantOptions as $option) {
+                $optionsByGroup[(string) $product->variantPropertyGroup][$option->key] ??= ['name' => $option->name, 'color' => $option->colorHexCode];
+            }
+        }
+
+        return $optionsByGroup;
+    }
+
+    /**
+     * @return list<string> may name groups the current catalogue no longer has
+     */
+    private function createdPropertyGroupKeys(): array
+    {
+        $storedPropertyGroupKeys = $this->systemConfigService->get(self::CREATED_GROUPS_CONFIG_KEY);
+
+        return \is_array($storedPropertyGroupKeys) ? array_values(array_filter($storedPropertyGroupKeys, 'is_string')) : [];
+    }
+
+    /**
+     * @param array<string, array{name: TranslatedText, color: ?string}> $optionByKey
      *
      * @return array<string, mixed>
      */
-    private function propertyGroup(string $groupKey, string $name, array $options): array
+    private function propertyGroupPayload(string $groupKey, TranslatedText $groupName, string $display, array $optionByKey, ShopLanguages $shopLanguages): array
     {
         $optionPayloads = [];
-        foreach (array_keys($options) as $position => $optionKey) {
-            $optionPayloads[] = ['id' => TestDataIds::id($optionKey), 'name' => $options[$optionKey], 'position' => $position + 1];
+        foreach (array_keys($optionByKey) as $position => $optionKey) {
+            $optionPayloads[] = array_filter([
+                'id' => TestDataIds::propertyOptionId($groupKey, $optionKey),
+                ...$shopLanguages->translatedFields(['name' => $optionByKey[$optionKey]['name']]),
+                'position' => $position + 1,
+                'colorHexCode' => $optionByKey[$optionKey]['color'],
+            ], static fn (mixed $value): bool => null !== $value);
         }
 
         return [
-            'id' => TestDataIds::id($groupKey),
-            'name' => $name,
-            'displayType' => PropertyGroupDefinition::DISPLAY_TYPE_TEXT,
+            'id' => TestDataIds::id('property-group.'.$groupKey),
+            ...$shopLanguages->translatedFields(['name' => $groupName]),
+            'displayType' => 'color' === $display ? PropertyGroupDefinition::DISPLAY_TYPE_COLOR : PropertyGroupDefinition::DISPLAY_TYPE_TEXT,
             'sortingType' => PropertyGroupDefinition::SORTING_TYPE_POSITION,
             'filterable' => true,
-            'customFields' => TestDataIds::marker(),
+            'customFields' => TestDataIds::markerCustomField(),
             'options' => $optionPayloads,
         ];
     }
@@ -168,50 +200,16 @@ final class FoundationSeeder implements TestDataSeederInterface
     /**
      * @return array<string, mixed>
      */
-    private function customField(string $name, string $type, string $labelEn, string $labelDe, int $position): array
+    private function customFieldPayload(string $name, string $type, TranslatedText $label, int $position): array
     {
         return [
             'id' => TestDataIds::id('custom-field.'.$name),
             'name' => $name,
             'type' => $type,
             'config' => [
-                'label' => ['en-GB' => $labelEn, 'de-DE' => $labelDe],
+                'label' => ['en-GB' => $label->english, 'de-DE' => $label->german],
                 'customFieldPosition' => $position,
             ],
         ];
-    }
-
-    private function createDownload(string $mediaKey, string $fileName, string $extension, string $contentType, string $blob, Context $context): void
-    {
-        $mediaId = TestDataIds::id($mediaKey);
-
-        $this->mediaRepository->upsert([[
-            'id' => $mediaId,
-            'mediaFolderId' => $this->downloadFolderId($context),
-            'private' => true,
-            'title' => TestDataIds::name($fileName),
-            'customFields' => TestDataIds::marker(),
-        ]], $context);
-
-        if ($this->mediaRepository->search(new Criteria([$mediaId]), $context)->getEntities()->first()?->hasFile()) {
-            return;
-        }
-
-        $this->mediaService->saveFile($blob, $extension, $contentType, $fileName, $context, null, $mediaId, true);
-    }
-
-    private function downloadFolderId(Context $context): ?string
-    {
-        $criteria = (new Criteria())
-            ->addFilter(new EqualsFilter('defaultFolder.entity', ProductDownloadDefinition::ENTITY_NAME))
-            ->setLimit(1);
-
-        return $this->mediaFolderRepository->searchIds($criteria, $context)->firstId();
-    }
-
-    private static function minimalPdf(): string
-    {
-        return "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-            ."3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n";
     }
 }

@@ -6,8 +6,15 @@ namespace Swag\AgenticCommerce\TestData\Command;
 
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\TestData\Catalogue\BuiltInCatalogue;
+use Swag\AgenticCommerce\TestData\Catalogue\CatalogueArchive;
+use Swag\AgenticCommerce\TestData\Catalogue\CatalogueProduct;
+use Swag\AgenticCommerce\TestData\Catalogue\CatalogueSource;
+use Swag\AgenticCommerce\TestData\Catalogue\ProductPicker;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 use Swag\AgenticCommerce\TestData\Seeder\PayPalSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\TestDataSeederInterface;
+use Swag\AgenticCommerce\TestData\TestDataException;
 use Swag\AgenticCommerce\TestData\TestDataIds;
 use Swag\AgenticCommerce\Ucp\Command\SalesChannelResolver;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
@@ -37,6 +44,8 @@ final class TestDataCommand extends Command
         private readonly SalesChannelResolver $salesChannelResolver,
         private readonly UcpConfigService $ucpConfigService,
         private readonly string $appEnv,
+        private readonly CatalogueSource $catalogueSource,
+        private readonly ProductPicker $productPicker,
     ) {
         parent::__construct();
     }
@@ -45,12 +54,16 @@ final class TestDataCommand extends Command
     {
         $this->addOption('sales-channel', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Sales channel (id or name) that sees the test data. Defaults to every channel with UCP enabled.');
         $this->addOption('remove', null, InputOption::VALUE_NONE, 'Removes the test data set instead of creating it.');
+        $this->addOption('catalogue', null, InputOption::VALUE_NONE, 'Uses the product catalogue with images without asking; downloads it when it is not cached.');
+        $this->addOption('offline', null, InputOption::VALUE_NONE, 'Uses the built-in products without images and never downloads.');
+        $this->addOption('seed', null, InputOption::VALUE_REQUIRED, 'Repeats an earlier choice of catalogue products; the report prints the seed of every run.');
         $this->setHelp(\sprintf(
-            'Every created entity has a deterministic id, which is what --remove deletes. Products and rules are also named with the prefix <info>%s</info>, products numbered with <info>%s</info>, entities with custom fields carry the marker <info>%s</info>, and PayPal assignments are recorded in <info>%s</info>.',
+            'Every created entity has a deterministic id, which is what --remove deletes. Products and rules are also named with the prefix <info>%s</info>, products numbered with <info>%s</info>, entities with custom fields carry the marker <info>%s</info>, and PayPal assignments are recorded in <info>%s</info>.'."\n\n".'Asked interactively, the command offers the product catalogue with images and English and German texts, a signed CC0 release fetched from <info>%s</info> and cached in the Shopware cache directory. Without interaction it stays offline unless --catalogue is given.',
             trim(TestDataIds::NAME_PREFIX),
             TestDataIds::PRODUCT_NUMBER_PREFIX,
             TestDataIds::MARKER,
             PayPalSeeder::ASSIGNMENTS_CONFIG_KEY,
+            $this->catalogueSource->baseUrl(),
         ));
     }
 
@@ -77,13 +90,68 @@ final class TestDataCommand extends Command
             return self::FAILURE;
         }
 
-        return $this->create($io, $salesChannelIds, $context);
+        if (true === $input->getOption('catalogue') && true === $input->getOption('offline')) {
+            $io->error('Pass either --catalogue or --offline, not both.');
+
+            return self::FAILURE;
+        }
+
+        $seed = $input->getOption('seed');
+        if (null !== $seed && (!\is_string($seed) || !ctype_digit($seed))) {
+            $io->error('--seed must be a whole number.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            $pickedProducts = $this->pickProducts($input, $io, null === $seed ? random_int(1, 999_999) : (int) $seed);
+        } catch (TestDataException $exception) {
+            $io->error([$exception->getMessage(), 'Run with --offline to use the built-in products.']);
+
+            return self::FAILURE;
+        }
+
+        return $this->create($io, $salesChannelIds, $pickedProducts, $context);
+    }
+
+    private function pickProducts(InputInterface $input, SymfonyStyle $io, int $seed): PickedProducts
+    {
+        $isRequested = true === $input->getOption('catalogue');
+        if (true === $input->getOption('offline') || (!$isRequested && !$input->isInteractive())) {
+            return BuiltInCatalogue::pickedProducts();
+        }
+
+        try {
+            $release = $this->catalogueSource->fetchLatestRelease();
+            $isCached = $this->catalogueSource->isArchiveCached($release);
+            $question = $isCached
+                ? \sprintf('Use the product catalogue %s with images (cached)?', $release->version)
+                : \sprintf('Use the product catalogue %s with images? It downloads %.0F MB once.', $release->version, $release->archiveBytes / 1e6);
+        } catch (TestDataException $exception) {
+            $release = $this->catalogueSource->newestCachedRelease();
+            if (null === $release) {
+                if ($isRequested) {
+                    throw $exception;
+                }
+                $io->warning([$exception->getMessage(), 'Using the built-in products.']);
+
+                return BuiltInCatalogue::pickedProducts();
+            }
+            $io->warning([$exception->getMessage(), \sprintf('Falling back to the cached catalogue %s.', $release->version)]);
+            $question = \sprintf('Use the cached product catalogue %s with images?', $release->version);
+        }
+
+        if (!$isRequested && !$io->confirm($question, true)) {
+            return BuiltInCatalogue::pickedProducts();
+        }
+
+        return $this->productPicker->pick(CatalogueArchive::open($this->catalogueSource->downloadArchive($release)), $seed);
     }
 
     /**
      * @param list<string> $salesChannelIds
      */
-    private function create(SymfonyStyle $io, array $salesChannelIds, Context $context): int
+    private function create(SymfonyStyle $io, array $salesChannelIds, PickedProducts $pickedProducts, Context $context): int
     {
         $rows = [];
         foreach ($this->seeders as $seeder) {
@@ -99,7 +167,7 @@ final class TestDataCommand extends Command
             }
 
             try {
-                $rows[] = [$seeder->label(), TestDataStatus::Created->value, implode("\n", $seeder->create($salesChannelIds, $context))];
+                $rows[] = [$seeder->label(), TestDataStatus::Created->value, implode("\n", $seeder->create($salesChannelIds, $pickedProducts, $context))];
             } catch (\Throwable $exception) {
                 $rows[] = [$seeder->label(), TestDataStatus::Failed->value, $exception->getMessage()];
                 $io->table(self::REPORT_HEADERS, $rows);
@@ -110,6 +178,12 @@ final class TestDataCommand extends Command
         }
 
         $io->writeln(\sprintf('Sales channels: %s', implode(', ', $salesChannelIds)));
+        $io->writeln(null === $pickedProducts->catalogue->version
+            ? 'Products: built-in, without images'
+            : \sprintf('Products: catalogue %s, seed %d (repeat the choice with --seed %2$d)', $pickedProducts->catalogue->version, $pickedProducts->seed));
+        if (null !== $pickedProducts->catalogue->version) {
+            $io->listing(array_map(static fn (string $role, CatalogueProduct $product): string => $role.': '.$product->id, array_keys($pickedProducts->productByRole), $pickedProducts->productByRole));
+        }
         $io->table(self::REPORT_HEADERS, $rows);
         $io->success('Test data set is ready. Remove it with --remove.');
 

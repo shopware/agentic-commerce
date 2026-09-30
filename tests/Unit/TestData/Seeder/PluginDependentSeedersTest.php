@@ -17,10 +17,11 @@ use Shopware\Core\Content\Rule\RuleCollection;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
+use Swag\AgenticCommerce\TestData\Catalogue\BuiltInCatalogue;
 use Swag\AgenticCommerce\TestData\Seeder\BundleSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\DynamicAccessSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\ProductPayloadBuilder;
 use Swag\AgenticCommerce\TestData\Seeder\ProductSeeder;
-use Swag\AgenticCommerce\TestData\Seeder\TestDataTax;
 use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 use Swag\AgenticCommerce\TestData\TestDataIds;
 
@@ -40,8 +41,8 @@ class PluginDependentSeedersTest extends TestCase
         /** @var StaticEntityRepository<RuleCollection> $ruleRepository */
         $ruleRepository = new StaticEntityRepository([]);
 
-        (new DynamicAccessSeeder($productRepository, $ruleRepository, new TestDataTax(TaxFixture::repository()), $this->inactiveEnvironment()))
-            ->create([self::SALES_CHANNEL_ID], Context::createDefaultContext());
+        (new DynamicAccessSeeder($productRepository, $ruleRepository, (new ReferencesFixture())->productReferences, $this->inactiveEnvironment()))
+            ->create([self::SALES_CHANNEL_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         $ruleId = TestDataIds::id(DynamicAccessSeeder::RULE_CUSTOMER_LOGGED_IN);
         $condition = $ruleRepository->upserts[0][0]['conditions'][0]['children'][0]['children'][0];
@@ -63,31 +64,31 @@ class PluginDependentSeedersTest extends TestCase
         /** @var StaticEntityRepository<RuleCollection> $ruleRepository */
         $ruleRepository = new StaticEntityRepository([[$ruleId]]);
 
-        $seeder = new DynamicAccessSeeder($productRepository, $ruleRepository, new TestDataTax(TaxFixture::repository()), $this->inactiveEnvironment());
+        $seeder = new DynamicAccessSeeder($productRepository, $ruleRepository, (new ReferencesFixture())->productReferences, $this->inactiveEnvironment());
 
         static::assertTrue($seeder->remove(Context::createDefaultContext()));
         static::assertSame([[['id' => $productId]]], $productRepository->deletes);
         static::assertSame([[['id' => $ruleId]]], $ruleRepository->deletes);
     }
 
-    public function testBundleCombinesTheA5VariantAndTheToteBagAtTenPercentOff(): void
+    public function testBundleCombinesThePhysicalDefaultVariantAndTheCustomFieldsProductAtTenPercentOff(): void
     {
         /** @var StaticEntityRepository<ProductCollection> $productRepository */
         $productRepository = new StaticEntityRepository([]);
 
-        (new BundleSeeder($productRepository, new TestDataTax(TaxFixture::repository()), $this->inactiveEnvironment()))
-            ->create([self::SALES_CHANNEL_ID], Context::createDefaultContext());
+        (new BundleSeeder($productRepository, (new ReferencesFixture())->productReferences, $this->inactiveEnvironment()))
+            ->create([self::SALES_CHANNEL_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         $bundle = $productRepository->creates[0][0];
         static::assertSame(TestDataEnvironment::BUNDLE_PRODUCT_TYPE, $bundle['type']);
         static::assertSame(
-            [TestDataIds::id(ProductSeeder::PHYSICAL), TestDataIds::id(ProductSeeder::CUSTOM_FIELDS)],
+            [TestDataIds::id(ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION), TestDataIds::id(ProductSeeder::CUSTOM_FIELDS)],
             array_column($bundle['bundleItems'], 'productId'),
         );
-        static::assertSame(TestDataIds::id(ProductSeeder::PHYSICAL_A5), $bundle['bundleItems'][0]['defaultVariantId']);
+        static::assertSame(TestDataIds::id(ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION.'.a5'), $bundle['bundleItems'][0]['defaultVariantId']);
         static::assertSame('percentage', $bundle['bundleDiscounts'][0]['type']);
         static::assertSame(10.0, $bundle['bundleDiscounts'][0]['value']);
-        static::assertSame(ProductSeeder::visibilities([self::SALES_CHANNEL_ID]), $bundle['visibilities']);
+        static::assertSame(ProductPayloadBuilder::visibilityPayloads([self::SALES_CHANNEL_ID]), $bundle['visibilities']);
     }
 
     public function testDynamicAccessExistsChecksTheProductAndRemovalReportsAbsence(): void
@@ -96,7 +97,7 @@ class PluginDependentSeedersTest extends TestCase
         $productRepository = new StaticEntityRepository([[TestDataIds::id(DynamicAccessSeeder::MEMBERS_ONLY_PRODUCT)], [], []]);
         /** @var StaticEntityRepository<RuleCollection> $ruleRepository */
         $ruleRepository = new StaticEntityRepository([[]]);
-        $seeder = new DynamicAccessSeeder($productRepository, $ruleRepository, new TestDataTax(TaxFixture::repository()), $this->inactiveEnvironment());
+        $seeder = new DynamicAccessSeeder($productRepository, $ruleRepository, (new ReferencesFixture())->productReferences, $this->inactiveEnvironment());
 
         static::assertTrue($seeder->exists(Context::createDefaultContext()));
         static::assertFalse($seeder->exists(Context::createDefaultContext()));
@@ -109,8 +110,8 @@ class PluginDependentSeedersTest extends TestCase
         /** @var StaticEntityRepository<ProductCollection> $productRepository */
         $productRepository = new StaticEntityRepository([]);
 
-        (new BundleSeeder($productRepository, new TestDataTax(TaxFixture::repository()), $this->inactiveEnvironment()))
-            ->create([self::SALES_CHANNEL_ID], Context::createDefaultContext());
+        (new BundleSeeder($productRepository, (new ReferencesFixture())->productReferences, $this->inactiveEnvironment()))
+            ->create([self::SALES_CHANNEL_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         $bundle = $productRepository->creates[0][0];
         if (\defined(BundleSeeder::CMS_DETAIL_PAGE_CONSTANT)) {
@@ -125,7 +126,7 @@ class PluginDependentSeedersTest extends TestCase
         $bundleId = TestDataIds::id(BundleSeeder::BUNDLE_PRODUCT);
         /** @var StaticEntityRepository<ProductCollection> $productRepository */
         $productRepository = new StaticEntityRepository([[$bundleId], [$bundleId], [], []]);
-        $seeder = new BundleSeeder($productRepository, new TestDataTax(TaxFixture::repository()), $this->inactiveEnvironment());
+        $seeder = new BundleSeeder($productRepository, (new ReferencesFixture())->productReferences, $this->inactiveEnvironment());
 
         static::assertTrue($seeder->exists(Context::createDefaultContext()));
         static::assertTrue($seeder->remove(Context::createDefaultContext()));
@@ -140,10 +141,10 @@ class PluginDependentSeedersTest extends TestCase
         $productRepository = new StaticEntityRepository([]);
         /** @var StaticEntityRepository<RuleCollection> $ruleRepository */
         $ruleRepository = new StaticEntityRepository([]);
-        $tax = new TestDataTax(TaxFixture::repository());
+        $productReferences = (new ReferencesFixture())->productReferences;
 
-        static::assertSame('SwagDynamicAccess is not installed or not active.', (new DynamicAccessSeeder($productRepository, $ruleRepository, $tax, $this->inactiveEnvironment()))->unavailableReason());
-        static::assertSame('SwagCommercial is not installed or not active.', (new BundleSeeder($productRepository, $tax, $this->inactiveEnvironment()))->unavailableReason());
+        static::assertSame('SwagDynamicAccess is not installed or not active.', (new DynamicAccessSeeder($productRepository, $ruleRepository, $productReferences, $this->inactiveEnvironment()))->unavailableReason());
+        static::assertSame('SwagCommercial is not installed or not active.', (new BundleSeeder($productRepository, $productReferences, $this->inactiveEnvironment()))->unavailableReason());
     }
 
     private function inactiveEnvironment(): TestDataEnvironment

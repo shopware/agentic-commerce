@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\TestData\Seeder;
 
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 
 /**
  * One group of the test data set. The command creates the groups in their configured order and removes
@@ -30,7 +31,7 @@ interface TestDataSeederInterface
      *
      * @return list<string> what was created, for the report
      */
-    public function create(array $salesChannelIds, Context $context): array;
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array;
 
     /**
      * Runs regardless of `unavailableReason()`: data created while a plugin was active must stay removable.

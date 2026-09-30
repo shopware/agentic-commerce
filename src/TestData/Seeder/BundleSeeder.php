@@ -9,8 +9,11 @@ use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\TestData\Catalogue\CatalogueImage;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 use Swag\AgenticCommerce\TestData\TestDataIds;
+use Swag\AgenticCommerce\TestData\TranslatedText;
 
 /**
  * A Shopware Commercial grouped bundle of two physical test products. Commercial derives the bundle's
@@ -32,7 +35,7 @@ final class BundleSeeder implements TestDataSeederInterface
      */
     public function __construct(
         private readonly EntityRepository $productRepository,
-        private readonly TestDataTax $tax,
+        private readonly ProductReferences $productReferences,
         private readonly TestDataEnvironment $environment,
     ) {
     }
@@ -52,29 +55,41 @@ final class BundleSeeder implements TestDataSeederInterface
         return $this->idExists($this->productRepository, TestDataIds::id(self::BUNDLE_PRODUCT), $context);
     }
 
-    public function create(array $salesChannelIds, Context $context): array
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array
     {
-        $bundleId = TestDataIds::id(self::BUNDLE_PRODUCT);
+        $builder = $this->productReferences->payloadBuilder($pickedProducts, $salesChannelIds, $context);
+        $physicalProduct = $pickedProducts->requireProduct(ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION);
+        $defaultVariant = $physicalProduct->variantOptions[0] ?? null;
+        $companionProduct = $pickedProducts->requireProduct(ProductSeeder::CUSTOM_FIELDS);
+        $defaultVariantName = $defaultVariant->name ?? $physicalProduct->name;
+        $name = TestDataIds::prefixedTranslatedName(new TranslatedText(
+            \sprintf('Bundle: %s + %s', $physicalProduct->name->english, $companionProduct->name->english),
+            \sprintf('Bundle: %s + %s', $physicalProduct->name->german, $companionProduct->name->german),
+        ));
+        $description = new TranslatedText(
+            \sprintf('10 %% off for %s (%s) together with %s.', $physicalProduct->name->english, $defaultVariantName->english, $companionProduct->name->english),
+            \sprintf('10 %% Rabatt auf %s (%s) zusammen mit %s.', $physicalProduct->name->german, $defaultVariantName->german, $companionProduct->name->german),
+        );
 
         $bundle = [
-            'id' => $bundleId,
+            'id' => TestDataIds::id(self::BUNDLE_PRODUCT),
             'productNumber' => TestDataIds::productNumber('BUNDLE'),
-            'name' => TestDataIds::name('Notebook and Tote Bag Bundle'),
-            'description' => 'Bundles the A5 notebook variant with the tote bag at 10 % off.',
+            ...$builder->translatedFields(['name' => $name, 'description' => $description]),
             'type' => TestDataEnvironment::BUNDLE_PRODUCT_TYPE,
             'active' => true,
             'stock' => 0,
-            'taxId' => $this->tax->resolve($context)->getId(),
+            'taxId' => $builder->taxOf($physicalProduct)->getId(),
             'price' => [['currencyId' => Defaults::CURRENCY, 'gross' => 0.0, 'net' => 0.0, 'linked' => true]],
-            'customFields' => TestDataIds::marker(),
-            'visibilities' => ProductSeeder::visibilities($salesChannelIds),
+            'customFields' => TestDataIds::markerCustomField(),
+            'visibilities' => ProductPayloadBuilder::visibilityPayloads($salesChannelIds),
+            ...$builder->mediaPayload(self::BUNDLE_PRODUCT.'.media', ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION, array_filter([$physicalProduct->imageWithRole(CatalogueImage::ROLE_COVER)])),
             'bundleItems' => [
                 [
-                    ...$this->bundleItem('notebook', ProductSeeder::PHYSICAL, 1),
-                    'defaultVariantId' => TestDataIds::id(ProductSeeder::PHYSICAL_A5),
+                    ...$this->bundleItemPayload('notebook', ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION, 1),
+                    'defaultVariantId' => null === $defaultVariant ? null : TestDataIds::id(ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION.'.'.$defaultVariant->key),
                     'defaultVariantVersionId' => Defaults::LIVE_VERSION,
                 ],
-                $this->bundleItem('tote-bag', ProductSeeder::CUSTOM_FIELDS, 2),
+                $this->bundleItemPayload('tote-bag', ProductSeeder::CUSTOM_FIELDS, 2),
             ],
             'bundleDiscounts' => [[
                 'id' => TestDataIds::id(self::BUNDLE_PRODUCT.'.discount'),
@@ -95,7 +110,9 @@ final class BundleSeeder implements TestDataSeederInterface
 
         $this->productRepository->create([$bundle], $context);
 
-        return [TestDataIds::productNumber('BUNDLE').': '.TestDataIds::productNumber('PHYSICAL-A5').' + '.TestDataIds::productNumber('CUSTOM-FIELDS').', 10 % off'];
+        $physicalNumber = TestDataIds::productNumber(ProductSeeder::NUMBER_SUFFIX_BY_ROLE[ProductSeeder::PHYSICAL_WITH_DIGITAL_OPTION].(null === $defaultVariant ? '' : '-'.strtoupper($defaultVariant->key)));
+
+        return [TestDataIds::productNumber('BUNDLE').': '.$physicalNumber.' + '.TestDataIds::productNumber(ProductSeeder::NUMBER_SUFFIX_BY_ROLE[ProductSeeder::CUSTOM_FIELDS]).', 10 % off'];
     }
 
     public function remove(Context $context): bool
@@ -106,7 +123,7 @@ final class BundleSeeder implements TestDataSeederInterface
     /**
      * @return array<string, mixed>
      */
-    private function bundleItem(string $itemKey, string $productKey, int $position): array
+    private function bundleItemPayload(string $itemKey, string $productKey, int $position): array
     {
         return [
             'id' => TestDataIds::id(self::BUNDLE_PRODUCT.'.item.'.$itemKey),

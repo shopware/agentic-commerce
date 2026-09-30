@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use GuzzleHttp\Client;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartDeleteRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemRemoveRoute;
@@ -71,14 +72,21 @@ use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
 use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
+use Swag\AgenticCommerce\TestData\Catalogue\CatalogueSource;
+use Swag\AgenticCommerce\TestData\Catalogue\ProductPicker;
 use Swag\AgenticCommerce\TestData\Command\TestDataCommand;
 use Swag\AgenticCommerce\TestData\Seeder\BundleSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\CategorySeeder;
+use Swag\AgenticCommerce\TestData\Seeder\CategoryTreeIds;
 use Swag\AgenticCommerce\TestData\Seeder\DynamicAccessSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\FoundationSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\MediaSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\PayPalSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\ProductReferences;
 use Swag\AgenticCommerce\TestData\Seeder\ProductSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\PromotionSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\TestDataTax;
+use Swag\AgenticCommerce\TestData\ShopLanguagesLoader;
 use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
@@ -150,6 +158,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\inline_service;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
@@ -420,27 +429,57 @@ return static function (ContainerConfigurator $container): void {
         $services->set(TestDataTax::class)
             ->arg('$taxRepository', service('tax.repository'));
 
+        $services->set(ShopLanguagesLoader::class)
+            ->arg('$languageRepository', service('language.repository'));
+
+        $services->set(CategoryTreeIds::class)
+            ->arg('$salesChannelRepository', service('sales_channel.repository'));
+
+        $services->set(ProductReferences::class)
+            ->arg('$manufacturerRepository', service('product_manufacturer.repository'))
+            ->arg('$unitRepository', service('unit.repository'))
+            ->arg('$deliveryTimeRepository', service('delivery_time.repository'))
+            ->arg('$tax', service(TestDataTax::class))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class))
+            ->arg('$categoryTreeIds', service(CategoryTreeIds::class));
+
+        $services->set(CatalogueSource::class)
+            ->arg('$httpClient', inline_service(Client::class))
+            ->arg('$cacheDirectory', '%kernel.cache_dir%/swag_agentic_commerce/test-data');
+
+        $services->set(ProductPicker::class);
+
         $services->set(FoundationSeeder::class)
             ->arg('$ruleRepository', service('rule.repository'))
             ->arg('$propertyGroupRepository', service('property_group.repository'))
             ->arg('$customFieldSetRepository', service('custom_field_set.repository'))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class))
+            ->arg('$systemConfigService', service(SystemConfigService::class));
+
+        $services->set(MediaSeeder::class)
             ->arg('$mediaRepository', service('media.repository'))
             ->arg('$mediaFolderRepository', service('media_folder.repository'))
-            ->arg('$mediaService', service(MediaService::class));
+            ->arg('$mediaService', service(MediaService::class))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class));
+
+        $services->set(CategorySeeder::class)
+            ->arg('$categoryRepository', service('category.repository'))
+            ->arg('$categoryTreeIds', service(CategoryTreeIds::class))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class));
 
         $services->set(ProductSeeder::class)
             ->arg('$productRepository', service('product.repository'))
-            ->arg('$tax', service(TestDataTax::class));
+            ->arg('$productReferences', service(ProductReferences::class));
 
         $services->set(DynamicAccessSeeder::class)
             ->arg('$productRepository', service('product.repository'))
             ->arg('$ruleRepository', service('rule.repository'))
-            ->arg('$tax', service(TestDataTax::class))
+            ->arg('$productReferences', service(ProductReferences::class))
             ->arg('$environment', service(TestDataEnvironment::class));
 
         $services->set(BundleSeeder::class)
             ->arg('$productRepository', service('product.repository'))
-            ->arg('$tax', service(TestDataTax::class))
+            ->arg('$productReferences', service(ProductReferences::class))
             ->arg('$environment', service(TestDataEnvironment::class));
 
         $services->set(PromotionSeeder::class)
@@ -458,6 +497,8 @@ return static function (ContainerConfigurator $container): void {
         $services->set(TestDataCommand::class)
             ->arg('$seeders', [
                 service(FoundationSeeder::class),
+                service(MediaSeeder::class),
+                service(CategorySeeder::class),
                 service(ProductSeeder::class),
                 service(DynamicAccessSeeder::class),
                 service(BundleSeeder::class),

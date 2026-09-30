@@ -21,6 +21,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
 use Shopware\Core\Test\Stub\SystemConfigService\StaticSystemConfigService;
+use Swag\AgenticCommerce\TestData\Catalogue\BuiltInCatalogue;
 use Swag\AgenticCommerce\TestData\Seeder\PayPalSeeder;
 use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 
@@ -59,7 +60,7 @@ class PayPalSeederTest extends TestCase
         ])]);
         $this->systemConfig->set('SwagPayPal.settings.clientId', 'live-client');
 
-        $reportLines = $this->seeder()->create([self::SHOP_ID, self::HEADLESS_ID], Context::createDefaultContext());
+        $reportLines = $this->seeder()->create([self::SHOP_ID, self::HEADLESS_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         static::assertSame([['id' => self::SHOP_ID, 'paymentMethods' => [['id' => self::PAY_LATER_ID]]]], $this->salesChannelRepository->updates[0]);
         static::assertSame([self::SHOP_ID => [self::PAY_LATER_ID]], $this->systemConfig->get(PayPalSeeder::ASSIGNMENTS_CONFIG_KEY));
@@ -72,14 +73,14 @@ class PayPalSeederTest extends TestCase
             self::salesChannel(self::SHOP_ID, 'Shop', self::INVOICE_ID, [self::INVOICE_ID]),
         ])]);
 
-        $reportLines = $this->seeder()->create([self::SHOP_ID], Context::createDefaultContext());
+        $reportLines = $this->seeder()->create([self::SHOP_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         static::assertContains('Shop: PayPal has no API credentials, so checkout hides its methods', $reportLines);
     }
 
     public function testItAssignsNothingWithoutActivePayPalMethods(): void
     {
-        $reportLines = $this->seeder(new PaymentMethodCollection())->create([self::SHOP_ID], Context::createDefaultContext());
+        $reportLines = $this->seeder(new PaymentMethodCollection())->create([self::SHOP_ID], BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         static::assertSame(['SwagPayPal has no active payment method, nothing assigned.'], $reportLines);
         static::assertSame([], $this->salesChannelRepository->updates);

@@ -16,6 +16,7 @@ use Shopware\Core\Checkout\Promotion\PromotionCollection;
 use Shopware\Core\Content\Rule\RuleCollection;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
+use Swag\AgenticCommerce\TestData\Catalogue\BuiltInCatalogue;
 use Swag\AgenticCommerce\TestData\Seeder\ProductSeeder;
 use Swag\AgenticCommerce\TestData\Seeder\PromotionSeeder;
 use Swag\AgenticCommerce\TestData\TestDataIds;
@@ -35,7 +36,7 @@ class PromotionSeederTest extends TestCase
         /** @var StaticEntityRepository<RuleCollection> $ruleRepository */
         $ruleRepository = new StaticEntityRepository([]);
 
-        (new PromotionSeeder($promotionRepository, $ruleRepository))->create(self::SALES_CHANNEL_IDS, Context::createDefaultContext());
+        (new PromotionSeeder($promotionRepository, $ruleRepository))->create(self::SALES_CHANNEL_IDS, BuiltInCatalogue::pickedProducts(), Context::createDefaultContext());
 
         $promotionById = array_column($promotionRepository->creates[0], null, 'id');
 

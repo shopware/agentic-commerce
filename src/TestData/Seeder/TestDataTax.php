@@ -29,7 +29,7 @@ final class TestDataTax
     {
     }
 
-    public function resolve(Context $context): TaxEntity
+    public function standardTax(Context $context): TaxEntity
     {
         $tax = $this->taxRepository->search((new Criteria())->addSorting(new FieldSorting('position'))->setLimit(1), $context)->getEntities()->first();
         if (null === $tax) {
@@ -40,9 +40,25 @@ final class TestDataTax
     }
 
     /**
+     * The lowest positive rate below the standard one, which is what food and books take; the standard rate when
+     * the shop has none.
+     */
+    public function reducedTax(TaxEntity $standardTax, Context $context): TaxEntity
+    {
+        $reduced = $standardTax;
+        foreach ($this->taxRepository->search(new Criteria(), $context)->getEntities() as $tax) {
+            if ($tax->getTaxRate() > 0 && $tax->getTaxRate() < $reduced->getTaxRate()) {
+                $reduced = $tax;
+            }
+        }
+
+        return $reduced;
+    }
+
+    /**
      * @return TestDataPrice
      */
-    public static function price(float $gross, TaxEntity $tax): array
+    public static function grossAndNetPrice(float $gross, TaxEntity $tax): array
     {
         return [
             'currencyId' => Defaults::CURRENCY,

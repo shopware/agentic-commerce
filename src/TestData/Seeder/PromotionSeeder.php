@@ -12,6 +12,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Rule\Rule;
+use Swag\AgenticCommerce\TestData\PickedProducts;
 use Swag\AgenticCommerce\TestData\TestDataIds;
 
 /**
@@ -57,14 +58,14 @@ final class PromotionSeeder implements TestDataSeederInterface
         return $this->idExists($this->promotionRepository, TestDataIds::id(self::PERCENTAGE_PROMOTION), $context);
     }
 
-    public function create(array $salesChannelIds, Context $context): array
+    public function create(array $salesChannelIds, PickedProducts $pickedProducts, Context $context): array
     {
         $this->ruleRepository->upsert([[
             'id' => TestDataIds::id(self::RULE_CART_HAS_TIER_PRODUCT),
-            'name' => TestDataIds::name('Cart contains the tier-price product'),
+            'name' => TestDataIds::prefixedName('Cart contains the tier-price product'),
             'description' => 'Limits the automatic test promotion to carts with the tier-price test product.',
             'priority' => 100,
-            'customFields' => TestDataIds::marker(),
+            'customFields' => TestDataIds::markerCustomField(),
             'conditions' => RuleConditions::single(self::RULE_CART_HAS_TIER_PRODUCT, LineItemRule::RULE_NAME, [
                 'operator' => Rule::OPERATOR_EQ,
                 'identifiers' => [TestDataIds::id(ProductSeeder::TIER_PRICES)],
@@ -73,22 +74,22 @@ final class PromotionSeeder implements TestDataSeederInterface
 
         $this->promotionRepository->create([
             [
-                ...$this->promotion(self::PERCENTAGE_PROMOTION, '10 % off with code', $salesChannelIds),
+                ...$this->promotionPayload(self::PERCENTAGE_PROMOTION, '10 % off with code', $salesChannelIds),
                 'useCodes' => true,
                 'code' => self::PERCENTAGE_CODE,
-                'discounts' => [$this->discount(self::PERCENTAGE_PROMOTION, PromotionDiscountEntity::SCOPE_CART, PromotionDiscountEntity::TYPE_PERCENTAGE, 10.0)],
+                'discounts' => [$this->discountPayload(self::PERCENTAGE_PROMOTION, PromotionDiscountEntity::SCOPE_CART, PromotionDiscountEntity::TYPE_PERCENTAGE, 10.0)],
             ],
             [
-                ...$this->promotion(self::FREE_SHIPPING_PROMOTION, 'Free shipping with code', $salesChannelIds),
+                ...$this->promotionPayload(self::FREE_SHIPPING_PROMOTION, 'Free shipping with code', $salesChannelIds),
                 'useCodes' => true,
                 'code' => self::FREE_SHIPPING_CODE,
-                'discounts' => [$this->discount(self::FREE_SHIPPING_PROMOTION, PromotionDiscountEntity::SCOPE_DELIVERY, PromotionDiscountEntity::TYPE_PERCENTAGE, 100.0)],
+                'discounts' => [$this->discountPayload(self::FREE_SHIPPING_PROMOTION, PromotionDiscountEntity::SCOPE_DELIVERY, PromotionDiscountEntity::TYPE_PERCENTAGE, 100.0)],
             ],
             [
-                ...$this->promotion(self::AUTOMATIC_PROMOTION, '5.00 off carts with Bulk Pens', $salesChannelIds),
+                ...$this->promotionPayload(self::AUTOMATIC_PROMOTION, '5.00 off carts with Bulk Pens', $salesChannelIds),
                 'useCodes' => false,
                 'cartRules' => [['id' => TestDataIds::id(self::RULE_CART_HAS_TIER_PRODUCT)]],
-                'discounts' => [$this->discount(self::AUTOMATIC_PROMOTION, PromotionDiscountEntity::SCOPE_CART, PromotionDiscountEntity::TYPE_ABSOLUTE, 5.0)],
+                'discounts' => [$this->discountPayload(self::AUTOMATIC_PROMOTION, PromotionDiscountEntity::SCOPE_CART, PromotionDiscountEntity::TYPE_ABSOLUTE, 5.0)],
             ],
         ], $context);
 
@@ -101,13 +102,13 @@ final class PromotionSeeder implements TestDataSeederInterface
 
     public function remove(Context $context): bool
     {
-        $removed = $this->deleteExisting($this->promotionRepository, [
+        $hasRemovedAny = $this->deleteExisting($this->promotionRepository, [
             TestDataIds::id(self::PERCENTAGE_PROMOTION),
             TestDataIds::id(self::FREE_SHIPPING_PROMOTION),
             TestDataIds::id(self::AUTOMATIC_PROMOTION),
         ], $context);
 
-        return $this->deleteExisting($this->ruleRepository, [TestDataIds::id(self::RULE_CART_HAS_TIER_PRODUCT)], $context) || $removed;
+        return $this->deleteExisting($this->ruleRepository, [TestDataIds::id(self::RULE_CART_HAS_TIER_PRODUCT)], $context) || $hasRemovedAny;
     }
 
     /**
@@ -115,13 +116,13 @@ final class PromotionSeeder implements TestDataSeederInterface
      *
      * @return array<string, mixed>
      */
-    private function promotion(string $promotionKey, string $name, array $salesChannelIds): array
+    private function promotionPayload(string $promotionKey, string $name, array $salesChannelIds): array
     {
         return [
             'id' => TestDataIds::id($promotionKey),
-            'name' => TestDataIds::name($name),
+            'name' => TestDataIds::prefixedName($name),
             'active' => true,
-            'customFields' => TestDataIds::marker(),
+            'customFields' => TestDataIds::markerCustomField(),
             'salesChannels' => array_map(static fn (string $salesChannelId): array => [
                 'id' => TestDataIds::id($promotionKey.'.sales-channel.'.$salesChannelId),
                 'salesChannelId' => $salesChannelId,
@@ -133,7 +134,7 @@ final class PromotionSeeder implements TestDataSeederInterface
     /**
      * @return array<string, mixed>
      */
-    private function discount(string $promotionKey, string $scope, string $type, float $value): array
+    private function discountPayload(string $promotionKey, string $scope, string $type, float $value): array
     {
         return [
             'id' => TestDataIds::id($promotionKey.'.discount'),
