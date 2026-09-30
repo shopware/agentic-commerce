@@ -22,6 +22,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
+use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -335,6 +336,63 @@ final class UcpMcpProxyControllerTest extends TestCase
 
         self::assertSame('proxied', $response->getContent());
         self::assertSame($context, $request->attributes->get(SymfonyRequestContextFactory::REQUEST_CONTEXT_ATTRIBUTE));
+    }
+
+    #[Test]
+    public function testItPinsTheUcpToolsetOnTheMainRequest(): void
+    {
+        $requestContextFactory = $this->createStub(HttpRequestContextFactoryInterface::class);
+        $requestContextFactory->method('create')->willReturn(new RequestContext('shop.example'));
+
+        $kernel = $this->createMock(HttpKernelInterface::class);
+        $kernel->expects(self::once())
+            ->method('handle')
+            ->with(self::callback(static function (Request $request): bool {
+                // The sub-request keeps the client's query string; core reads the pin from the main request.
+                self::assertSame('toolsets=order', $request->getQueryString());
+
+                return true;
+            }), HttpKernelInterface::SUB_REQUEST)
+            ->willReturn(new Response('proxied'));
+
+        $controller = $this->controller(
+            $this->knownDomains(),
+            $this->knownSalesChannels('store-api-access-key'),
+            new UcpConfig(active: true, enabledTransports: ['mcp']),
+            $kernel,
+            $requestContextFactory,
+        );
+
+        $request = Request::create('https://shop.example/ucp/mcp?toolsets=order', Request::METHOD_POST, content: '{"jsonrpc":"2.0","method":"tools/list","id":1}');
+
+        $controller->proxy($request);
+
+        self::assertSame('order,'.UcpMcpToolset::NAME, $request->query->get(UcpMcpToolset::QUERY_PARAMETER));
+        self::assertSame('https://shop.example/ucp/mcp?toolsets=order', $request->getUri(), 'The signed URI must stay as the client sent it.');
+    }
+
+    #[Test]
+    public function testItDoesNotPinTheUcpToolsetTwice(): void
+    {
+        $requestContextFactory = $this->createStub(HttpRequestContextFactoryInterface::class);
+        $requestContextFactory->method('create')->willReturn(new RequestContext('shop.example'));
+
+        $kernel = $this->createStub(HttpKernelInterface::class);
+        $kernel->method('handle')->willReturn(new Response('proxied'));
+
+        $controller = $this->controller(
+            $this->knownDomains(),
+            $this->knownSalesChannels('store-api-access-key'),
+            new UcpConfig(active: true, enabledTransports: ['mcp']),
+            $kernel,
+            $requestContextFactory,
+        );
+
+        $request = Request::create('https://shop.example/ucp/mcp?toolsets=ucp,%20,order', Request::METHOD_POST, content: '{}');
+
+        $controller->proxy($request);
+
+        self::assertSame('ucp,order', $request->query->get(UcpMcpToolset::QUERY_PARAMETER));
     }
 
     #[Test]

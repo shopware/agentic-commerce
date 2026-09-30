@@ -42,6 +42,7 @@ env:
   SHOPWARE_65_REF: ${{ github.event.inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
   SHOPWARE_66_REF: ${{ github.event.inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
+  SHOPWARE_6714_REF: ${{ vars.SHOPWARE_6714_REF || '6.7.14.x' }}
   PHPSTAN_SHOPWARE_VERSION: '0.2.4'
 
 permissions:
@@ -423,6 +424,9 @@ jobs:
         include:
           - lane: '6.5.x'
           - lane: '6.6.x'
+          # The newest release line without connect-time MCP toolsets: the only one where the
+          # UCP tools reach /ucp/mcp through AdvertiseUcpToolsWithoutToolsetPinningPass.
+          - lane: '6.7.14.x'
           - lane: 'trunk'
     steps:
       - uses: actions/checkout@v6
@@ -431,7 +435,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
-          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || matrix.lane == '6.7.14.x' && env.SHOPWARE_6714_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
       - uses: actions/setup-node@v6
         with:
