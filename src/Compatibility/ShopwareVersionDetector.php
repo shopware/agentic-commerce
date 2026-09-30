@@ -45,6 +45,11 @@ final class ShopwareVersionDetector
         return '0.0.0.0';
     }
 
+    public function isAtLeast(string $version): bool
+    {
+        return version_compare($this->normalizeVersion($this->currentVersion()), $this->normalizeVersion($version), '>=');
+    }
+
     public function supportsStoreApiMcp(): bool
     {
         if (!version_compare($this->normalizeVersion($this->currentVersion()), '6.7.0.0', '>=')) {

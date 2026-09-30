@@ -60,4 +60,13 @@ final class ShopwareVersionDetectorTest extends TestCase
         // Unknown/unresolvable version must fall through to core's real schema.
         self::assertFalse((new ShopwareVersionDetector(versionOverride: '0.0.0.0'))->needsSystemConfigXsdCompatPatch());
     }
+
+    public function testItComparesTheRuntimeVersionIgnoringPatchSuffixes(): void
+    {
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.15.0'))->isAtLeast('6.7.15.0'));
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.9999999-dev'))->isAtLeast('6.7.15.0'));
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.14.2'))->isAtLeast('6.7.15.0'));
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.15.0-rc1'))->isAtLeast('6.7.15.1'));
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '0.0.0.0'))->isAtLeast('6.5.0.0'));
+    }
 }
