@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "lib": ["ES2022"],
+    "target": "ES2022",
     "module": "Preserve",
     "skipLibCheck": true,
     "allowJs": false,

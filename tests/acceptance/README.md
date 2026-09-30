@@ -45,17 +45,17 @@ with an opaque error.
 Projects are routed by tag, the way core does it. A spec opts into a project by carrying its tag in
 the title.
 
-| Project           | Tag                | Notes                                                                |
-| ----------------- | ------------------ | -------------------------------------------------------------------- |
-| `Signer`          | `@Signer`          | RFC 9421 signer proofs. No browser. Every UCP project depends on it. |
-| `Setup`           | `@Setup`           | The known-blockers guard and the bootstrap check.                    |
-| `UcpProtocol`     | `@UcpProtocol`     | UCP transport journeys.                                              |
-| `UcpContent`      | `@UcpContent`      | Product feed, tracking, discovery files.                             |
-| `UcpEmbedded`     | `@UcpEmbedded`     | Embedded transport.                                                  |
-| `UcpAdmin`        | `@UcpAdmin`        | Administration UI.                                                   |
-| `UcpAcl`          | `@UcpAcl`          | ACL matrix.                                                          |
-| `UcpSerial`       | `@UcpSerial`       | Runs with `workers: 1` for specs that cannot be parallelised.        |
-| `UcpKnownBlocked` | `@UcpKnownBlocked` | **Non-gating.** See below.                                           |
+| Project           | Tag                | Notes                                                                                                                            |
+| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `Signer`          | `@Signer`          | RFC 9421 signer proofs. No browser. Every UCP project depends on it.                                                             |
+| `Setup`           | `@Setup`           | The known-blockers guard, the bootstrap check and the fixture proofs. `@UcpConsole` marks the one spec that needs `bin/console`. |
+| `UcpProtocol`     | `@UcpProtocol`     | UCP transport journeys.                                                                                                          |
+| `UcpContent`      | `@UcpContent`      | Product feed, tracking, discovery files.                                                                                         |
+| `UcpEmbedded`     | `@UcpEmbedded`     | Embedded transport.                                                                                                              |
+| `UcpAdmin`        | `@UcpAdmin`        | Administration UI.                                                                                                               |
+| `UcpAcl`          | `@UcpAcl`          | ACL matrix.                                                                                                                      |
+| `UcpSerial`       | `@UcpSerial`       | Runs with `workers: 1` for specs that cannot be parallelised.                                                                    |
+| `UcpKnownBlocked` | `@UcpKnownBlocked` | **Non-gating.** See below.                                                                                                       |
 
 Most projects match no specs yet; their issues add them. A project with no matching spec reports
 zero tests and passes.
@@ -101,6 +101,70 @@ import { expect, test } from "@fixtures/AcceptanceTest";
 `fixtures/AcceptanceTest.ts` calls `mergeTests(ShopwareTestSuite, ...)` and re-exports the package,
 so a spec never has to know which file a fixture came from.
 
+## Fixtures
+
+Every Playwright worker owns its test data. The ATS `DefaultSalesChannel` fixture gives each worker
+a storefront-type sales channel on the path-prefixed domain `${APP_URL}test-<uuid>/`, so the
+Administration shows the Agentic Commerce tab for it. That domain does not give the worker a profile
+of its own yet: `/.well-known/ucp` under a prefixed domain resolves another channel (known blocker
+D8), so specs read a channel's profile through the Admin API preview until that is fixed. The plugin
+fixtures build on the worker channel.
+
+**`TestDataService`** (test scope) is `UcpTestDataService`, the ATS `TestDataService` plus UCP:
+`createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`,
+`activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()` and
+`listUcpSalesChannels()`. `activateUcp()` enables every capability and the REST transport and
+allowlists the agent profile host on all three per-channel lists, because the SDK falls back to the
+shop's own host for an empty list and would refuse a `localhost` profile. Its cleanup runs before
+the ATS registry's. It restores the UCP config each surviving channel had before the first write,
+deletes the signing keys of the channels it created and activated when `UcpConsole` reaches
+`bin/console`, and deletes the channels it created. Every step runs even when an earlier one fails,
+and the failures are reported together.
+
+**`UcpAgentProfileHost`** (worker scope) has `publish()`, which generates an ES256 key pair and
+writes the agent's profile, public key included, to
+`<SHOPWARE_DIR>/public/ucp-acceptance-agents/<kid>.json`. The profile carries every shopping
+capability the UCP specification defines at the protocol version, so the SDK has something to
+negotiate, and `publish({ capabilities })` replaces that set for negative specs. The shop fetches
+the profile from `UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`), the web container's
+own document root, the only plain-http host the SDK admits and only in development mode. The fixture
+verifies the file is served through `APP_URL` and throws otherwise. It never falls back to the
+shop's own profile. A worker removes its own files at teardown.
+
+**`UcpAclUsers`** (test scope) has `as('ucp.viewer' | 'ucp.editor' | 'ucp.key_rotator')`, which
+creates an ACL role and a non-admin user, logs into the Administration in a separate page context
+and returns it. The privilege sets are read from
+`src/Resources/app/administration/src/extension/sw-sales-channel/acl/index.js`, with core's
+`sales_channel.viewer` set added so the user can reach the sales channel at all.
+
+**`UcpConsole`** (worker scope) runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`,
+the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
+allow-list. Before the first command it probes the real prefix once. When that probe fails, the key
+cleanup is skipped with a warning naming the sales channels whose keys stay behind, and the
+`@UcpConsole` spec fails.
+
+The lane has to run with `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1` for the
+shop to fetch a test agent's profile from `localhost` over plain http.
+
+### What the fixtures need from their host
+
+Beyond `APP_URL`, two fixtures touch the Shopware project directly. Each resolves what it needs from
+an environment variable when it is first used, and fails loudly when it cannot:
+
+| Variable       | Default                                                                                                     | Needed by                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there |
+| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION` and the Administration ACL file           |
+| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                             |
+
+A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
+profile host and the console need the project mounted.
+
+`UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
+machine where `docker` is only an alias for `podman`, the default prefix is not found and the
+signing keys of created channels are left behind. Set `UCP_CONSOLE` to a command that reaches the
+web container without an alias.
+
 ## Environment
 
 Read by the ATS itself: `APP_URL`, `ADMIN_API_URL`, `ADMIN_URL`, `SHOPWARE_ACCESS_KEY_ID`,
@@ -109,6 +173,9 @@ Read by the ATS itself: `APP_URL`, `ADMIN_API_URL`, `ADMIN_URL`, `SHOPWARE_ACCES
 `SHOPWARE_ACCEPTANCE_INSTANCE_TYPE`, `LANG`/`LANGUAGE`.
 
 Read by this config: `SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS`, `DATABASE_URL`, `CI`.
+
+Read by the plugin fixtures: `SHOPWARE_DIR`, `PLUGIN_DIR`, `UCP_AGENT_PROFILE_BASE_URL`,
+`UCP_CONSOLE`, `UCP_CONSOLE_TIMEOUT_MS`, `ATS_SKIP_CLEANUP`.
 
 > `DATABASE_URL` is parsed into `ATS_DATABASE_USERNAME`/`_PASSWORD`/`_HOST`/`_NAME` for parity with
 > core's configuration, but **nothing consumes those variables today**. ATS 12.20.0 ships no
@@ -124,6 +191,11 @@ category, customer group, domain and customer under **worker-derived stable ids*
 reuse the same records rather than accumulating new ones. Expect one `<id> acceptance test` sales
 channel per parallel worker to remain in the shop after a run. Changing `ATS_ID_SEED` produces a new
 set.
+
+Activating UCP on a channel auto-provisions a signing key in the SDK's key store, and on a Shopware
+that ships the sales-channel file subsystem it also enables the agentic files for that channel. The
+worker channel keeps both. Signing keys of the channels the suite created are removed only when
+`UcpConsole` can reach `bin/console`; otherwise they outlive their channel.
 
 ## Notes
 
