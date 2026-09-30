@@ -140,7 +140,8 @@ and returns it. The privilege sets are read from
 **`UcpConsole`** (worker scope) runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`,
 the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
 allow-list. Before the first command it probes the real prefix once. When that probe fails, the key
-cleanup is skipped and the `@UcpConsole` spec fails.
+cleanup is skipped with a warning naming the sales channels whose keys stay behind, and the
+`@UcpConsole` spec fails.
 
 The lane has to run with `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1` for the
 shop to fetch a test agent's profile from `localhost` over plain http.

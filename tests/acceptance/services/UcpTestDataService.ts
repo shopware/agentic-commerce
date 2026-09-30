@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { TestDataService } from '@shopware-ag/acceptance-test-suite';
-import type { DataServiceOptions, FixtureTypes, SalesChannel } from '@shopware-ag/acceptance-test-suite';
+import type { DataServiceOptions, FixtureTypes, SalesChannel, User } from '@shopware-ag/acceptance-test-suite';
 import type { UcpConsole } from './UcpConsole';
 
 /** Core's headless (API) sales channel type, `Defaults::SALES_CHANNEL_TYPE_API`. */
@@ -30,6 +30,8 @@ export interface UcpConfigPayload {
 }
 
 export const ALL_UCP_CAPABILITIES = ['catalog', 'cart', 'discount', 'checkout', 'order'];
+
+const USER_CREATION_ATTEMPTS = 3;
 
 export interface UcpSalesChannel {
     salesChannel: SalesChannel
@@ -232,6 +234,33 @@ export class UcpTestDataService extends TestDataService {
         return ((await response.json()) as { data: UcpConfigPayload }).data;
     }
 
+    /**
+     * Core revokes refresh tokens on every user insert, which MariaDB 11.6+ snapshot isolation
+     * rejects (error 1020) while other workers log in. Before 6.7.13.1 the user row is already
+     * committed by then, so a failed attempt is registered for cleanup when the user exists.
+     */
+    async createUserRetryingTokenConflicts(overrides: Partial<User> = {}): Promise<User> {
+        const password = overrides.password ?? 'shopware';
+
+        for (let attempt = 1; ; attempt++) {
+            const { uuid: id } = this.IdProvider.getIdPair();
+            try {
+                return await this.createUser({ ...overrides, id, password });
+            }
+            catch (error) {
+                const userLookup = await this.AdminApiClient.get(`./user/${id}`);
+                if (userLookup.ok()) {
+                    this.addCreatedRecord('user', id);
+
+                    return { ...((await userLookup.json()) as { data: User }).data, password };
+                }
+                if (attempt === USER_CREATION_ATTEMPTS) {
+                    throw error;
+                }
+            }
+        }
+    }
+
     /** The error code of a refused config write, or null when the response carries none. */
     static async refusalCode(response: { json(): Promise<unknown> }): Promise<string | null> {
         const body = (await response.json()) as ApiErrorBody;
@@ -260,8 +289,14 @@ export class UcpTestDataService extends TestDataService {
             }
         }
 
-        if (this.console?.isAvailable()) {
-            for (const salesChannelId of this.createdSalesChannelIds.filter(id => this.activatedSalesChannelIds.has(id))) {
+        const keyedSalesChannelIds = this.createdSalesChannelIds.filter(id => this.activatedSalesChannelIds.has(id));
+        if (keyedSalesChannelIds.length > 0 && !this.console?.isAvailable()) {
+            console.warn(
+                `UCP console unavailable (${this.console?.describe() ?? 'none configured'}), signing keys left in ucp_signing_keys for sales channels: ${keyedSalesChannelIds.join(', ')}`,
+            );
+        }
+        else if (this.console) {
+            for (const salesChannelId of keyedSalesChannelIds) {
                 try {
                     for (const signingKey of this.console.listSigningKeys(salesChannelId)) {
                         this.console.deleteSigningKey(salesChannelId, signingKey.kid);
