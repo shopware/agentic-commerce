@@ -61,11 +61,6 @@ export const swSalesChannelDetailOverride = {
     },
 
     computed: {
-        useRouterViewSlot() {
-            const result = typeof this.$router?.hasRoute === 'function';
-            return result;
-        },
-
         isAgenticCommerce() {
             if (!this.salesChannel) {
                 return this.$route.params.typeId === Defaults.agenticCommerceTypeId;
