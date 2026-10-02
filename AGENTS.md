@@ -68,7 +68,7 @@ deployed HTTP stack:
    suite assumes a booted kernel (no per-test skip-guards) — run it via `composer test:functional`
    against a configured lane (e.g. the `shopware-6-6-branch-web` container), never under the
    fast-path bootstrap. It gates in CI on **every** `shopware-matrix` lane
-   (`CI_SMOKE_RUN_FUNCTIONAL=1`).
+   (`CI_SMOKE_RUN_PHPUNIT=1`).
 
    The flow tests share `UcpFlowTestBehaviour`, which reproduces the SDK request-context handshake
    offline: it sets the sales-channel config the smoke sets (`active`, `signaturePolicy=log`,
@@ -142,9 +142,9 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
   banner, so a failure names the area. Stages share the orchestrator's shell scope (they are
   sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module and calling it from
   the orchestrator. Before adding a smoke check, confirm it cannot be a `functional` test (see _Test
-  layering_ above) — smoke is for deployed-stack concerns only. With `CI_SMOKE_RUN_FUNCTIONAL=1`
-  (set on every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and runs the
-  functional suite on the lane's own phpunit after the HTTP smoke.
+  layering_ above) — smoke is for deployed-stack concerns only. With `CI_SMOKE_RUN_PHPUNIT=1` (set
+  on every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and runs the
+  integration and functional suites on the lane's own phpunit after the HTTP smoke.
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI `shell-lint` job;
 `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows the `# shellcheck source=`

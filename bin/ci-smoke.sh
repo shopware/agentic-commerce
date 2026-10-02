@@ -544,23 +544,36 @@ smoke_discovery
 smoke_identity
 smoke_checkout
 
-# Optionally run the functional suite inside the already-booted stack. These tests
-# boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) and drive UCP
+# Optionally run the integration and functional suites inside the already-booted stack. These
+# tests boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) and drive UCP
 # routes through a real Symfony browser, rather than hitting the deployed HTTP stack. They use
 # Shopware core's test base classes, which are coupled to the lane's phpunit major
 # (6.5->9, 6.6->10, trunk->11), so they must run on the lane's OWN phpunit, not the plugin's
 # pinned .tools 10.5. The smoke stack installs Shopware --no-dev, so pull in the dev deps here:
 # bin/run.php then prefers the platform phpunit and tests/bootstrap.php registers the plugin's
 # src + Tests namespaces on the platform autoloader.
-if [[ "${CI_SMOKE_RUN_FUNCTIONAL:-0}" == "1" ]]; then
-  echo "Installing Shopware dev dependencies so the functional suite runs on the lane's own phpunit."
+if [[ "${CI_SMOKE_RUN_PHPUNIT:-0}" == "1" ]]; then
+  # Lane-level check that ucp:config:set persists strict; PHPUnit below uses the *_test database.
+  # Restored to log because the unsigned e2e step after this script reuses the stack.
+  echo "Persisting signature-policy=strict for sales channel ${sales_channel_id} via ucp:config:set."
+  web php /var/www/html/bin/console ucp:config:set --sales-channel="${sales_channel_id}" --signature-policy=strict
+  persisted_signature_policy="$(db_query "SELECT JSON_UNQUOTE(JSON_EXTRACT(config_json, '$.signaturePolicy')) FROM swag_agentic_commerce_ucp_config WHERE sales_channel_id = UNHEX('${sales_channel_id}');")"
+  if [[ "${persisted_signature_policy}" != "strict" ]]; then
+    echo "Expected ucp:config:set to persist signaturePolicy=strict, got '${persisted_signature_policy}'." >&2
+    exit 1
+  fi
+  web php /var/www/html/bin/console ucp:config:set --sales-channel="${sales_channel_id}" --signature-policy=log
+
+  echo "Installing Shopware dev dependencies so the PHPUnit suites run on the lane's own phpunit."
   web composer install -d /var/www/html --no-interaction --no-progress --no-scripts
-  echo "Running functional suite (lane phpunit, booting test kernel)."
-  "${compose[@]}" exec -T \
-    -e SHOPWARE_PROJECT_DIR= \
-    -e APP_ENV=test \
-    -w /var/www/html/custom/plugins/SwagAgenticCommerce \
-    web php bin/run.php phpunit --testsuite functional
+  for suite in integration functional; do
+    echo "Running ${suite} suite (lane phpunit, booting test kernel)."
+    "${compose[@]}" exec -T \
+      -e SHOPWARE_PROJECT_DIR= \
+      -e APP_ENV=test \
+      -w /var/www/html/custom/plugins/SwagAgenticCommerce \
+      web php bin/run.php phpunit --testsuite "${suite}"
+  done
 fi
 
 echo "Smoke test passed for ${SHOPWARE_DIR}."
