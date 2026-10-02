@@ -142,8 +142,8 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
   banner, so a failure names the area. Stages share the orchestrator's shell scope (they are
   sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module and calling it from
   the orchestrator. Before adding a smoke check, confirm it cannot be a `functional` test (see _Test
-  layering_ above) — smoke is for deployed-stack concerns only. With `CI_SMOKE_RUN_PHPUNIT=1`
-  (set on every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and runs the
+  layering_ above) — smoke is for deployed-stack concerns only. With `CI_SMOKE_RUN_PHPUNIT=1` (set
+  on every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and runs the
   integration and functional suites on the lane's own phpunit after the HTTP smoke.
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI `shell-lint` job;
