@@ -10,11 +10,12 @@ use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
+use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Symfony\Component\Messenger\EventListener\StopWorkerOnRestartSignalListener;
 
 /** @internal */
 #[Package('framework')]
-final class UcpConfigService
+final class UcpConfigService implements UcpActivationReaderInterface, UcpActivationWriterInterface
 {
     private const DOMAIN = 'SwagAgenticCommerce.config.';
 
@@ -116,6 +117,25 @@ final class UcpConfigService
         }
 
         return $configs;
+    }
+
+    public function activeSalesChannelIds(array $salesChannelIds): array
+    {
+        return array_keys(array_filter(
+            $this->getConfigs($salesChannelIds),
+            static fn (UcpConfig $config): bool => $config->active,
+        ));
+    }
+
+    public function activate(string $salesChannelId): void
+    {
+        // Turns on UCP with the default production-ready capability set (the "prepare"
+        // flow only targets channels that have UCP off). saveConfig() also enables the
+        // AI files and ensures the signing key; the transport default stays 'rest'.
+        $this->saveConfig([
+            'active' => true,
+            'enabledCapabilities' => UcpCapabilityCatalog::defaultConfigKeys(),
+        ], $salesChannelId);
     }
 
     /**

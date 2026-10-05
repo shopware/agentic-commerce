@@ -1,0 +1,26 @@
+{
+  "swagAgenticCommerce": {
+    "subtitleActive": "Agentic Commerce is installed. Prepare your existing sales channels to make your shop AI ready.",
+    "subtitleReady": "Agentic Commerce is installed and your sales channels are prepared. Your shop is AI ready.",
+    "extensionStep": {
+      "activeDescription": "The extension is active in this shop."
+    },
+    "shopReadiness": {
+      "extensionInstalled": "Installed"
+    },
+    "prepareStep": {
+      "completedDescription": "All eligible sales channels have UCP and the AI-file settings enabled."
+    },
+    "prepareModal": {
+      "title": "Prepare sales channels",
+      "description": "This enables UCP and the AI files (llms.txt, agents.md and the AI catalog) with default settings for the selected sales channels.",
+      "selectLabel": "Sales channels to prepare",
+      "selectPlaceholder": "Select sales channels…",
+      "emptyState": "All eligible sales channels are already prepared.",
+      "confirm": "Prepare sales channels",
+      "successMessage": "The selected sales channels have been prepared.",
+      "errorMessage": "The sales channels could not be prepared. Please try again.",
+      "loadErrorMessage": "The sales channels could not be loaded. Please try again."
+    }
+  }
+}

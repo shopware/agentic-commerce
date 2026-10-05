@@ -1,0 +1,20 @@
+.sw-settings-agentic-commerce-prepare-modal {
+    &__description {
+        margin: 0 0 var(--scale-size-16);
+        color: var(--color-text-secondary-default);
+    }
+
+    &__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--scale-size-12);
+    }
+
+    &__empty {
+        margin: 0;
+        color: var(--color-text-secondary-default);
+    }
+}

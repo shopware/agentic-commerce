@@ -9,6 +9,8 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\ApiRouteScope;
 use Shopware\Core\PlatformRequest;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Admin\ReadinessSummaryProvider;
+use Swag\AgenticCommerce\Ucp\Admin\SalesChannelPreparationService;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
@@ -34,8 +36,39 @@ final class UcpAdminController
         private readonly ProfilePreviewBuilder $profilePreviewBuilder,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly PlatformProfileCacheRepositoryInterface $platformProfileCacheRepository,
+        private readonly ReadinessSummaryProvider $readinessSummaryProvider,
+        private readonly SalesChannelPreparationService $salesChannelPreparationService,
         private readonly bool $allowHttpLocalWebhookOverride = false,
     ) {
+    }
+
+    #[Route(path: '/api/_admin/ucp/readiness', name: 'api.action.swag_agentic_commerce.ucp.readiness', methods: ['GET'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]
+    public function readiness(Context $context): JsonResponse
+    {
+        return new JsonResponse([
+            'data' => $this->readinessSummaryProvider->summary($context)->toArray(),
+        ]);
+    }
+
+    #[Route(path: '/api/_admin/ucp/prepare', name: 'api.action.swag_agentic_commerce.ucp.prepare', methods: ['POST'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.editor']])]
+    public function prepare(Request $request, Context $context): JsonResponse
+    {
+        try {
+            $payload = $request->toArray();
+        } catch (JsonException) {
+            throw UcpConfigException::invalidJsonPayload();
+        }
+
+        $salesChannelIds = array_values(array_filter(
+            \is_array($payload['salesChannelIds'] ?? null) ? $payload['salesChannelIds'] : [],
+            static fn (mixed $id): bool => \is_string($id),
+        ));
+
+        $this->salesChannelPreparationService->prepare($salesChannelIds);
+
+        return new JsonResponse([
+            'data' => $this->readinessSummaryProvider->summary($context)->toArray(),
+        ]);
     }
 
     #[Route(path: '/api/_admin/ucp/sales-channels', name: 'api.action.swag_agentic_commerce.ucp.sales_channels', methods: ['GET'], defaults: [PlatformRequest::ATTRIBUTE_ACL => ['ucp.viewer']])]
