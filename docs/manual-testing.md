@@ -376,13 +376,48 @@ BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk npm run test:e2e:storefr
 If demo data exists, open a product detail page and verify add-to-cart. If the database is empty,
 validate the storefront shell and seed catalog data before commerce flow testing.
 
+## Test Data
+
+One command creates products to test with, and removes them again. It does not run on
+`APP_ENV=prod`.
+
+```bash
+bin/console swag-agentic-commerce:test-data --sales-channel "Native en-US shop"
+bin/console swag-agentic-commerce:test-data --remove
+```
+
+The command asks whether to use the product catalogue: products with photos and German texts, a 16
+MB download. Press Enter for yes. `--offline` gives you simple products without photos instead.
+Every run prints a seed; `--seed <n>` gives you the same products again.
+
+Everything it creates starts with `[AC Test]`, product numbers with `SWAG-AC-TEST-`:
+
+| Product number               | What to test with it                                       |
+| ---------------------------- | ---------------------------------------------------------- |
+| `SWAG-AC-TEST-PHYSICAL`      | Variants, one of them a digital download                   |
+| `SWAG-AC-TEST-DIGITAL`       | A digital product with a physical variant                  |
+| `SWAG-AC-TEST-COLOURS`       | Colour or flavour variants with swatches (catalogue only)  |
+| `SWAG-AC-TEST-TIER-PRICES`   | Lower prices from 5 and from 10 pieces                     |
+| `SWAG-AC-TEST-CUSTOM-FIELDS` | Custom fields                                              |
+| `SWAG-AC-TEST-PROPERTIES`    | Properties                                                 |
+| `SWAG-AC-TEST-MEMBERS-ONLY`  | Visible to logged-in customers only (needs Dynamic Access) |
+| `SWAG-AC-TEST-BUNDLE`        | A bundle at 10 % off (needs Shopware Commercial)           |
+
+You also get a category "[AC Test] Test products", the promotion codes `AC-TEST-10` (10 % off) and
+`AC-TEST-SHIP` (free shipping), and, with PayPal installed, PayPal's payment methods in the sales
+channel.
+
+If the command reports `already present`, run `--remove` first. `--remove` deletes only what the
+command created.
+
 ## Manual-Only Scenarios
 
 These seven scenarios are the core of this guide. CI cannot prove them — it asserts headers, runs
 JSON-RPC over curl, completes a checkout once, or runs as a single privileged user. A human must
 drive each one.
 
-Seed a catalog first if the lane database is empty:
+Seed a catalog first if the lane database is empty, either the single smoke product below or the
+full set from [Test Data](#test-data):
 
 ```bash
 bin/console swag-agentic-commerce:seed-smoke-catalog --sales-channel-id=<sales-channel-id>

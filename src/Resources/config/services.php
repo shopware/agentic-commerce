@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use GuzzleHttp\Client;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartDeleteRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemRemoveRoute;
@@ -18,6 +19,7 @@ use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
 use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
+use Shopware\Core\Content\Media\MediaService;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\ProductDetailRoute;
@@ -26,10 +28,12 @@ use Shopware\Core\Content\Product\SalesChannel\Search\AbstractProductSearchRoute
 use Shopware\Core\Content\Product\SalesChannel\Search\ProductSearchRoute;
 use Shopware\Core\Content\ProductExport\ProductExportDefinition;
 use Shopware\Core\DevOps\Environment\EnvironmentHelper;
+use Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry;
 use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
 use Shopware\Core\System\Country\SalesChannel\CountryRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
+use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\AgenticFiles\ApiCatalog\ApiCatalogController;
@@ -67,6 +71,22 @@ use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
 use Swag\AgenticCommerce\System\SystemConfig\CompatConfigReader;
+use Swag\AgenticCommerce\TestData\Catalogue\CatalogueSource;
+use Swag\AgenticCommerce\TestData\Catalogue\ProductPicker;
+use Swag\AgenticCommerce\TestData\Command\TestDataCommand;
+use Swag\AgenticCommerce\TestData\Seeder\BundleSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\CategorySeeder;
+use Swag\AgenticCommerce\TestData\Seeder\CategoryTreeIds;
+use Swag\AgenticCommerce\TestData\Seeder\DynamicAccessSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\FoundationSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\MediaSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\PayPalSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\ProductReferences;
+use Swag\AgenticCommerce\TestData\Seeder\ProductSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\PromotionSeeder;
+use Swag\AgenticCommerce\TestData\Seeder\TestDataTax;
+use Swag\AgenticCommerce\TestData\ShopLanguagesLoader;
+use Swag\AgenticCommerce\TestData\TestDataEnvironment;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCartAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCatalogAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
@@ -137,6 +157,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\inline_service;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
@@ -212,6 +233,7 @@ return static function (ContainerConfigurator $container): void {
             // Test-only helpers (issue #53): registered explicitly below, and only outside prod.
             __DIR__.'/../../Ucp/Test',
             __DIR__.'/../../Ucp/Command/SeedSmokeCatalogCommand.php',
+            __DIR__.'/../../TestData',
         ]);
 
     // DAL repositories are bound by service id, not type — named args required.
@@ -396,6 +418,93 @@ return static function (ContainerConfigurator $container): void {
             ->arg('$taxRepository', service('tax.repository'))
             ->arg('$appEnv', param('kernel.environment'))
             ->arg('$smokeCatalogSeedEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_SMOKE_SEED'));
+
+        $services->set(TestDataEnvironment::class)
+            ->arg('$activePlugins', param('kernel.active_plugins'))
+            ->arg('$definitionRegistry', service(DefinitionInstanceRegistry::class))
+            // Absent before Shopware 6.7.7, where no product type (and so no bundle) exists.
+            ->arg('$productTypeRegistry', service('Shopware\\Core\\Content\\Product\\ProductTypeRegistry')->nullOnInvalid());
+
+        $services->set(TestDataTax::class)
+            ->arg('$taxRepository', service('tax.repository'));
+
+        $services->set(ShopLanguagesLoader::class)
+            ->arg('$languageRepository', service('language.repository'));
+
+        $services->set(CategoryTreeIds::class)
+            ->arg('$salesChannelRepository', service('sales_channel.repository'));
+
+        $services->set(ProductReferences::class)
+            ->arg('$manufacturerRepository', service('product_manufacturer.repository'))
+            ->arg('$unitRepository', service('unit.repository'))
+            ->arg('$deliveryTimeRepository', service('delivery_time.repository'))
+            ->arg('$tax', service(TestDataTax::class))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class))
+            ->arg('$categoryTreeIds', service(CategoryTreeIds::class));
+
+        $services->set(CatalogueSource::class)
+            ->arg('$httpClient', inline_service(Client::class))
+            ->arg('$cacheDirectory', '%kernel.cache_dir%/swag_agentic_commerce/test-data');
+
+        $services->set(ProductPicker::class);
+
+        $services->set(FoundationSeeder::class)
+            ->arg('$ruleRepository', service('rule.repository'))
+            ->arg('$propertyGroupRepository', service('property_group.repository'))
+            ->arg('$customFieldSetRepository', service('custom_field_set.repository'))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class))
+            ->arg('$systemConfigService', service(SystemConfigService::class));
+
+        $services->set(MediaSeeder::class)
+            ->arg('$mediaRepository', service('media.repository'))
+            ->arg('$mediaFolderRepository', service('media_folder.repository'))
+            ->arg('$mediaService', service(MediaService::class))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class));
+
+        $services->set(CategorySeeder::class)
+            ->arg('$categoryRepository', service('category.repository'))
+            ->arg('$categoryTreeIds', service(CategoryTreeIds::class))
+            ->arg('$shopLanguagesLoader', service(ShopLanguagesLoader::class));
+
+        $services->set(ProductSeeder::class)
+            ->arg('$productRepository', service('product.repository'))
+            ->arg('$productReferences', service(ProductReferences::class));
+
+        $services->set(DynamicAccessSeeder::class)
+            ->arg('$productRepository', service('product.repository'))
+            ->arg('$ruleRepository', service('rule.repository'))
+            ->arg('$productReferences', service(ProductReferences::class))
+            ->arg('$environment', service(TestDataEnvironment::class));
+
+        $services->set(BundleSeeder::class)
+            ->arg('$productRepository', service('product.repository'))
+            ->arg('$productReferences', service(ProductReferences::class))
+            ->arg('$environment', service(TestDataEnvironment::class));
+
+        $services->set(PromotionSeeder::class)
+            ->arg('$promotionRepository', service('promotion.repository'))
+            ->arg('$ruleRepository', service('rule.repository'));
+
+        $services->set(PayPalSeeder::class)
+            ->arg('$paymentMethodRepository', service('payment_method.repository'))
+            ->arg('$salesChannelRepository', service('sales_channel.repository'))
+            ->arg('$salesChannelPaymentMethodRepository', service('sales_channel_payment_method.repository'))
+            ->arg('$systemConfigService', service(SystemConfigService::class))
+            ->arg('$environment', service(TestDataEnvironment::class));
+
+        // Creation order; the command removes in reverse, so each group may reference the ones before it.
+        $services->set(TestDataCommand::class)
+            ->arg('$seeders', [
+                service(FoundationSeeder::class),
+                service(MediaSeeder::class),
+                service(CategorySeeder::class),
+                service(ProductSeeder::class),
+                service(DynamicAccessSeeder::class),
+                service(BundleSeeder::class),
+                service(PromotionSeeder::class),
+                service(PayPalSeeder::class),
+            ])
+            ->arg('$appEnv', param('kernel.environment'));
     }
 
     // Config layer.
