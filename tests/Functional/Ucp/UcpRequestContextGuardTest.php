@@ -86,7 +86,7 @@ final class UcpRequestContextGuardTest extends TestCase
 
         // JSON-RPC errors are also HTTP 200, so only a served result counts as the known gap.
         if (Response::HTTP_OK === $response->getStatusCode() && isset($this->decode($response)['result'])) {
-            self::markTestIncomplete('ucp-php-sdk 0.0.7 RequestContextListener::isUcpRequest() excludes /ucp/a2a from request-context handling, so signaturePolicy=strict is not enforced on A2A.');
+            self::markTestIncomplete('A2A skips the signature check under strict, see agentic-commerce-alliance/ucp-php-sdk#206.');
         }
 
         $this->assertMissingSignatureRejection($response);
