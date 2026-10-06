@@ -76,6 +76,14 @@ export const swSettingsAgenticCommerceOverride = {
             );
         },
 
+        prepareSalesChannelsTooltip() {
+            return {
+                message: this.$t('swagAgenticCommerce.prepareStep.missingPermissionTooltip'),
+                disabled: this.acl?.can?.('ucp.editor') === true,
+                showOnDisabledElements: true,
+            };
+        },
+
         readinessSubtitle() {
             return this.isReady
                 ? this.$t('swagAgenticCommerce.subtitleReady')

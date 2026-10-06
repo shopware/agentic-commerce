@@ -9,7 +9,8 @@
       "extensionInstalled": "Installed"
     },
     "prepareStep": {
-      "completedDescription": "All eligible sales channels have UCP and the AI-file settings enabled."
+      "completedDescription": "All eligible sales channels have UCP and the AI-file settings enabled.",
+      "missingPermissionTooltip": "You do not have permission to prepare sales channels."
     },
     "prepareModal": {
       "title": "Prepare sales channels",

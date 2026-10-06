@@ -9,7 +9,8 @@
       "extensionInstalled": "Installiert"
     },
     "prepareStep": {
-      "completedDescription": "Für alle infrage kommenden Verkaufskanäle sind UCP und die KI-Datei-Einstellungen aktiviert."
+      "completedDescription": "Für alle infrage kommenden Verkaufskanäle sind UCP und die KI-Datei-Einstellungen aktiviert.",
+      "missingPermissionTooltip": "Du hast keine Berechtigung, Verkaufskanäle vorzubereiten."
     },
     "prepareModal": {
       "title": "Verkaufskanäle vorbereiten",

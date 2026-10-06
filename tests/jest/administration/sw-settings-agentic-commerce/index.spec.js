@@ -12,8 +12,15 @@ global.Shopware = {
 
 const { swSettingsAgenticCommerceOverride } = require('Resources/extension/sw-settings-agentic-commerce');
 
-const { canViewUcpStatus, allSalesChannelsPrepared, steps, canPrepareSalesChannels, readinessSubtitle, extensionStatusLabel } =
-    swSettingsAgenticCommerceOverride.computed;
+const {
+    canViewUcpStatus,
+    allSalesChannelsPrepared,
+    steps,
+    canPrepareSalesChannels,
+    prepareSalesChannelsTooltip,
+    readinessSubtitle,
+    extensionStatusLabel,
+} = swSettingsAgenticCommerceOverride.computed;
 const { loadReadinessCounts, applyReadiness, onPrepareSalesChannels, onPrepareModalClose, onSalesChannelsPrepared } =
     swSettingsAgenticCommerceOverride.methods;
 
@@ -166,6 +173,19 @@ describe('sw-settings-agentic-commerce override', () => {
                     transactionalSalesChannelCount: 3,
                 }),
             ).toBe(false);
+        });
+
+        it('activates the prepare tooltip only without the ucp.editor privilege', () => {
+            const editor = prepareSalesChannelsTooltip.call({
+                acl: { can: (key) => key === 'ucp.editor' },
+                $t: (key) => key,
+            });
+            expect(editor.disabled).toBe(true);
+
+            const viewer = prepareSalesChannelsTooltip.call({ acl: { can: () => false }, $t: (key) => key });
+            expect(viewer.disabled).toBe(false);
+            expect(viewer.message).toBe('swagAgenticCommerce.prepareStep.missingPermissionTooltip');
+            expect(viewer.showOnDisabledElements).toBe(true);
         });
     });
 
