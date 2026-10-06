@@ -20,10 +20,4 @@ smoke_identity() {
   fi
 
   rm -f "${tokenize_body_file}"
-
-  # NOTE: strict-signature acceptance/rejection is intentionally NOT asserted here. This smoke
-  # sends unsigned requests, and flipping signaturePolicy=strict at runtime did not reject the
-  # no-signature request (the SDK rejects bad signatures, not absent ones, on this path). Signed
-  # request verification is covered by the conformance suite (bin/validate-ucp-store.sh
-  # conformance) and the manual-testing doc.
 }

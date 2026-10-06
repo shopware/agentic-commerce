@@ -55,7 +55,8 @@ deployed HTTP stack:
    regardless of how many collaborators it stubs.
 2. **`integration`** (`tests/Integration`, `composer test:integration`) — DB-backed tests that use a
    real Doctrine connection through the kernel (e.g. the migration tests). Reserve this tier for
-   tests that genuinely touch the database/kernel; mock-only tests belong in `unit`.
+   tests that genuinely touch the database/kernel; mock-only tests belong in `unit`. It gates in CI
+   on **every** `shopware-matrix` lane (`CI_SMOKE_RUN_PHPUNIT=1`).
 3. **`functional`** (`tests/Functional`, `composer test:functional`) — boots a real Shopware test
    kernel and drives UCP runtime routes end-to-end through a real Symfony `KernelBrowser` (the full
    HttpKernel request/response cycle, kernel events included), against `APP_URL` — the test
@@ -138,13 +139,14 @@ The `bin/` smoke scripts share helpers from `bin/lib/`:
 - `bin/lib/lane.sh` — container helpers (`web`, `db_query`, …) operating on the sourcing script's
   `compose` array and `container_runtime`.
 - `bin/lib/smoke/*.sh` — `bin/ci-smoke.sh` is a thin orchestrator that, after bootstrap, sources and
-  runs named stage modules (`discovery`, `identity`, `checkout`). Each prints a `>>> smoke: <stage>`
-  banner, so a failure names the area. Stages share the orchestrator's shell scope (they are
-  sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module and calling it from
-  the orchestrator. Before adding a smoke check, confirm it cannot be a `functional` test (see _Test
-  layering_ above) — smoke is for deployed-stack concerns only. With `CI_SMOKE_RUN_PHPUNIT=1` (set
-  on every `shopware-matrix` lane) the orchestrator installs Shopware's dev deps and runs the
-  integration and functional suites on the lane's own phpunit after the HTTP smoke.
+  runs named stage modules (`discovery`, `identity`, `checkout`, `signature`). Each prints a
+  `>>> smoke: <stage>` banner, so a failure names the area. Stages share the orchestrator's shell
+  scope (they are sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module and
+  calling it from the orchestrator. Before adding a smoke check, confirm it cannot be a `functional`
+  test (see _Test layering_ above) — smoke is for deployed-stack concerns only. With
+  `CI_SMOKE_RUN_PHPUNIT=1` (set on every `shopware-matrix` lane) the orchestrator installs
+  Shopware's dev deps and runs the integration and functional suites on the lane's own phpunit after
+  the HTTP smoke.
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI `shell-lint` job;
 `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows the `# shellcheck source=`

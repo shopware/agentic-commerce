@@ -20,7 +20,9 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * The strict-policy tests persist `signaturePolicy=strict` through UcpConfigService (the service behind
  * `ucp:config:set`), overriding the `log` system config from {@see UcpFlowTestBehaviour::configureUcpRuntime()}.
- * A2A and embedded stay incomplete while the SDK's RequestContextListener::isUcpRequest() exempts those paths.
+ * A2A stays incomplete while the SDK's RequestContextListener::isUcpRequest() exempts that path. The
+ * embedded page must still be served: browsers cannot sign an iframe load, and the Embedded Checkout
+ * Protocol authorizes it through the token in the URL.
  *
  * Requests target `APP_URL` — the test database's default storefront sales-channel domain — exactly
  * as Shopware's own functional tests do.
@@ -91,7 +93,7 @@ final class UcpRequestContextGuardTest extends TestCase
     }
 
     #[Test]
-    public function testUnsignedEmbeddedCartPageIsRejectedUnderStrictSignaturePolicy(): void
+    public function testUnsignedEmbeddedCartPageIsServedUnderStrictSignaturePolicy(): void
     {
         $this->configureUcpRuntime();
         $productId = $this->seedStorefrontProduct('Kernel Test Album');
@@ -104,11 +106,8 @@ final class UcpRequestContextGuardTest extends TestCase
 
         $response = $this->ucpRequest('GET', '/ucp/embedded/cart/'.$cartId);
 
-        if (Response::HTTP_OK === $response->getStatusCode() && str_starts_with((string) $response->headers->get('Content-Type'), 'text/html')) {
-            self::markTestIncomplete('ucp-php-sdk 0.0.7 RequestContextListener::isUcpRequest() excludes /ucp/embedded from request-context handling, so signaturePolicy=strict is not enforced on the embedded page.');
-        }
-
-        $this->assertMissingSignatureRejection($response);
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+        self::assertStringStartsWith('text/html', (string) $response->headers->get('Content-Type'));
     }
 
     private function enforceStrictSignaturePolicy(): void
