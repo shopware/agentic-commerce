@@ -26,7 +26,7 @@ including completing a checkout into a **real Shopware order** and reading it ba
 token (via the shared `UcpFlowTestBehaviour`). It requires the booting bootstrap
 (`SHOPWARE_PROJECT_DIR` unset + `APP_ENV=test`) and, like core, assumes a booted kernel — run it
 against a configured lane with `composer test:functional`. In CI it gates on **every**
-`shopware-matrix` lane (`CI_SMOKE_RUN_FUNCTIONAL=1`).
+`shopware-matrix` lane (`CI_SMOKE_RUN_PHPUNIT=1`).
 
 It runs on the **lane's own** phpunit: Shopware core's test base classes are coupled to each lane's
 phpunit major (6.5→9.x, 6.6→10.x, trunk→11.x), so a single pinned phpunit can't span lanes.
