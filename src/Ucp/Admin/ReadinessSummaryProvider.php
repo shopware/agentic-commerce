@@ -38,8 +38,7 @@ final class ReadinessSummaryProvider
 
     public function summary(Context $context): ReadinessSummary
     {
-        /** @var list<string> $salesChannelIds */
-        $salesChannelIds = array_values($this->salesChannelRepository->searchIds(new Criteria(), $context)->getIds());
+        $salesChannelIds = $this->salesChannelRepository->searchIds(new Criteria(), $context)->getIds();
 
         if ([] === $salesChannelIds) {
             return new ReadinessSummary(0, 0, 0);
