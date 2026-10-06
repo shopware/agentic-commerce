@@ -38,13 +38,13 @@ final class ReadinessSummaryProvider
 
     public function summary(Context $context): ReadinessSummary
     {
-        $salesChannelIds = $this->salesChannelRepository->searchIds(new Criteria(), $context)->getIds();
+        $salesChannelIds = array_filter($this->salesChannelRepository->searchIds(new Criteria(), $context)->getIds(), 'is_string');
 
         if ([] === $salesChannelIds) {
             return new ReadinessSummary(0, 0, 0);
         }
 
-        $classifications = $this->salesChannelTypeResolver->resolveMany($salesChannelIds);
+        $classifications = $this->salesChannelTypeResolver->resolveMany(array_values($salesChannelIds));
 
         $agenticSalesChannels = \count(array_filter(
             $classifications,
