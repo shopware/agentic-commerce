@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const template = fs.readFileSync(
-    path.resolve(__dirname, '../../../../../src/extension/sw-sales-channel/page/sw-sales-channel-detail/sw-sales-channel-detail.html.twig'),
+    path.resolve(__dirname, './sw-sales-channel-detail.html.twig'),
     'utf8',
 );
 

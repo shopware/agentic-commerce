@@ -405,13 +405,16 @@ return static function (ContainerConfigurator $container): void {
     // is gated the same way in routes.php. Their feature flags + runtime guards remain as
     // defense-in-depth.
     if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
-        $services->set(WebhookCaptureStore::class)
-            ->arg('$projectDir', param('kernel.project_dir'));
+        // src/Ucp/Test is not in the release zip; skip it when absent.
+        if (class_exists(TestWebhookController::class)) {
+            $services->set(WebhookCaptureStore::class)
+                ->arg('$projectDir', param('kernel.project_dir'));
 
-        $services->set(TestWebhookController::class)
-            ->arg('$appEnv', param('kernel.environment'))
-            ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
-            ->tag('controller.service_arguments');
+            $services->set(TestWebhookController::class)
+                ->arg('$appEnv', param('kernel.environment'))
+                ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
+                ->tag('controller.service_arguments');
+        }
 
         $services->set(SeedSmokeCatalogCommand::class)
             ->arg('$productRepository', service('product.repository'))

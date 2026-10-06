@@ -14,8 +14,7 @@ describe('core-feature: coreShipsAgenticCommerce', () => {
 
     function withRegistry(has) {
         global.Shopware = { Component: { getComponentRegistry: () => ({ has: () => has }) } };
-        // eslint-disable-next-line global-require
-        return require('../src/core-feature').coreShipsAgenticCommerce;
+        return require('./core-feature').coreShipsAgenticCommerce;
     }
 
     it('is true when core already registered the agentic integration component', () => {
@@ -30,8 +29,7 @@ describe('core-feature: coreShipsAgenticCommerce', () => {
         const has = jest.fn().mockReturnValue(true);
         global.Shopware = { Component: { getComponentRegistry: () => ({ has }) } };
 
-        // eslint-disable-next-line global-require
-        require('../src/core-feature');
+        require('./core-feature');
 
         expect(has).toHaveBeenCalledWith(CORE_COMPONENT);
     });
@@ -39,7 +37,6 @@ describe('core-feature: coreShipsAgenticCommerce', () => {
     it('is false when the component API is unavailable', () => {
         global.Shopware = {};
 
-        // eslint-disable-next-line global-require
-        expect(require('../src/core-feature').coreShipsAgenticCommerce).toBe(false);
+        expect(require('./core-feature').coreShipsAgenticCommerce).toBe(false);
     });
 });
