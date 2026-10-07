@@ -1,3 +1,7 @@
+# next version
+
+- Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
+
 # 1.4.0
 
 - Show the UCP tools only to AI agents that connect through `/ucp/mcp`, instead of to every client of Shopware's own MCP server at `/store-api/_mcp`. 1.3.0 put them into the group Shopware reserves for its own discovery tools, so every client connecting to `/store-api/_mcp` saw the thirteen UCP tools next to Shopware's instruction that no tools are listed until a toolset is enabled -- and models followed that instruction, enabling toolsets for tools they already had. The tools now form their own `ucp` toolset, and `/ucp/mcp` selects it at connect time, so a UCP agent still finds them on its first tool listing while a plain `/store-api/_mcp` connection lists only Shopware's discovery tools. On Shopware versions before `6.7.15.0`, which cannot select a toolset at connect time, the tools stay listed on every connection as before.
