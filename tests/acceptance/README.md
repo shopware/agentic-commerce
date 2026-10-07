@@ -112,14 +112,24 @@ fixtures build on the worker channel.
 
 **`TestDataService`** (test scope) is `UcpTestDataService`, the ATS `TestDataService` plus UCP:
 `createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`,
-`activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()` and
-`listUcpSalesChannels()`. `activateUcp()` enables every capability and the REST transport and
-allowlists the agent profile host on all three per-channel lists, because the SDK falls back to the
-shop's own host for an empty list and would refuse a `localhost` profile. Its cleanup runs before
-the ATS registry's. It restores the UCP config each surviving channel had before the first write,
-deletes the signing keys of the channels it created and activated when `UcpConsole` reaches
-`bin/console`, and deletes the channels it created. Every step runs even when an earlier one fails,
-and the failures are reported together.
+`activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()`,
+`listUcpSalesChannels()`, `createProductFeed()` and `saveFeedSettings()`. `createProductFeed()`
+builds a feed channel with a product export over the given products for the worker channel, from a
+template `readFeedTemplates()` reads out of the shipped Administration modules, with `interval: 0`
+so every request renders the current products. `activateUcp()` enables every capability and the REST
+transport and allowlists the agent profile host on all three per-channel lists, because the SDK
+falls back to the shop's own host for an empty list and would refuse a `localhost` profile. Its
+cleanup runs before the ATS registry's. It restores the UCP config each surviving channel had before
+the first write, deletes the signing keys of the channels it created and activated when `UcpConsole`
+reaches `bin/console`, and deletes the channels it created. Every step runs even when an earlier one
+fails, and the failures are reported together. The ATS registry's cleanup is retried once, because
+MariaDB 11.6 and newer reject a product delete with error 1020 while other workers write products.
+
+Every provider a shipped feed template registers needs an entry in
+`tests/UcpContent/feedProviders.ts`: its field names, its parser, the settings it needs and one
+set-up its validator must reject. The feed specs run once per entry.
+`tests/Setup/feed-provider-coverage.spec.ts` fails while a template has no entry, and the PHPUnit
+test `EveryProviderShipsATemplateTest` fails while a provider class has no template or validator.
 
 **`UcpAgentProfileHost`** (worker scope) has `publish()`, which generates an ES256 key pair and
 writes the agent's profile, public key included, to
@@ -151,11 +161,11 @@ shop to fetch a test agent's profile from `localhost` over plain http.
 Beyond `APP_URL`, two fixtures touch the Shopware project directly. Each resolves what it needs from
 an environment variable when it is first used, and fails loudly when it cannot:
 
-| Variable       | Default                                                                                                     | Needed by                                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there |
-| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION` and the Administration ACL file           |
-| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                             |
+| Variable       | Default                                                                                                     | Needed by                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there           |
+| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION`, the Administration ACL file and the feed templates |
+| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                                       |
 
 A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
 profile host and the console need the project mounted.
