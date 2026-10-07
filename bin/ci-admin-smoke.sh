@@ -68,6 +68,8 @@ web_container_id() {
   "${compose[@]}" ps -q web
 }
 
+# The composer admin calls below run with SHELL_VERBOSITY=0. The stack exports -1 to quiet
+# bin/console output, but Composer reads it too and would swallow npm/webpack errors.
 admin_sh() {
   local command="$1"
 
@@ -88,7 +90,7 @@ install_admin_dependencies() {
     return
   fi
 
-  admin_sh 'cd /var/www/html && composer npm:admin clean-install --no-audit --prefer-offline'
+  admin_sh 'cd /var/www/html && SHELL_VERBOSITY=0 composer npm:admin clean-install --no-audit --prefer-offline'
 }
 
 branch_name="$(detect_shopware_lane)"
@@ -206,7 +208,7 @@ if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" != "auto" ]]; then
   fi
 fi
 
-admin_sh 'cd /var/www/html && composer admin:generate-entity-schema-types'
+admin_sh 'cd /var/www/html && SHELL_VERBOSITY=0 composer admin:generate-entity-schema-types'
 
 if [[ "${CORE_ONLY}" == "1" ]]; then
   web sh -lc 'rm -rf /var/www/html/public/bundles/administration /var/www/html/src/Administration/Resources/public/administration'
@@ -219,7 +221,7 @@ if [[ "${CORE_ONLY}" == "1" && "${resolved_mode}" == "vite" ]]; then
 elif [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
   web sh -lc 'cd /var/www/html/src/Administration/Resources/app/administration && export PROJECT_ROOT=/var/www/html && export VITE_MODE=production && export PATH="$PWD/node_modules/.bin:$PATH" && /var/www/html/bin/exec-with-env npm run vite build && ts-node -T build/plugins.vite.ts'
 else
-  admin_sh 'cd /var/www/html && composer npm:admin run build'
+  admin_sh 'cd /var/www/html && SHELL_VERBOSITY=0 composer npm:admin run build'
 fi
 
 web php /var/www/html/bin/console assets:install
