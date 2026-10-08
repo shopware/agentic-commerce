@@ -1,5 +1,6 @@
 /.github export-ignore
 /AGENTS.md export-ignore
+/CONTRIBUTING.md export-ignore
 /tests export-ignore
 /var export-ignore
 /.php-cs-fixer.dist.php export-ignore

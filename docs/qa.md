@@ -51,8 +51,8 @@ The former `catalog` and `cart` smoke stages have been removed — that capabili
 entirely in the functional suite. The `checkout` stage resolves the seeded product itself (one
 `catalog.lookup` as data setup) and stays in smoke only to drive the signed order webhook. Almost
 any smoke assertion can become a functional test — when one can, move it and drop the redundant
-smoke check once the functional suite gates in CI. See [AGENTS.md](../AGENTS.md) for the full
-layering rationale.
+smoke check once the functional suite gates in CI. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the
+full layering rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](manual-testing.md).
 

@@ -366,4 +366,5 @@ not disappear when the extension's files are replaced.
 | [docs/manual-testing.md](docs/manual-testing.md)                             | Manual human test steps on a lane.                                               |
 | [docs/shopware-version-differences.md](docs/shopware-version-differences.md) | Lane-specific administration, build, and runtime differences.                    |
 | [docs/ucp-version-support.md](docs/ucp-version-support.md)                   | Which UCP version the plugin serves, and what an SDK bump means.                 |
-| [AGENTS.md](AGENTS.md)                                                       | Short-form guidance for coding agents working in this repository.                |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                           | Rules for changes: compatibility, tests, pull requests, changelog entries.       |
+| [AGENTS.md](AGENTS.md)                                                       | What coding agents need beyond CONTRIBUTING.md.                                  |
