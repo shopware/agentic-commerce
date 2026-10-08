@@ -74,6 +74,8 @@ jobs:
         run: npm run lint:md
       - name: Markdown links
         run: bin/ci-assert-markdown-links.sh
+      - name: Changelog parity
+        run: bin/ci-assert-changelog-parity.sh
 
   verify-main-validation:
     runs-on: ubuntu-latest
