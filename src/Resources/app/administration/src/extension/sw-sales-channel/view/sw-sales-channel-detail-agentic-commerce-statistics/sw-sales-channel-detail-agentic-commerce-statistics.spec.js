@@ -190,6 +190,34 @@ describe('sw-sales-channel-detail-agentic-commerce-statistics', () => {
         expect(yesterday).toEqual(perHour);
     });
 
+    it.each([
+        ['onOrderCountRangeUpdate', 'statisticDateRangesOrderCount', 'orderRepository', 'orderCountCriteria'],
+        ['onOrderSumRangeUpdate', 'statisticDateRangesOrderSum', 'orderRepository', 'orderSumCriteria'],
+        ['onCustomerCountRangeUpdate', 'statisticDateRangesCustomerCount', 'customerRepository', 'customerCountCriteria'],
+    ])('%s switches only its own chart to the new range and reloads it', (handler, range, repository, criteria) => {
+        const instance = createInstance();
+
+        instance[handler]('7Days');
+
+        expect(instance[range].value).toBe('7Days');
+        const searches = [...instance.orderRepository.search.mock.calls, ...instance.customerRepository.search.mock.calls];
+        expect(searches).toHaveLength(1);
+        expect(instance[repository].search).toHaveBeenCalledWith(instance[criteria]);
+    });
+
+    it('charts new customers by their creation date', () => {
+        const instance = createInstance();
+        instance.historyCustomerDataCount = [
+            { createdAt: '2026-10-01T09:15:00.000+00:00' },
+            { createdAt: '2026-10-01T17:05:00.000+00:00' },
+        ];
+
+        expect(instance.customerCountSeries).toEqual([{
+            name: 'sw-sales-channel.detail.productExport.insights.numbers',
+            data: [{ x: new Date('2026-10-01T00:00:00.000+00:00').getTime(), y: 2 }],
+        }]);
+    });
+
     it('sums the turnover per bucket and in total', () => {
         const instance = createInstance();
         instance.historyOrderDataSum = [

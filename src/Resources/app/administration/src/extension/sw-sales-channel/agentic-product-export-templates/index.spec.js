@@ -43,11 +43,14 @@ describe('agentic-product-export-templates', () => {
         expect(registered.open_ai.footerTemplate).toBe('');
     });
 
-    it('keeps the Google body byte for byte and trims its footer', () => {
+    it('keeps the Google body byte for byte and registers the RSS header and footer', () => {
+        const header = require('./google/header.xml.twig.js').default;
         const body = require('./google/body.xml.twig.js').default;
         const footer = require('./google/footer.xml.twig.js').default;
 
         expect(registered.google.bodyTemplate).toBe(body);
+        expect(registered.google.headerTemplate).toBe(header.trim());
+        expect(registered.google.headerTemplate).toMatch(/^<\?xml[\s\S]*<rss /);
         expect(registered.google.footerTemplate).toBe(footer.trim());
     });
 });

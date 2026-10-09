@@ -40,6 +40,12 @@ describe('agentic-commerce/error-message.util', () => {
         expect(extractApiErrorMessage(error)).toBe('Service Unavailable');
     });
 
+    it('uses the client error message when the status text is empty, as on HTTP/2', () => {
+        const error = apiError({ status: 502, statusText: '', message: 'Request failed with status code 502' });
+
+        expect(extractApiErrorMessage(error)).toBe('Request failed with status code 502');
+    });
+
     it('uses the client error message when no response arrived', () => {
         expect(extractApiErrorMessage({ message: 'Network Error' })).toBe('Network Error');
     });
