@@ -1,0 +1,8 @@
+{% block sw_settings_agentic_commerce_after_content %}
+{% parent %}
+<sw-settings-agentic-commerce-prepare-modal
+    v-if="showPrepareModal"
+    @prepared="onSalesChannelsPrepared"
+    @close="onPrepareModalClose"
+/>
+{% endblock %}

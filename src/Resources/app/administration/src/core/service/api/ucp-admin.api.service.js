@@ -6,6 +6,14 @@ class UcpAdminApiService extends ApiService {
         super(httpClient, loginService, apiEndpoint);
     }
 
+    getReadiness() {
+        return this.httpClient.get('/_admin/ucp/readiness', this.options());
+    }
+
+    prepareSalesChannels(salesChannelIds) {
+        return this.httpClient.post('/_admin/ucp/prepare', { salesChannelIds }, this.options());
+    }
+
     getSalesChannels() {
         return this.httpClient.get('/_admin/ucp/sales-channels', this.options());
     }

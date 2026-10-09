@@ -1,0 +1,64 @@
+{% block sw_settings_agentic_commerce_prepare_modal %}
+<sw-modal
+    class="sw-settings-agentic-commerce-prepare-modal"
+    :title="$t('swagAgenticCommerce.prepareModal.title')"
+    @modal-close="onCancel"
+>
+    {% block sw_settings_agentic_commerce_prepare_modal_description %}
+    <p class="sw-settings-agentic-commerce-prepare-modal__description">
+        {{ $t('swagAgenticCommerce.prepareModal.description') }}
+    </p>
+    {% endblock %}
+
+    {% block sw_settings_agentic_commerce_prepare_modal_content %}
+    <sw-loader v-if="isLoading" />
+
+    <template v-else>
+        {% block sw_settings_agentic_commerce_prepare_modal_empty %}
+        <p
+            v-if="!hasUnpreparedSalesChannels"
+            class="sw-settings-agentic-commerce-prepare-modal__empty"
+        >
+            {{ $t('swagAgenticCommerce.prepareModal.emptyState') }}
+        </p>
+        {% endblock %}
+
+        {% block sw_settings_agentic_commerce_prepare_modal_select %}
+        <sw-entity-multi-select
+            v-else-if="selectedSalesChannelsCollection"
+            v-model:entity-collection="selectedSalesChannelsCollection"
+            class="sw-settings-agentic-commerce-prepare-modal__select"
+            entity-name="sales_channel"
+            :criteria="salesChannelCriteria"
+            :label="$t('swagAgenticCommerce.prepareModal.selectLabel')"
+            :placeholder="$t('swagAgenticCommerce.prepareModal.selectPlaceholder')"
+        />
+        {% endblock %}
+    </template>
+    {% endblock %}
+
+    {% block sw_settings_agentic_commerce_prepare_modal_footer %}
+    <template #modal-footer>
+        <mt-button
+            class="sw-settings-agentic-commerce-prepare-modal__cancel"
+            variant="secondary"
+            size="small"
+            :disabled="isPreparing"
+            @click="onCancel"
+        >
+            {{ $t('global.default.cancel') }}
+        </mt-button>
+        <mt-button
+            class="sw-settings-agentic-commerce-prepare-modal__confirm"
+            variant="primary"
+            size="small"
+            :is-loading="isPreparing"
+            :disabled="!hasSelection || isPreparing"
+            @click="onConfirm"
+        >
+            {{ $t('swagAgenticCommerce.prepareModal.confirm') }}
+        </mt-button>
+    </template>
+    {% endblock %}
+</sw-modal>
+{% endblock %}

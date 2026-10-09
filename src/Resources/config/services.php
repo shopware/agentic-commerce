@@ -93,6 +93,7 @@ use Swag\AgenticCommerce\Ucp\Adapter\ShopwareCheckoutAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareDiscountAdapter;
 use Swag\AgenticCommerce\Ucp\Adapter\ShopwareOrderAdapter;
 use Swag\AgenticCommerce\Ucp\Admin\Api\UcpAdminController;
+use Swag\AgenticCommerce\Ucp\Admin\ReadinessSummaryProvider;
 use Swag\AgenticCommerce\Ucp\Capability\CartCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CatalogCapability;
 use Swag\AgenticCommerce\Ucp\Capability\CheckoutCapability;
@@ -115,6 +116,8 @@ use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
 use Swag\AgenticCommerce\Ucp\Config\SystemConfigLegacyConfigStore;
+use Swag\AgenticCommerce\Ucp\Config\UcpActivationReaderInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpActivationWriterInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
@@ -241,6 +244,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SalesChannelViewProvider::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'))
         ->arg('$salesChannelTypeResolver', service(AbstractSalesChannelTypeResolver::class));
+
+    $services->set(ReadinessSummaryProvider::class)
+        ->arg('$salesChannelRepository', service('sales_channel.repository'));
 
     $services->set(SalesChannelTypeResolver::class)
         ->arg('$salesChannelRepository', service('sales_channel.repository'));
@@ -530,6 +536,8 @@ return static function (ContainerConfigurator $container): void {
 
     $services->alias(AbstractSalesChannelTypeResolver::class, SalesChannelTypeResolver::class);
     $services->alias(UcpConfigRepositoryInterface::class, DoctrineDbalUcpConfigRepository::class);
+    $services->alias(UcpActivationReaderInterface::class, UcpConfigService::class);
+    $services->alias(UcpActivationWriterInterface::class, UcpConfigService::class);
     $services->alias(LegacyConfigStoreInterface::class, SystemConfigLegacyConfigStore::class);
     // The same development-mode switch the URL-safety validator gets (above). The SDK's
     // request-context factory reads it from the resolved RuntimeConfiguration, so without this

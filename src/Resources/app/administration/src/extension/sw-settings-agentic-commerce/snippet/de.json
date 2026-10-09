@@ -1,0 +1,27 @@
+{
+  "swagAgenticCommerce": {
+    "subtitleActive": "Agentic Commerce ist installiert. Bereite deine bestehenden Verkaufskanäle vor, um deinen Shop KI-bereit zu machen.",
+    "subtitleReady": "Agentic Commerce ist installiert und deine Verkaufskanäle sind vorbereitet. Dein Shop ist KI-bereit.",
+    "extensionStep": {
+      "activeDescription": "Die Erweiterung ist in diesem Shop aktiv."
+    },
+    "shopReadiness": {
+      "extensionInstalled": "Installiert"
+    },
+    "prepareStep": {
+      "completedDescription": "Für alle infrage kommenden Verkaufskanäle sind UCP und die KI-Datei-Einstellungen aktiviert.",
+      "missingPermissionTooltip": "Du hast keine Berechtigung, Verkaufskanäle vorzubereiten."
+    },
+    "prepareModal": {
+      "title": "Verkaufskanäle vorbereiten",
+      "description": "Dies aktiviert UCP und die KI-Dateien (llms.txt, agents.md und den KI-Katalog) mit Standardeinstellungen für die ausgewählten Verkaufskanäle.",
+      "selectLabel": "Vorzubereitende Verkaufskanäle",
+      "selectPlaceholder": "Verkaufskanäle auswählen …",
+      "emptyState": "Alle infrage kommenden Verkaufskanäle sind bereits vorbereitet.",
+      "confirm": "Verkaufskanäle vorbereiten",
+      "successMessage": "Die ausgewählten Verkaufskanäle wurden vorbereitet.",
+      "errorMessage": "Die Verkaufskanäle konnten nicht vorbereitet werden. Bitte versuche es erneut.",
+      "loadErrorMessage": "Die Verkaufskanäle konnten nicht geladen werden. Bitte versuche es erneut."
+    }
+  }
+}

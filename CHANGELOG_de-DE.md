@@ -1,3 +1,7 @@
+# 1.5.0
+
+- Die Agentic-Commerce-Einstellungsseite wird nach der Installation der Erweiterung mit Inhalt gefüllt: Sie zeigt die Bereitschaftszahlen an und bietet eine Funktion „Verkaufskanäle vorbereiten“, die UCP und die KI-Dateien für die ausgewählten Storefront- und Headless-Kanäle gesammelt aktiviert.
+
 # 1.4.0
 
 - Die UCP-Tools sind jetzt nur noch für KI-Agenten sichtbar, die sich über `/ucp/mcp` verbinden, und nicht mehr für jeden Client von Shopwares eigenem MCP-Server unter `/store-api/_mcp`. In 1.3.0 lagen sie in der Gruppe, die Shopware für seine eigenen Discovery-Tools vorsieht. Jeder Client, der sich mit `/store-api/_mcp` verband, bekam deshalb alle dreizehn UCP-Tools angezeigt, obwohl Shopware ihm gleichzeitig mitteilt, dass Tools erst nach dem Aktivieren eines Toolsets erscheinen. Die Modelle haben sich daran gehalten und Toolsets für Tools aktiviert, die sie längst hatten. Jetzt bilden die Tools ein eigenes Toolset `ucp`, das `/ucp/mcp` direkt beim Verbindungsaufbau auswählt: Ein UCP-Agent sieht sie weiterhin sofort, eine normale Verbindung zu `/store-api/_mcp` zeigt nur noch die Discovery-Tools von Shopware. Unter Shopware-Versionen vor `6.7.15.0`, in denen sich beim Verbindungsaufbau kein Toolset auswählen lässt, bleibt alles wie bisher.
