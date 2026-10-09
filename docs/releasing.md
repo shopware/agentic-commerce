@@ -10,7 +10,7 @@ pre-release tag runs the same workflow for a test build instead, see
 Prepare a release in a pull request by updating:
 
 - `composer.json` (`version`), which is the Store release source of truth;
-- `CHANGELOG.md` and `CHANGELOG_de-DE.md` with a matching `# <version>` section.
+- `CHANGELOG.md` and `CHANGELOG_de-DE.md`, renaming their `# next version` heading to `# <version>`.
 
 After merging and waiting for the `main` CI run, dispatch a packaging-only run first. Enable
 `publish` only after that succeeds. Publishing uploads the ZIP to the Shopware Store and creates the
