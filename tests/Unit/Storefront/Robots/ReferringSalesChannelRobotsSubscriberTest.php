@@ -57,6 +57,13 @@ class ReferringSalesChannelRobotsSubscriberTest extends TestCase
         static::assertSame('/*referringSalesChannel=', $directive->value);
     }
 
+    public function testItStaysOutOfTheWayBeforeCoreShipsTheDirectiveClasses(): void
+    {
+        $page = $this->renderPageForVersion('6.7.4.0');
+
+        static::assertSame([], $page->getGlobalUserAgentBlocks());
+    }
+
     public function testItStaysOutOfTheWayOnceCoreShipsTheAllow(): void
     {
         $page = $this->renderPageForVersion('6.7.13.0');

@@ -2,11 +2,25 @@ import { expect } from '@playwright/test';
 import { TestDataService } from '@shopware-ag/acceptance-test-suite';
 import type { DataServiceOptions, FixtureTypes, SalesChannel, User } from '@shopware-ag/acceptance-test-suite';
 import type { UcpConsole } from './UcpConsole';
+import type { FeedTemplate } from './pluginSource';
 
 /** Core's headless (API) sales channel type, `Defaults::SALES_CHANNEL_TYPE_API`. */
 export const HEADLESS_SALES_CHANNEL_TYPE_ID = 'f183ee5650cf4bdb8a774337575067a6';
 /** The plugin's product-feed type, `SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE`. */
 export const FEED_SALES_CHANNEL_TYPE_ID = '5e29f9890c4d4d519a1c7f9d5c24b7c1';
+export const COMPARISON_SALES_CHANNEL_TYPE_ID = 'ed535e5722134ac1aa6524f73e26881b';
+
+export interface ProductFeed {
+    feedChannel: SalesChannel
+    productExportId: string
+    exportUrl: string
+}
+
+export interface ProductFeedOptions {
+    asComparison?: boolean
+    includeVariants?: boolean
+    trackingCodes?: { affiliateCode?: string, campaignCode?: string }
+}
 
 export const UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED = 'SWAG_AGENTIC_COMMERCE__UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED';
 
@@ -171,6 +185,72 @@ export class UcpTestDataService extends TestDataService {
         const { data: salesChannel } = (await salesChannelResponse.json()) as { data: SalesChannel };
 
         return { salesChannel, url };
+    }
+
+    /** `interval: 0` makes core regenerate the file on every request; otherwise a cached file outlives product changes. */
+    async createProductFeed(template: FeedTemplate, productIds: string[], options: ProductFeedOptions = {}): Promise<ProductFeed> {
+        const { uuid: productStreamId } = this.IdProvider.getIdPair();
+        const { uuid: productExportId } = this.IdProvider.getIdPair();
+
+        const productStreamCreation = await this.AdminApiClient.post('./product-stream', {
+            data: {
+                id: productStreamId,
+                name: `${this.namePrefix}feed-stream-${productStreamId}${this.nameSuffix}`,
+                filters: [{ type: 'equalsAny', field: 'id', value: productIds.join('|') }],
+            },
+        });
+        expect(productStreamCreation.ok(), await productStreamCreation.text()).toBeTruthy();
+        this.addCreatedRecord('product_stream', productStreamId);
+
+        const { salesChannel: feedChannel } = await this.createUcpSalesChannel(
+            options.asComparison ? COMPARISON_SALES_CHANNEL_TYPE_ID : FEED_SALES_CHANNEL_TYPE_ID,
+            options.trackingCodes ? { configuration: options.trackingCodes } : {},
+        );
+
+        const storefrontDomainLookup = await this.AdminApiClient.post('./search/sales-channel-domain', {
+            data: { limit: 1, filter: [{ type: 'equals', field: 'salesChannelId', value: this.defaultSalesChannel.id }] },
+        });
+        expect(storefrontDomainLookup.ok(), await storefrontDomainLookup.text()).toBeTruthy();
+        const [storefrontDomain] = ((await storefrontDomainLookup.json()) as { data: { id: string }[] }).data;
+
+        const accessKeyGeneration = await this.AdminApiClient.get('./_action/access-key/product-export');
+        expect(accessKeyGeneration.ok(), await accessKeyGeneration.text()).toBeTruthy();
+        const { accessKey } = (await accessKeyGeneration.json()) as { accessKey: string };
+
+        const fileName = `${this.namePrefix}feed-${productExportId}.${template.fileFormat}`;
+        const productExportCreation = await this.AdminApiClient.post('./product-export', {
+            data: {
+                id: productExportId,
+                productStreamId,
+                salesChannelId: feedChannel.id,
+                storefrontSalesChannelId: this.defaultSalesChannel.id,
+                salesChannelDomainId: storefrontDomain.id,
+                currencyId: this.defaultSalesChannel.currencyId,
+                provider: options.asComparison ? null : template.providerName,
+                fileName,
+                accessKey,
+                encoding: template.encoding,
+                fileFormat: template.fileFormat,
+                includeVariants: options.includeVariants ?? false,
+                generateByCronjob: false,
+                interval: 0,
+                headerTemplate: template.headerTemplate,
+                bodyTemplate: template.bodyTemplate,
+                footerTemplate: template.footerTemplate,
+            },
+        });
+        expect(productExportCreation.ok(), await productExportCreation.text()).toBeTruthy();
+
+        return {
+            feedChannel,
+            productExportId,
+            exportUrl: `${this.appUrl}store-api/product-export/${accessKey}/${fileName}`,
+        };
+    }
+
+    async saveFeedSettings(feedChannelId: string, values: Record<string, unknown>): Promise<void> {
+        const settingsSave = await this.AdminApiClient.post(`./_action/system-config?salesChannelId=${feedChannelId}`, { data: values });
+        expect(settingsSave.ok(), await settingsSave.text()).toBeTruthy();
     }
 
     async listUcpSalesChannels(): Promise<UcpSalesChannelListEntry[]> {

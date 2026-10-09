@@ -21,6 +21,17 @@ test.describe('Path-prefixed sales channel domains @UcpKnownBlocked @UcpBlockedB
         }
     });
 
+    test('storefront pages point their service-meta link at the channel\'s own profile', async ({ TestDataService, request }) => {
+        const activatedChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(activatedChannel.salesChannel.id);
+
+        const homePage = await request.get(activatedChannel.url);
+        const serviceMetaLink = homePage.headers()['link']?.match(/<([^>]+)>;\s*rel="service-meta"/)?.[1];
+
+        expect(serviceMetaLink).toBeDefined();
+        expect(new URL(serviceMetaLink!, activatedChannel.url).href).toBe(TestDataService.wellKnownUrl(activatedChannel.url));
+    });
+
     test('a fresh channel on the same host advertises nothing until it is activated', async ({ TestDataService, page }) => {
         const freshChannelOnSameHost = await TestDataService.createStorefrontSalesChannel();
 

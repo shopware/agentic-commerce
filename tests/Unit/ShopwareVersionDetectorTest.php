@@ -31,11 +31,13 @@ final class ShopwareVersionDetectorTest extends TestCase
     }
 
     #[Test]
-    public function testItNeedsToPatchRobotsTrackingAllowOnlyBetweenSixSevenOneAndThirteen(): void
+    public function testItNeedsToPatchRobotsTrackingAllowOnlyBetweenSixSevenFiveAndThirteen(): void
     {
         self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.6.10.0'))->needsRobotsTrackingAllowPatch());
         self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.0.0'))->needsRobotsTrackingAllowPatch());
-        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.1.0'))->needsRobotsTrackingAllowPatch());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.1.0'))->needsRobotsTrackingAllowPatch());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.4.9'))->needsRobotsTrackingAllowPatch());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.5.0'))->needsRobotsTrackingAllowPatch());
         self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.12.0'))->needsRobotsTrackingAllowPatch());
         self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.13.0'))->needsRobotsTrackingAllowPatch());
     }

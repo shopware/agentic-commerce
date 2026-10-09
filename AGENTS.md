@@ -496,6 +496,10 @@ section is the reference shape — match it.
   no `# Changelog` title, no `## Added` groups. The store-release preflight greps for `# ${version}`
   and `get-changelog` reads every H1 as a version. Under the heading one flat bullet list — no
   nesting, no `Fixed:`/`Added:` labels, no blank lines between bullets.
+- **Unreleased changes go under `# next version`**, above the newest release. The heading is the
+  same English `# next version` in both files; the bullets under it are translated as usual. The
+  first change after a release adds the heading; the release PR renames it to `# <version>`. Never
+  add a bullet under a version that is already released.
 - **A bullet is one paragraph, outcome first.** The opening sentence says what the plugin now does,
   in the vocabulary of the shop and the agent. When someone could have been relying on the old
   behaviour, the rest of the paragraph says what it did, what that cost, and what happens instead. A
