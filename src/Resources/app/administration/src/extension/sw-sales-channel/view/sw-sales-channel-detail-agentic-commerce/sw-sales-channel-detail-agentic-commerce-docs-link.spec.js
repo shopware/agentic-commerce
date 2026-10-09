@@ -10,11 +10,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const VIEW_DIR = resolve(
-    __dirname,
-    '../../../../../src/extension/sw-sales-channel/view/sw-sales-channel-detail-agentic-commerce',
-);
-const SNIPPET_DIR = resolve(__dirname, '../../../../../src/extension/sw-sales-channel/snippet');
+const VIEW_DIR = __dirname;
+const SNIPPET_DIR = resolve(__dirname, '../../snippet');
 
 const DOCS_URL_KEY = 'sw-sales-channel.detail.agenticCommerce.ucp.docsUrl';
 const DOCS_LABEL_KEY = 'sw-sales-channel.detail.agenticCommerce.ucp.docsLinkLabel';

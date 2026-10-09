@@ -22,8 +22,8 @@ return static function (RoutingConfigurator $routes): void {
     $routes->import('../../Ucp/Mcp/Api/', 'attribute');
 
     // Test-only webhook-capture routes (issue #53): never registered in prod, matching the
-    // service-graph gate in services.php.
-    if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
+    // service-graph gate in services.php. src/Ucp/Test is not in the release zip; skip it when absent.
+    if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod') && is_dir(__DIR__.'/../../Ucp/Test/Api')) {
         $routes->import('../../Ucp/Test/Api/', 'attribute');
     }
 

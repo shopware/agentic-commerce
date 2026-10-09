@@ -13,12 +13,13 @@
 # (FriendsOfShopware/FroshTools#469) and able to answer version lookups the shop's own registry
 # should own.
 #
-# Guards four things:
+# Guards five things:
 #   - no vendor/ tree and no marker file: nothing is bundled
 #   - the two SDK packages are still required, so the install has something to resolve
 #   - composer.json carries a concrete version -- the path repository derives the package version
 #     from it, and a require of `<name>:<version>` that cannot match fails the install
 #   - no build-only trees (.sdk, .tools, node_modules)
+#   - no test scaffolding (Jest specs, src/Ucp/Test), which .shopware-extension.yml removes
 
 set -euo pipefail
 
@@ -65,6 +66,19 @@ for build_only in .sdk .tools node_modules; do
     status=1
   fi
 done
+
+# The Jest specs are deleted by a pack.before_hooks step, not an excludes path, so a shopware-cli
+# change to hooks would ship them silently. Assert the result rather than the configuration.
+leaked="$(printf '%s\n' "${listing}" | grep -E "^${PLUGIN}/(.*\.spec\.js$|src/Ucp/Test/)" || true)"
+
+if [[ -n "${leaked}" ]]; then
+  echo "FAIL: the archive ships test scaffolding ($(printf '%s\n' "${leaked}" | wc -l | tr -d ' ') entries)." >&2
+  printf '%s\n' "${leaked}" | sed 's/^/      /' >&2
+  echo "      Check zip.pack in .shopware-extension.yml (excludes.paths and before_hooks)." >&2
+  status=1
+else
+  echo "ok: the archive ships no test scaffolding."
+fi
 
 if printf '%s\n' "${listing}" | grep -Fx "${PLUGIN}/.swag-agentic-commerce-bundled-sdk" >/dev/null; then
   echo "FAIL: the archive still carries the bundled-SDK marker file." >&2

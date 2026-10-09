@@ -35,3 +35,11 @@ build:
           - package.json
           - package-lock.json
           - playwright.config.js
+          # Written by shopware-cli's npm install for the admin package.json; nothing to lock.
+          - src/Resources/app/administration/package-lock.json
+          # Test-only PHP helpers; their wiring skips them when absent.
+          - src/Ucp/Test
+      # Jest specs sit next to the admin source. excludes.paths takes no globs, so delete them
+      # from the build copy ($EXTENSION_DIR), not the working tree.
+      before_hooks:
+        - find "$EXTENSION_DIR/src/Resources/app/administration/src" -type f -name '*.spec.js' -delete

@@ -25,9 +25,7 @@ export default {
         'json',
     ],
     testMatch: [
-        '<rootDir>/tests/jest/administration/**/*.spec.js',
-        // Extracted UCP logic specs live next to the admin source tree.
-        '<rootDir>/src/Resources/app/administration/test/**/*.spec.js',
+        '<rootDir>/src/Resources/app/administration/src/**/*.spec.js',
     ],
     collectCoverage: isCi,
     coverageDirectory: artifactsPath,

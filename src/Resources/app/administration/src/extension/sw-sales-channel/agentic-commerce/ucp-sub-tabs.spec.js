@@ -3,7 +3,7 @@ import {
     DEFAULT_SUB_TAB,
     buildSubTabItems,
     resolveActiveSubTab,
-} from '../../../../src/extension/sw-sales-channel/agentic-commerce/ucp-sub-tabs';
+} from './ucp-sub-tabs';
 
 describe('agentic-commerce/ucp-sub-tabs', () => {
     it('defines exactly two sub-tabs — Exposure then Preview', () => {

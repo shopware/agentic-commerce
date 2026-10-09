@@ -30,7 +30,8 @@ class TestAgentProfileFetcherCompilerPass implements CompilerPassInterface
 {
     public function process(ContainerBuilder $container): void
     {
-        if ('test' !== $container->getParameter('kernel.environment')) {
+        // src/Ucp/Test is not in the release zip, so the stub may be missing.
+        if ('test' !== $container->getParameter('kernel.environment') || !class_exists(StaticAgentProfileFetcher::class)) {
             return;
         }
 

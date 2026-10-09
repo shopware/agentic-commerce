@@ -211,8 +211,8 @@ stays `$signingKeys`, so PHP-side code is unaffected — but anything reading th
 `platform-profiles` payload from `UcpAdminController` (`:105`, `:130`);
 `tests/e2e/fixtures/shopware.js`, `tests/e2e/fixtures/ucp-protocols.js`,
 `tests/e2e/ucp/profile.spec.js`;
-`tests/jest/administration/core/service/ucp-admin.api.service.spec.js`; `docs/manual-testing.md` if
-it shows profile output.
+`src/Resources/app/administration/src/core/service/api/ucp-admin.api.service.spec.js`;
+`docs/manual-testing.md` if it shows profile output.
 
 **Acceptance.** The admin profile preview renders keys from a `keys[]` payload; e2e profile
 assertions pass against the new shape.

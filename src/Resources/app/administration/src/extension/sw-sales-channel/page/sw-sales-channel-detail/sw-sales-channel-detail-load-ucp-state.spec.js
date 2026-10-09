@@ -34,13 +34,12 @@ const Shopware = {
 global.Shopware = Shopware;
 
 jest.mock(
-    '../../../../../src/extension/sw-sales-channel/page/sw-sales-channel-detail/sw-sales-channel-detail.html.twig',
+    './sw-sales-channel-detail.html.twig',
     () => 'mock-template',
     { virtual: true },
 );
 
-// eslint-disable-next-line import/first
-const { swSalesChannelDetailOverride } = require('../../../../../src/extension/sw-sales-channel/page/sw-sales-channel-detail');
+const { swSalesChannelDetailOverride } = require('./index');
 
 const loadUcpState = swSalesChannelDetailOverride.methods.loadUcpState;
 

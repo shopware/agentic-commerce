@@ -3,7 +3,7 @@
  */
 
 jest.mock(
-  "../../../../../src/extension/sw-sales-channel/page/sw-sales-channel-detail/sw-sales-channel-detail.html.twig",
+  "./sw-sales-channel-detail.html.twig",
   () => "mock-template",
   { virtual: true }
 );
@@ -23,9 +23,8 @@ function loadComputed(coreHasAgenticComponent) {
       Defaults: {},
     };
 
-    // eslint-disable-next-line global-require
     computed =
-      require("../../../../../src/extension/sw-sales-channel/page/sw-sales-channel-detail")
+      require("./index")
         .swSalesChannelDetailOverride.computed;
   });
 

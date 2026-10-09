@@ -11,13 +11,12 @@ const Shopware = {
 global.Shopware = Shopware;
 
 jest.mock(
-    '../../../../../src/extension/sw-sales-channel/view/sw-sales-channel-detail-base/sw-sales-channel-detail-base.html.twig',
+    './sw-sales-channel-detail-base.html.twig',
     () => 'mock-template',
     { virtual: true },
 );
 
-// eslint-disable-next-line import/first
-const { swSalesChannelDetailBaseOverride } = require('../../../../../src/extension/sw-sales-channel/view/sw-sales-channel-detail-base');
+const { swSalesChannelDetailBaseOverride } = require('./index');
 
 const resolvedAgenticCommerceExportConfig = swSalesChannelDetailBaseOverride.computed.resolvedAgenticCommerceExportConfig;
 
