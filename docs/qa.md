@@ -57,8 +57,9 @@ full layering rationale.
 Manual human test steps are documented in [docs/manual-testing.md](manual-testing.md).
 
 Lane-specific administration, build, and local-runtime differences are documented in
-[docs/shopware-version-differences.md](shopware-version-differences.md). Short-form guidance for
-future coding agents is kept in [AGENTS.md](../AGENTS.md).
+[docs/shopware-version-differences.md](shopware-version-differences.md). The rules for changes are
+in [CONTRIBUTING.md](../CONTRIBUTING.md). [AGENTS.md](../AGENTS.md) adds what applies only to coding
+agents.
 
 ## Administration build matrix
 
