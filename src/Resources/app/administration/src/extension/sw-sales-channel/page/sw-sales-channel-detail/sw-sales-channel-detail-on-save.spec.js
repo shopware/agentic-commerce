@@ -62,7 +62,9 @@ function buildContext({ saveSalesChannel, isSaveSuccessful = true } = {}) {
         isAgenticCommerce: true,
         systemConfigApiService: { batchSave: jest.fn(() => Promise.resolve()) },
         validateAgenticCommerceExportConfig: jest.fn(() => true),
+        ucpState: { loaded: false, form: {}, savedForm: {}, generation: 0 },
         saveUcpState: jest.fn(() => Promise.resolve(true)),
+        loadUcpState: jest.fn(),
         loadEntityData: jest.fn(),
         $super: jest.fn(),
         $t: jest.fn(),
@@ -169,5 +171,65 @@ describe('sw-sales-channel-detail onSave — post-save validation', () => {
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
         expect(ctx.validateAgenticCommerceExportConfig).toHaveBeenCalled();
+    });
+});
+
+describe('sw-sales-channel-detail onSave — UCP config', () => {
+    const UCP_FORM = { active: true, profileDomain: null, enabledCapabilities: ['cart', 'catalog'], enabledTransports: ['rest'] };
+
+    it('writes the UCP form as it was when Save was clicked, although the legacy reload replaced it', async () => {
+        const ctx = buildContext({ isSaveSuccessful: true });
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+        ctx.$super = jest.fn(() => {
+            ctx.ucpState.form = { active: false, profileDomain: null, enabledCapabilities: [], enabledTransports: ['rest'] };
+        });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveUcpState).toHaveBeenCalledWith('channel-id', UCP_FORM);
+    });
+
+    it('loads the stored UCP state again after a legacy save, which reloaded the page before the UCP write', async () => {
+        const ctx = buildContext({ isSaveSuccessful: true });
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.loadUcpState).toHaveBeenCalledWith('channel-id', 'agentic-type-id');
+    });
+
+    it('leaves reloading to loadEntityData() on the split-save path', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.loadEntityData).toHaveBeenCalledTimes(1);
+        expect(ctx.loadUcpState).not.toHaveBeenCalled();
+    });
+
+    it('does not write a UCP config that was never loaded', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveUcpState).toHaveBeenCalledWith('channel-id', null);
+    });
+
+    it('saveUcpState stores the given form and supersedes loads started before the write', async () => {
+        const saveConfig = jest.fn(() => Promise.resolve());
+        const ctx = {
+            ucpState: { loaded: true, form: { active: false }, savedForm: { active: false }, generation: 3 },
+            ucpAdminApiService: { saveConfig },
+            createNotificationError: jest.fn(),
+        };
+
+        const saved = await swSalesChannelDetailOverride.methods.saveUcpState.call(ctx, 'channel-id', UCP_FORM);
+
+        expect(saved).toBe(true);
+        expect(saveConfig).toHaveBeenCalledWith('channel-id', expect.objectContaining({ enabledCapabilities: ['cart', 'catalog'] }));
+        expect(ctx.ucpState.form).toEqual(UCP_FORM);
+        expect(ctx.ucpState.savedForm).toEqual(UCP_FORM);
+        expect(ctx.ucpState.generation).toBe(4);
     });
 });

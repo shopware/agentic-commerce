@@ -22,7 +22,8 @@ export function buildPreviewPayload(form, { profileDomain = null } = {}) {
 
 /**
  * Whether the current form differs from the last saved form (drives the unsaved
- * banner). Order-independent on the config object; uses a stable stringify.
+ * banner). Order-independent on the config object and on its value lists, which
+ * are sets (re-ticking a capability appends it); uses a stable stringify.
  *
  * @param {Record<string, unknown>} savedForm
  * @param {Record<string, unknown>} currentForm
@@ -37,6 +38,10 @@ function stableStringify(value) {
 }
 
 function replacer(key, value) {
+    if (Array.isArray(value) && value.every((entry) => typeof entry === 'string')) {
+        return [...value].sort();
+    }
+
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         return Object.keys(value)
             .sort()

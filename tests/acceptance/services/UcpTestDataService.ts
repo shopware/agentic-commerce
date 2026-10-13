@@ -2,11 +2,22 @@ import { expect } from '@playwright/test';
 import { TestDataService } from '@shopware-ag/acceptance-test-suite';
 import type { DataServiceOptions, FixtureTypes, SalesChannel, User } from '@shopware-ag/acceptance-test-suite';
 import type { UcpConsole } from './UcpConsole';
+import { readFeedTemplates } from './pluginSource';
 
 /** Core's headless (API) sales channel type, `Defaults::SALES_CHANNEL_TYPE_API`. */
 export const HEADLESS_SALES_CHANNEL_TYPE_ID = 'f183ee5650cf4bdb8a774337575067a6';
 /** The plugin's product-feed type, `SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE`. */
 export const FEED_SALES_CHANNEL_TYPE_ID = '5e29f9890c4d4d519a1c7f9d5c24b7c1';
+
+/**
+ * Parent domain of the per-channel hosts that give a channel a root-path domain of its own, so its
+ * `/.well-known/ucp` resolves it (a path prefix cannot, known blocker D8). The browser projects map
+ * it onto the `APP_URL` host with `--host-resolver-rules`; Node clients cannot resolve it.
+ */
+export const OWN_HOST_PARENT_DOMAIN = 'ucp-acceptance.test';
+
+/** `Defaults::LIVE_VERSION`. */
+const LIVE_VERSION_ID = '0fa91ce3e96a4bc2be4bd9ce752c3425';
 
 export const UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED = 'SWAG_AGENTIC_COMMERCE__UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED';
 
@@ -35,8 +46,32 @@ const USER_CREATION_ATTEMPTS = 3;
 
 export interface UcpSalesChannel {
     salesChannel: SalesChannel
-    /** Path-prefixed base URL of the channel's only domain, trailing slash included. */
+
+    /** Base URL of the channel's only domain, trailing slash included; empty for a channel without one. */
     url: string
+}
+
+export type ExportProvider = 'open-ai' | 'google';
+
+export interface ProductExportRecord {
+    id: string
+    provider: string
+    fileName: string
+    fileFormat: string
+    headerTemplate: string | null
+    bodyTemplate: string | null
+    footerTemplate: string | null
+}
+
+export interface FeedSalesChannel {
+    salesChannel: SalesChannel
+    productExport: ProductExportRecord
+}
+
+export interface SalesChannelReadback {
+    id: string
+    configuration: Record<string, unknown> | null
+    productExports: ProductExportRecord[]
 }
 
 export interface UcpSalesChannelListEntry {
@@ -109,12 +144,89 @@ export class UcpTestDataService extends TestDataService {
         return this.createUcpSalesChannel(FEED_SALES_CHANNEL_TYPE_ID, overrides);
     }
 
-    async createUcpSalesChannel(typeId: string, overrides: Partial<SalesChannel> = {}): Promise<UcpSalesChannel> {
+    /**
+     * A storefront channel whose only domain is the root of a host of its own, so the real
+     * `/.well-known/ucp` serves it. Fetch that document through a browser, see `OWN_HOST_PARENT_DOMAIN`.
+     */
+    async createStorefrontSalesChannelOnOwnHost(overrides: Partial<SalesChannel> = {}): Promise<UcpSalesChannel> {
+        return this.createUcpSalesChannel(this.baseConfig.storefrontTypeId, overrides, (uuid) => {
+            const appUrl = new URL(this.appUrl);
+
+            return `${appUrl.protocol}//c${uuid}.${OWN_HOST_PARENT_DOMAIN}${appUrl.port ? `:${appUrl.port}` : ''}`;
+        });
+    }
+
+    /**
+     * A product-feed channel with its product export, built from the shipped template of `provider`
+     * so the export already agrees with what the Administration aligns on load. The feed reads the
+     * worker's storefront channel and gets no domain of its own.
+     */
+    async createFeedSalesChannelWithExport(provider: ExportProvider = 'open-ai', exportOverrides: Partial<ProductExportRecord> = {}): Promise<FeedSalesChannel> {
+        const template = (await readFeedTemplates()).find(feedTemplate => feedTemplate.providerName === provider);
+        if (template === undefined) {
+            throw new Error(`No shipped product-export template for provider ${provider}.`);
+        }
+
+        const storefrontDomains = await this.AdminApiClient.get(`./sales-channel/${this.defaultSalesChannel.id}/domains`);
+        expect(storefrontDomains.ok(), await storefrontDomains.text()).toBeTruthy();
+        const [storefrontDomain] = ((await storefrontDomains.json()) as { data: { id: string }[] }).data;
+
+        const { id: productStreamId } = await this.createProductStream();
+
+        const { uuid: productExportId } = this.IdProvider.getIdPair();
+        const productExport: ProductExportRecord & Record<string, unknown> = {
+            id: productExportId,
+            productStreamId,
+            storefrontSalesChannelId: this.defaultSalesChannel.id,
+            salesChannelDomainId: storefrontDomain.id,
+            currencyId: this.baseConfig.currentCurrencyId,
+            fileName: `agentic-commerce-${productExportId}.${template.fileFormat}`,
+            accessKey: `SWPE${productExportId}`,
+            provider,
+            fileFormat: template.fileFormat,
+            encoding: template.encoding,
+            // What every shipped template schedules.
+            generateByCronjob: false,
+            interval: 86400,
+            includeVariants: false,
+            headerTemplate: template.headerTemplate,
+            bodyTemplate: template.bodyTemplate,
+            footerTemplate: template.footerTemplate,
+            ...exportOverrides,
+        };
+
+        const { salesChannel } = await this.createUcpSalesChannel(FEED_SALES_CHANNEL_TYPE_ID, { productExports: [productExport] } as Partial<SalesChannel>, null);
+
+        return { salesChannel, productExport };
+    }
+
+    /** An empty dynamic product group, which every product export has to name. */
+    async createProductStream(): Promise<{ id: string, name: string }> {
+        const { id: suffix, uuid: id } = this.IdProvider.getIdPair();
+        const name = `${this.namePrefix}UCP-feed-${suffix}${this.nameSuffix}`;
+        const response = await this.AdminApiClient.post('./product-stream', { data: { id, name, filters: [] } });
+        expect(response.ok(), await response.text()).toBeTruthy();
+        this.addCreatedRecord('product_stream', id);
+
+        return { id, name };
+    }
+
+    /** Registers a channel a spec created through the Administration, so the cleanup deletes it. */
+    adoptSalesChannel(salesChannelId: string): void {
+        this.createdSalesChannelIds.push(salesChannelId);
+    }
+
+    async createUcpSalesChannel(
+        typeId: string,
+        overrides: Partial<SalesChannel> = {},
+        domainUrl: ((uuid: string) => string) | null = uuid => `${this.appUrl}test-${uuid}/`,
+    ): Promise<UcpSalesChannel> {
         const { id, uuid } = this.IdProvider.getIdPair();
         const { uuid: rootCategoryId } = this.IdProvider.getIdPair();
         const { uuid: customerGroupId } = this.IdProvider.getIdPair();
         const { uuid: domainId } = this.IdProvider.getIdPair();
-        const url = `${this.appUrl}test-${uuid}/`;
+        const domain = domainUrl === null ? null : domainUrl(uuid);
+        const url = domain === null ? '' : domain.replace(/\/?$/, '/');
 
         const response = await this.AdminApiClient.post('./_action/sync', {
             data: {
@@ -139,13 +251,15 @@ export class UcpTestDataService extends TestDataService {
                             type: 'page',
                             productAssignmentType: 'product',
                         },
-                        domains: [{
-                            id: domainId,
-                            url,
-                            languageId: this.baseConfig.currentLanguageId,
-                            snippetSetId: this.baseConfig.currentSnippetSetId,
-                            currencyId: this.baseConfig.currentCurrencyId,
-                        }],
+                        domains: domain === null
+                            ? []
+                            : [{
+                                id: domainId,
+                                url: domain,
+                                languageId: this.baseConfig.currentLanguageId,
+                                snippetSetId: this.baseConfig.currentSnippetSetId,
+                                currencyId: this.baseConfig.currentCurrencyId,
+                            }],
                         customerGroup: {
                             id: customerGroupId,
                             name: `${this.namePrefix}UCP-${id}${this.nameSuffix}`,
@@ -171,6 +285,59 @@ export class UcpTestDataService extends TestDataService {
         const { data: salesChannel } = (await salesChannelResponse.json()) as { data: SalesChannel };
 
         return { salesChannel, url };
+    }
+
+    /** The channel's stored `configuration` and its product exports, as the Admin API returns them. */
+    async getSalesChannelReadback(salesChannelId: string): Promise<SalesChannelReadback> {
+        const response = await this.AdminApiClient.post('./search/sales-channel', {
+            data: { ids: [salesChannelId], associations: { productExports: {} } },
+        });
+        expect(response.ok(), await response.text()).toBeTruthy();
+        const [salesChannel] = ((await response.json()) as { data: SalesChannelReadback[] }).data;
+
+        return salesChannel;
+    }
+
+    /** The channel-scoped values of a system-config domain, e.g. `SwagAgenticCommerce.openAiProductExport`. */
+    async getChannelSystemConfig(domain: string, salesChannelId: string): Promise<Record<string, unknown>> {
+        const response = await this.AdminApiClient.get(`./_action/system-config?domain=${encodeURIComponent(domain)}&salesChannelId=${salesChannelId}`);
+        expect(response.ok(), await response.text()).toBeTruthy();
+        const values = (await response.json()) as Record<string, unknown> | unknown[];
+
+        return Array.isArray(values) ? {} : values;
+    }
+
+    /** Writes channel-scoped system-config values; they are deleted together with the channel. */
+    async setChannelSystemConfig(salesChannelId: string, values: Record<string, unknown>): Promise<void> {
+        const response = await this.AdminApiClient.post('./_action/system-config/batch', { data: { [salesChannelId]: values } });
+        expect(response.ok(), await response.text()).toBeTruthy();
+    }
+
+    /**
+     * Records the feed channel a buyer came through for an order, as the storefront's
+     * `referringSalesChannel` tracking does. The row cascades away with the order and the channel.
+     */
+    async attributeOrderToFeedChannel(orderId: string, feedSalesChannelId: string): Promise<void> {
+        await this.writeTracking('sales_channel_tracking_order', { orderId, orderVersionId: LIVE_VERSION_ID, salesChannelId: feedSalesChannelId });
+    }
+
+    async attributeCustomerToFeedChannel(customerId: string, feedSalesChannelId: string): Promise<void> {
+        await this.writeTracking('sales_channel_tracking_customer', { customerId, salesChannelId: feedSalesChannelId });
+    }
+
+    private async writeTracking(entity: string, payload: Record<string, string>): Promise<void> {
+        const response = await this.AdminApiClient.post('./_action/sync', {
+            data: { [`write-${entity}`]: { entity, action: 'upsert', payload: [{ id: this.IdProvider.getIdPair().uuid, ...payload }] } },
+        });
+        expect(response.ok(), await response.text()).toBeTruthy();
+    }
+
+    /**
+     * A save through the Administration bypasses `saveUcpConfig()`; this registers the activation it
+     * made, so the cleanup still deletes the signing key that activation provisioned.
+     */
+    markUcpActivated(salesChannelId: string): void {
+        this.activatedSalesChannelIds.add(salesChannelId);
     }
 
     async listUcpSalesChannels(): Promise<UcpSalesChannelListEntry[]> {

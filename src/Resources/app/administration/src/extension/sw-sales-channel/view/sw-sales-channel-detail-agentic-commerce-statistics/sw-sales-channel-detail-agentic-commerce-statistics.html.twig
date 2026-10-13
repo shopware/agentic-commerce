@@ -26,7 +26,7 @@
                 <template #default>
                     <p class="sw-sales-channel-detail-agentic-commerce-statistics__summary">
                         {{ $t('sw-sales-channel.detail.productExport.insights.summary') }}:
-                        <strong>{{ orderCountTotal }}</strong>
+                        <strong data-testid="ac-insights__orders-total">{{ orderCountTotal }}</strong>
                     </p>
                 </template>
             </sw-chart-card>
@@ -59,7 +59,7 @@
                 <template #default>
                     <p class="sw-sales-channel-detail-agentic-commerce-statistics__summary">
                         {{ $t('sw-sales-channel.detail.productExport.insights.summary') }}:
-                        <strong>{{ customerCountTotal }}</strong>
+                        <strong data-testid="ac-insights__customers-total">{{ customerCountTotal }}</strong>
                     </p>
                 </template>
             </sw-chart-card>

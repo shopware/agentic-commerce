@@ -1,5 +1,6 @@
 import { test as base } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { createNewAdminPageContext, loginToAdministration } from '@shopware-ag/acceptance-test-suite';
 import type { FixtureTypes, User } from '@shopware-ag/acceptance-test-suite';
 import { readAdminPrivilegeMapping, resolveRole } from '@services/pluginSource';
@@ -7,47 +8,6 @@ import type { UcpTestDataFixtureTypes } from './UcpTestData';
 
 export const UCP_ROLES = ['ucp.viewer', 'ucp.editor', 'ucp.key_rotator'] as const;
 export type UcpRole = typeof UCP_ROLES[number];
-
-/**
- * Core's `sales_channel.viewer` privileges (`sw-sales-channel/acl/index.js` on trunk), flattened.
- * Without them a user cannot open the sales channel the Agentic Commerce tab sits on.
- */
-const SALES_CHANNEL_VIEWER_PRIVILEGES = [
-    'sales_channel:read',
-    'sales_channel_type:read',
-    'payment_method:read',
-    'shipping_method:read',
-    'country:read',
-    'currency:read',
-    'sales_channel_domain:read',
-    'sales_channel_file:read',
-    'snippet_set:read',
-    'sales_channel_analytics:read',
-    'product_export:read',
-    'theme:read',
-    'custom_field_set:read',
-    'custom_field:read',
-    'custom_field_set_relation:read',
-    'category:read',
-    'customer_group:read',
-    'media:read',
-    'media_folder:read',
-    'media_default_folder:read',
-    'product:read',
-    'product_stream:read',
-    'product_visibility:read',
-    'property_group:read',
-    'property_group_option:read',
-    'user_config:read',
-    'user_config:create',
-    'user_config:update',
-    'system_config:read',
-    'sales_channel_tracking_order:read',
-    'sales_channel_tracking_customer:read',
-    'order:read',
-    'order_transaction:read',
-    'state_machine_state:read',
-];
 
 export interface UcpAclUser {
     role: UcpRole
@@ -59,6 +19,16 @@ export interface UcpAclUser {
 export interface UcpAclUsers {
     /** One Administration user per UCP role, created and logged in on first use. */
     as(role: UcpRole): Promise<UcpAclUser>
+
+    /**
+     * A full admin of the test's own, logged in. The worker's `AdminPage` user is shared by every
+     * test of the worker and its retries, so state the Administration stores per user, such as list
+     * filters, would leak between them.
+     */
+    asFreshAdmin(): Promise<Page>
+
+    /** A non-admin user with only core's `sales_channel.viewer` role, logged in. */
+    asSalesChannelViewer(): Promise<Page>
 }
 
 export interface UcpAclUsersTypes {
@@ -66,28 +36,48 @@ export interface UcpAclUsersTypes {
 }
 
 export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclUsersTypes>({
-    UcpAclUsers: async ({ TestDataService, AdminApiContext, SalesChannelBaseConfig, browser }, use) => {
+    UcpAclUsers: async ({ TestDataService, AdminApiContext, SalesChannelBaseConfig, browser, AdminSession }, use) => {
         const mapping = await readAdminPrivilegeMapping();
         const users = new Map<UcpRole, Promise<UcpAclUser>>();
+        const otherPages: Promise<Page>[] = [];
 
-        const create = async (role: UcpRole): Promise<UcpAclUser> => {
-            const resolved = resolveRole(mapping, role);
+        /**
+         * What the role editor stores for these role keys: the running Administration resolves their
+         * dependencies, including privileges other plugins add to core roles such as
+         * `sales_channel.viewer`.
+         */
+        const grantedPrivileges = async (roleKeys: string[]): Promise<string[]> => {
+            const page = await AdminSession.context.newPage();
+            try {
+                await page.goto(process.env.ADMIN_URL ?? './');
+                await expect(page.locator('.sw-admin-menu')).toBeVisible();
+
+                return await page.evaluate<string[]>(`Shopware.Service('privileges').getPrivilegesForAdminPrivilegeKeys(${JSON.stringify(roleKeys)})`);
+            }
+            finally {
+                await page.close();
+            }
+        };
+
+        const createUser = async (name: string, roleKeys: string[]): Promise<{ user: User, privileges: string[], page: Page }> => {
             const privileges = [...new Set([
                 ...(TestDataService.getBasicAclRoleStruct().privileges ?? []),
-                ...SALES_CHANNEL_VIEWER_PRIVILEGES,
-                'sales_channel.viewer',
-                ...resolved.keys,
-                ...resolved.privileges,
+                ...await grantedPrivileges(roleKeys),
             ])];
 
-            const aclRole = await TestDataService.createAclRole({ name: `${TestDataService.namePrefix}${role}-${aclRoleSuffix()}`, privileges });
+            const aclRole = await TestDataService.createAclRole({ name: `${TestDataService.namePrefix}${name}-${aclRoleSuffix()}`, privileges });
             const user = await TestDataService.createUserRetryingTokenConflicts({ admin: false });
             await TestDataService.assignAclRoleUser(aclRole.id, user.id);
 
             const page = await loginToAdministration(await createNewAdminPageContext(browser, SalesChannelBaseConfig), user, AdminApiContext);
 
-            return { role, user, privileges, page };
+            return { user, privileges, page };
         };
+
+        const create = async (role: UcpRole): Promise<UcpAclUser> => ({
+            role,
+            ...await createUser(role, ['sales_channel.viewer', ...resolveRole(mapping, role).keys]),
+        });
 
         await use({
             as: (role) => {
@@ -99,10 +89,24 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
 
                 return pending;
             },
+            asFreshAdmin: () => {
+                const pending = TestDataService.createUserRetryingTokenConflicts({ admin: true })
+                    .then(async user => loginToAdministration(await createNewAdminPageContext(browser, SalesChannelBaseConfig), user, AdminApiContext));
+                otherPages.push(pending);
+
+                return pending;
+            },
+            asSalesChannelViewer: () => {
+                const pending = createUser('sales_channel.viewer', ['sales_channel.viewer']).then(({ page }) => page);
+                otherPages.push(pending);
+
+                return pending;
+            },
         });
 
-        for (const pending of users.values()) {
-            const { page } = await pending.catch(() => ({ page: null }));
+        const pages = [...[...users.values()].map(pending => pending.then(({ page }) => page)), ...otherPages];
+        for (const pending of pages) {
+            const page = await pending.catch(() => null);
             await page?.context().close();
         }
     },

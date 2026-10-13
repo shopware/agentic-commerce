@@ -92,11 +92,15 @@ Version comparisons use `compare-versions` (`satisfies`), which the ATS already 
 
 ## Writing a spec
 
-Import from the fixture entry point and nothing else:
+Import fixtures from the fixture entry point and nothing else:
 
 ```ts
 import { expect, test } from "@fixtures/AcceptanceTest";
 ```
+
+Page objects for the plugin's Administration live in `page-objects/` (`@page-objects/*`). They locate
+the plugin's controls by their `data-testid` hooks (`ac-<area>__<element>[--<key>]`) and open routes
+with `goToAdminRoute()`, which navigates inside the running Administration like the ATS `goesTo()`.
 
 `fixtures/AcceptanceTest.ts` calls `mergeTests(ShopwareTestSuite, ...)` and re-exports the package,
 so a spec never has to know which file a fixture came from.
@@ -107,13 +111,29 @@ Every Playwright worker owns its test data. The ATS `DefaultSalesChannel` fixtur
 a storefront-type sales channel on the path-prefixed domain `${APP_URL}test-<uuid>/`, so the
 Administration shows the Agentic Commerce tab for it. That domain does not give the worker a profile
 of its own yet: `/.well-known/ucp` under a prefixed domain resolves another channel (known blocker
-D8), so specs read a channel's profile through the Admin API preview until that is fixed. The plugin
-fixtures build on the worker channel.
+D8). A spec that needs the real document creates a channel on a host of its own instead, see
+`createStorefrontSalesChannelOnOwnHost()` below. The plugin fixtures build on the worker channel.
 
 **`TestDataService`** (test scope) is `UcpTestDataService`, the ATS `TestDataService` plus UCP:
 `createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`,
 `activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()` and
-`listUcpSalesChannels()`. `activateUcp()` enables every capability and the REST transport and
+`listUcpSalesChannels()`. For the Administration journeys it also has:
+
+- `createStorefrontSalesChannelOnOwnHost()`: a channel whose only domain is the root of
+  `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp` serves
+  it. Only a browser resolves that host (`--host-resolver-rules` on the `Setup` and `UcpAdmin`
+  projects maps it onto the `APP_URL` host), so read it with `fetchDiscoveryDocument()` from
+  `services/discovery.ts`. The document is publicly cacheable for 60 seconds: read it after the
+  change under test, not before.
+- `createFeedSalesChannelWithExport(provider)`: a product-feed channel with a product export built
+  from the plugin's shipped template, so the Administration finds nothing to align on load.
+- `attributeOrderToFeedChannel()` and `attributeCustomerToFeedChannel()`: the tracking rows the
+  storefront's `referringSalesChannel` tracking would write.
+- `getSalesChannelReadback()`, `getChannelSystemConfig()`, `setChannelSystemConfig()`,
+  `createProductStream()`, `markUcpActivated()` for a channel activated through the UI, and
+  `adoptSalesChannel()` for one created through the UI, so the cleanup still covers them.
+
+`activateUcp()` enables every capability and the REST transport and
 allowlists the agent profile host on all three per-channel lists, because the SDK falls back to the
 shop's own host for an empty list and would refuse a `localhost` profile. Its cleanup runs before
 the ATS registry's. It restores the UCP config each surviving channel had before the first write,
@@ -133,9 +153,14 @@ shop's own profile. A worker removes its own files at teardown.
 
 **`UcpAclUsers`** (test scope) has `as('ucp.viewer' | 'ucp.editor' | 'ucp.key_rotator')`, which
 creates an ACL role and a non-admin user, logs into the Administration in a separate page context
-and returns it. The privilege sets are read from
+and returns it. The role keys come from
 `src/Resources/app/administration/src/extension/sw-sales-channel/acl/index.js`, with core's
-`sales_channel.viewer` set added so the user can reach the sales channel at all.
+`sales_channel.viewer` added so the user can reach the sales channel at all. The privileges are what
+the running Administration's privileges service grants for those keys, as the role editor would store
+them, so privileges other plugins add to core roles are included. `asSalesChannelViewer()` logs in a
+user with only `sales_channel.viewer`. `asFreshAdmin()` logs in a full admin of the test's own, for
+specs that change what the Administration stores per user, such as list filters; the worker's
+`AdminPage` user is shared with every test of the worker.
 
 **`UcpConsole`** (worker scope) runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`,
 the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
@@ -159,6 +184,10 @@ an environment variable when it is first used, and fails loudly when it cannot:
 
 A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
 profile host and the console need the project mounted.
+
+Channels on a host of their own need the web server to answer any `Host` (a catch-all vhost) and
+`TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The `@Setup` spec "Channels on a host
+of their own" fails with that message when the lane does not.
 
 `UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
 machine where `docker` is only an alias for `podman`, the default prefix is not found and the

@@ -128,33 +128,82 @@ export function readAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
     return privilegeMapping;
 }
 
-async function evaluateAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
-    const aclFile = path.join(
+function salesChannelExtensionFile(...segments: string[]): string {
+    return path.join(
         resolvePluginDir(),
-        'src', 'Resources', 'app', 'administration', 'src', 'extension', 'sw-sales-channel', 'acl', 'index.js',
+        'src', 'Resources', 'app', 'administration', 'src', 'extension', 'sw-sales-channel', ...segments,
     );
+}
+
+async function importWithShopwareStub(file: string, shopware: unknown): Promise<void> {
+    globalThis.Shopware = shopware;
+
+    try {
+        await import(pathToFileURL(file).href);
+    }
+    finally {
+        globalThis.Shopware = undefined;
+    }
+}
+
+async function evaluateAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
+    const aclFile = salesChannelExtensionFile('acl', 'index.js');
     const mapping: PrivilegeMapping = new Map();
 
-    globalThis.Shopware = {
+    await importWithShopwareStub(aclFile, {
         Service: () => ({
             addPrivilegeMappingEntry: (entry: PrivilegeMappingEntry) => {
                 mapping.set(entry.key, { ...mapping.get(entry.key), ...entry.roles });
             },
         }),
-    };
-
-    try {
-        await import(pathToFileURL(aclFile).href);
-    }
-    finally {
-        globalThis.Shopware = undefined;
-    }
+    });
 
     if (mapping.size === 0) {
         throw new Error(`${aclFile} registered no privilege mapping.`);
     }
 
     return mapping;
+}
+
+export interface FeedTemplate {
+    name: string
+    providerName: string
+    headerTemplate: string
+    bodyTemplate: string
+    footerTemplate: string
+    encoding: string
+    fileFormat: string
+}
+
+let feedTemplates: Promise<FeedTemplate[]> | undefined;
+
+export function readFeedTemplates(): Promise<FeedTemplate[]> {
+    feedTemplates ??= evaluateFeedTemplates().catch((error: unknown) => {
+        feedTemplates = undefined;
+        throw error;
+    });
+
+    return feedTemplates;
+}
+
+async function evaluateFeedTemplates(): Promise<FeedTemplate[]> {
+    const templatesFile = salesChannelExtensionFile('agentic-product-export-templates', 'index.js');
+    const templates: FeedTemplate[] = [];
+
+    await importWithShopwareStub(templatesFile, {
+        Defaults: { agenticCommerceTypeId: '5e29f9890c4d4d519a1c7f9d5c24b7c1' },
+        Service: () => ({
+            registerProductExportTemplate: (template: FeedTemplate) => {
+                templates.push(template);
+            },
+        }),
+    });
+
+    if (templates.length === 0) {
+        throw new Error(`${templatesFile} registered no feed template.`);
+    }
+
+    return templates;
 }
 
 export interface ResolvedRole {
