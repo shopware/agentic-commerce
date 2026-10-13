@@ -19,7 +19,6 @@ export interface PublicSigningKeyJwk {
 
 export interface TestAgent {
     kid: string
-    label: string
     /** Where the shop fetches the profile from; a `localhost` URL as seen from the web container. */
     profileUrl: string
     agentHeader: string
@@ -40,7 +39,6 @@ export type CapabilityMap = Record<string, CapabilityEntry[]>;
 
 export interface PublishOptions {
     kid?: string
-    label?: string
     /** Replaces the default set entirely; `{}` publishes an agent that can negotiate nothing. */
     capabilities?: CapabilityMap
 }
@@ -114,9 +112,8 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
             fs.mkdirSync(directory, { recursive: true });
             fs.accessSync(directory, fs.constants.W_OK);
 
-            const publish: UcpAgentProfileHost['publish'] = async ({ kid, label, capabilities } = {}) => {
+            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities } = {}) => {
                 const agentKid = kid ?? `acceptance-w${workerInfo.parallelIndex}-${crypto.randomUUID().slice(0, 8)}`;
-                const agentLabel = label ?? 'shopware-acceptance-agent';
                 const { publicJwk, privateKeyPem } = generateSigningKey(agentKid);
                 const profile = {
                     ucp: {
@@ -125,7 +122,7 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
                         capabilities: capabilities ?? specShoppingCapabilities(version),
                         payment_handlers: {},
                     },
-                    signing_keys: [publicJwk],
+                    keys: [publicJwk],
                 };
                 const file = path.join(directory, `${agentKid}.json`);
                 const profileUrl = new URL(`${AGENT_PROFILE_DIRECTORY}/${agentKid}.json`, baseUrl).toString();
@@ -138,9 +135,8 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
 
                 return {
                     kid: agentKid,
-                    label: agentLabel,
                     profileUrl,
-                    agentHeader: `${agentLabel}; profile="${profileUrl}"`,
+                    agentHeader: `profile="${profileUrl}"`,
                     publicJwk,
                     privateKeyPem,
                     profile,

@@ -59,7 +59,7 @@ export interface UcpProfileDocument {
         services: Record<string, { transport: string, endpoint: string }[]>
         capabilities: Record<string, { version: string, extends?: string[] | null }[]>
     }
-    signing_keys: { kid: string, alg: string, crv: string }[]
+    keys: { kid: string, alg: string, crv: string }[]
 }
 
 export interface UcpDataServiceOptions extends DataServiceOptions {

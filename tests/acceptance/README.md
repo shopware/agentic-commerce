@@ -35,10 +35,12 @@ npm test
 | `npm test`                           | every project except `UcpKnownBlocked`. This is the gating run. |
 | `npm run test:known-blocked`         | only `UcpKnownBlocked`. Reported, never gating.                 |
 | `npm run test:all`                   | everything, gating and non-gating together.                     |
+| `npm run test:signer`                | only `Signer`, without a shop.                                  |
 | `npm run lint` / `npm run typecheck` | ESLint and `tsc --noEmit`.                                      |
 
 `APP_URL` is required; the config exits with the list of missing variables rather than failing later
-with an opaque error.
+with an opaque error. `npm run test:signer` is the exception: it sets `UCP_SIGNER_ONLY=1`, which
+drops the check and the wait for the server.
 
 ## Projects and tags
 
@@ -101,6 +103,9 @@ import { expect, test } from "@fixtures/AcceptanceTest";
 `fixtures/AcceptanceTest.ts` calls `mergeTests(ShopwareTestSuite, ...)` and re-exports the package,
 so a spec never has to know which file a fixture came from.
 
+`Signer` specs are the exception. They import `test` and `expect` from `@playwright/test`, so no ATS
+fixture reaches for a shop that the server-free run does not have.
+
 ## Fixtures
 
 Every Playwright worker owns its test data. The ATS `DefaultSalesChannel` fixture gives each worker
@@ -122,14 +127,15 @@ deletes the signing keys of the channels it created and activated when `UcpConso
 and the failures are reported together.
 
 **`UcpAgentProfileHost`** (worker scope) has `publish()`, which generates an ES256 key pair and
-writes the agent's profile, public key included, to
-`<SHOPWARE_DIR>/public/ucp-acceptance-agents/<kid>.json`. The profile carries every shopping
-capability the UCP specification defines at the protocol version, so the SDK has something to
-negotiate, and `publish({ capabilities })` replaces that set for negative specs. The shop fetches
-the profile from `UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`), the web container's
-own document root, the only plain-http host the SDK admits and only in development mode. The fixture
-verifies the file is served through `APP_URL` and throws otherwise. It never falls back to the
-shop's own profile. A worker removes its own files at teardown.
+writes the agent's profile, public key in `keys` included, to
+`<SHOPWARE_DIR>/public/ucp-acceptance-agents/<kid>.json`. The agent sends it as
+`UCP-Agent: profile="<url>"`. The profile carries every shopping capability the UCP specification
+defines at the protocol version, so the SDK has something to negotiate, and
+`publish({ capabilities })` replaces that set for negative specs. The shop fetches the profile from
+`UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`), the web container's own document
+root, the only plain-http host the SDK admits and only in development mode. The fixture verifies the
+file is served through `APP_URL` and throws otherwise. It never falls back to the shop's own
+profile. A worker removes its own files at teardown.
 
 **`UcpAclUsers`** (test scope) has `as('ucp.viewer' | 'ucp.editor' | 'ucp.key_rotator')`, which
 creates an ACL role and a non-admin user, logs into the Administration in a separate page context
@@ -143,8 +149,45 @@ allow-list. Before the first command it probes the real prefix once. When that p
 cleanup is skipped with a warning naming the sales channels whose keys stay behind, and the
 `@UcpConsole` spec fails.
 
+**`UcpAgent`** and **`UcpAgentB`** (worker scope) are two external shopping agents, each with its
+own key pair and published profile. They do not extend the ATS `Actor`, which is bound to a browser
+page, so protocol specs run without Chromium. Both talk to `APP_URL` until `at(url)` points them at
+a sales channel. `rest.send(method, path, options)` signs a REST call, and `a2a.call()` and
+`mcp.call()` wrap a signed JSON-RPC 2.0 request for `/ucp/a2a` and `/ucp/mcp`. `unsigned` sends
+`UCP-Agent` without a signature, and `tampered(knobs)` signs and then breaks the request. `signs()`
+returns the signed request without sending it. Every `POST`, `PUT`, `PATCH` and `DELETE` gets a
+fresh `Idempotency-Key` unless the call passes one, or `false` for none.
+
 The lane has to run with `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1` for the
 shop to fetch a test agent's profile from `localhost` over plain http.
+
+### Signing
+
+`services/UcpSigner.ts` signs per [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) with
+ES256, following the [UCP signatures specification](https://ucp.dev/specification/signatures/) and
+not the plugin's implementation. `services/UcpAgentKeyring.ts` holds the keys on Node's WebCrypto.
+
+- The covered components are `@method`, `@authority`, `@path`, `@query` when the URL has a query,
+  `ucp-agent`, `signature-agent` when present, `idempotency-key` on `POST`, `PUT`, `PATCH` and
+  `DELETE` when present, then `content-digest` and `content-type` when there is a body.
+- The parameters are `created` and `keyid`, under the label `sig1`. The spec makes `created`
+  optional, but the SDK rejects a signature without it (known blocker D1), so the signer always
+  sends it.
+- The body is serialised once. The `sha-256` digest is taken over that buffer, and that buffer is
+  sent.
+- An ES256 signature is the raw 64-byte `r||s`. The keyring throws on any other length.
+
+Negative specs break a request through `SignatureKnobs`, never by hand: `tamperBody`,
+`tamperSignatureBytes`, `replay`, `label`, `includeTargetUri`, `omitCreated`, `createdOffsetSeconds`
+(`-400` is stale, `+400` lies in the future), `withAlg` and `withExpires`.
+`tests/Signer/knobs.spec.ts` proves that each knob changes the signature base, the signature or the
+body. A knob that changes nothing would turn every spec that uses it into a false pass.
+
+`tests/Signer/rfc9421-vectors.spec.ts` holds the known answers from RFC 9421 Appendix B. It rebuilds
+the full-coverage request base byte for byte. It reproduces the Ed25519 request signature over the
+base the signer builds, since Ed25519 is deterministic. It also verifies the published P-256
+signature with the published key. The UCP specification's own examples cannot serve as vectors,
+because they carry no key and truncate the digest and signature values.
 
 ### What the fixtures need from their host
 
@@ -172,7 +215,8 @@ Read by the ATS itself: `APP_URL`, `ADMIN_API_URL`, `ADMIN_URL`, `SHOPWARE_ACCES
 (default `shopware`), `ATS_ID_SEED`, `ATS_SKIP_CLEANUP`, `MAILPIT_BASE_URL`,
 `SHOPWARE_ACCEPTANCE_INSTANCE_TYPE`, `LANG`/`LANGUAGE`.
 
-Read by this config: `SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS`, `DATABASE_URL`, `CI`.
+Read by this config: `SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS`, `DATABASE_URL`, `CI`,
+`UCP_SIGNER_ONLY`.
 
 Read by the plugin fixtures: `SHOPWARE_DIR`, `PLUGIN_DIR`, `UCP_AGENT_PROFILE_BASE_URL`,
 `UCP_CONSOLE`, `UCP_CONSOLE_TIMEOUT_MS`, `ATS_SKIP_CLEANUP`.
