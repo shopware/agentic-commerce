@@ -420,6 +420,21 @@ final class RecordingAgenticFilesCoreBridge implements AgenticFilesCoreBridgeInt
     public function syncActiveUcpSalesChannels(): void
     {
     }
+
+    public function supportsCoreFiles(): bool
+    {
+        return true;
+    }
+
+    public function fileStates(array $salesChannelIds, array $fileNames): array
+    {
+        return [];
+    }
+
+    public function insertMissingFiles(string $salesChannelId, array $fileNames): array
+    {
+        return [];
+    }
 }
 
 /**

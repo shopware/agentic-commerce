@@ -28,6 +28,7 @@ return static function (RoutingConfigurator $routes): void {
     }
 
     $routes->import('../../AgenticFiles/ApiCatalog/ApiCatalogController.php', 'attribute');
+    $routes->import('../../AgenticFiles/Readiness/Api/BasicAiReadinessController.php', 'attribute');
 
     if (!CoreSalesChannelFileFeature::isAvailableByClass()) {
         $routes->import('../../AgenticFiles/Fallback/FallbackAgenticFileController.php', 'attribute');

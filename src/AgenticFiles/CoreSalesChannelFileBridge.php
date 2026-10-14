@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\AgenticFiles;
 
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Shopware\Core\Defaults;
@@ -62,14 +63,75 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         (new self($connection, new CoreSalesChannelFileFeature()))->syncActiveUcpSalesChannels();
     }
 
+    public function supportsCoreFiles(): bool
+    {
+        return $this->feature->isDatabaseReady($this->connection);
+    }
+
+    public function fileStates(array $salesChannelIds, array $fileNames): array
+    {
+        $salesChannelIds = array_values(array_filter($salesChannelIds, Uuid::isValid(...)));
+        if ([] === $salesChannelIds || [] === $fileNames || !$this->supportsCoreFiles()) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            <<<'SQL'
+                SELECT LOWER(HEX(sales_channel_id)) AS sales_channel_id, file_name, enabled
+                FROM sales_channel_file
+                WHERE file_family = :fileFamily
+                  AND sales_channel_id IN (:salesChannelIds)
+                  AND file_name IN (:fileNames)
+                SQL,
+            [
+                'fileFamily' => self::FILE_FAMILY,
+                'salesChannelIds' => Uuid::fromHexToBytesList($salesChannelIds),
+                'fileNames' => $fileNames,
+            ],
+            [
+                'salesChannelIds' => ArrayParameterType::BINARY,
+                'fileNames' => ArrayParameterType::STRING,
+            ],
+        );
+
+        // The column collation matches file names case-insensitively, as core does; answer in the caller's spelling.
+        $requestedFileNames = array_combine(array_map(mb_strtolower(...), $fileNames), $fileNames);
+
+        $states = [];
+        foreach ($rows as $row) {
+            $fileName = $requestedFileNames[mb_strtolower((string) $row['file_name'])] ?? null;
+            if (null !== $fileName) {
+                $states[(string) $row['sales_channel_id']][$fileName] = (bool) $row['enabled'];
+            }
+        }
+
+        return $states;
+    }
+
+    public function insertMissingFiles(string $salesChannelId, array $fileNames): array
+    {
+        if (!Uuid::isValid($salesChannelId) || !$this->supportsCoreFiles()) {
+            return [];
+        }
+
+        $timestamp = self::now();
+        $inserted = [];
+        foreach ($fileNames as $fileName) {
+            try {
+                $this->insertEnabledRow($this->rowKey($salesChannelId, $fileName), $timestamp);
+                $inserted[] = $fileName;
+            } catch (UniqueConstraintViolationException) {
+                // The row exists, possibly switched off by the merchant: insert-only leaves it alone.
+            }
+        }
+
+        return $inserted;
+    }
+
     private function enableFile(string $salesChannelId, string $fileName): void
     {
-        $timestamp = (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT);
-        $criteria = [
-            'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
-            'file_family' => self::FILE_FAMILY,
-            'file_name' => $fileName,
-        ];
+        $timestamp = self::now();
+        $criteria = $this->rowKey($salesChannelId, $fileName);
 
         $updated = $this->connection->update('sales_channel_file', [
             'enabled' => true,
@@ -81,19 +143,44 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         }
 
         try {
-            $this->connection->insert('sales_channel_file', [
-                'id' => Uuid::randomBytes(),
-                ...$criteria,
-                'enabled' => true,
-                'template_overrides' => null,
-                'created_at' => $timestamp,
-            ]);
+            $this->insertEnabledRow($criteria, $timestamp);
         } catch (UniqueConstraintViolationException) {
             $this->connection->update('sales_channel_file', [
                 'enabled' => true,
                 'updated_at' => $timestamp,
             ], $criteria);
         }
+    }
+
+    private static function now(): string
+    {
+        return (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT);
+    }
+
+    /**
+     * @return array{sales_channel_id: string, file_family: string, file_name: string}
+     */
+    private function rowKey(string $salesChannelId, string $fileName): array
+    {
+        return [
+            'sales_channel_id' => Uuid::fromHexToBytes($salesChannelId),
+            'file_family' => self::FILE_FAMILY,
+            'file_name' => $fileName,
+        ];
+    }
+
+    /**
+     * @param array{sales_channel_id: string, file_family: string, file_name: string} $rowKey
+     */
+    private function insertEnabledRow(array $rowKey, string $timestamp): void
+    {
+        $this->connection->insert('sales_channel_file', [
+            'id' => Uuid::randomBytes(),
+            ...$rowKey,
+            'enabled' => true,
+            'template_overrides' => null,
+            'created_at' => $timestamp,
+        ]);
     }
 
     private function ucpConfigTableExists(): bool

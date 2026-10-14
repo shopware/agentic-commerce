@@ -42,6 +42,7 @@ use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileController;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\FallbackAgenticFileRenderer;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\RemoveLeadingSpacesTwigExtension;
+use Swag\AgenticCommerce\AgenticFiles\Readiness\Api\BasicAiReadinessController;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Compatibility\Snippet\CountryAgnosticSnippetFinder;
@@ -397,6 +398,9 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments');
 
     $services->set(ApiCatalogController::class)
+        ->tag('controller.service_arguments');
+
+    $services->set(BasicAiReadinessController::class)
         ->tag('controller.service_arguments');
 
     // ── Test-only helpers (issue #53) ─────────────────────────────────────────

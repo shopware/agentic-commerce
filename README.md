@@ -247,6 +247,48 @@ active and describe safe shopping behavior for public storefront resources. Vali
 admin or route changes with a storefront browser check and direct `GET` requests for `/llms.txt`,
 `/agents.md`, and `/.well-known/ai-catalog.json` on each supported lane.
 
+## Basic AI Readiness
+
+Basic AI Readiness switches on `llms.txt` and `AGENTS.md` for Storefront and Headless sales channels
+without enabling UCP: the UCP config is not touched, so agent cart, checkout and orders stay off,
+and the files do not mention UCP while it is off. `/.well-known/ai-catalog.json` is not part of it.
+It needs Shopware `6.7.12` or newer, where core serves these files; on older versions it changes
+nothing and says so.
+
+Only missing files are created. A file that already exists is left as it is, so one switched off for
+the sales channel stays off, and running it again changes nothing.
+
+```bash
+bin/console swag-agentic-commerce:readiness:enable --all-storefronts
+bin/console swag-agentic-commerce:readiness:enable --sales-channel=Storefront --dry-run
+bin/console swag-agentic-commerce:readiness:status --all-storefronts
+```
+
+| Option                       | Meaning                                                               |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `--sales-channel=<id\|name>` | A Storefront or Headless sales channel (repeatable).                  |
+| `--all-storefronts`          | Every Storefront and Headless sales channel, active or not.           |
+| `--dry-run`                  | `enable` only: report which files would be created and write nothing. |
+
+`status` lists each file per sales channel as `missing`, `enabled` or `disabled by merchant`. Both
+commands exit with `0` when they are done, also when nothing needed to change, when there is no
+eligible sales channel and on Shopware older than `6.7.12`. They exit with `2` for invalid input: no
+selection option, both selection options, or a sales channel that is unknown or not Storefront or
+Headless.
+
+The Administration API runs the same service and returns the same result:
+
+| Route                                                | Body / query                                       | Privileges                                                                   |
+| ---------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `POST /api/_admin/agentic-commerce/readiness/enable` | optional `salesChannelIds` (list), `dryRun` (bool) | `sales_channel:read`, `sales_channel_file:read`, `sales_channel_file:create` |
+| `GET /api/_admin/agentic-commerce/readiness/status`  | optional `salesChannelIds[]`                       | `sales_channel:read`, `sales_channel_file:read`                              |
+
+Without `salesChannelIds` every Storefront and Headless sales channel is selected. The response is
+`{"data": {"coreSupported", "message", "dryRun", "salesChannels": [{"id", "name", "files": [{"fileName", "state"}]}]}}`,
+with `state` one of `missing`, `created`, `enabled` and `disabled_by_merchant`. The privileges are
+core's, which Shopware grants together with the sales channel roles from `6.7.12`; no UCP role is
+needed. `sales_channel:read` is required because the response lists sales channel ids and names.
+
 ## Product Feed
 
 The product-feed feature is the outbound catalog surface for agentic commerce consumers. It is
