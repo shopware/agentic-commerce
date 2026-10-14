@@ -64,6 +64,10 @@ jobs:
               echo "${changelog} has no entry for ${version}." >&2
               exit 1
             fi
+            if grep -Fqx '# next version' "${changelog}"; then
+              echo "${changelog} still has a '# next version' heading. Rename it to '# ${version}' in the release PR." >&2
+              exit 1
+            fi
           done
 
           echo "version=${version}" >>"${GITHUB_OUTPUT}"

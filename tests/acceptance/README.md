@@ -84,6 +84,9 @@ test.skip(satisfies(InstanceMeta.version, "<6.7.1.0"), "robots.txt arrived in 6.
 ```
 
 - A misbehaviour on a version is a **failing test**, never a skip.
+- When a known blocker breaks a case only on some versions, the gating spec skips that range and
+  names the blocker, and a spec in `tests/KnownBlocked/` asserts the same behaviour on exactly that
+  range. The ranges live in `tests/UcpContent/knownBlockerRanges.ts`.
 - Unconditional skips are not allowed.
 - `test.fixme()` marks a genuinely unimplemented dependency.
 
@@ -98,9 +101,10 @@ Import fixtures from the fixture entry point and nothing else:
 import { expect, test } from "@fixtures/AcceptanceTest";
 ```
 
-Page objects for the plugin's Administration live in `page-objects/` (`@page-objects/*`). They locate
-the plugin's controls by their `data-testid` hooks (`ac-<area>__<element>[--<key>]`) and open routes
-with `goToAdminRoute()`, which navigates inside the running Administration like the ATS `goesTo()`.
+Page objects for the plugin's Administration live in `page-objects/` (`@page-objects/*`). They
+locate the plugin's controls by their `data-testid` hooks (`ac-<area>__<element>[--<key>]`) and open
+routes with `goToAdminRoute()`, which navigates inside the running Administration like the ATS
+`goesTo()`.
 
 `fixtures/AcceptanceTest.ts` calls `mergeTests(ShopwareTestSuite, ...)` and re-exports the package,
 so a spec never has to know which file a fixture came from.
@@ -116,14 +120,17 @@ D8). A spec that needs the real document creates a channel on a host of its own 
 
 **`TestDataService`** (test scope) is `UcpTestDataService`, the ATS `TestDataService` plus UCP:
 `createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`,
-`activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()` and
-`listUcpSalesChannels()`. For the Administration journeys it also has:
+`activateUcp()`, `saveUcpConfig()`, `getUcpConfig()`, `getProfilePreview()`,
+`listUcpSalesChannels()`, `createProductFeed()` and `saveFeedSettings()`. `createProductFeed()`
+builds a feed channel with a product export over the given products for the worker channel, from a
+template `readFeedTemplates()` reads out of the shipped Administration modules, with `interval: 0`
+so every request renders the current products. For the Administration journeys it also has:
 
 - `createStorefrontSalesChannelOnOwnHost()`: a channel whose only domain is the root of
-  `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp` serves
-  it. Only a browser resolves that host (`--host-resolver-rules` on the `Setup` and `UcpAdmin`
-  projects maps it onto the `APP_URL` host), so read it with `fetchDiscoveryDocument()` from
-  `services/discovery.ts`. The document is publicly cacheable for 60 seconds: read it after the
+  `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp`
+  serves it. Only a browser resolves that host (`--host-resolver-rules` on the `Setup` and
+  `UcpAdmin` projects maps it onto the `APP_URL` host), so read it with `fetchDiscoveryDocument()`
+  from `services/discovery.ts`. The document is publicly cacheable for 60 seconds: read it after the
   change under test, not before.
 - `createFeedSalesChannelWithExport(provider)`: a product-feed channel with a product export built
   from the plugin's shipped template, so the Administration finds nothing to align on load.
@@ -133,13 +140,20 @@ D8). A spec that needs the real document creates a channel on a host of its own 
   `createProductStream()`, `markUcpActivated()` for a channel activated through the UI, and
   `adoptSalesChannel()` for one created through the UI, so the cleanup still covers them.
 
-`activateUcp()` enables every capability and the REST transport and
-allowlists the agent profile host on all three per-channel lists, because the SDK falls back to the
-shop's own host for an empty list and would refuse a `localhost` profile. Its cleanup runs before
-the ATS registry's. It restores the UCP config each surviving channel had before the first write,
-deletes the signing keys of the channels it created and activated when `UcpConsole` reaches
-`bin/console`, and deletes the channels it created. Every step runs even when an earlier one fails,
-and the failures are reported together.
+`activateUcp()` enables every capability and the REST transport and allowlists the agent profile
+host on all three per-channel lists, because the SDK falls back to the shop's own host for an empty
+list and would refuse a `localhost` profile. Its cleanup runs before the ATS registry's. It restores
+the UCP config each surviving channel had before the first write, deletes the signing keys of the
+channels it created and activated when `UcpConsole` reaches `bin/console`, and deletes the channels
+it created. Every step runs even when an earlier one fails, and the failures are reported together.
+The ATS registry's cleanup is retried once, because MariaDB 11.6.2 and newer reject a product delete
+with error 1020 while other workers write products.
+
+Every provider a shipped feed template registers needs an entry in
+`tests/UcpContent/feedProviders.ts`: its field names, its parser, the settings it needs and one
+set-up its validator must reject. The feed specs run once per entry.
+`tests/Setup/feed-provider-coverage.spec.ts` fails while a template has no entry, and the PHPUnit
+test `EveryProviderShipsATemplateTest` fails while a provider class has no template or validator.
 
 **`UcpAgentProfileHost`** (worker scope) has `publish()`, which generates an ES256 key pair and
 writes the agent's profile, public key included, to
@@ -156,11 +170,11 @@ creates an ACL role and a non-admin user, logs into the Administration in a sepa
 and returns it. The role keys come from
 `src/Resources/app/administration/src/extension/sw-sales-channel/acl/index.js`, with core's
 `sales_channel.viewer` added so the user can reach the sales channel at all. The privileges are what
-the running Administration's privileges service grants for those keys, as the role editor would store
-them, so privileges other plugins add to core roles are included. `asSalesChannelViewer()` logs in a
-user with only `sales_channel.viewer`. `asFreshAdmin()` logs in a full admin of the test's own, for
-specs that change what the Administration stores per user, such as list filters; the worker's
-`AdminPage` user is shared with every test of the worker.
+the running Administration's privileges service grants for those keys, as the role editor would
+store them, so privileges other plugins add to core roles are included. `asSalesChannelViewer()`
+logs in a user with only `sales_channel.viewer`. `asFreshAdmin()` logs in a full admin of the test's
+own, for specs that change what the Administration stores per user, such as list filters; the
+worker's `AdminPage` user is shared with every test of the worker.
 
 **`UcpConsole`** (worker scope) runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`,
 the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
@@ -176,11 +190,11 @@ shop to fetch a test agent's profile from `localhost` over plain http.
 Beyond `APP_URL`, two fixtures touch the Shopware project directly. Each resolves what it needs from
 an environment variable when it is first used, and fails loudly when it cannot:
 
-| Variable       | Default                                                                                                     | Needed by                                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there |
-| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION` and the Administration ACL file           |
-| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                             |
+| Variable       | Default                                                                                                     | Needed by                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there           |
+| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION`, the Administration ACL file and the feed templates |
+| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                                       |
 
 A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
 profile host and the console need the project mounted.

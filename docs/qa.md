@@ -51,14 +51,15 @@ The former `catalog` and `cart` smoke stages have been removed — that capabili
 entirely in the functional suite. The `checkout` stage resolves the seeded product itself (one
 `catalog.lookup` as data setup) and stays in smoke only to drive the signed order webhook. Almost
 any smoke assertion can become a functional test — when one can, move it and drop the redundant
-smoke check once the functional suite gates in CI. See [AGENTS.md](../AGENTS.md) for the full
-layering rationale.
+smoke check once the functional suite gates in CI. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the
+full layering rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](manual-testing.md).
 
 Lane-specific administration, build, and local-runtime differences are documented in
-[docs/shopware-version-differences.md](shopware-version-differences.md). Short-form guidance for
-future coding agents is kept in [AGENTS.md](../AGENTS.md).
+[docs/shopware-version-differences.md](shopware-version-differences.md). The rules for changes are
+in [CONTRIBUTING.md](../CONTRIBUTING.md). [AGENTS.md](../AGENTS.md) adds what applies only to coding
+agents.
 
 ## Administration build matrix
 

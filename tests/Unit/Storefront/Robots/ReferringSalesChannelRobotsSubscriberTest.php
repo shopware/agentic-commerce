@@ -29,8 +29,8 @@ class ReferringSalesChannelRobotsSubscriberTest extends TestCase
 {
     protected function setUp(): void
     {
-        if (!class_exists(RobotsPageLoadedEvent::class)) {
-            static::markTestSkipped('robots.txt subsystem requires Shopware >= 6.7');
+        if (!class_exists(RobotsPageLoadedEvent::class) || !class_exists(RobotsUserAgentBlock::class)) {
+            static::markTestSkipped('the robots.txt directive classes require Shopware >= 6.7.5');
         }
     }
 
@@ -55,6 +55,13 @@ class ReferringSalesChannelRobotsSubscriberTest extends TestCase
         static::assertSame(RobotsDirectiveType::ALLOW, $directive->type);
         static::assertSame('/*'.SalesChannelTrackingListener::QUERY_PARAM.'=', $directive->value);
         static::assertSame('/*referringSalesChannel=', $directive->value);
+    }
+
+    public function testItStaysOutOfTheWayBeforeCoreShipsTheDirectiveClasses(): void
+    {
+        $page = $this->renderPageForVersion('6.7.4.0');
+
+        static::assertSame([], $page->getGlobalUserAgentBlocks());
     }
 
     public function testItStaysOutOfTheWayOnceCoreShipsTheAllow(): void

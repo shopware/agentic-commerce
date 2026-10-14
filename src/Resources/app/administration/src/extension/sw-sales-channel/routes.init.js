@@ -44,10 +44,11 @@ const childRoutes = [
     },
 ];
 
-// Shopware 6.5 (Vue Router 3): inject children into the module registry before
-// the router is compiled. Only mutate array-form children — in 6.6+ the detail
-// route children are a keyed object; overwriting it drops the core children and
-// breaks the base redirect for all sales-channel types.
+// Every supported version: inject children into the module registry before core
+// builds the router from it. Core's module factory stores the detail route
+// children as an array of named routes. Only mutate array-form children;
+// replacing children of any other shape drops the core children and breaks the
+// base redirect for all sales-channel types.
 const registry = Shopware.Module.getModuleRegistry();
 const salesChannelModule = registry.get('sw-sales-channel');
 
@@ -72,8 +73,8 @@ if (salesChannelModule) {
     }
 }
 
-// Shopware 6.6+ (Vue Router 4): the router is already compiled by the time
-// viewInitialized resolves; add routes dynamically instead.
+// Fallback for a Vue Router 4 router that was built before the registry path ran:
+// add any route it does not have yet.
 void Shopware.Application.viewInitialized.then(() => {
     const router = Shopware.Application.view?.router;
 

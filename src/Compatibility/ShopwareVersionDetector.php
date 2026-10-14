@@ -71,9 +71,10 @@ final class ShopwareVersionDetector
     {
         $version = $this->normalizeVersion($this->currentVersion());
 
-        // The storefront robots.txt arrived in 6.7.1.0 and core emits this Allow itself from
-        // 6.7.13.0, so the plugin only needs to add it for the versions in between.
-        return version_compare($version, '6.7.1.0', '>=')
+        // RobotsDirective and RobotsUserAgentBlock arrived in 6.7.5.0; robots.txt itself already
+        // exists from 6.7.1.0, but there the subscriber fails with a class-not-found 500. Core
+        // emits this Allow itself from 6.7.13.0.
+        return version_compare($version, '6.7.5.0', '>=')
             && version_compare($version, '6.7.13.0', '<');
     }
 
