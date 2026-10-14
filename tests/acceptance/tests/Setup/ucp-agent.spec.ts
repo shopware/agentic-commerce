@@ -15,6 +15,14 @@ test.describe('Test agents @Setup', () => {
         expect(signed.headers['UCP-Agent']).toBe(UcpAgent.identity.agentHeader);
     });
 
+    test('the agent signs the upper-case method that Playwright sends', async ({ UcpAgent }) => {
+        const signedCartRequest = await UcpAgent.signs('post', '/ucp/carts', { body: {} });
+
+        expect(signedCartRequest.method).toBe('POST');
+        expect(signedCartRequest.signatureBase).toContain('"@method": POST');
+        expect(signedCartRequest.headers['Idempotency-Key']).toMatch(UUID);
+    });
+
     test('a signed request verifies with the key the agent published', async ({ UcpAgent, request }) => {
         const signed = await UcpAgent.signs('POST', '/ucp/carts', { body: MULTI_BYTE_BODY });
         const servedProfile = await request.get(new URL(`ucp-acceptance-agents/${UcpAgent.identity.kid}.json`, process.env.APP_URL).toString());

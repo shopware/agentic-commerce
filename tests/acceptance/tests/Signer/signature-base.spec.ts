@@ -66,10 +66,11 @@ test.describe('Signature base construction @Signer', () => {
         expect(valueOf('https://shop.example/x?q=a%20b&r=2', '@query')).toBe('?q=a%20b&r=2');
     });
 
-    test('@method is upper case whatever the caller wrote', async () => {
+    test('@method keeps the case of the request\'s method, as RFC 9421 §2.2.1 requires', async () => {
         const signer = await signerFor();
 
-        expect(signer.componentValue({ method: 'post', url: 'https://shop.example/x', headers: { 'UCP-Agent': AGENT_HEADER } }, '@method')).toBe('POST');
+        expect(signer.componentValue({ method: 'POST', url: 'https://shop.example/x', headers: { 'UCP-Agent': AGENT_HEADER } }, '@method')).toBe('POST');
+        expect(signer.componentValue({ method: 'post', url: 'https://shop.example/x', headers: { 'UCP-Agent': AGENT_HEADER } }, '@method')).toBe('post');
     });
 
     test('the digest covers the bytes that are sent, multi-byte content included', () => {

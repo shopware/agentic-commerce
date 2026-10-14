@@ -110,7 +110,7 @@ export class UcpSigner {
         const headers = request.headers ?? {};
 
         switch (component) {
-            case '@method': return request.method.toUpperCase();
+            case '@method': return request.method;
             case '@authority': return authorityOf(url);
             case '@path': return url.pathname === '' ? '/' : url.pathname;
             case '@query': return url.search;

@@ -100,14 +100,16 @@ export class UcpAgent {
             url.searchParams.set(name, value);
         }
 
+        // Playwright upper-cases the method it sends, so the signed method has to be upper case already.
+        const sentMethod = method.toUpperCase();
         const headers: Record<string, string> = { 'UCP-Agent': this.identity.agentHeader, ...options.headers };
-        if (METHODS_CARRYING_IDEMPOTENCY_KEY.includes(method.toUpperCase()) && options.idempotencyKey !== false) {
+        if (METHODS_CARRYING_IDEMPOTENCY_KEY.includes(sentMethod) && options.idempotencyKey !== false) {
             headers['Idempotency-Key'] = options.idempotencyKey ?? crypto.randomUUID();
         }
 
         const body = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body), 'utf8');
 
-        return { method, url: url.toString(), headers, body };
+        return { method: sentMethod, url: url.toString(), headers, body };
     }
 
     private async send(method: string, path: string, options: UcpCallOptions = {}, delivery: Delivery = 'signed'): Promise<APIResponse> {
@@ -116,7 +118,7 @@ export class UcpAgent {
         if (delivery === 'unsigned') {
             const headers = parts.body === undefined ? parts.headers : { 'Content-Type': 'application/json', ...parts.headers };
 
-            return this.api.fetch(parts.url, { method, headers, data: parts.body });
+            return this.api.fetch(parts.url, { method: parts.method, headers, data: parts.body });
         }
 
         const signed = await this.signer.sign(parts, this.identity.kid, options.knobs ?? {});
