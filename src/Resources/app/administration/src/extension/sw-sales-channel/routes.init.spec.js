@@ -6,8 +6,8 @@
  * is the path that ships; `router.addRoute` on a Vue Router 4 router is only a fallback. Core
  * registers the integration route itself from 6.7.10, so an existing name must never be added
  * twice. The core fixtures mirror how core's module factory stores children: an array of named
- * routes. Children in any other shape must be left alone: replacing them once dropped core's
- * children and broke sales channel saving (fixed in 504d6107).
+ * routes. Children in any other shape must be left alone: replacing them drops core's children and
+ * breaks sales channel saving.
  */
 
 const DETAIL_ROUTE = 'sw.sales.channel.detail';
