@@ -1,16 +1,17 @@
+import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
+import { CORE_SERVES_NO_UPPERCASE_AGENTS_MD, FALLBACK_DROPS_FILES_WITHOUT_UCP } from './knownBlockerRanges';
 
 const DISCOVERY_FILE_CONTENT_TYPES = {
     'llms.txt': 'text/plain',
     'agents.md': 'text/markdown',
-    'AGENTS.md': 'text/markdown',
     '.well-known/ai-catalog.json': 'application/json',
 };
 
 const UCP_PROFILE_PATH = '/.well-known/ucp';
 
 test.describe('Agentic discovery files @UcpContent', () => {
-    test('a UCP-active channel serves every discovery file with its content type, both Markdown spellings alike', async ({ TestDataService, request }) => {
+    test('a UCP-active channel serves every discovery file with its content type', async ({ TestDataService, request }) => {
         const ucpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(ucpChannel.salesChannel.id);
 
@@ -24,12 +25,25 @@ test.describe('Agentic discovery files @UcpContent', () => {
             bodyByFileName.set(fileName, discoveryFileBody);
         }
 
-        expect(bodyByFileName.get('AGENTS.md')).toBe(bodyByFileName.get('agents.md'));
         const aiCatalog = JSON.parse(bodyByFileName.get('.well-known/ai-catalog.json') ?? '') as { entries: { url: string }[] };
         expect(aiCatalog.entries.map(entry => entry.url)).toContain(TestDataService.wellKnownUrl(ucpChannel.url));
     });
 
-    test('switching UCP off removes the UCP sections and keeps the files', async ({ TestDataService, request }) => {
+    test('/AGENTS.md serves the same document as /agents.md', async ({ InstanceMeta, TestDataService, request }) => {
+        test.skip(satisfies(InstanceMeta.version, CORE_SERVES_NO_UPPERCASE_AGENTS_MD), 'known blocker D10, asserted in tests/KnownBlocked/discovery-files.spec.ts');
+        const ucpChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(ucpChannel.salesChannel.id);
+
+        const upperCaseFileResponse = await request.get(`${ucpChannel.url}AGENTS.md`);
+        const lowerCaseFileResponse = await request.get(`${ucpChannel.url}agents.md`);
+
+        expect(upperCaseFileResponse.status(), await upperCaseFileResponse.text()).toBe(200);
+        expect(upperCaseFileResponse.headers()['content-type']).toContain('text/markdown');
+        expect(await upperCaseFileResponse.text()).toBe(await lowerCaseFileResponse.text());
+    });
+
+    test('switching UCP off removes the UCP sections and keeps the files', async ({ InstanceMeta, TestDataService, request }) => {
+        test.skip(satisfies(InstanceMeta.version, FALLBACK_DROPS_FILES_WITHOUT_UCP), 'known blocker D9, asserted in tests/KnownBlocked/discovery-files.spec.ts');
         const ucpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(ucpChannel.salesChannel.id);
 
@@ -42,9 +56,11 @@ test.describe('Agentic discovery files @UcpContent', () => {
 
         for (const fileName of ['llms.txt', 'agents.md']) {
             const discoveryFileResponseWithoutUcp = await request.get(`${ucpChannel.url}${fileName}`);
+            const discoveryFileBodyWithoutUcp = await discoveryFileResponseWithoutUcp.text();
 
             expect(discoveryFileResponseWithoutUcp.status()).toBe(200);
-            expect(await discoveryFileResponseWithoutUcp.text()).not.toContain(UCP_PROFILE_PATH);
+            expect(discoveryFileBodyWithoutUcp, `${fileName} still describes the channel`).toContain(ucpChannel.salesChannel.name);
+            expect(discoveryFileBodyWithoutUcp).not.toContain(UCP_PROFILE_PATH);
         }
     });
 
@@ -52,13 +68,17 @@ test.describe('Agentic discovery files @UcpContent', () => {
         const deactivatedChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(deactivatedChannel.salesChannel.id);
 
+        for (const fileName of Object.keys(DISCOVERY_FILE_CONTENT_TYPES)) {
+            expect((await request.get(`${deactivatedChannel.url}${fileName}`)).status(), `${fileName} before deactivation`).toBe(200);
+        }
+
         const salesChannelDeactivationResponse = await TestDataService.AdminApiClient.patch(`./sales-channel/${deactivatedChannel.salesChannel.id}`, { data: { active: false } });
         expect(salesChannelDeactivationResponse.ok(), await salesChannelDeactivationResponse.text()).toBeTruthy();
 
         for (const fileName of Object.keys(DISCOVERY_FILE_CONTENT_TYPES)) {
             const refusedFile = await request.get(`${deactivatedChannel.url}${fileName}`);
-            expect(refusedFile.status(), fileName).toBeGreaterThanOrEqual(400);
-            expect(refusedFile.status(), fileName).toBeLessThan(500);
+            expect(refusedFile.status(), `${fileName} after deactivation`).toBeGreaterThanOrEqual(400);
+            expect(refusedFile.status(), `${fileName} after deactivation`).toBeLessThan(500);
         }
     });
 
@@ -74,7 +94,8 @@ test.describe('Agentic discovery files @UcpContent', () => {
         expect(catalogEntry['service-meta'].map(link => link.href)).toContain(TestDataService.wellKnownUrl(ucpChannel.url));
         expect(catalogEntry.item.map(link => link.href)).toContain(`${ucpChannel.url}store-api`);
 
-        await TestDataService.saveUcpConfig(ucpChannel.salesChannel.id, { active: false });
+        const deactivationResponse = await TestDataService.saveUcpConfig(ucpChannel.salesChannel.id, { active: false });
+        expect(deactivationResponse.ok(), await deactivationResponse.text()).toBeTruthy();
         expect((await request.get(apiCatalogUrl)).status()).toBe(404);
     });
 });

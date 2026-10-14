@@ -52,29 +52,28 @@ test.describe('Feed referral tracking @UcpContent', () => {
         const orderPlacement = await request.post(`${DefaultSalesChannel.url}checkout/order`, { form: { tos: 'on' } });
         expect(orderPlacement.ok(), await orderPlacement.text()).toBeTruthy();
 
-        const referredOrders = await searchByReferringChannel(TestDataService, 'order', feed.feedChannel.id);
-        for (const referredOrder of referredOrders) {
-            TestDataService.addCreatedRecord('order', referredOrder.id);
-        }
-        const referredCustomers = await searchByReferringChannel(TestDataService, 'customer', feed.feedChannel.id);
-        for (const referredCustomer of referredCustomers) {
-            TestDataService.addCreatedRecord('customer', referredCustomer.id);
-        }
+        const guestOrders = await searchIds(TestDataService, 'order', 'orderCustomer.email', guestEmail);
+        guestOrders.forEach(guestOrderId => TestDataService.addCreatedRecord('order', guestOrderId));
+        const guestCustomers = await searchIds(TestDataService, 'customer', 'email', guestEmail);
+        guestCustomers.forEach(guestCustomerId => TestDataService.addCreatedRecord('customer', guestCustomerId));
+        expect(guestOrders).toHaveLength(1);
+        expect(guestCustomers).toHaveLength(1);
 
-        expect(referredOrders).toHaveLength(1);
-        expect(referredCustomers).toHaveLength(1);
+        expect(await searchIds(TestDataService, 'order', 'salesChannelTracking.salesChannelId', feed.feedChannel.id)).toEqual(guestOrders);
+        expect(await searchIds(TestDataService, 'customer', 'salesChannelTracking.salesChannelId', feed.feedChannel.id)).toEqual(guestCustomers);
     });
 });
 
-async function searchByReferringChannel(
+async function searchIds(
     TestDataService: FixtureTypes['TestDataService'],
     entity: 'order' | 'customer',
-    feedChannelId: string,
-): Promise<{ id: string }[]> {
-    const referredEntitiesLookup = await TestDataService.AdminApiClient.post(`./search/${entity}`, {
-        data: { filter: [{ type: 'equals', field: 'salesChannelTracking.salesChannelId', value: feedChannelId }] },
+    field: string,
+    value: string,
+): Promise<string[]> {
+    const matchingEntities = await TestDataService.AdminApiClient.post(`./search-ids/${entity}`, {
+        data: { filter: [{ type: 'equals', field, value }] },
     });
-    expect(referredEntitiesLookup.ok(), await referredEntitiesLookup.text()).toBeTruthy();
+    expect(matchingEntities.ok(), await matchingEntities.text()).toBeTruthy();
 
-    return ((await referredEntitiesLookup.json()) as { data: { id: string }[] }).data;
+    return ((await matchingEntities.json()) as { data: string[] }).data;
 }

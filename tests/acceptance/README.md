@@ -84,6 +84,9 @@ test.skip(satisfies(InstanceMeta.version, "<6.7.1.0"), "robots.txt arrived in 6.
 ```
 
 - A misbehaviour on a version is a **failing test**, never a skip.
+- When a known blocker breaks a case only on some versions, the gating spec skips that range and
+  names the blocker, and a spec in `tests/KnownBlocked/` asserts the same behaviour on exactly that
+  range. The ranges live in `tests/UcpContent/knownBlockerRanges.ts`.
 - Unconditional skips are not allowed.
 - `test.fixme()` marks a genuinely unimplemented dependency.
 
@@ -123,7 +126,7 @@ cleanup runs before the ATS registry's. It restores the UCP config each survivin
 the first write, deletes the signing keys of the channels it created and activated when `UcpConsole`
 reaches `bin/console`, and deletes the channels it created. Every step runs even when an earlier one
 fails, and the failures are reported together. The ATS registry's cleanup is retried once, because
-MariaDB 11.6 and newer reject a product delete with error 1020 while other workers write products.
+MariaDB 11.6.2 and newer reject a product delete with error 1020 while other workers write products.
 
 Every provider a shipped feed template registers needs an entry in
 `tests/UcpContent/feedProviders.ts`: its field names, its parser, the settings it needs and one

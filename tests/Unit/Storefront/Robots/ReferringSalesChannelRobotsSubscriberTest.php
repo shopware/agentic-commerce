@@ -29,8 +29,8 @@ class ReferringSalesChannelRobotsSubscriberTest extends TestCase
 {
     protected function setUp(): void
     {
-        if (!class_exists(RobotsPageLoadedEvent::class)) {
-            static::markTestSkipped('robots.txt subsystem requires Shopware >= 6.7');
+        if (!class_exists(RobotsPageLoadedEvent::class) || !class_exists(RobotsUserAgentBlock::class)) {
+            static::markTestSkipped('the robots.txt directive classes require Shopware >= 6.7.5');
         }
     }
 

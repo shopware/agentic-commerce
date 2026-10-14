@@ -12,10 +12,12 @@ const skipCleanUp = ['1', 'true'].includes(process.env.ATS_SKIP_CLEANUP ?? '');
 
 const ATS_CLEANUP_ATTEMPTS = 2;
 
-// MariaDB 11.6+ snapshot isolation rejects a product delete with error 1020 while other workers write products, and core does not retry it.
+// MariaDB 11.6.2+ snapshot isolation rejects a product delete with error 1020 while other workers write products, and core does not retry it.
 // The ATS asserts its first delete batch but returns the last one unchecked, so that response is checked here.
 async function atsCleanUpRetryingWriteConflict(service: UcpTestDataService): Promise<void> {
-    for (let attempt = 1; ; attempt++) {
+    const cleanUpErrors: unknown[] = [];
+
+    while (cleanUpErrors.length < ATS_CLEANUP_ATTEMPTS) {
         try {
             const lastDeleteBatch = await service.cleanUp();
             if (lastDeleteBatch === null || lastDeleteBatch.ok()) {
@@ -24,11 +26,11 @@ async function atsCleanUpRetryingWriteConflict(service: UcpTestDataService): Pro
             throw new Error(`ATS cleanup failed to delete its last batch: ${lastDeleteBatch.status()} ${await lastDeleteBatch.text()}`);
         }
         catch (error) {
-            if (attempt === ATS_CLEANUP_ATTEMPTS) {
-                throw error;
-            }
+            cleanUpErrors.push(error);
         }
     }
+
+    throw new AggregateError(cleanUpErrors, `ATS cleanup failed ${ATS_CLEANUP_ATTEMPTS} times; the first failure is usually the cause.`);
 }
 
 /**

@@ -69,4 +69,25 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/264',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D9',
+        description: 'Below Shopware 6.7.12.0 the plugin\'s fallback controller serves the discovery files and answers 404 for all of them once UCP is switched off, although the files do not depend on UCP.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/275',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D10',
+        description: 'On Shopware 6.7.12.x core looks discovery files up case-sensitively and ships only agents.md, and the plugin registers no fallback route there, so /AGENTS.md answers 404.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'TODO: file the issue for /AGENTS.md on 6.7.12.x',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D11',
+        description: 'Below Shopware 6.7.10.0 the Validate action builds the product export without its provider, so AbstractProviderValidator skips every agentic validator and Validate reports no errors for a feed whose export fails.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'TODO: file the issue for Validate skipping the provider validators',
+        reviewBy: '2026-12-31',
+    },
 ];

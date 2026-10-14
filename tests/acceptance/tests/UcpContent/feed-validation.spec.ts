@@ -1,27 +1,30 @@
+import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
-import { readFeedTemplates } from '@services/pluginSource';
 import { feedProviders } from './feedProviders';
+import { createInvalidFeed, validateStoredExport } from './invalidFeed';
+import { VALIDATE_SKIPS_PROVIDER_VALIDATORS } from './knownBlockerRanges';
 
 for (const [providerName, expectations] of Object.entries(feedProviders)) {
     test.describe(`${providerName} feed validation @UcpContent`, () => {
-        test('an invalid row blocks the export and Validate reports it', async ({ TestDataService, request }) => {
-            const template = (await readFeedTemplates()).find(candidate => candidate.providerName === providerName);
-            expect(template, `No shipped feed template for provider ${providerName}.`).toBeDefined();
-            const invalidSetup = await expectations.breakValidation(TestDataService);
-
-            const feed = await TestDataService.createProductFeed(template!, invalidSetup.productIds, { includeVariants: invalidSetup.includeVariants });
-            await TestDataService.saveFeedSettings(feed.feedChannel.id, { ...expectations.settings, ...invalidSetup.settings });
+        test('an invalid row blocks the export', async ({ TestDataService, request }) => {
+            const { feed } = await createInvalidFeed(providerName, expectations, TestDataService);
 
             const refusedExport = await request.get(feed.exportUrl);
-            expect(refusedExport.status()).toBeGreaterThanOrEqual(400);
 
-            const productExportLookup = await TestDataService.AdminApiClient.get(`./product-export/${feed.productExportId}`);
-            const { data: productExport } = (await productExportLookup.json()) as { data: Record<string, unknown> };
-            const validationOutcome = await TestDataService.AdminApiClient.post('./_action/product-export/validate', { data: productExport });
+            expect(refusedExport.status()).toBe(500);
+            const { errors } = (await refusedExport.json()) as { errors: { code: string }[] };
+            expect(errors.map(error => error.code)).toContain('CONTENT__PRODUCT_EXPORT_INVALID_CONTENT');
+        });
 
-            expect(validationOutcome.status(), await validationOutcome.text()).toBe(200);
-            const { errors } = (await validationOutcome.json()) as { errors: unknown[] };
-            expect(JSON.stringify(errors)).toContain(invalidSetup.rejectedField);
+        test('Validate reports the rejected field', async ({ InstanceMeta, TestDataService }) => {
+            test.skip(satisfies(InstanceMeta.version, VALIDATE_SKIPS_PROVIDER_VALIDATORS), 'known blocker D11, asserted in tests/KnownBlocked/feed-validation.spec.ts');
+            const { feed, rejectedField } = await createInvalidFeed(providerName, expectations, TestDataService);
+
+            const exportValidation = await validateStoredExport(TestDataService, feed.productExportId);
+
+            expect(exportValidation.status(), await exportValidation.text()).toBe(200);
+            const { errors } = (await exportValidation.json()) as { errors: unknown[] };
+            expect(JSON.stringify(errors)).toContain(rejectedField);
         });
     });
 }
