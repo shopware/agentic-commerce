@@ -7,9 +7,9 @@ Automated coverage (PHPUnit unit/integration/kernel suites, `bin/ci-smoke.sh`, e
 in CI; this document covers only what automation cannot. Behavior is covered at the lowest layer
 that can express it — route, request-context, and the **catalog/cart/checkout capability flows**
 (including completing a checkout into a real order and reading it back) live in the `functional`
-suite (`composer test:functional`, see [AGENTS.md](../AGENTS.md)). Shell smoke is reserved for
-deployed-stack / on-the-wire concerns that a booted kernel cannot observe: the outbound **signed
-order webhook** delivery, **tokenize** (needs a signed request), lane-aware MCP detection +
+suite (`composer test:functional`, see [CONTRIBUTING.md](../CONTRIBUTING.md)). Shell smoke is
+reserved for deployed-stack / on-the-wire concerns that a booted kernel cannot observe: the outbound
+**signed order webhook** delivery, **tokenize** (needs a signed request), lane-aware MCP detection +
 storefront-rendered `/llms.txt` and `/agents.md`, the admin/storefront builds + UI shells, and
 signed-request conformance. The REST happy-path, profile/transport advertising, OAuth/tokenization
 `501` stubs, signed-webhook header capture, admin module rendering, and storefront shell rendering

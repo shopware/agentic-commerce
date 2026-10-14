@@ -218,7 +218,7 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
   :
 else
   mkdir -p "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce"
-  rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' --exclude='AGENTS.md' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
+  rsync -a --delete --exclude='.git' --exclude='.tools' --exclude='vendor' --exclude='AGENTS.md' --exclude='CONTRIBUTING.md' "${PLUGIN_ROOT}/" "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce/"
   chmod -R a+rwX "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce"
 
   if [[ "${UCP_SDK_SOURCE}" == "path" ]]; then
