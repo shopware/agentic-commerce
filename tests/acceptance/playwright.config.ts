@@ -5,7 +5,9 @@ import process from 'node:process';
 
 dotenv.config({ quiet: true });
 
-const missingEnvVars = ['APP_URL'].filter(envVar => process.env[envVar] === undefined);
+const signerOnly = process.env.UCP_SIGNER_ONLY === '1';
+
+const missingEnvVars = signerOnly ? [] : ['APP_URL'].filter(envVar => process.env[envVar] === undefined);
 
 if (missingEnvVars.length > 0) {
     process.stdout.write(`Please provide the following env vars (loaded env: ${path.resolve('.env')}):\n`);
@@ -78,12 +80,14 @@ export default defineConfig({
     },
 
     // Abused to wait for the externally started Shopware.
-    webServer: {
-        command: 'sleep 1d',
-        url: appUrl,
-        reuseExistingServer: true,
-        ignoreHTTPSErrors,
-    },
+    webServer: signerOnly
+        ? undefined
+        : {
+            command: 'sleep 1d',
+            url: appUrl,
+            reuseExistingServer: true,
+            ignoreHTTPSErrors,
+        },
 
     projects: [
         {

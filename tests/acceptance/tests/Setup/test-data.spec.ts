@@ -49,17 +49,17 @@ test.describe('Isolated UCP test data @Setup', () => {
 
 test.describe('Test agent profile host @Setup', () => {
     test('publishes a profile the shop can fetch, with the agent\'s public key', async ({ UcpAgentProfileHost, page }) => {
-        const agent = await UcpAgentProfileHost.publish({ label: 'setup-agent' });
+        const agent = await UcpAgentProfileHost.publish();
 
         expect(agent.profileUrl).toContain(`/ucp-acceptance-agents/${agent.kid}.json`);
-        expect(agent.agentHeader).toBe(`setup-agent; profile="${agent.profileUrl}"`);
+        expect(agent.agentHeader).toBe(`profile="${agent.profileUrl}"`);
         expect(agent.privateKeyPem).toContain('BEGIN PRIVATE KEY');
 
         const servedProfile = await page.request.get(new URL(`ucp-acceptance-agents/${agent.kid}.json`, process.env.APP_URL).toString());
         expect(servedProfile.ok(), await servedProfile.text()).toBeTruthy();
 
         const publishedProfile = (await servedProfile.json()) as UcpProfileDocument;
-        expect(publishedProfile.signing_keys).toEqual([expect.objectContaining({ kid: agent.kid, alg: 'ES256', crv: 'P-256' })]);
+        expect(publishedProfile.keys).toEqual([expect.objectContaining({ kid: agent.kid, alg: 'ES256', crv: 'P-256' })]);
         expect(publishedProfile.ucp.version).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
