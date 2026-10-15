@@ -78,6 +78,8 @@ test.describe('Sales channel surfaces of the plugin @UcpAdmin', () => {
             const addAgenticCommerce = AdminPage.locator(`.sw-sales-channel-modal__add-channel-action[data-analytics-sales-channel-type-id="${FEED_SALES_CHANNEL_TYPE_ID}"]`);
             await expect(addAgenticCommerce).toBeVisible();
             await expect(AdminPage.getByTestId('ac-sales-channel-modal__agentic-badge')).toHaveCount(1);
+            await expect(AdminPage.locator('.sw-grid-row').filter({ has: addAgenticCommerce })
+                .getByTestId('ac-sales-channel-modal__agentic-badge'), 'the badge marks the Agentic Commerce type').toBeVisible();
             await addAgenticCommerce.click();
             await AdminPage.waitForURL(new RegExp(`/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/`));
         });

@@ -4,6 +4,9 @@ import type { UcpProfileDocument } from './UcpTestDataService';
 
 const ignoreHTTPSErrors = ['1', 'true'].includes(process.env.SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS ?? '');
 
+const OWN_HOST_REQUIREMENT = 'A channel on a host of its own needs the web server to answer any Host (a catch-all vhost) '
+  + 'and TRUSTED_HOSTS, when set, to admit *.ucp-acceptance.test.';
+
 /**
  * The real `/.well-known/ucp` of a channel, fetched like an agent would, in a fresh browser context
  * so the browser cache plays no part. Shopware's HTTP cache still serves the document for up to 60
@@ -11,12 +14,15 @@ const ignoreHTTPSErrors = ['1', 'true'].includes(process.env.SHOPWARE_PLAYWRIGHT
  * the per-channel hosts of `createStorefrontSalesChannelOnOwnHost()`.
  */
 export async function fetchDiscoveryDocument(browser: Browser, baseUrl: string): Promise<UcpProfileDocument> {
+    const url = `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`;
     const context = await browser.newContext({ ignoreHTTPSErrors });
     try {
         const page = await context.newPage();
-        const response = await page.goto(`${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`);
-        expect(response, `no response for ${baseUrl}.well-known/ucp`).not.toBeNull();
-        expect(response!.ok(), await response!.text()).toBeTruthy();
+        const response = await page.goto(url).catch((error: unknown) => {
+            throw new Error(`${url} is not reachable. ${OWN_HOST_REQUIREMENT}\n${String(error)}`);
+        });
+        expect(response, `no response for ${url}`).not.toBeNull();
+        expect(response!.ok(), `${await response!.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
 
         return (await response!.json()) as UcpProfileDocument;
     }

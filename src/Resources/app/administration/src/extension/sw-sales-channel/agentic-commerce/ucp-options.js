@@ -8,8 +8,8 @@ export const transportOptions = [
     { value: 'a2a', label: 'A2A', description: 'sw-sales-channel.detail.agenticCommerce.ucp.transportA2aDescription' },
     { value: 'embedded', label: 'Embedded', description: 'sw-sales-channel.detail.agenticCommerce.ucp.transportEmbeddedDescription' },
     {
-        // MCP is selectable only on Shopware versions whose Store-API exposes an
-        // MCP server (6.7+). On older lanes availableTransports() filters it out.
+        // MCP is selectable only where the Admin API reports a Store-API MCP
+        // server (`meta.supportsStoreApiMcp`); availableTransports() filters it out otherwise.
         value: 'mcp',
         label: 'MCP',
         description: 'sw-sales-channel.detail.agenticCommerce.ucp.transportMcpDescription',
@@ -19,7 +19,7 @@ export const transportOptions = [
 
 /**
  * Transports the merchant can toggle on the given platform. MCP appears only
- * when the Store-API MCP server is available (6.7+).
+ * when the Admin API reports a Store-API MCP server (`meta.supportsStoreApiMcp`).
  *
  * @param {{ supportsStoreApiMcp?: boolean }} meta
  */

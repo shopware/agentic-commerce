@@ -65,41 +65,51 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
 
     test('the order list filters by the feed channel the buyer came through', async ({ TestDataService, UcpAclUsers }) => {
         const { salesChannel: feed } = await TestDataService.createFeedSalesChannelWithExport();
+        const { salesChannel: otherFeed } = await TestDataService.createFeedSalesChannelWithExport();
         const product = await TestDataService.createBasicProduct();
         const buyer = await TestDataService.createCustomer({ lastName: uniqueLastName() });
         const attributed = await TestDataService.createOrder([{ product, quantity: 1 }], buyer);
         const direct = await TestDataService.createOrder([{ product, quantity: 1 }], buyer);
+        const viaOtherFeed = await TestDataService.createOrder([{ product, quantity: 1 }], buyer);
         await TestDataService.attributeOrderToFeedChannel(attributed.id, feed.id);
+        await TestDataService.attributeOrderToFeedChannel(viaOtherFeed.id, otherFeed.id);
 
         const page = await UcpAclUsers.asFreshAdmin();
         const listRoute = `/sw/order/index?term=${buyer.lastName}`;
         await goToAdminRoute(page, listRoute);
-        await expect(rowOf(page, attributed.orderNumber)).toBeVisible();
-        await expect(rowOf(page, direct.orderNumber)).toBeVisible();
+        for (const order of [attributed, direct, viaOtherFeed]) {
+            await expect(rowOf(page, order.orderNumber)).toBeVisible();
+        }
 
         const filteredList = await filterByExportChannel(page, 'order', feed, listRoute);
 
         await expect(rowOf(filteredList, attributed.orderNumber)).toBeVisible();
         await expect(rowOf(filteredList, direct.orderNumber)).toHaveCount(0);
+        await expect(rowOf(filteredList, viaOtherFeed.orderNumber)).toHaveCount(0);
     });
 
     test('the customer list filters by the feed channel the customer came through', async ({ TestDataService, UcpAclUsers }) => {
         const { salesChannel: feed } = await TestDataService.createFeedSalesChannelWithExport();
+        const { salesChannel: otherFeed } = await TestDataService.createFeedSalesChannelWithExport();
         const lastName = uniqueLastName();
         const referred = await TestDataService.createCustomer({ lastName });
         const direct = await TestDataService.createCustomer({ lastName });
+        const referredElsewhere = await TestDataService.createCustomer({ lastName });
         await TestDataService.attributeCustomerToFeedChannel(referred.id, feed.id);
+        await TestDataService.attributeCustomerToFeedChannel(referredElsewhere.id, otherFeed.id);
 
         const page = await UcpAclUsers.asFreshAdmin();
         const listRoute = `/sw/customer/index?term=${lastName}`;
         await goToAdminRoute(page, listRoute);
-        await expect(rowOf(page, referred.email)).toBeVisible();
-        await expect(rowOf(page, direct.email)).toBeVisible();
+        for (const customer of [referred, direct, referredElsewhere]) {
+            await expect(rowOf(page, customer.email)).toBeVisible();
+        }
 
         const filteredList = await filterByExportChannel(page, 'customer', feed, listRoute);
 
         await expect(rowOf(filteredList, referred.email)).toBeVisible();
         await expect(rowOf(filteredList, direct.email)).toHaveCount(0);
+        await expect(rowOf(filteredList, referredElsewhere.email)).toHaveCount(0);
     });
 
     test('the feed channel\'s insights count only the orders and customers attributed to it', async ({ TestDataService, AdminPage }) => {

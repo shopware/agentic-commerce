@@ -92,7 +92,7 @@ export default defineConfig({
         },
         {
             name: 'Setup',
-            use: { ...browserWithOwnHosts },
+            use: { ...browser },
             grep: /@Setup/,
         },
         {

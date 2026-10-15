@@ -181,10 +181,6 @@ export class UcpTestDataService extends TestDataService {
             throw new Error(`No shipped product-export template for provider ${provider}.`);
         }
 
-        const storefrontDomains = await this.AdminApiClient.get(`./sales-channel/${this.defaultSalesChannel.id}/domains`);
-        expect(storefrontDomains.ok(), await storefrontDomains.text()).toBeTruthy();
-        const [storefrontDomain] = ((await storefrontDomains.json()) as { data: { id: string }[] }).data;
-
         const { id: productStreamId } = await this.createProductStream();
 
         const { uuid: productExportId } = this.IdProvider.getIdPair();
@@ -192,10 +188,10 @@ export class UcpTestDataService extends TestDataService {
             id: productExportId,
             productStreamId,
             storefrontSalesChannelId: this.defaultSalesChannel.id,
-            salesChannelDomainId: storefrontDomain.id,
-            currencyId: this.baseConfig.currentCurrencyId,
+            salesChannelDomainId: await this.storefrontDomainId(),
+            currencyId: this.defaultSalesChannel.currencyId,
             fileName: `agentic-commerce-${productExportId}.${template.fileFormat}`,
-            accessKey: `SWPE${productExportId}`,
+            accessKey: await this.generateProductExportAccessKey(),
             provider,
             fileFormat: template.fileFormat,
             encoding: template.encoding,
@@ -214,15 +210,34 @@ export class UcpTestDataService extends TestDataService {
         return { salesChannel, productExport };
     }
 
-    /** An empty dynamic product group, which every product export has to name. */
-    async createProductStream(): Promise<{ id: string, name: string }> {
+    /** A dynamic product group, which every product export has to name; empty unless `filters` select products. */
+    async createProductStream(filters: Record<string, unknown>[] = []): Promise<{ id: string, name: string }> {
         const { id: suffix, uuid: id } = this.IdProvider.getIdPair();
         const name = `${this.namePrefix}UCP-feed-${suffix}${this.nameSuffix}`;
-        const response = await this.AdminApiClient.post('./product-stream', { data: { id, name, filters: [] } });
+        const response = await this.AdminApiClient.post('./product-stream', { data: { id, name, filters } });
         expect(response.ok(), await response.text()).toBeTruthy();
         this.addCreatedRecord('product_stream', id);
 
         return { id, name };
+    }
+
+    /** The domain of the worker's storefront channel, which every product export renders its links for. */
+    private async storefrontDomainId(): Promise<string> {
+        const response = await this.AdminApiClient.post('./search/sales-channel-domain', {
+            data: { limit: 1, filter: [{ type: 'equals', field: 'salesChannelId', value: this.defaultSalesChannel.id }] },
+        });
+        expect(response.ok(), await response.text()).toBeTruthy();
+        const [storefrontDomain] = ((await response.json()) as { data: { id: string }[] }).data;
+
+        return storefrontDomain.id;
+    }
+
+    /** A product-export access key from core's generator, as the Administration gets one. */
+    private async generateProductExportAccessKey(): Promise<string> {
+        const response = await this.AdminApiClient.get('./_action/access-key/product-export');
+        expect(response.ok(), await response.text()).toBeTruthy();
+
+        return ((await response.json()) as { accessKey: string }).accessKey;
     }
 
     /** Registers a channel a spec created through the Administration, so the cleanup deletes it. */
@@ -356,34 +371,15 @@ export class UcpTestDataService extends TestDataService {
 
     /** `interval: 0` makes core regenerate the file on every request; otherwise a cached file outlives product changes. */
     async createProductFeed(template: FeedTemplate, productIds: string[], options: ProductFeedOptions = {}): Promise<ProductFeed> {
-        const { uuid: productStreamId } = this.IdProvider.getIdPair();
         const { uuid: productExportId } = this.IdProvider.getIdPair();
-
-        const productStreamCreation = await this.AdminApiClient.post('./product-stream', {
-            data: {
-                id: productStreamId,
-                name: `${this.namePrefix}feed-stream-${productStreamId}${this.nameSuffix}`,
-                filters: [{ type: 'equalsAny', field: 'id', value: productIds.join('|') }],
-            },
-        });
-        expect(productStreamCreation.ok(), await productStreamCreation.text()).toBeTruthy();
-        this.addCreatedRecord('product_stream', productStreamId);
+        const { id: productStreamId } = await this.createProductStream([{ type: 'equalsAny', field: 'id', value: productIds.join('|') }]);
 
         const { salesChannel: feedChannel } = await this.createUcpSalesChannel(
             options.asComparison ? COMPARISON_SALES_CHANNEL_TYPE_ID : FEED_SALES_CHANNEL_TYPE_ID,
             options.trackingCodes ? { configuration: options.trackingCodes } : {},
         );
 
-        const storefrontDomainLookup = await this.AdminApiClient.post('./search/sales-channel-domain', {
-            data: { limit: 1, filter: [{ type: 'equals', field: 'salesChannelId', value: this.defaultSalesChannel.id }] },
-        });
-        expect(storefrontDomainLookup.ok(), await storefrontDomainLookup.text()).toBeTruthy();
-        const [storefrontDomain] = ((await storefrontDomainLookup.json()) as { data: { id: string }[] }).data;
-
-        const accessKeyGeneration = await this.AdminApiClient.get('./_action/access-key/product-export');
-        expect(accessKeyGeneration.ok(), await accessKeyGeneration.text()).toBeTruthy();
-        const { accessKey } = (await accessKeyGeneration.json()) as { accessKey: string };
-
+        const accessKey = await this.generateProductExportAccessKey();
         const fileName = `${this.namePrefix}feed-${productExportId}.${template.fileFormat}`;
         const productExportCreation = await this.AdminApiClient.post('./product-export', {
             data: {
@@ -391,7 +387,7 @@ export class UcpTestDataService extends TestDataService {
                 productStreamId,
                 salesChannelId: feedChannel.id,
                 storefrontSalesChannelId: this.defaultSalesChannel.id,
-                salesChannelDomainId: storefrontDomain.id,
+                salesChannelDomainId: await this.storefrontDomainId(),
                 currencyId: this.defaultSalesChannel.currencyId,
                 provider: options.asComparison ? null : template.providerName,
                 fileName,

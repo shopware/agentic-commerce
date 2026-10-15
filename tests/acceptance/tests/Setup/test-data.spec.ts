@@ -3,7 +3,6 @@ import { FEED_SALES_CHANNEL_TYPE_ID, UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED, UcpTe
 import type { UcpProfileDocument } from '@services/UcpTestDataService';
 import { readAdminPrivilegeMapping, resolveRole } from '@services/pluginSource';
 import { UCP_ROLES } from '@fixtures/UcpAclUsers';
-import { advertisedEndpoints, fetchDiscoveryDocument } from '@services/discovery';
 
 test.describe('Isolated UCP test data @Setup', () => {
     test('the worker channel sits on its own path-prefixed domain', ({ DefaultSalesChannel, SalesChannelBaseConfig }) => {
@@ -45,25 +44,6 @@ test.describe('Isolated UCP test data @Setup', () => {
         const refusal = await TestDataService.saveUcpConfig(feedChannel.salesChannel.id, { active: true });
         expect(refusal.status()).toBe(400);
         expect(await UcpTestDataService.refusalCode(refusal)).toBe(UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED);
-    });
-});
-
-test.describe('Channels on a host of their own @Setup', () => {
-    test('serve their own discovery document', async ({ TestDataService, browser }) => {
-        const channel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
-        await TestDataService.activateUcp(channel.salesChannel.id);
-
-        const discovery = await fetchDiscoveryDocument(browser, channel.url).catch((error: unknown) => {
-            throw new Error(
-                `${channel.url}.well-known/ucp is not reachable. The admin discovery journeys need the web server to answer any Host `
-                + `(a catch-all vhost) and TRUSTED_HOSTS, when set, to admit *.ucp-acceptance.test.\n${String(error)}`,
-            );
-        });
-
-        expect(advertisedEndpoints(discovery.ucp).length).toBeGreaterThan(0);
-        for (const endpoint of advertisedEndpoints(discovery.ucp)) {
-            expect(endpoint, 'every endpoint stays on the channel\'s own host').toContain(channel.url);
-        }
     });
 });
 
