@@ -232,4 +232,22 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         expect(ctx.ucpState.savedForm).toEqual(UCP_FORM);
         expect(ctx.ucpState.generation).toBe(4);
     });
+
+    it('saveUcpState keeps the draft when the write is refused, so a reload in flight cannot replace it', async () => {
+        const storedForm = { active: false, profileDomain: null, enabledCapabilities: [], enabledTransports: ['rest'] };
+        const saveConfig = jest.fn(() => Promise.reject(new Error('unsupported placeholder "{foo}"')));
+        const ctx = {
+            ucpState: { loaded: true, form: { ...storedForm }, savedForm: { ...storedForm }, generation: 3 },
+            ucpAdminApiService: { saveConfig },
+            createNotificationError: jest.fn(),
+        };
+
+        const saved = await swSalesChannelDetailOverride.methods.saveUcpState.call(ctx, 'channel-id', UCP_FORM);
+
+        expect(saved).toBe(false);
+        expect(ctx.createNotificationError).toHaveBeenCalledTimes(1);
+        expect(ctx.ucpState.form).toEqual(UCP_FORM);
+        expect(ctx.ucpState.savedForm).toEqual(storedForm);
+        expect(ctx.ucpState.generation).toBe(4);
+    });
 });

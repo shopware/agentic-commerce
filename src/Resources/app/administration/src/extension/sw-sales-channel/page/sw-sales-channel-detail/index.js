@@ -278,6 +278,10 @@ export const swSalesChannelDetailOverride = {
                 this.ucpState.savedForm = ucpNormalizeConfig(form);
                 return true;
             } catch (error) {
+                // Keep the draft so the user can fix and retry: a reload already in flight
+                // from the legacy onSave would otherwise replace it with the stored config.
+                this.ucpState.generation += 1;
+                this.ucpState.form = ucpNormalizeConfig(form);
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
                 return false;
             }
