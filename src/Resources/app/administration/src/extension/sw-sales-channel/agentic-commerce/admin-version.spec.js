@@ -23,6 +23,7 @@ describe('agentic-commerce/admin-version', () => {
     describe('isVersionAtLeast', () => {
         it.each([
             ['6.6.0.0', 6, 6, true],
+            ['6.7.0.0', 6, 6, true],
             ['6.7.9999999.9999999', 6, 6, true],
             ['7.0.0.0', 6, 6, true],
             ['6.5.9.0', 6, 6, false],
@@ -31,12 +32,28 @@ describe('agentic-commerce/admin-version', () => {
         ])('%s >= %i.%i → %p', (version, major, minor, expected) => {
             expect(isVersionAtLeast(version, major, minor)).toBe(expected);
         });
+
+        it.each([
+            ['6.6.2.0', true],
+            ['6.6.10.0', true],
+            ['6.6.9999999.9999999', true],
+            ['6.6.1.2', false],
+            ['6.6.0.0', false],
+            ['6.7.0.0', true],
+        ])('%s >= 6.6.2 → %p', (version, expected) => {
+            expect(isVersionAtLeast(version, 6, 6, 2)).toBe(expected);
+        });
     });
 
     describe('useMtComponents', () => {
-        it('is true on 6.6 and 6.7', () => {
-            expect(useMtComponents('6.6.0.0')).toBe(true);
+        it('is true from 6.6.2, where core ships the Meteor components', () => {
+            expect(useMtComponents('6.6.2.0')).toBe(true);
             expect(useMtComponents('6.7.9999999.9999999')).toBe(true);
+        });
+
+        it('is false on 6.6.0 and 6.6.1, which have no Meteor components', () => {
+            expect(useMtComponents('6.6.0.0')).toBe(false);
+            expect(useMtComponents('6.6.1.2')).toBe(false);
         });
 
         it('is false on 6.5 (legacy sw-* path)', () => {

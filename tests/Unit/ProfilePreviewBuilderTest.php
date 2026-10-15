@@ -9,8 +9,12 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
+use Swag\AgenticCommerce\Ucp\Profile\ProfileDraftConfig;
 use Swag\AgenticCommerce\Ucp\Profile\ProfilePreviewBuilder;
 use Ucp\Sdk\Enum\Transport;
+use Ucp\Sdk\Model\Profile\PlatformProfile;
+use Ucp\Sdk\Model\Profile\ProfileBuildInput;
+use Ucp\Sdk\Service\ProfileBuilderInterface;
 
 require_once __DIR__.'/RecordingProfileBuilder.php';
 
@@ -37,12 +41,40 @@ final class ProfilePreviewBuilderTest extends TestCase
         $previewBuilder = new ProfilePreviewBuilder(
             $profileBuilder,
             new ShopwareVersionDetector('6.6.0.0'),
+            new ProfileDraftConfig(),
         );
 
         $preview = $previewBuilder->build(UcpConfig::fromArray(['active' => true]), 'https://merchant.example');
 
         self::assertSame([], $profileBuilder->lastInput?->supportedVersions);
         self::assertArrayNotHasKey('supported_versions', $preview['ucp']);
+    }
+
+    #[Test]
+    public function testTheRenderedConfigIsTheDraftForTheDurationOfTheBuild(): void
+    {
+        $draftConfig = new ProfileDraftConfig();
+        $profileBuilder = new class($draftConfig) implements ProfileBuilderInterface {
+            public ?UcpConfig $draftDuringBuild = null;
+
+            public function __construct(private readonly ProfileDraftConfig $draftConfig)
+            {
+            }
+
+            public function build(ProfileBuildInput $input): PlatformProfile
+            {
+                $this->draftDuringBuild = $this->draftConfig->current();
+
+                return new PlatformProfile($input->version, [], [], []);
+            }
+        };
+        $config = UcpConfig::fromArray(['active' => true, 'enabledCapabilities' => ['cart']]);
+
+        (new ProfilePreviewBuilder($profileBuilder, new ShopwareVersionDetector('6.6.0.0'), $draftConfig))
+            ->build($config, 'https://merchant.example');
+
+        self::assertSame($config, $profileBuilder->draftDuringBuild);
+        self::assertNull($draftConfig->current(), 'discovery builds after the preview use the stored config again');
     }
 
     /**
@@ -64,6 +96,7 @@ final class ProfilePreviewBuilderTest extends TestCase
         $previewBuilder = new ProfilePreviewBuilder(
             $profileBuilder,
             new ShopwareVersionDetector($shopwareVersion),
+            new ProfileDraftConfig(),
         );
 
         $previewBuilder->build(UcpConfig::fromArray($payload), $fallbackBaseUri, 'sales-channel-id');

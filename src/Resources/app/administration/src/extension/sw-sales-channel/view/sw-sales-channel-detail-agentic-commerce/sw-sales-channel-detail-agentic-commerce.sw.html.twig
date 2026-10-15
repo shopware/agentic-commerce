@@ -1,10 +1,17 @@
 {% block sw_sales_channel_detail_agentic_commerce %}
 {# Legacy (Shopware 6.5) layout: stacked sw-card form, no in-card sub-tabs. #}
-<div class="sw-sales-channel-detail-agentic-commerce">
+<div
+    class="sw-sales-channel-detail-agentic-commerce"
+    data-testid="ac-ucp"
+>
     <sw-skeleton v-if="isUcpLoading" />
 
     <template v-else>
-        <sw-alert v-if="isDirty" variant="warning">
+        <sw-alert
+            v-if="isDirty"
+            variant="warning"
+            data-testid="ac-ucp__unsaved-banner"
+        >
             {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.unsavedMessage') }}
         </sw-alert>
 
@@ -14,12 +21,14 @@
             :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardTitle')"
             :subtitle="$t('sw-sales-channel.detail.agenticCommerce.ucp.cardIntro')"
         >
-            <sw-switch-field
-                :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
-                :disabled="!canEditConfig"
-                :value="isActive"
-                @change="setActive"
-            />
+            <div data-testid="ac-ucp__expose-switch">
+                <sw-switch-field
+                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
+                    :disabled="!canEditConfig"
+                    :value="isActive"
+                    @change="setActive"
+                />
+            </div>
 
             <sw-single-select
                 v-if="hasMultipleDomains"
@@ -37,15 +46,19 @@
                             {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.capabilitiesLabel') }}
                         </p>
                         <div class="sw-sales-channel-detail-agentic-commerce__option-list">
-                            <sw-checkbox-field
+                            <div
                                 v-for="capability in readyCapabilities"
                                 :key="capability.value"
                                 class="sw-sales-channel-detail-agentic-commerce__option-item"
-                                :label="$t(capability.label)"
-                                :disabled="!canEditConfig || !isActive"
-                                :value="isCapabilityEnabled(capability.value)"
-                                @change="(checked) => updateCapability(capability.value, checked)"
-                            />
+                                :data-testid="`ac-ucp__capability--${capability.value}`"
+                            >
+                                <sw-checkbox-field
+                                    :label="$t(capability.label)"
+                                    :disabled="!canEditConfig || !isActive"
+                                    :value="isCapabilityEnabled(capability.value)"
+                                    @change="(checked) => updateCapability(capability.value, checked)"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -54,15 +67,19 @@
                             {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.transportsLabel') }}
                         </p>
                         <div class="sw-sales-channel-detail-agentic-commerce__option-list">
-                            <sw-checkbox-field
+                            <div
                                 v-for="transport in transportItems"
                                 :key="transport.value"
                                 class="sw-sales-channel-detail-agentic-commerce__option-item"
-                                :label="transport.label"
-                                :disabled="!canEditConfig || !isActive"
-                                :value="isTransportEnabled(transport.value)"
-                                @change="(checked) => updateTransport(transport.value, checked)"
-                            />
+                                :data-testid="`ac-ucp__transport--${transport.value}`"
+                            >
+                                <sw-checkbox-field
+                                    :label="transport.label"
+                                    :disabled="!canEditConfig || !isActive"
+                                    :value="isTransportEnabled(transport.value)"
+                                    @change="(checked) => updateTransport(transport.value, checked)"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -85,7 +102,10 @@
             position-identifier="sw-sales-channel-detail-agentic-commerce-preview"
             :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.previewLabel')"
         >
-            <pre class="sw-sales-channel-detail-agentic-commerce__preview">{{ previewJson }}</pre>
+            <pre
+                class="sw-sales-channel-detail-agentic-commerce__preview"
+                data-testid="ac-ucp__preview"
+            >{{ previewJson }}</pre>
         </sw-card>
 
         <sw-sales-channel-detail-agentic-files

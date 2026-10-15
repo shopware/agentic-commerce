@@ -1,5 +1,8 @@
 {% block sw_sales_channel_detail_agentic_commerce %}
-<div class="sw-sales-channel-detail-agentic-commerce">
+<div
+    class="sw-sales-channel-detail-agentic-commerce"
+    data-testid="ac-ucp"
+>
 
     {% block sw_sales_channel_detail_agentic_commerce_loading %}
     <sw-skeleton v-if="isUcpLoading" />
@@ -14,6 +17,7 @@
         <mt-banner
             v-if="isDirty"
             class="sw-sales-channel-detail-agentic-commerce__unsaved-banner"
+            data-testid="ac-ucp__unsaved-banner"
             variant="attention"
             :title="$t('sw-sales-channel.detail.agenticCommerce.ucp.unsavedTitle')"
         >
@@ -57,6 +61,7 @@
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
                     <mt-switch
                         class="sw-sales-channel-detail-agentic-commerce__expose-switch"
+                        data-testid="ac-ucp__expose-switch"
                         :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.exposeLabel')"
                         :disabled="!canEditConfig"
                         :checked="isActive"
@@ -91,6 +96,7 @@
                                     v-for="capability in readyCapabilities"
                                     :key="capability.value"
                                     class="sw-sales-channel-detail-agentic-commerce__option-item"
+                                    :data-testid="`ac-ucp__capability--${capability.value}`"
                                     :label="$t(capability.label)"
                                     :help-text="$t(capability.tooltip)"
                                     :disabled="!canEditConfig || !isActive"
@@ -110,6 +116,7 @@
                                     v-for="transport in transportItems"
                                     :key="transport.value"
                                     class="sw-sales-channel-detail-agentic-commerce__option-item"
+                                    :data-testid="`ac-ucp__transport--${transport.value}`"
                                     :label="transport.label"
                                     :help-text="$t(transport.description)"
                                     :disabled="!canEditConfig || !isActive"
@@ -142,7 +149,10 @@
                     <p class="sw-sales-channel-detail-agentic-commerce__section-label">
                         {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.previewLabel') }}
                     </p>
-                    <pre class="sw-sales-channel-detail-agentic-commerce__preview">{{ previewJson }}</pre>
+                    <pre
+                        class="sw-sales-channel-detail-agentic-commerce__preview"
+                        data-testid="ac-ucp__preview"
+                    >{{ previewJson }}</pre>
                 </div>
             </template>
             {% endblock %}
