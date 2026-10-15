@@ -15,8 +15,10 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\ContainsFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\MultiFilter;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
+use Shopware\Storefront\Framework\Routing\RequestTransformer;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
@@ -126,6 +128,29 @@ final class SalesChannelDomainResolverTest extends TestCase
         static::assertNotNull($englishResolution);
         static::assertSame('sales-channel-de', $germanResolution->salesChannelId);
         static::assertSame('sales-channel-en', $englishResolution->salesChannelId);
+    }
+
+    public function testItResolvesATransformedRequestByTheUriBeforeCoreStrippedThePathPrefix(): void
+    {
+        $resolver = new SalesChannelDomainResolver($this->domainRepository([
+            $this->domain('domain-root', 'sales-channel-root', 'https://shop.example'),
+            $this->domain('domain-de', 'sales-channel-de', 'https://shop.example/de'),
+        ]));
+        $transformedRequest = Request::create('https://shop.example/.well-known/ucp');
+        $transformedRequest->attributes->set(RequestTransformer::ORIGINAL_REQUEST_URI, '/de/.well-known/ucp');
+
+        static::assertSame('https://shop.example/de/.well-known/ucp', SalesChannelDomainResolver::absoluteRequestUri($transformedRequest));
+        static::assertSame('sales-channel-de', $resolver->resolveByRequest($transformedRequest)?->salesChannelId);
+    }
+
+    public function testItResolvesAnUntransformedRequestByItsOwnUri(): void
+    {
+        $resolver = new SalesChannelDomainResolver($this->domainRepository([
+            $this->domain('domain-root', 'sales-channel-root', 'https://shop.example'),
+            $this->domain('domain-de', 'sales-channel-de', 'https://shop.example/de'),
+        ]));
+
+        static::assertSame('sales-channel-de', $resolver->resolveByRequest(Request::create('https://shop.example/de/products'))?->salesChannelId);
     }
 
     public function testItMatchesPunycodeRequestHostAgainstUnicodeDomain(): void

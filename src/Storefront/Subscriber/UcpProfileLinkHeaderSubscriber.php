@@ -14,7 +14,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 #[Package('discovery')]
 final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
 {
-    private const UCP_PROFILE_LINK = '</.well-known/ucp>; rel="service-meta"';
+    private const UCP_PROFILE_LINK = '<%s/.well-known/ucp>; rel="service-meta"';
 
     public function __construct(
         private readonly UcpConfigService $configService,
@@ -36,20 +36,22 @@ final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $salesChannelResolution = $this->domainResolver->resolveByAbsoluteUri($event->getRequest()->getUri());
+        $resolvedDomain = $this->domainResolver->resolveByRequest($event->getRequest());
         if (
-            null === $salesChannelResolution
-            || !$this->isUcpActiveForSalesChannel($salesChannelResolution->salesChannelId)
+            null === $resolvedDomain
+            || !$this->isUcpActiveForSalesChannel($resolvedDomain->salesChannelId)
         ) {
             return;
         }
 
+        $domainPath = rtrim((string) parse_url($resolvedDomain->baseUrl, \PHP_URL_PATH), '/');
+        $profileLink = \sprintf(self::UCP_PROFILE_LINK, $domainPath);
         $response = $event->getResponse();
-        if ($response->headers->contains('Link', self::UCP_PROFILE_LINK)) {
+        if ($response->headers->contains('Link', $profileLink)) {
             return;
         }
 
-        $response->headers->set('Link', self::UCP_PROFILE_LINK, false);
+        $response->headers->set('Link', $profileLink, false);
     }
 
     private function isHtmlResponse(BeforeSendResponseEvent $event): bool

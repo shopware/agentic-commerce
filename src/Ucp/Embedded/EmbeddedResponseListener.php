@@ -31,7 +31,7 @@ final class EmbeddedResponseListener
             return;
         }
 
-        $config = $this->configService->getConfig($this->domainResolver->resolveByAbsoluteUri($request->getUri())?->salesChannelId);
+        $config = $this->configService->getConfig($this->domainResolver->resolveByRequest($request)?->salesChannelId);
         $origin = $request->headers->get('origin');
 
         if ([] === $config->embeddedAllowedOrigins) {
@@ -67,7 +67,7 @@ final class EmbeddedResponseListener
             return;
         }
 
-        $config = $this->configService->getConfig($this->domainResolver->resolveByAbsoluteUri($request->getUri())?->salesChannelId);
+        $config = $this->configService->getConfig($this->domainResolver->resolveByRequest($request)?->salesChannelId);
         $frameAncestors = [] !== $config->embeddedFrameAncestors ? $config->embeddedFrameAncestors : ["'self'"];
         $response = $event->getResponse();
         $origin = $request->headers->get('origin');

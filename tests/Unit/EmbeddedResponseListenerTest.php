@@ -11,6 +11,10 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityCollection;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
+use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
+use Shopware\Storefront\Framework\Routing\RequestTransformer;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -96,6 +100,34 @@ final class EmbeddedResponseListenerTest extends TestCase
 
         self::assertFalse($event->hasResponse());
         self::assertSame(['https://assistant.example'], $event->getRequest()->attributes->get('ucp_embedded_allowed_origins'));
+    }
+
+    #[Test]
+    public function testItAppliesThePathPrefixedChannelsFrameAncestorsAfterCoreStrippedThePrefix(): void
+    {
+        $ucpConfigRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $ucpConfigRepository->method('find')->willReturnCallback(static fn (string $salesChannelId): ?UcpConfig => 'sales-channel-de' === $salesChannelId
+            ? new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example'], embeddedFrameAncestors: ['https://assistant.example'])
+            : null);
+        $pathPrefixedDomain = new SalesChannelDomainEntity();
+        $pathPrefixedDomain->setId('domain-de');
+        $pathPrefixedDomain->setSalesChannelId('sales-channel-de');
+        $pathPrefixedDomain->setLanguageId('language-id');
+        $pathPrefixedDomain->setCurrencyId('currency-id');
+        $pathPrefixedDomain->setUrl('https://shop.example/de');
+        /** @var StaticEntityRepository<SalesChannelDomainCollection> $domainRepository */
+        $domainRepository = new StaticEntityRepository([new SalesChannelDomainCollection([$pathPrefixedDomain])]);
+        $listener = new EmbeddedResponseListener(
+            new UcpConfigService($ucpConfigRepository, $this->createStub(LegacyConfigStoreInterface::class)),
+            new SalesChannelDomainResolver($domainRepository),
+        );
+        $embeddedCartRequest = Request::create('https://shop.example/ucp/embedded/cart/cart-id');
+        $embeddedCartRequest->attributes->set(RequestTransformer::ORIGINAL_REQUEST_URI, '/de/ucp/embedded/cart/cart-id');
+        $event = new ResponseEvent($this->kernel, $embeddedCartRequest, HttpKernelInterface::MAIN_REQUEST, new Response());
+
+        $listener->onKernelResponse($event);
+
+        self::assertSame('frame-ancestors https://assistant.example', $event->getResponse()->headers->get('Content-Security-Policy'));
     }
 
     /**
