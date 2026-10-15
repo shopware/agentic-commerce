@@ -1,6 +1,7 @@
 # next version
 
 - Unter Shopware `6.7.1.0` bis `6.7.4.x` liefert der Shop `robots.txt` wieder aus, statt mit `500` zu antworten.
+- Ein Verkaufskanal, dessen Domain einen Pfad enthält, etwa `https://shop.example/de`, erhält jetzt ein eigenes UCP-Profil. Bisher führte das Profil unter dieser Domain die Endpunkte und Funktionen der Stammdomain des Hosts auf, sodass ein Agent, der den Shop unter `/de` gefunden hatte, zum Shop der Stammdomain geleitet wurde. Auch die UCP-Routen unter dieser Domain wendeten die UCP-Einstellungen der Stammdomain an. Gilt die Signaturrichtlinie `strict`, werden korrekt signierte Requests an eine solche Domain nicht mehr abgelehnt. Storefront-Seiten einer solchen Domain verweisen mit ihrem `service-meta`-Link jetzt auf das eigene Profil der Domain.
 
 # 1.4.0
 

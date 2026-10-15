@@ -157,7 +157,7 @@ final class UcpMcpProxyController
      */
     private function resolveSalesChannel(Request $request): ?array
     {
-        $resolution = $this->domainResolver->resolveByAbsoluteUri($request->getUri());
+        $resolution = $this->domainResolver->resolveByRequest($request);
         if (null === $resolution) {
             return null;
         }

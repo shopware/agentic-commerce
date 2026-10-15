@@ -1,16 +1,11 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { UcpProfileDocument } from '@services/UcpTestDataService';
 
-/**
- * Known blocker D8. Core's RequestTransformer strips the sales channel's path prefix from the
- * request URI, and the plugin resolves the channel from that URI alone, so a prefixed domain
- * serves the host's root channel or the global configuration instead of its own.
- */
-test.describe('Path-prefixed sales channel domains @UcpKnownBlocked @UcpBlockedByD8', () => {
-    test('the worker channel publishes its own profile under its path prefix', async ({ TestDataService, DefaultSalesChannel, page }) => {
+test.describe('Path-prefixed sales channel domains @UcpProtocol', () => {
+    test('the worker channel publishes its own profile under its path prefix', async ({ TestDataService, DefaultSalesChannel, request }) => {
         await TestDataService.activateUcp(DefaultSalesChannel.salesChannel.id);
 
-        const profileResponse = await page.request.get(TestDataService.wellKnownUrl(DefaultSalesChannel.url));
+        const profileResponse = await request.get(TestDataService.wellKnownUrl(DefaultSalesChannel.url));
         expect(profileResponse.ok(), await profileResponse.text()).toBeTruthy();
 
         const profile = (await profileResponse.json()) as UcpProfileDocument;
@@ -32,16 +27,28 @@ test.describe('Path-prefixed sales channel domains @UcpKnownBlocked @UcpBlockedB
         expect(new URL(serviceMetaLink!, activatedChannel.url).href).toBe(TestDataService.wellKnownUrl(activatedChannel.url));
     });
 
-    test('a fresh channel on the same host advertises nothing until it is activated', async ({ TestDataService, page }) => {
+    test('the channel\'s strict signature policy accepts the agent\'s signature and refuses a tampered one', async ({ TestDataService, UcpAgent }) => {
+        const strictChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(strictChannel.salesChannel.id, { signaturePolicy: 'strict' });
+        const unknownCartPath = `/ucp/v1/carts/${crypto.randomUUID().replaceAll('-', '')}`;
+
+        const untamperedSignatureAcceptance = await UcpAgent.at(strictChannel.url).rest.send('GET', unknownCartPath);
+        expect(untamperedSignatureAcceptance.status(), await untamperedSignatureAcceptance.text()).toBe(404);
+
+        const tamperedSignatureRefusal = await UcpAgent.at(strictChannel.url).tampered({ tamperSignatureBytes: true }).send('GET', unknownCartPath);
+        expect(tamperedSignatureRefusal.status(), await tamperedSignatureRefusal.text()).toBe(401);
+    });
+
+    test('a fresh channel on the same host advertises nothing until it is activated', async ({ TestDataService, request }) => {
         const freshChannelOnSameHost = await TestDataService.createStorefrontSalesChannel();
 
-        const beforeActivation = await page.request.get(TestDataService.wellKnownUrl(freshChannelOnSameHost.url));
+        const beforeActivation = await request.get(TestDataService.wellKnownUrl(freshChannelOnSameHost.url));
         expect(beforeActivation.ok(), await beforeActivation.text()).toBeTruthy();
         expect(((await beforeActivation.json()) as UcpProfileDocument).ucp.services).toEqual({});
 
         await TestDataService.activateUcp(freshChannelOnSameHost.salesChannel.id);
 
-        const afterActivation = await page.request.get(TestDataService.wellKnownUrl(freshChannelOnSameHost.url));
+        const afterActivation = await request.get(TestDataService.wellKnownUrl(freshChannelOnSameHost.url));
         expect(afterActivation.ok(), await afterActivation.text()).toBeTruthy();
         expect(Object.keys(((await afterActivation.json()) as UcpProfileDocument).ucp.services)).not.toEqual([]);
     });

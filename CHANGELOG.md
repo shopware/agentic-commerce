@@ -1,6 +1,7 @@
 # next version
 
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
+- Give a sales channel whose domain has a path, such as `https://shop.example/de`, its own UCP profile. The profile under that domain advertised the endpoints and capabilities of the host's root domain, so an agent that discovered the `/de` shop was sent to the root shop. The UCP routes under that domain also applied the root domain's UCP settings. Under the `strict` signature policy, correctly signed requests to such a domain are no longer refused. Storefront pages of such a domain now point their `service-meta` link at the domain's own profile.
 
 # 1.4.0
 

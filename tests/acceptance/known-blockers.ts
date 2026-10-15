@@ -63,13 +63,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D8',
-        description: 'The UCP profile of a path-prefixed domain, such as /de/, advertises the root domain\'s endpoints and the capabilities of the root domain\'s sales channel. Core\'s RequestTransformer removes the path from the request URI before the plugin looks up the sales channel.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/264',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D9',
         description: 'Below Shopware 6.7.12.0 the plugin\'s fallback controller serves the discovery files and answers 404 for all of them once UCP is switched off, although the files do not depend on UCP.',
         owner: 'dgrothaus-sw',
