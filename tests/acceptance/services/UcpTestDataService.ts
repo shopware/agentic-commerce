@@ -72,6 +72,7 @@ export interface UcpProfileDocument {
         version: string
         services: Record<string, { transport: string, endpoint: string }[]>
         capabilities: Record<string, { version: string, extends?: string[] | null }[]>
+        payment_handlers: Record<string, unknown[]>
     }
     signing_keys: { kid: string, alg: string, crv: string }[]
 }
