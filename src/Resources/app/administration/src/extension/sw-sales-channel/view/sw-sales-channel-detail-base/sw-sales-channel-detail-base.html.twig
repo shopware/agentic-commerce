@@ -34,25 +34,28 @@
 {% endblock %}
 
 {% block sw_sales_channel_detail_base_general_input_product_comparison_template %}
-<sw-select-field
+<div
     v-if="isProductComparison"
-    v-model="templateName"
-    data-ac-template-select
-    :disabled="!acl.can('sales_channel.editor')"
-    :label="$t('sw-sales-channel.detail.productComparison.templates.label')"
-    :placeholder="templateSelectPlaceholder"
-    :options="templateSelectOptions"
-    @change="$emit('template-selected', $event)"
-    @update:value="(templateName) => $emit('template-selected', templateName)"
+    data-testid="ac-export__template-select"
 >
-    <option
-        v-for="option in templateSelectOptions"
-        :key="option.id"
-        :value="option.value"
+    <sw-select-field
+        v-model="templateName"
+        :disabled="!acl.can('sales_channel.editor')"
+        :label="$t('sw-sales-channel.detail.productComparison.templates.label')"
+        :placeholder="templateSelectPlaceholder"
+        :options="templateSelectOptions"
+        @change="$emit('template-selected', $event)"
+        @update:value="(templateName) => $emit('template-selected', templateName)"
     >
-        {{ option.label }}
-    </option>
-</sw-select-field>
+        <option
+            v-for="option in templateSelectOptions"
+            :key="option.id"
+            :value="option.value"
+        >
+            {{ option.label }}
+        </option>
+    </sw-select-field>
+</div>
 {% endblock %}
 
 {% block sw_sales_channel_detail_base_general_input_product_comparison_filename %}

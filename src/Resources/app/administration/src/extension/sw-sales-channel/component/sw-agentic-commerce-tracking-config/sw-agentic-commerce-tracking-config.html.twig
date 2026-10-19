@@ -12,6 +12,7 @@
 
     {% block sw_agentic_commerce_tracking_config_affiliate %}
     <sw-text-field
+        data-testid="ac-tracking__affiliate-code"
         :value="trackingConfig.affiliateCode"
         :label="$t('sw-sales-channel.agenticCommerceTracking.affiliateCodeLabel')"
         :placeholder="$t('sw-sales-channel.agenticCommerceTracking.affiliateCodePlaceholder')"
@@ -23,6 +24,7 @@
 
     {% block sw_agentic_commerce_tracking_config_campaign %}
     <sw-text-field
+        data-testid="ac-tracking__campaign-code"
         :value="trackingConfig.campaignCode"
         :label="$t('sw-sales-channel.agenticCommerceTracking.campaignCodeLabel')"
         :placeholder="$t('sw-sales-channel.agenticCommerceTracking.campaignCodePlaceholder')"

@@ -17,6 +17,7 @@ final class ProfilePreviewBuilder
     public function __construct(
         private readonly ProfileBuilderInterface $profileBuilder,
         private readonly ShopwareVersionDetector $versionDetector,
+        private readonly ProfileDraftConfig $draftConfig,
     ) {
     }
 
@@ -25,12 +26,12 @@ final class ProfilePreviewBuilder
      */
     public function build(UcpConfig $config, string $baseUri, ?string $tenantIdentifier = null): array
     {
-        return $this->profileBuilder->build(new ProfileBuildInput(
+        return $this->draftConfig->during($config, fn (): array => $this->profileBuilder->build(new ProfileBuildInput(
             $config::ucpVersion(),
             $config->resolveBaseUri($baseUri),
             $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()),
             transportEndpoints: $config->transportEndpoints($baseUri, $this->versionDetector->supportsStoreApiMcp()),
             tenantIdentifier: $tenantIdentifier,
-        ))->toArray();
+        ))->toArray());
     }
 }

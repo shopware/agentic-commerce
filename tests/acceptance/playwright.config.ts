@@ -49,6 +49,15 @@ const browser = {
     viewport: { width: 1920, height: 1080 },
 };
 
+// Channels on a host of their own (UcpTestDataService.createStorefrontSalesChannelOnOwnHost) are
+// reached through the APP_URL host, so their /.well-known/ucp resolves them. Only the browser sees this.
+const browserWithOwnHosts = {
+    ...browser,
+    launchOptions: {
+        args: [`--host-resolver-rules=MAP *.ucp-acceptance.test ${new URL(appUrl).hostname}`],
+    },
+};
+
 export default defineConfig({
     testDir: './tests',
     fullyParallel: true,
@@ -108,7 +117,7 @@ export default defineConfig({
         },
         {
             name: 'UcpAdmin',
-            use: { ...browser },
+            use: { ...browserWithOwnHosts },
             grep: /@UcpAdmin/,
             dependencies: ['Signer', 'Setup'],
         },

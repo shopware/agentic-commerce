@@ -80,6 +80,7 @@ function buildContext({
             meta: {},
             preview: null,
             transactional: false,
+            generation: 0,
         },
         ucpAdminApiService: {
             getSalesChannel: jest.fn(() => salesChannel ?? response({ data: {}, meta: META })),
@@ -225,5 +226,38 @@ describe('loadUcpState — types the plugin does not know are classified by the 
         await loadUcpState.call(ctx);
 
         expect(ctx.ucpAdminApiService.getSalesChannel).not.toHaveBeenCalled();
+    });
+});
+
+describe('loadUcpState — a save in between wins', () => {
+    it('does not apply a config or preview requested before a save completed', async () => {
+        let resolveConfig;
+        let resolvePreview;
+        const ctx = buildContext({
+            config: new Promise((resolve) => { resolveConfig = resolve; }),
+            preview: new Promise((resolve) => { resolvePreview = resolve; }),
+        });
+
+        const load = loadUcpState.call(ctx);
+        ctx.ucpState.generation += 1;
+        ctx.ucpState.form = { active: true, enabledCapabilities: ['cart'] };
+        ctx.ucpState.preview = { saved: true };
+
+        resolveConfig({ data: { data: { active: false } } });
+        resolvePreview({ data: { data: { stale: true } } });
+        await load;
+
+        expect(ctx.ucpState.form).toEqual({ active: true, enabledCapabilities: ['cart'] });
+        expect(ctx.ucpState.preview).toEqual({ saved: true });
+    });
+
+    it('loads a channel passed explicitly, which a legacy reload may have cleared from the page', async () => {
+        const ctx = buildContext();
+        ctx.salesChannel = null;
+
+        await loadUcpState.call(ctx, 'sales-channel-id', 'storefront-type-id');
+
+        expect(ctx.ucpAdminApiService.getConfig).toHaveBeenCalledWith('sales-channel-id');
+        expect(ctx.ucpState.loaded).toBe(true);
     });
 });

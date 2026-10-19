@@ -15,14 +15,18 @@ use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Profile\CapabilityFilteringProfileContributor;
+use Swag\AgenticCommerce\Ucp\Profile\ProfileDraftConfig;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
+use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
+use Ucp\Sdk\Model\Profile\ServiceEndpoint;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
 /** @internal */
@@ -63,6 +67,49 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         self::assertArrayNotHasKey(UcpCapabilityCatalog::DESCRIPTOR_DISCOUNT, $result);
     }
 
+    #[Test]
+    public function testAPreviewIsFilteredWithItsDraftInsteadOfTheStoredConfig(): void
+    {
+        $draftConfig = new ProfileDraftConfig();
+        $contributor = $this->contributor([UcpCapabilityCatalog::CONFIG_CART, UcpCapabilityCatalog::CONFIG_ORDER], $draftConfig);
+        $profile = new PlatformProfile(UcpProtocol::VERSION, [], [
+            UcpCapabilityCatalog::DESCRIPTOR_CART => [$this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_CART)],
+            UcpCapabilityCatalog::DESCRIPTOR_ORDER => [$this->descriptor(UcpCapabilityCatalog::DESCRIPTOR_ORDER)],
+        ], []);
+        $input = new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example');
+
+        $preview = $draftConfig->during(
+            UcpConfig::fromArray(['active' => true, 'enabledCapabilities' => [UcpCapabilityCatalog::CONFIG_CART]]),
+            static fn (): PlatformProfile => $contributor->contribute($profile, $input),
+        );
+
+        self::assertSame([UcpCapabilityCatalog::DESCRIPTOR_CART], array_keys($preview->capabilities));
+        self::assertSame(
+            [UcpCapabilityCatalog::DESCRIPTOR_CART, UcpCapabilityCatalog::DESCRIPTOR_ORDER],
+            array_keys($contributor->contribute($profile, $input)->capabilities),
+            'outside a preview the stored config applies again',
+        );
+    }
+
+    #[Test]
+    public function testAPreviewOfAnInactiveDraftAdvertisesNoService(): void
+    {
+        $draftConfig = new ProfileDraftConfig();
+        $contributor = $this->contributor([UcpCapabilityCatalog::CONFIG_CART], $draftConfig);
+        $profile = new PlatformProfile(UcpProtocol::VERSION, [
+            'dev.ucp.shopping' => [new ServiceEndpoint(Transport::Rest, 'https://shop.example/ucp/v1', UcpProtocol::VERSION, 'https://ucp.dev/specification/overview/')],
+        ], [], []);
+        $input = new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example');
+
+        $preview = $draftConfig->during(
+            UcpConfig::fromArray(['active' => false, 'enabledCapabilities' => [UcpCapabilityCatalog::CONFIG_CART]]),
+            static fn (): PlatformProfile => $contributor->contribute($profile, $input),
+        );
+
+        self::assertSame([], $preview->services);
+        self::assertNotSame([], $contributor->contribute($profile, $input)->services, 'the stored config is active');
+    }
+
     /**
      * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
@@ -96,7 +143,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     /**
      * @param list<string> $enabledCapabilities
      */
-    private function contributor(array $enabledCapabilities): CapabilityFilteringProfileContributor
+    private function contributor(array $enabledCapabilities, ProfileDraftConfig $draftConfig = new ProfileDraftConfig()): CapabilityFilteringProfileContributor
     {
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
@@ -125,6 +172,7 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
             new UcpConfigService($this->createMock(UcpConfigRepositoryInterface::class), $legacyStore),
             new ShopwareVersionDetector('6.7.0.0'),
             new UcpExtensionAvailability([], $paymentHandlerRegistry),
+            $draftConfig,
         );
     }
 }
