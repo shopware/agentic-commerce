@@ -55,6 +55,8 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
     reporter: 'html',
+    // Tells the lanes apart in the report CI merges from all of them.
+    tag: process.env.ACCEPTANCE_LANE ? `@lane-${process.env.ACCEPTANCE_LANE}` : undefined,
     timeout: 60_000,
     expect: {
         timeout: 15_000,

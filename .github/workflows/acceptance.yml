@@ -1,0 +1,176 @@
+name: Acceptance
+
+# The tests/acceptance suite: static checks, the lane x shard matrix and, on pull requests, the
+# changed specs repeated ten times. The callers merge the shard reports once per run
+# (.github/actions/acceptance-report).
+
+on:
+  workflow_call:
+    inputs:
+      lanes:
+        description: 'JSON array of bin/ci-write-compose.sh lanes'
+        type: string
+      shards:
+        type: number
+      repeat_each:
+        type: number
+      run_changed:
+        description: 'On pull requests, repeat the changed specs ten times without retries'
+        type: boolean
+      skip_static:
+        description: 'Skip lint, typecheck and the Signer project (another call runs them)'
+        type: boolean
+      shopware_65_ref:
+        type: string
+      shopware_66_ref:
+        type: string
+      shopware_trunk_ref:
+        type: string
+  workflow_dispatch:
+
+# A caller's env does not reach a called workflow, so every layer resolves the refs itself.
+env:
+  SHOPWARE_65_REF: ${{ inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
+  SHOPWARE_66_REF: ${{ inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
+  SHOPWARE_TRUNK_REF: ${{ inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
+  SHOPWARE_6714_REF: ${{ vars.SHOPWARE_6714_REF || '6.7.14.x' }}
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-static:
+    if: ${{ !inputs.skip_static }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests/acceptance
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tests/acceptance/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      # The RFC 9421 signer checks need no shop.
+      - run: npm run test:signer
+
+  acceptance-plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      changed: ${{ steps.plan.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # On pull_request the merge ref's first parent is the base branch.
+          fetch-depth: 2
+      - id: plan
+        env:
+          LANES: ${{ inputs.lanes || '["trunk"]' }}
+          SHARDS: ${{ inputs.shards || 1 }}
+          RUN_CHANGED: ${{ inputs.run_changed && github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          # jq -e fails on an empty lane list instead of planning an empty run.
+          matrix="$(jq -ce --argjson shards "${SHARDS}" \
+            'select(length > 0) | {include: [.[] as $lane | range(1; $shards + 1) | {lane: $lane, shard: ., shards: $shards}]}' <<<"${LANES}")"
+          changed='[]'
+          if [[ "${RUN_CHANGED}" == "true" ]]; then
+            # Setup and Signer are dependency projects that already run in every acceptance job.
+            # quotePath=false: git would otherwise print non-ASCII paths quoted, matching no spec.
+            changed="$(git -c core.quotePath=false diff --name-only --diff-filter=d HEAD^1 HEAD -- \
+              ':(glob)tests/acceptance/tests/**/*.spec.ts' \
+              ':(exclude,glob)tests/acceptance/tests/Setup/**' \
+              ':(exclude,glob)tests/acceptance/tests/Signer/**' \
+              | jq -Rnc '[inputs | select(length > 0) | ltrimstr("tests/acceptance/")]')"
+          fi
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+          echo "changed=${changed}" >> "${GITHUB_OUTPUT}"
+          echo "Changed specs repeated ten times: ${changed}" >> "${GITHUB_STEP_SUMMARY}"
+
+  acceptance:
+    name: acceptance (${{ matrix.lane == '6.5.x' && '6.5.8' || matrix.lane }}, ${{ matrix.shard }}/${{ matrix.shards }})
+    needs: acceptance-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.acceptance-plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: ./agentic-commerce/.github/actions/acceptance-lane
+        with:
+          lane: ${{ matrix.lane }}
+          shopware-ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || matrix.lane == '6.7.14.x' && env.SHOPWARE_6714_REF || env.SHOPWARE_TRUNK_REF }}
+      - id: suite
+        working-directory: agentic-commerce/tests/acceptance
+        env:
+          # bin/ci-write-compose.sh publishes the shop on this URL inside the container and on the
+          # runner. The agent-profile fixture writes into SHOPWARE_DIR/public and the shop fetches
+          # the profile back from this URL in development mode.
+          APP_URL: http://localhost:8000
+          SHOPWARE_DIR: ${{ github.workspace }}/shopware
+          ACCEPTANCE_LANE: ${{ matrix.lane }}
+          PLAYWRIGHT_BLOB_OUTPUT_FILE: ${{ github.workspace }}/acceptance-blob/acceptance-${{ matrix.lane }}-${{ matrix.shard }}.zip
+          SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+          REPEAT_EACH: ${{ inputs.repeat_each || 1 }}
+        run: npx playwright test --grep-invert @UcpKnownBlocked --shard="${SHARD}" --repeat-each="${REPEAT_EACH}" --reporter=blob,list
+      - if: ${{ !cancelled() && steps.suite.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: acceptance-blob-${{ matrix.lane }}-${{ matrix.shard }}
+          path: acceptance-blob
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+  # A spec that passes once can still be flaky: every spec this pull request adds or changes runs
+  # ten times without retries on trunk.
+  acceptance-tests-changed:
+    needs: acceptance-plan
+    if: needs.acceptance-plan.outputs.changed != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: ./agentic-commerce/.github/actions/acceptance-lane
+        with:
+          lane: trunk
+          shopware-ref: ${{ env.SHOPWARE_TRUNK_REF }}
+      - working-directory: agentic-commerce/tests/acceptance
+        env:
+          APP_URL: http://localhost:8000
+          SHOPWARE_DIR: ${{ github.workspace }}/shopware
+          # Paths chosen by the pull request: read as data, never interpolated into the script.
+          CHANGED_SPECS: ${{ needs.acceptance-plan.outputs.changed }}
+        run: |
+          mapfile -t specs < <(jq -r '.[]' <<<"${CHANGED_SPECS}")
+          # A changed spec under KnownBlocked/ is filtered out completely by --grep-invert.
+          npx playwright test --grep-invert @UcpKnownBlocked --repeat-each=10 --retries=0 --pass-with-no-tests --reporter=list -- "${specs[@]}"
+
+  acceptance-check:
+    # always(), not !cancelled(): a skipped gate would count as passing.
+    if: always()
+    needs:
+      - acceptance-static
+      - acceptance-plan
+      - acceptance
+      - acceptance-tests-changed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
+          # Only the two conditional jobs may be skipped, and only when their condition says so.
+          # alls-green drops the empty entries of this comma-separated list.
+          allowed-skips: >-
+            ${{ inputs.skip_static && 'acceptance-static' || '' }},
+            ${{ needs.acceptance-plan.outputs.changed == '[]' && 'acceptance-tests-changed' || '' }}
