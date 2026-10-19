@@ -116,6 +116,9 @@ jobs:
           # the profile back from this URL in development mode.
           APP_URL: http://localhost:8000
           SHOPWARE_DIR: ${{ github.workspace }}/shopware
+          # The lane's container runs with SHELL_VERBOSITY=-1 (bin/ci-write-compose.sh), which mutes
+          # the JSON the signing-key commands print.
+          UCP_CONSOLE: docker compose exec -T -e SHELL_VERBOSITY=0 web php bin/console
           ACCEPTANCE_LANE: ${{ matrix.lane }}
           PLAYWRIGHT_BLOB_OUTPUT_FILE: ${{ github.workspace }}/acceptance-blob/acceptance-${{ matrix.lane }}-${{ matrix.shard }}.zip
           SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
@@ -149,6 +152,7 @@ jobs:
         env:
           APP_URL: http://localhost:8000
           SHOPWARE_DIR: ${{ github.workspace }}/shopware
+          UCP_CONSOLE: docker compose exec -T -e SHELL_VERBOSITY=0 web php bin/console
           # Paths chosen by the pull request: read as data, never interpolated into the script.
           CHANGED_SPECS: ${{ needs.acceptance-plan.outputs.changed }}
         run: |
