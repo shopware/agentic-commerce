@@ -44,6 +44,8 @@ export const swSalesChannelDetailOverride = {
                 meta: {},
                 preview: null,
                 transactional: false,
+                // Bumped by every UCP write; a load started before the write must not apply.
+                generation: 0,
             },
         };
     },
@@ -172,17 +174,17 @@ export const swSalesChannelDetailOverride = {
                 });
         },
 
-        async loadUcpState() {
-            if (!this.salesChannel?.id || !this.acl.can('ucp.viewer')) {
+        async loadUcpState(salesChannelId = this.salesChannel?.id, typeId = this.salesChannel?.typeId) {
+            if (!salesChannelId || !this.acl.can('ucp.viewer')) {
                 return;
             }
 
             const resolveRemotely = !this.shouldRenderAgenticCommerceTab;
-            if (resolveRemotely && isKnownSalesChannelType(this.salesChannel.typeId)) {
+            if (resolveRemotely && isKnownSalesChannelType(typeId)) {
                 return;
             }
 
-            const salesChannelId = this.salesChannel.id;
+            const generation = this.ucpState.generation;
             this.ucpState.isLoading = true;
 
             // The three responses answer independent questions, so each is applied from its
@@ -228,6 +230,10 @@ export const swSalesChannelDetailOverride = {
                     salesChannelView,
 
                     this.ucpAdminApiService.getConfig(salesChannelId).then((response) => {
+                        if (generation !== this.ucpState.generation) {
+                            return;
+                        }
+
                         const form = ucpNormalizeConfig(response.data.data || {});
 
                         this.ucpState.form = form;
@@ -237,6 +243,10 @@ export const swSalesChannelDetailOverride = {
                     }, report),
 
                     this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                        if (generation !== this.ucpState.generation) {
+                            return;
+                        }
+
                         this.ucpState.preview = response.data.data || null;
                     }, report),
                 ]);
@@ -252,16 +262,26 @@ export const swSalesChannelDetailOverride = {
         // Persist the UCP config as part of the page's global Save. Returns false
         // to abort the save flow (and the post-save reload) on error so the user
         // can fix and retry. No-op for channels that never loaded UCP state.
-        async saveUcpState(salesChannelId) {
-            if (!this.ucpState.loaded || !salesChannelId) {
+        //
+        // `form` is the form as it was when Save was clicked: the legacy onSave reloads
+        // the page before this write, which replaces `ucpState.form` with the stored,
+        // not yet updated config.
+        async saveUcpState(salesChannelId, form) {
+            if (!form || !salesChannelId) {
                 return true;
             }
 
             try {
-                await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(this.ucpState.form));
-                this.ucpState.savedForm = ucpNormalizeConfig(this.ucpState.form);
+                await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(form));
+                this.ucpState.generation += 1;
+                this.ucpState.form = ucpNormalizeConfig(form);
+                this.ucpState.savedForm = ucpNormalizeConfig(form);
                 return true;
             } catch (error) {
+                // Keep the draft so the user can fix and retry: a reload already in flight
+                // from the legacy onSave would otherwise replace it with the stored config.
+                this.ucpState.generation += 1;
+                this.ucpState.form = ucpNormalizeConfig(form);
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
                 return false;
             }
@@ -338,8 +358,10 @@ export const swSalesChannelDetailOverride = {
             // Snapshot before saving: legacy onSave triggers loadEntityData() which nulls
             // salesChannel and resets agenticCommerceExportConfig mid-flight.
             const channelIdAtSave = this.salesChannel?.id;
+            const typeIdAtSave = this.salesChannel?.typeId;
             const exportConfigAtSave = this.agenticCommerceExportConfig;
             const providerAtSave = this.productExport?.provider;
+            const ucpFormAtSave = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
 
             let saveSuccessful;
             if (isLegacyOnSave) {
@@ -363,7 +385,7 @@ export const swSalesChannelDetailOverride = {
                 return;
             }
 
-            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave);
+            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
 
             if (!ucpSaveSuccessful) {
                 return;
@@ -371,6 +393,12 @@ export const swSalesChannelDetailOverride = {
 
             if (!isLegacyOnSave) {
                 this.loadEntityData();
+                return;
+            }
+
+            // The legacy onSave reloaded the page before the UCP write; load what is stored now.
+            if (ucpFormAtSave) {
+                this.loadUcpState(channelIdAtSave, typeIdAtSave);
             }
         },
 

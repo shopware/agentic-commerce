@@ -63,14 +63,12 @@ test.describe('UCP public profile and transports', () => {
     test('advertises lane-aware transports', async ({ request: api }) => {
         const config = laneConfig();
         const profile = await readPublicProfile(api);
-        const profileRoot = profile.ucp || profile;
         const services = shoppingTransports(profile);
         const transports = [...new Set(services.map((entry) => entry.transport))].sort();
 
         // REST/A2A/embedded are advertised on every lane; MCP is optional.
         expect(transports).toEqual(expect.arrayContaining(ALWAYS_ON_TRANSPORTS));
         expect(transports.every((transport) => KNOWN_TRANSPORTS.includes(transport))).toBe(true);
-        expect(profileRoot.payment_handlers || {}).toEqual({});
 
         // When MCP is advertised it must resolve to the access-key-free proxy.
         const mcpEndpoints = services

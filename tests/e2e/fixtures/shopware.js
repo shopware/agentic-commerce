@@ -145,7 +145,6 @@ export async function assertProfileTransports(profile, expectedTransports) {
     const transports = [...new Set((profileRoot.services?.['dev.ucp.shopping'] || []).map((entry) => entry.transport))].sort();
 
     expect(transports).toEqual([...expectedTransports].sort());
-    expect(profileRoot.payment_handlers || {}).toEqual({});
 }
 
 export async function readPublicProfile(apiContext) {

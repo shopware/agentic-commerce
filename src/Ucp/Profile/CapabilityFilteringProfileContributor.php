@@ -24,13 +24,14 @@ final class CapabilityFilteringProfileContributor implements ProfileContributorI
         private readonly UcpConfigService $configService,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly UcpExtensionAvailability $extensionAvailability,
+        private readonly ProfileDraftConfig $draftConfig,
     ) {
     }
 
     public function contribute(PlatformProfile $profile, ProfileBuildInput $input): PlatformProfile
     {
-        $resolution = $this->domainResolver->resolveByBaseUri($input->baseUri);
-        $config = $this->configService->getConfig($resolution?->salesChannelId);
+        $config = $this->draftConfig->current()
+            ?? $this->configService->getConfig($this->domainResolver->resolveByBaseUri($input->baseUri)?->salesChannelId);
         $enabledDescriptors = $config->runtimeEnabledCapabilityDescriptors();
         if (!$this->extensionAvailability->supportsIdentityLinking()) {
             $enabledDescriptors = array_values(array_diff($enabledDescriptors, [UcpCapabilityCatalog::DESCRIPTOR_IDENTITY_LINKING]));

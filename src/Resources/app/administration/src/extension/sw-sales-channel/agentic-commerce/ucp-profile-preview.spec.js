@@ -26,6 +26,15 @@ describe('agentic-commerce/ucp-profile-preview', () => {
         it('is true when a value changes', () => {
             expect(isPreviewDirty({ a: 1 }, { a: 2 })).toBe(true);
         });
+        it('is false when a value list only changes order', () => {
+            expect(isPreviewDirty(
+                { enabledCapabilities: ['catalog', 'cart', 'order'] },
+                { enabledCapabilities: ['catalog', 'order', 'cart'] },
+            )).toBe(false);
+        });
+        it('is true when a value list gains or loses an entry', () => {
+            expect(isPreviewDirty({ enabledTransports: ['rest'] }, { enabledTransports: ['rest', 'a2a'] })).toBe(true);
+        });
     });
 
     describe('profile metadata helpers', () => {

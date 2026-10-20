@@ -11,12 +11,16 @@ describe('agentic-commerce/ucp-options', () => {
     it.each([
         ['the platform meta is missing', undefined],
         ['the platform has no Store API MCP server', { supportsStoreApiMcp: false }],
+        ['the platform has no Store API MCP server, whatever Shopware version the meta reports', { supportsStoreApiMcp: false, shopwareVersion: '6.7.10.0' }],
     ])('offers REST, A2A and embedded but not MCP when %s', (_, meta) => {
         expect(availableTransports(meta).map((transport) => transport.value)).toEqual(['rest', 'a2a', 'embedded']);
     });
 
-    it('offers MCP when the platform has a Store API MCP server', () => {
-        expect(availableTransports({ supportsStoreApiMcp: true }).map((transport) => transport.value)).toEqual(['rest', 'a2a', 'embedded', 'mcp']);
+    it.each([
+        ['the platform has a Store API MCP server', { supportsStoreApiMcp: true }],
+        ['the platform has a Store API MCP server, whatever Shopware version the meta reports', { supportsStoreApiMcp: true, shopwareVersion: '6.5.8.0' }],
+    ])('offers MCP when %s', (_, meta) => {
+        expect(availableTransports(meta).map((transport) => transport.value)).toEqual(['rest', 'a2a', 'embedded', 'mcp']);
     });
 
     it('marks only MCP as unsupported on a platform without a Store API MCP server', () => {

@@ -23,10 +23,18 @@
 {% block sw_sales_channel_list_grid_column_status %}
 {% parent %}
 <template #column-ucpActive="{ item }">
-    <sw-status v-if="ucpActiveMap[item.id]" color="green">
+    <sw-status
+        v-if="ucpActiveMap[item.id]"
+        color="green"
+        data-testid="ac-sales-channel-list__ucp-status--exposed"
+    >
         {{ $t('swagAgenticCommerce.salesChannelList.ucpExposed') }}
     </sw-status>
-    <sw-status v-else color="gray">
+    <sw-status
+        v-else
+        color="gray"
+        data-testid="ac-sales-channel-list__ucp-status--off"
+    >
         {{ $t('swagAgenticCommerce.salesChannelList.ucpOff') }}
     </sw-status>
 </template>

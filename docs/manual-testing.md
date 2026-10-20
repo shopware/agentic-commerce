@@ -188,8 +188,7 @@ The UCP REST happy path is exercised automatically by `bin/ci-smoke.sh` in the `
 jobs on every lane, so it needs no manual repro. That script covers, per lane:
 
 - `GET /.well-known/ucp` profile with lane-aware transports (REST/A2A/embedded everywhere, MCP only
-  when the Store API MCP endpoint exists), the enabled shopping capabilities, and an empty
-  `payment_handlers` object
+  when the Store API MCP endpoint exists) and the enabled shopping capabilities
 - the "MCP supported &hArr; MCP advertised" invariant (server-side `StoreApiMcpServerController`
   class check)
 - fallback `/llms.txt` and `/agents.md` when core agentic files are absent
@@ -507,8 +506,9 @@ retire/delete confirmation dialogs.
 
 ### 5. Real payment-tokenization handler
 
-CI only checks the `501` stub and the empty `payment_handlers` object. To prove the real path,
-install a real tokenizing payment handler (see
+CI only checks the `501` stub. The acceptance suite expects at least one payment handler in the
+profile and stays red until one exists (known blocker D2). To prove the real path, install a real
+tokenizing payment handler (see
 [docs/payment-tokenization-handler.md](payment-tokenization-handler.md) for the implementer
 checklist) and enable `payment_tokenization` for the sales channel.
 
