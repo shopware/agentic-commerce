@@ -121,7 +121,7 @@ final class ShopwareOrderGateway implements OrderGatewayInterface
 
     private function loadOrder(Request $request, SalesChannelContext $context, Criteria $criteria, string $orderId): OrderEntity
     {
-        $order = $this->orderRoute->load($request, $context, $criteria)->getOrders()->first();
+        $order = $this->orderRoute->load($request, $context, $criteria)->getOrders()->getEntities()->first();
 
         if (!$order instanceof OrderEntity) {
             throw new ResourceNotFoundException(\sprintf('Order "%s" was not found for this sales channel.', $orderId));

@@ -94,6 +94,7 @@ final class FallbackAgenticFileRenderer
 
         $salesChannel = $this->salesChannelRepository
             ->search($criteria, $context->getContext())
+            ->getEntities()
             ->first();
 
         return $salesChannel instanceof SalesChannelEntity ? $salesChannel : $context->getSalesChannel();
