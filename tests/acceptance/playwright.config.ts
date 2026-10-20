@@ -54,7 +54,7 @@ const browser = {
 const browserWithOwnHosts = {
     ...browser,
     launchOptions: {
-        args: [`--host-resolver-rules=MAP *.ucp-acceptance.test ${new URL(appUrl).hostname}`],
+        args: signerOnly ? [] : [`--host-resolver-rules=MAP *.ucp-acceptance.test ${new URL(appUrl).hostname}`],
     },
 };
 
