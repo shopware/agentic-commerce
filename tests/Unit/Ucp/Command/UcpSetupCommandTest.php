@@ -29,6 +29,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileLocator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -191,6 +192,7 @@ class UcpSetupCommandTest extends TestCase
             $configService,
             new UcpSigningKeyService($keys, new UcpSigningKeyServiceTestSigningKeyManager()),
             new UcpConfigValidator(),
+            new UcpProfileLocator(),
         );
     }
 

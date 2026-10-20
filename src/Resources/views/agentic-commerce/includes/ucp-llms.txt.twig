@@ -1,4 +1,4 @@
-{% if swag_agentic_commerce_ucp_active(salesChannel) %}
+{% if swag_agentic_commerce_ucp_active(salesChannel) and swag_agentic_commerce_ucp_profile_url(salesChannelFileContext.baseUrl|default(null)) %}
 ## Agentic commerce
 
 - [UCP profile](/.well-known/ucp): Machine-readable Universal Commerce Protocol profile for this sales channel.

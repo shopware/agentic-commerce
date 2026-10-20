@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Storefront\Subscriber;
 use Shopware\Core\Framework\Event\BeforeSendResponseEvent;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileLocator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
@@ -14,11 +15,12 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 #[Package('discovery')]
 final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
 {
-    private const UCP_PROFILE_LINK = '<%s/.well-known/ucp>; rel="service-meta"';
+    private const UCP_PROFILE_LINK = '</.well-known/ucp>; rel="service-meta"';
 
     public function __construct(
         private readonly UcpConfigService $configService,
         private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly UcpProfileLocator $profileLocator,
     ) {
     }
 
@@ -39,19 +41,18 @@ final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
         $resolvedDomain = $this->domainResolver->resolveByRequest($event->getRequest());
         if (
             null === $resolvedDomain
+            || null === $this->profileLocator->profileUrl($resolvedDomain->baseUrl)
             || !$this->isUcpActiveForSalesChannel($resolvedDomain->salesChannelId)
         ) {
             return;
         }
 
-        $domainPath = rtrim((string) parse_url($resolvedDomain->baseUrl, \PHP_URL_PATH), '/');
-        $profileLink = \sprintf(self::UCP_PROFILE_LINK, $domainPath);
         $response = $event->getResponse();
-        if ($response->headers->contains('Link', $profileLink)) {
+        if ($response->headers->contains('Link', self::UCP_PROFILE_LINK)) {
             return;
         }
 
-        $response->headers->set('Link', $profileLink, false);
+        $response->headers->set('Link', self::UCP_PROFILE_LINK, false);
     }
 
     private function isHtmlResponse(BeforeSendResponseEvent $event): bool
