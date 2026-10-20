@@ -14,6 +14,10 @@ const OWN_HOST_REQUIREMENT = 'A channel on a host of its own needs the web serve
  * the per-channel hosts of `createStorefrontSalesChannelOnOwnHost()`.
  */
 export async function fetchDiscoveryDocument(browser: Browser, baseUrl: string): Promise<UcpProfileDocument> {
+    return (await fetchDiscoveryResponse(browser, baseUrl)).document;
+}
+
+export async function fetchDiscoveryResponse(browser: Browser, baseUrl: string): Promise<{ headers: Record<string, string>, document: UcpProfileDocument }> {
     const url = `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`;
     const context = await browser.newContext({ ignoreHTTPSErrors });
     try {
@@ -24,7 +28,7 @@ export async function fetchDiscoveryDocument(browser: Browser, baseUrl: string):
         expect(response, `no response for ${url}`).not.toBeNull();
         expect(response!.ok(), `${await response!.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
 
-        return (await response!.json()) as UcpProfileDocument;
+        return { headers: response!.headers(), document: (await response!.json()) as UcpProfileDocument };
     }
     finally {
         await context.close();
