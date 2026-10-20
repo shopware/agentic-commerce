@@ -65,6 +65,7 @@ class UcpConfigValidator
         $this->checkSigningKeys($signingKeys, $salesChannelId, $now, $add);
         $this->checkExposureReadiness($config, $add);
         $this->checkProfileDomain($config, $domains, $add);
+        $this->checkPathPrefixedDomains($domains, $add);
         $this->checkIdempotency($config, $salesChannelId, $add);
         $this->checkEmbedded($config, $salesChannelId, $add);
 
@@ -196,6 +197,40 @@ class UcpConfigValidator
             'profile_domain_unmatched',
             \sprintf('profileDomain "%s" is not one of this channel\'s storefront domains; discovery may advertise an unreachable profile URL.', $profileDomain),
             'Set profileDomain to one of the channel\'s domains in the Administration, or clear it to use the default.',
+        );
+    }
+
+    /**
+     * @param array<mixed> $domains
+     */
+    private function checkPathPrefixedDomains(array $domains, callable $add): void
+    {
+        $pathPrefixedUrls = [];
+        foreach ($domains as $domain) {
+            $url = \is_array($domain) ? ($domain['url'] ?? null) : null;
+            if (!\is_string($url)) {
+                continue;
+            }
+
+            if ('' === rtrim((string) parse_url($url, \PHP_URL_PATH), '/')) {
+                return;
+            }
+
+            $pathPrefixedUrls[] = $url;
+        }
+
+        if ([] === $pathPrefixedUrls) {
+            return;
+        }
+
+        $add(
+            Severity::Warning,
+            'path_prefixed_domain',
+            \sprintf(
+                'Every storefront domain of this channel has a path (%s). UCP requires a business profile at /.well-known/ucp on the root of its origin (RFC 8615, section 3: https://www.rfc-editor.org/rfc/rfc8615.html#section-3), so agents cannot discover this channel and a conformant platform rejects its signed webhooks.',
+                implode(', ', $pathPrefixedUrls),
+            ),
+            'Add a domain without a path to the sales channel in the Administration, for example a subdomain.',
         );
     }
 

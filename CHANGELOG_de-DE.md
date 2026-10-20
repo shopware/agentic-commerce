@@ -1,7 +1,7 @@
 # next version
 
 - Unter Shopware `6.7.1.0` bis `6.7.4.x` liefert der Shop `robots.txt` wieder aus, statt mit `500` zu antworten.
-- Ein Verkaufskanal, dessen Domain einen Pfad enthält, etwa `https://shop.example/de`, erhält jetzt ein eigenes UCP-Profil. Bisher führte das Profil unter dieser Domain die Endpunkte und Funktionen der Stammdomain des Hosts auf, sodass ein Agent, der den Shop unter `/de` gefunden hatte, zum Shop der Stammdomain geleitet wurde. Auch die UCP-Routen unter dieser Domain wendeten die UCP-Einstellungen der Stammdomain an. Gilt die Signaturrichtlinie `strict`, werden korrekt signierte Requests an eine solche Domain nicht mehr abgelehnt. Storefront-Seiten einer solchen Domain verweisen mit ihrem `service-meta`-Link jetzt auf das eigene Profil der Domain.
+- Für Requests unter einer Domain mit Pfad, etwa `https://shop.example/de`, gelten jetzt die UCP-Einstellungen des Verkaufskanals, dem diese Domain gehört. Bisher galten für sie die UCP-Einstellungen der Stammdomain des Hosts. Gilt die Signaturrichtlinie `strict`, werden korrekt signierte Requests an eine solche Domain nicht mehr abgelehnt. Das Profil unter `/de/.well-known/ucp` beschreibt jetzt den Verkaufskanal unter `/de`. Storefront-Seiten dieser Domain verweisen mit ihrem `service-meta`-Link jetzt auf dieses Profil. Agenten suchen ein UCP-Profil nur unter `/.well-known/ucp` im Wurzelverzeichnis einer Domain, deshalb braucht ein Verkaufskanal, den Agenten finden sollen, eine Domain ohne Pfad. `ucp:config:validate` warnt jetzt, wenn alle Domains eines für UCP freigegebenen Verkaufskanals einen Pfad enthalten.
 
 # 1.4.0
 
