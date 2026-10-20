@@ -60,10 +60,10 @@ export class AgenticCommerceFeedDetail {
         await expect(this.templateModal).toBeHidden();
     }
 
-    /** The template modal's secondary action keeps the current template. */
+    /** The template modal's secondary action keeps the current template. On 6.5 it is a footer button without a variant. */
     async cancelTemplateChange(): Promise<void> {
         await expect(this.templateModal).toBeVisible();
-        await this.templateModal.locator('.mt-button--secondary, .sw-button--secondary').click();
+        await this.templateModal.locator('.mt-button--secondary, .sw-button--secondary, .sw-modal__footer .sw-button:not(.sw-button--primary)').click();
         await expect(this.templateModal).toBeHidden();
     }
 

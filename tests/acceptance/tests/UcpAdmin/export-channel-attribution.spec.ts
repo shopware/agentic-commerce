@@ -13,10 +13,12 @@ function isFilteredSearch(response: Response, entity: 'order' | 'customer', feed
       && criteria.includes(feedId);
 }
 
-/** The write that stores the user's list filters. */
+/** The write that stores the user's list filters: `config-me`, or on 6.5 the `user_config` entity itself. */
 function isStoredFilter(response: Response, feedId: string): boolean {
-    return response.request().method() === 'PATCH'
-      && new URL(response.url()).pathname.endsWith('/api/_info/config-me')
+    const pathname = new URL(response.url()).pathname;
+
+    return ['PATCH', 'POST'].includes(response.request().method())
+      && (pathname.endsWith('/api/_info/config-me') || /\/api\/user-config(\/[0-9a-f]{32})?$/.test(pathname))
       && (response.request().postData() ?? '').includes(feedId);
 }
 

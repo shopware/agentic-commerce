@@ -91,7 +91,12 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
             },
             asFreshAdmin: () => {
                 const pending = TestDataService.createUserRetryingTokenConflicts({ admin: true })
-                    .then(async user => loginToAdministration(await createNewAdminPageContext(browser, SalesChannelBaseConfig), user, AdminApiContext));
+                    .then(async (user) => {
+                        const loginPage = await createNewAdminPageContext(browser, SalesChannelBaseConfig);
+                        await withoutUpdateNotification(loginPage);
+
+                        return loginToAdministration(loginPage, user, AdminApiContext);
+                    });
                 otherPages.push(pending);
 
                 return pending;
@@ -111,6 +116,15 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
         }
     },
 });
+
+/**
+ * Core checks for a newer Shopware version when a user with `system.core_update` logs in and, when
+ * there is one, shows a notification that covers the sidebar for the rest of the test. Answering the
+ * check with no version keeps that independent of what has been released.
+ */
+async function withoutUpdateNotification(page: Page): Promise<void> {
+    await page.context().route('**/api/_action/update/check', route => route.fulfill({ json: {} }));
+}
 
 function aclRoleSuffix(): string {
     return Math.random().toString(36).slice(2, 8);
