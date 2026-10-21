@@ -158,7 +158,9 @@ jobs:
         run: |
           mapfile -t specs < <(jq -r '.[]' <<<"${CHANGED_SPECS}")
           # A changed spec under KnownBlocked/ is filtered out completely by --grep-invert.
-          npx playwright test --grep-invert @UcpKnownBlocked --repeat-each=10 --retries=0 --pass-with-no-tests --reporter=list -- "${specs[@]}"
+          # Two workers: ten copies of a spec on every core rush user inserts and deletes into MariaDB
+          # 11.6+ write conflicts (error 1020) in ATS fixtures that do not retry them.
+          npx playwright test --grep-invert @UcpKnownBlocked --repeat-each=10 --retries=0 --workers=2 --pass-with-no-tests --reporter=list -- "${specs[@]}"
 
   acceptance-check:
     # always(), not !cancelled(): a skipped gate would count as passing.
