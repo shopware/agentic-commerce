@@ -90,4 +90,18 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D12',
+        description: 'A feed channel\'s Save with an empty required provider setting is inconsistent. On 6.5 the first click does nothing visible: validateAgenticCommerceExportConfig() adds the error as a new key, which Vue 2 does not track, so the field is not marked. On a new channel (6.5 and 6.6) the second click saves anyway, because the plugin\'s onSave() override returns early inside the create page\'s $super chain.',
+        owner: 'alexdumea',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/309',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D13',
+        description: 'Before the Meteor select, cancelling the "Apply template" modal on a saved feed channel leaves the cancelled template in the select: onTemplateModalClose() restores the value templateName already has, so the select is not redrawn.',
+        owner: 'alexdumea',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/310',
+        reviewBy: '2026-12-31',
+    },
 ];

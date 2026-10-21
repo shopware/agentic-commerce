@@ -1,3 +1,4 @@
+import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { Page, Response } from '@playwright/test';
 import { goToAdminRoute } from '@page-objects/adminRoute';
@@ -114,7 +115,8 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
         await expect(rowOf(filteredList, referredElsewhere.email)).toHaveCount(0);
     });
 
-    test('the feed channel\'s insights count only the orders and customers attributed to it', async ({ TestDataService, AdminPage }) => {
+    test('the feed channel\'s insights count only the orders and customers attributed to it', async ({ InstanceMeta, TestDataService, AdminPage }) => {
+        test.skip(satisfies(InstanceMeta.version, '<6.7.10.0'), 'the insights totals arrived with core\'s product export insights in 6.7.10.0');
         const { salesChannel: feed } = await TestDataService.createFeedSalesChannelWithExport();
         const { salesChannel: otherFeed } = await TestDataService.createFeedSalesChannelWithExport();
         const product = await TestDataService.createBasicProduct();

@@ -1,7 +1,9 @@
+import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { Request } from '@playwright/test';
 import { AgenticCommerceFeedDetail } from '@page-objects/AgenticCommerceFeedDetail';
 import { readFeedTemplates } from '@services/pluginSource';
+import { NEW_FEED_SAVES_ON_SECOND_CLICK, SAVE_SHOWS_NO_REQUIRED_SETTING_ERROR, TEMPLATE_SELECT_KEEPS_CANCELLED_CHOICE } from '../UcpContent/knownBlockerRanges';
 
 const RETURN_POLICY_URL = 'SwagAgenticCommerce.openAiProductExport.returnPolicyUrl';
 
@@ -51,6 +53,18 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         });
     });
 
+    test('cancelling the template change shows the current template again', async ({ InstanceMeta, TestDataService, AdminPage }) => {
+        test.skip(satisfies(InstanceMeta.version, TEMPLATE_SELECT_KEEPS_CANCELLED_CHOICE), 'known blocker D13, asserted in tests/KnownBlocked/product-feed-export.spec.ts');
+        const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai');
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
+        await feed.open(salesChannel.id);
+
+        await feed.chooseTemplate('google');
+        await feed.cancelTemplateChange();
+
+        await feed.expectTemplateShown('open_ai', /OpenAI/);
+    });
+
     test('resetting the export template restores the provider\'s default', async ({ TestDataService, AdminPage }) => {
         const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai', { bodyTemplate: '{{ product.productNumber }}' });
         await TestDataService.setChannelSystemConfig(salesChannel.id, { [RETURN_POLICY_URL]: 'https://shop.example/returns' });
@@ -65,7 +79,8 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         expect(stored.bodyTemplate).toBe(openAi.bodyTemplate);
     });
 
-    test('an OpenAI feed is not saved without a return policy URL', async ({ TestDataService, AdminPage }) => {
+    test('an OpenAI feed is not saved without a return policy URL', async ({ InstanceMeta, TestDataService, AdminPage }) => {
+        test.skip(satisfies(InstanceMeta.version, SAVE_SHOWS_NO_REQUIRED_SETTING_ERROR), 'known blocker D12, asserted in tests/KnownBlocked/product-feed-export.spec.ts');
         const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai');
         const feed = new AgenticCommerceFeedDetail(AdminPage);
         await feed.open(salesChannel.id);
@@ -93,6 +108,22 @@ test.describe('Product feed export settings @UcpAdmin', () => {
             expect(await TestDataService.getChannelSystemConfig('SwagAgenticCommerce.openAiProductExport', salesChannel.id))
                 .toHaveProperty([RETURN_POLICY_URL], expect.stringContaining('shop.example/returns'));
         });
+    });
+
+    test('a new feed channel without a return policy URL stays unsaved however often Save is clicked', async ({ InstanceMeta, AdminPage }) => {
+        test.skip(satisfies(InstanceMeta.version, NEW_FEED_SAVES_ON_SECOND_CLICK), 'known blocker D12, asserted in tests/KnownBlocked/product-feed-export.spec.ts');
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
+        await feed.openNew();
+
+        const creations: Request[] = [];
+        AdminPage.on('request', request => isSaveWrite(request) && creations.push(request));
+
+        for (const click of [1, 2]) {
+            await feed.saveButton.click();
+
+            await expect(feed.fieldOf(feed.returnPolicyUrl).locator('.mt-field__error, .sw-field__error'), `marked after click ${click}`).toBeVisible();
+            expect(creations.map(request => request.url()), `nothing sent after click ${click}`).toEqual([]);
+        }
     });
 
     test('tracking codes entered for a feed are stored in the channel configuration', async ({ TestDataService, AdminPage }) => {

@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page, Response } from '@playwright/test';
+import { FEED_SALES_CHANNEL_TYPE_ID } from '@services/UcpTestDataService';
 import { goToAdminRoute } from './adminRoute';
 
 const OPEN_AI_CONFIG_DOMAIN = 'SwagAgenticCommerce.openAiProductExport';
@@ -51,6 +52,24 @@ export class AgenticCommerceFeedDetail {
 
         await this.templateSelect.locator('.mt-select__selection').click();
         await this.page.getByTestId(`mt-select-option--${templateName}`).click();
+    }
+
+    /** Opens the create page of a new feed channel and waits until its provider settings are rendered. */
+    async openNew(): Promise<void> {
+        await goToAdminRoute(this.page, `/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/base`);
+        await expect(this.returnPolicyUrl).toBeVisible();
+    }
+
+    /** 6.5 and 6.6 show the template as the native `<select>` value, later lanes as the Meteor select's label. */
+    async expectTemplateShown(templateName: 'open_ai' | 'google', label: RegExp): Promise<void> {
+        const nativeSelect = this.templateSelect.locator('select');
+        if (await nativeSelect.count() > 0) {
+            await expect(nativeSelect).toHaveValue(templateName);
+
+            return;
+        }
+
+        await expect(this.templateSelect.locator('.mt-select-selection-list__input')).toHaveValue(label);
     }
 
     /** The template modal's primary action applies the chosen template. */
