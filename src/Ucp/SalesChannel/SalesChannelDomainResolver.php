@@ -11,6 +11,8 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\ContainsFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\MultiFilter;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
+use Shopware\Storefront\Framework\Routing\RequestTransformer;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
@@ -47,6 +49,25 @@ final class SalesChannelDomainResolver
     public function resolveByBaseUri(string $baseUri, ?Context $context = null): ?SalesChannelResolution
     {
         return $this->resolveByAbsoluteUri($baseUri, $context);
+    }
+
+    public function resolveByRequest(Request $request, ?Context $context = null): ?SalesChannelResolution
+    {
+        return $this->resolveByAbsoluteUri(self::absoluteRequestUri($request), $context);
+    }
+
+    /**
+     * Core's RequestTransformer strips a domain's path prefix from the request URI, so the URI the
+     * request reports would match `https://shop.example/de` to the host's root domain.
+     */
+    public static function absoluteRequestUri(Request $request): string
+    {
+        $originalRequestUri = $request->attributes->get(RequestTransformer::ORIGINAL_REQUEST_URI);
+        if (!\is_string($originalRequestUri) || '' === $originalRequestUri) {
+            return $request->getUri();
+        }
+
+        return $request->getSchemeAndHttpHost().$originalRequestUri;
     }
 
     public function resolveByHostAndPath(string $host, string $path = '/', ?Context $context = null): ?SalesChannelResolution

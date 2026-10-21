@@ -12,11 +12,13 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
+use Shopware\Storefront\Framework\Routing\RequestTransformer;
 use Swag\AgenticCommerce\Storefront\Subscriber\UcpProfileLinkHeaderSubscriber;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileLocator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -63,6 +65,19 @@ final class UcpProfileLinkHeaderSubscriberTest extends TestCase
         static::assertSame([], $response->headers->all('Link'));
     }
 
+    #[Test]
+    public function itAddsNoLinkForAPathPrefixedDomain(): void
+    {
+        $htmlResponse = new Response('', Response::HTTP_OK, ['Content-Type' => 'text/html']);
+        $requestWithStrippedPrefix = Request::create('https://shop.example/products');
+        $requestWithStrippedPrefix->attributes->set(RequestTransformer::ORIGINAL_REQUEST_URI, '/de/products');
+
+        $this->subscriber(new UcpConfig(active: true), $this->domain('https://shop.example/de'))
+            ->onBeforeSendResponse(new BeforeSendResponseEvent($requestWithStrippedPrefix, $htmlResponse));
+
+        static::assertSame([], $htmlResponse->headers->all('Link'));
+    }
+
     private function subscriber(
         UcpConfig $config,
         ?SalesChannelDomainEntity $domain = null,
@@ -80,7 +95,7 @@ final class UcpProfileLinkHeaderSubscriberTest extends TestCase
         ]);
         $domainResolver = new SalesChannelDomainResolver($domainRepository);
 
-        return new UcpProfileLinkHeaderSubscriber($configService, $domainResolver);
+        return new UcpProfileLinkHeaderSubscriber($configService, $domainResolver, new UcpProfileLocator());
     }
 
     private function responseEvent(Response $response): BeforeSendResponseEvent
@@ -88,14 +103,14 @@ final class UcpProfileLinkHeaderSubscriberTest extends TestCase
         return new BeforeSendResponseEvent(Request::create('https://shop.example/products'), $response);
     }
 
-    private function domain(): SalesChannelDomainEntity
+    private function domain(string $url = 'https://shop.example'): SalesChannelDomainEntity
     {
         $domain = new SalesChannelDomainEntity();
         $domain->setId('domain-id');
         $domain->setSalesChannelId('sales-channel-id');
         $domain->setLanguageId('language-id');
         $domain->setCurrencyId('currency-id');
-        $domain->setUrl('https://shop.example');
+        $domain->setUrl($url);
 
         return $domain;
     }

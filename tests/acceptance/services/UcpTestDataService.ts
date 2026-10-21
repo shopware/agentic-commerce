@@ -24,9 +24,9 @@ export interface ProductFeedOptions {
 }
 
 /**
- * Parent domain of the per-channel hosts that give a channel a root-path domain of its own, so its
- * `/.well-known/ucp` resolves it (a path prefix cannot, known blocker D8). The browser projects map
- * it onto the `APP_URL` host with `--host-resolver-rules`; Node clients cannot resolve it.
+ * Parent domain of the per-channel hosts that give a channel a root-path domain of its own. The
+ * browser projects map it onto the `APP_URL` host with `--host-resolver-rules`; Node clients cannot
+ * resolve it.
  */
 export const OWN_HOST_PARENT_DOMAIN = 'ucp-acceptance.test';
 
@@ -431,10 +431,6 @@ export class UcpTestDataService extends TestDataService {
         return ((await response.json()) as { data: UcpConfigPayload }).data;
     }
 
-    /**
-     * The profile the shop would serve for this channel, resolved by id. `/.well-known/ucp` under
-     * a path-prefixed domain cannot give this today (known blocker D8).
-     */
     async getProfilePreview(salesChannelId: string): Promise<UcpProfileDocument['ucp']> {
         const response = await this.AdminApiClient.get(`./_admin/ucp/sales-channels/${salesChannelId}/profile-preview`);
         expect(response.ok(), await response.text()).toBeTruthy();

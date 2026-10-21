@@ -15,18 +15,23 @@ test.describe('Agentic discovery files @UcpContent', () => {
         const ucpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(ucpChannel.salesChannel.id);
 
-        const bodyByFileName = new Map<string, string>();
         for (const [fileName, contentType] of Object.entries(DISCOVERY_FILE_CONTENT_TYPES)) {
             const discoveryFile = await request.get(`${ucpChannel.url}${fileName}`);
-            const discoveryFileBody = await discoveryFile.text();
 
-            expect(discoveryFile.status(), `${fileName}: ${discoveryFileBody}`).toBe(200);
+            expect(discoveryFile.status(), `${fileName}: ${await discoveryFile.text()}`).toBe(200);
             expect(discoveryFile.headers()['content-type']).toContain(contentType);
-            bodyByFileName.set(fileName, discoveryFileBody);
         }
+    });
 
-        const aiCatalog = JSON.parse(bodyByFileName.get('.well-known/ai-catalog.json') ?? '') as { entries: { url: string }[] };
-        expect(aiCatalog.entries.map(entry => entry.url)).toContain(TestDataService.wellKnownUrl(ucpChannel.url));
+    test('a UCP-active channel on a path-prefixed domain links no UCP profile from its discovery files', async ({ TestDataService, request }) => {
+        const pathPrefixedUcpChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(pathPrefixedUcpChannel.salesChannel.id);
+
+        for (const fileName of Object.keys(DISCOVERY_FILE_CONTENT_TYPES)) {
+            const discoveryFileBody = await (await request.get(`${pathPrefixedUcpChannel.url}${fileName}`)).text();
+
+            expect(discoveryFileBody, `${fileName} links no profile below the path prefix`).not.toContain(UCP_PROFILE_PATH);
+        }
     });
 
     test('/AGENTS.md serves the same document as /agents.md', async ({ InstanceMeta, TestDataService, request }) => {
@@ -42,14 +47,10 @@ test.describe('Agentic discovery files @UcpContent', () => {
         expect(await upperCaseFileResponse.text()).toBe(await lowerCaseFileResponse.text());
     });
 
-    test('switching UCP off removes the UCP sections and keeps the files', async ({ InstanceMeta, TestDataService, request }) => {
+    test('switching UCP off keeps the discovery files', async ({ InstanceMeta, TestDataService, request }) => {
         test.skip(satisfies(InstanceMeta.version, FALLBACK_DROPS_FILES_WITHOUT_UCP), 'known blocker D9, asserted in tests/KnownBlocked/discovery-files.spec.ts');
         const ucpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(ucpChannel.salesChannel.id);
-
-        for (const fileName of ['llms.txt', 'agents.md']) {
-            expect(await (await request.get(`${ucpChannel.url}${fileName}`)).text()).toContain(UCP_PROFILE_PATH);
-        }
 
         const deactivationResponse = await TestDataService.saveUcpConfig(ucpChannel.salesChannel.id, { active: false });
         expect(deactivationResponse.ok(), await deactivationResponse.text()).toBeTruthy();
@@ -60,7 +61,6 @@ test.describe('Agentic discovery files @UcpContent', () => {
 
             expect(discoveryFileResponseWithoutUcp.status()).toBe(200);
             expect(discoveryFileBodyWithoutUcp, `${fileName} still describes the channel`).toContain(ucpChannel.salesChannel.name);
-            expect(discoveryFileBodyWithoutUcp).not.toContain(UCP_PROFILE_PATH);
         }
     });
 
@@ -82,7 +82,7 @@ test.describe('Agentic discovery files @UcpContent', () => {
         }
     });
 
-    test('the RFC 9727 api-catalog links the UCP profile and the Store API while UCP is active', async ({ TestDataService, request }) => {
+    test('the RFC 9727 api-catalog links the Store API while UCP is active', async ({ TestDataService, request }) => {
         const ucpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(ucpChannel.salesChannel.id);
         const apiCatalogUrl = `${ucpChannel.url}.well-known/api-catalog`;
@@ -90,8 +90,8 @@ test.describe('Agentic discovery files @UcpContent', () => {
         const apiCatalogResponse = await request.get(apiCatalogUrl);
         expect(apiCatalogResponse.status()).toBe(200);
         expect(apiCatalogResponse.headers()['content-type']).toContain('application/linkset+json');
-        const { linkset: [catalogEntry] } = (await apiCatalogResponse.json()) as { linkset: { 'service-meta': { href: string }[], item: { href: string }[] }[] };
-        expect(catalogEntry['service-meta'].map(link => link.href)).toContain(TestDataService.wellKnownUrl(ucpChannel.url));
+        const { linkset: [catalogEntry] } = (await apiCatalogResponse.json()) as { linkset: { 'service-meta'?: { href: string }[], item: { href: string }[] }[] };
+        expect(catalogEntry['service-meta'], 'a path-prefixed domain links no UCP profile').toBeUndefined();
         expect(catalogEntry.item.map(link => link.href)).toContain(`${ucpChannel.url}store-api`);
 
         const deactivationResponse = await TestDataService.saveUcpConfig(ucpChannel.salesChannel.id, { active: false });

@@ -134,6 +134,28 @@ class UcpConfigValidatorTest extends TestCase
         $this->assertFindingSeverity($findings, 'profile_domain_unmatched', Severity::Warning);
     }
 
+    public function testAChannelOnlyOnPathPrefixedDomainsIsAWarning(): void
+    {
+        $findings = $this->validate(
+            $this->config(),
+            [$this->activeKey()],
+            [['url' => 'https://shop.example.com/de'], ['url' => 'https://shop.example.com/at/']],
+        );
+
+        $this->assertFindingSeverity($findings, 'path_prefixed_domain', Severity::Warning);
+    }
+
+    public function testAPathPrefixedDomainNextToARootDomainDoesNotWarn(): void
+    {
+        $findings = $this->validate(
+            $this->config(),
+            [$this->activeKey()],
+            [['url' => 'https://shop.example.com/de'], ['url' => 'https://de.shop.example.com/']],
+        );
+
+        static::assertNotContains('path_prefixed_domain', $this->codes($findings));
+    }
+
     public function testIdempotencyDisabledIsAWarning(): void
     {
         $findings = $this->validate($this->config(idempotencyRequired: false), [$this->activeKey()], self::DOMAINS);

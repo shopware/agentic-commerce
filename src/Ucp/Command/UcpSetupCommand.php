@@ -15,6 +15,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Finding;
 use Swag\AgenticCommerce\Ucp\Config\Validation\Severity;
 use Swag\AgenticCommerce\Ucp\Config\Validation\UcpConfigValidator;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileLocator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelView;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -61,6 +62,7 @@ final class UcpSetupCommand extends Command
         private readonly UcpConfigService $configService,
         private readonly UcpSigningKeyService $signingKeyService,
         private readonly UcpConfigValidator $validator,
+        private readonly UcpProfileLocator $profileLocator,
     ) {
         parent::__construct();
     }
@@ -274,12 +276,17 @@ final class UcpSetupCommand extends Command
     private function renderSummary(SymfonyStyle $io, UcpConfig $config, SalesChannelView $channel): void
     {
         $io->section('Result');
-        $profileUrls = array_map(
-            static fn (SalesChannelDomainView $domain): string => rtrim($domain->url, '/').'/.well-known/ucp',
+        $profileUrls = array_values(array_filter(array_map(
+            fn (SalesChannelDomainView $domain): ?string => $this->profileLocator->profileUrl($domain->url),
             $channel->domains,
-        );
+        )));
+        $profileUrlSummary = match (true) {
+            [] === $channel->domains => '(no domain on this sales channel yet)',
+            [] === $profileUrls => '(none: every domain of this sales channel has a path)',
+            default => implode("\n", $profileUrls),
+        };
         $io->definitionList(
-            ['Profile URL' => [] === $profileUrls ? '(no domain on this sales channel yet)' : implode("\n", $profileUrls)],
+            ['Profile URL' => $profileUrlSummary],
             ['Signature policy' => $config->signaturePolicy],
             ['Idempotency required' => $config->idempotencyRequired ? 'yes' : 'no'],
             ['Platform allowlist' => [] === $config->platformAllowlist ? '(none: no platform can talk to this channel yet)' : implode(', ', $config->platformAllowlist)],
