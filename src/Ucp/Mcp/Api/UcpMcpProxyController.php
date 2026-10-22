@@ -164,6 +164,7 @@ final class UcpMcpProxyController
 
         $salesChannel = $this->salesChannelRepository
             ->search(new Criteria([$resolution->salesChannelId]), Context::createDefaultContext())
+            ->getEntities()
             ->first();
 
         if (!$salesChannel instanceof SalesChannelEntity) {
