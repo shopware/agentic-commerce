@@ -81,11 +81,13 @@ jobs:
           changed='[]'
           if [[ "${RUN_CHANGED}" == "true" ]]; then
             # Setup and Signer are dependency projects that already run in every acceptance job.
+            # KnownBlocked specs are not gating, so they are not repeated either.
             # quotePath=false: git would otherwise print non-ASCII paths quoted, matching no spec.
             changed="$(git -c core.quotePath=false diff --name-only --diff-filter=d HEAD^1 HEAD -- \
               ':(glob)tests/acceptance/tests/**/*.spec.ts' \
               ':(exclude,glob)tests/acceptance/tests/Setup/**' \
               ':(exclude,glob)tests/acceptance/tests/Signer/**' \
+              ':(exclude,glob)tests/acceptance/tests/KnownBlocked/**' \
               | jq -Rnc '[inputs | select(length > 0) | ltrimstr("tests/acceptance/")]')"
           fi
           echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
@@ -157,11 +159,12 @@ jobs:
           CHANGED_SPECS: ${{ needs.acceptance-plan.outputs.changed }}
         run: |
           mapfile -t specs < <(jq -r '.[]' <<<"${CHANGED_SPECS}")
-          # A changed spec under KnownBlocked/ is filtered out completely by --grep-invert.
+          # No --pass-with-no-tests: the plan leaves out KnownBlocked specs, so a changed spec that
+          # selects no test (no project tag, or a name Playwright reads as a regex) must fail the job.
           # Two workers, the default on the 4-vCPU runner, so a smaller runner keeps the parallel load.
           # No `--` before the specs: Playwright drops every argument after it from the test filter and
           # runs the whole suite. The plan only emits paths starting with tests/, never an option.
-          npx playwright test --grep-invert @UcpKnownBlocked --repeat-each=10 --retries=0 --workers=2 --pass-with-no-tests --reporter=list "${specs[@]}"
+          npx playwright test --grep-invert @UcpKnownBlocked --repeat-each=10 --retries=0 --workers=2 --reporter=list "${specs[@]}"
       # The failures' traces hold every Admin API response the ATS asserts without its body; the shop
       # log holds the server-side errors. Both carry tokens of this throwaway shop, like the lane blobs.
       - if: failure()

@@ -130,7 +130,7 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
     });
 
     test('the feed channel\'s insights count only the orders and customers attributed to it', async ({ InstanceMeta, TestDataService, UcpAclUsers }) => {
-        test.skip(satisfies(InstanceMeta.version, '<6.7.10.0'), 'the insights totals arrived with core\'s product export insights in 6.7.10.0');
+        test.skip(satisfies(InstanceMeta.version, '<6.7.10.0'), 'the totals are shown from 6.7.10.0, with core\'s product export insights; the plugin\'s own statistics tab before that shows the charts only');
         const { salesChannel: feed } = await TestDataService.createFeedSalesChannelWithExport();
         const { salesChannel: otherFeed } = await TestDataService.createFeedSalesChannelWithExport();
         const product = await TestDataService.createBasicProduct();
