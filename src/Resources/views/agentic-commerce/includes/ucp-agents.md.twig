@@ -1,4 +1,4 @@
-{% if swag_agentic_commerce_ucp_active(salesChannel) %}
+{% if swag_agentic_commerce_ucp_active(salesChannel) and swag_agentic_commerce_ucp_profile_url(salesChannelFileContext.baseUrl|default(null)) %}
 ## Agentic commerce via UCP
 
 - Check `/.well-known/ucp` before using UCP. Only use capabilities and transports advertised for this sales channel.

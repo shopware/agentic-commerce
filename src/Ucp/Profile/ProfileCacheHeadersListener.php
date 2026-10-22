@@ -38,8 +38,6 @@ use Symfony\Component\HttpKernel\KernelEvents;
 #[Package('framework')]
 final class ProfileCacheHeadersListener implements EventSubscriberInterface
 {
-    private const PROFILE_PATH = '/.well-known/ucp';
-
     private const MAX_AGE_SECONDS = 60;
 
     public static function getSubscribedEvents(): array
@@ -55,7 +53,7 @@ final class ProfileCacheHeadersListener implements EventSubscriberInterface
 
     public function onResponse(ResponseEvent $event): void
     {
-        if (!$event->isMainRequest() || self::PROFILE_PATH !== $event->getRequest()->getPathInfo()) {
+        if (!$event->isMainRequest() || UcpProfileLocator::PROFILE_PATH !== $event->getRequest()->getPathInfo()) {
             return;
         }
 
@@ -70,7 +68,7 @@ final class ProfileCacheHeadersListener implements EventSubscriberInterface
 
     public function onBeforeSendResponse(BeforeSendResponseEvent $event): void
     {
-        if (self::PROFILE_PATH !== $event->getRequest()->getPathInfo()) {
+        if (UcpProfileLocator::PROFILE_PATH !== $event->getRequest()->getPathInfo()) {
             return;
         }
 

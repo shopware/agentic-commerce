@@ -157,13 +157,14 @@ final class UcpMcpProxyController
      */
     private function resolveSalesChannel(Request $request): ?array
     {
-        $resolution = $this->domainResolver->resolveByAbsoluteUri($request->getUri());
+        $resolution = $this->domainResolver->resolveByRequest($request);
         if (null === $resolution) {
             return null;
         }
 
         $salesChannel = $this->salesChannelRepository
             ->search(new Criteria([$resolution->salesChannelId]), Context::createDefaultContext())
+            ->getEntities()
             ->first();
 
         if (!$salesChannel instanceof SalesChannelEntity) {

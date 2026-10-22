@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Storefront\Subscriber;
 use Shopware\Core\Framework\Event\BeforeSendResponseEvent;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileLocator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
@@ -19,6 +20,7 @@ final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
     public function __construct(
         private readonly UcpConfigService $configService,
         private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly UcpProfileLocator $profileLocator,
     ) {
     }
 
@@ -36,10 +38,11 @@ final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $salesChannelResolution = $this->domainResolver->resolveByAbsoluteUri($event->getRequest()->getUri());
+        $resolvedDomain = $this->domainResolver->resolveByRequest($event->getRequest());
         if (
-            null === $salesChannelResolution
-            || !$this->isUcpActiveForSalesChannel($salesChannelResolution->salesChannelId)
+            null === $resolvedDomain
+            || null === $this->profileLocator->profileUrl($resolvedDomain->baseUrl)
+            || !$this->isUcpActiveForSalesChannel($resolvedDomain->salesChannelId)
         ) {
             return;
         }

@@ -22,6 +22,7 @@ use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Profile\UcpProfileLocator;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -37,7 +38,7 @@ final class ApiCatalogControllerTest extends TestCase
 
         $controller = new ApiCatalogController(
             $this->configService(new UcpConfig(active: true)),
-            new ApiCatalogLinksetBuilder(),
+            new ApiCatalogLinksetBuilder(new UcpProfileLocator()),
             $this->baseUrlResolver($salesChannelId, 'https://shop.example.com/'),
         );
 
@@ -76,7 +77,7 @@ final class ApiCatalogControllerTest extends TestCase
 
         $controller = new ApiCatalogController(
             $this->configService(new UcpConfig(active: true)),
-            new ApiCatalogLinksetBuilder(),
+            new ApiCatalogLinksetBuilder(new UcpProfileLocator()),
             $this->baseUrlResolver($salesChannelId, 'https://shop.example.com/'),
         );
 
@@ -92,7 +93,7 @@ final class ApiCatalogControllerTest extends TestCase
 
         $controller = new ApiCatalogController(
             $this->configService(new UcpConfig(active: false)),
-            new ApiCatalogLinksetBuilder(),
+            new ApiCatalogLinksetBuilder(new UcpProfileLocator()),
             $this->baseUrlResolver($salesChannelId, 'https://shop.example.com/'),
         );
 

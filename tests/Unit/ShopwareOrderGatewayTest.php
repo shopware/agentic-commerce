@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartOrderRoute;
@@ -18,6 +19,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
+use Shopware\Core\Framework\Feature;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
@@ -40,8 +42,12 @@ use Ucp\Sdk\Model\RequestContext;
 #[CoversClass(ShopwareOrderGateway::class)]
 final class ShopwareOrderGatewayTest extends TestCase
 {
+    /**
+     * @param list<string> $features
+     */
     #[Test]
-    public function testItDelegatesPublicOrderReadsToStoreApiOrderRouteWithIncomingContextToken(): void
+    #[DataProvider('majorFeatureFlagProvider')]
+    public function testItDelegatesPublicOrderReadsToStoreApiOrderRouteWithIncomingContextToken(array $features): void
     {
         $salesChannelId = '22222222222222222222222222222222';
         $salesChannelContext = $this->createMock(SalesChannelContext::class);
@@ -102,12 +108,18 @@ final class ShopwareOrderGatewayTest extends TestCase
             $this->requestStackWithIncomingContextToken('customer-context-token'),
         );
 
-        self::assertSame($order, $gateway->getOrder(
+        self::assertSame($order, Feature::fake($features, static fn () => $gateway->getOrder(
             '99999999999999999999999999999999',
             new RequestContext('shop.example', [
                 PlatformRequest::HEADER_CONTEXT_TOKEN => 'storefront-session-token',
             ]),
-        ));
+        )));
+    }
+
+    public static function majorFeatureFlagProvider(): \Generator
+    {
+        yield 'the current major' => [[]];
+        yield 'the next major, whose deprecations throw' => [['v6.8.0.0']];
     }
 
     #[Test]

@@ -118,10 +118,8 @@ fixture reaches for a shop that the server-free run does not have.
 
 Every Playwright worker owns its test data. The ATS `DefaultSalesChannel` fixture gives each worker
 a storefront-type sales channel on the path-prefixed domain `${APP_URL}test-<uuid>/`, so the
-Administration shows the Agentic Commerce tab for it. That domain does not give the worker a profile
-of its own yet: `/.well-known/ucp` under a prefixed domain resolves another channel (known blocker
-D8). A spec that needs the real document creates a channel on a host of its own instead, see
-`createStorefrontSalesChannelOnOwnHost()` below. The plugin fixtures build on the worker channel.
+Administration shows the Agentic Commerce tab for it. The plugin fixtures build on the worker
+channel.
 
 **`TestDataService`** (test scope) is `UcpTestDataService`, the ATS `TestDataService` plus UCP:
 `createStorefrontSalesChannel()`, `createHeadlessSalesChannel()`, `createFeedSalesChannel()`,

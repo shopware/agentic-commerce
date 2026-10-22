@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
+use Swag\AgenticCommerce\Ucp\Http\PathPrefixRestorer;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Http\HttpRequest;
@@ -19,13 +20,14 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
         private readonly UcpConfigService $configService,
         private readonly SalesChannelDomainResolver $domainResolver,
         private readonly ShopwareVersionDetector $versionDetector,
+        private readonly PathPrefixRestorer $pathPrefixRestorer,
         private readonly bool $profileFetchingDevelopmentMode = false,
     ) {
     }
 
     public function resolve(HttpRequest $request): RuntimeConfiguration
     {
-        $resolution = $this->domainResolver->resolveByAbsoluteUri($request->absoluteUri);
+        $resolution = $this->domainResolver->resolveByAbsoluteUri($this->pathPrefixRestorer->restore($request->absoluteUri));
         $config = $this->configService->getConfig($resolution?->salesChannelId);
         $baseUri = $this->fallbackBaseUri($request->absoluteUri);
         if (null !== $resolution) {

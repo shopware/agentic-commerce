@@ -62,8 +62,9 @@ the `ucp-php-sdk`.
 ### Set up UCP on a sales channel
 
 The whole path from "plugin activated" to "first UCP request answered", for one sales channel. You
-need a Storefront or Headless sales channel with at least one domain; every other channel type is
-refused.
+need a Storefront or Headless sales channel; every other channel type is refused. Agents find the
+channel only through a domain without a path, such as `https://de.shop.example`, because a domain
+like `https://shop.example/de` serves no UCP profile.
 
 1. **Configure the channel in one step.**
 

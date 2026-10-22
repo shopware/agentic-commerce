@@ -60,7 +60,7 @@ final class SalesChannelViewProvider
         $criteria->addAssociation('domains');
         $criteria->setLimit(1);
 
-        $salesChannel = $this->salesChannelRepository->search($criteria, $context)->first();
+        $salesChannel = $this->salesChannelRepository->search($criteria, $context)->getEntities()->first();
         if (!$salesChannel instanceof SalesChannelEntity) {
             return null;
         }
@@ -74,7 +74,7 @@ final class SalesChannelViewProvider
         $criteria->addAssociation('domains');
         $criteria->setLimit(1);
 
-        $salesChannel = $this->salesChannelRepository->search($criteria, $context ?? Context::createDefaultContext())->first();
+        $salesChannel = $this->salesChannelRepository->search($criteria, $context ?? Context::createDefaultContext())->getEntities()->first();
         if (!$salesChannel instanceof SalesChannelEntity) {
             return null;
         }

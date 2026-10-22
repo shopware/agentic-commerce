@@ -127,6 +127,8 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\Http\ConfiguredUrlSafetyValidatorFactory;
+use Swag\AgenticCommerce\Ucp\Http\PathPrefixRestoringRequestContextFactory;
+use Swag\AgenticCommerce\Ucp\Http\PathPrefixRestoringResponseSignatureService;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTask;
 use Swag\AgenticCommerce\Ucp\Identity\CleanupExpiredOAuthTokensTaskHandler;
 use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
@@ -175,6 +177,8 @@ use Ucp\Sdk\Contract\DiscountCapabilityInterface;
 use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
+use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
+use Ucp\Sdk\Service\ResponseSignatureServiceInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
 
@@ -537,6 +541,12 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ShopwareRuntimeConfigurationResolver::class)
         ->arg('$profileFetchingDevelopmentMode', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE'));
     $services->alias(RuntimeConfigurationResolverInterface::class, ShopwareRuntimeConfigurationResolver::class);
+    $services->set(PathPrefixRestoringRequestContextFactory::class)
+        ->decorate(HttpRequestContextFactoryInterface::class)
+        ->arg('$inner', service('.inner'));
+    $services->set(PathPrefixRestoringResponseSignatureService::class)
+        ->decorate(ResponseSignatureServiceInterface::class)
+        ->arg('$inner', service('.inner'));
     // Fetched from the container by the plugin's activate()/update() hooks.
     $services->alias(AgenticFilesCoreBridgeInterface::class, CoreSalesChannelFileBridge::class)->public();
 
