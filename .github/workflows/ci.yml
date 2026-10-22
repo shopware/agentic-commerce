@@ -44,6 +44,7 @@ env:
   SHOPWARE_TRUNK_REF: ${{ github.event.inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
   SHOPWARE_6714_REF: ${{ vars.SHOPWARE_6714_REF || '6.7.14.x' }}
   PHPSTAN_SHOPWARE_VERSION: '0.2.4'
+  PHPSTAN_DEPRECATION_RULES_VERSION: '2.0.5'
 
 permissions:
   actions: read
@@ -364,7 +365,11 @@ jobs:
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules
         # Do not enable phpstan-shopware's default rules.neon via its extension installer.
-        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
+        # The deprecation rules fail the job on calls core already deprecated for the next major.
+        run: >-
+          composer require --dev --no-interaction --no-plugins
+          "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}"
+          "phpstan/phpstan-deprecation-rules:${PHPSTAN_DEPRECATION_RULES_VERSION}"
         working-directory: agentic-commerce
       - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan.neon
         working-directory: agentic-commerce
