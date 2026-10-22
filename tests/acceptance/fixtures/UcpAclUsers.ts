@@ -36,10 +36,28 @@ export interface UcpAclUsersTypes {
 }
 
 export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclUsersTypes>({
-    UcpAclUsers: async ({ TestDataService, AdminApiContext, SalesChannelBaseConfig, browser, AdminSession }, use) => {
+    // Not the worker's AdminSession: as a dependency it makes every worker create the ATS admin user
+    // up front, and the ATS does not retry core's refresh token conflict on that insert.
+    UcpAclUsers: async ({ TestDataService, AdminApiContext, SalesChannelBaseConfig, browser }, use) => {
         const mapping = await readAdminPrivilegeMapping();
         const users = new Map<UcpRole, Promise<UcpAclUser>>();
         const otherPages: Promise<Page>[] = [];
+
+        const freshAdmin = (): Promise<Page> => {
+            const pending = TestDataService.createUserRetryingTokenConflicts({ admin: true })
+                .then(async (user) => {
+                    const loginPage = await createNewAdminPageContext(browser, SalesChannelBaseConfig);
+                    await withoutUpdateNotification(loginPage);
+
+                    return loginToAdministration(loginPage, user, AdminApiContext);
+                });
+            otherPages.push(pending);
+
+            return pending;
+        };
+
+        // Created on first use, so a test that asks for no role user logs in no extra admin.
+        let privilegesPage: Promise<Page> | undefined;
 
         /**
          * What the role editor stores for these role keys: the running Administration resolves their
@@ -47,16 +65,11 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
          * `sales_channel.viewer`.
          */
         const grantedPrivileges = async (roleKeys: string[]): Promise<string[]> => {
-            const page = await AdminSession.context.newPage();
-            try {
-                await page.goto(process.env.ADMIN_URL ?? './');
-                await expect(page.locator('.sw-admin-menu')).toBeVisible();
+            privilegesPage ??= freshAdmin();
+            const page = await privilegesPage;
+            await expect(page.locator('.sw-admin-menu')).toBeVisible();
 
-                return await page.evaluate<string[]>(`Shopware.Service('privileges').getPrivilegesForAdminPrivilegeKeys(${JSON.stringify(roleKeys)})`);
-            }
-            finally {
-                await page.close();
-            }
+            return page.evaluate<string[]>(`Shopware.Service('privileges').getPrivilegesForAdminPrivilegeKeys(${JSON.stringify(roleKeys)})`);
         };
 
         const createUser = async (name: string, roleKeys: string[]): Promise<{ user: User, privileges: string[], page: Page }> => {
@@ -89,18 +102,7 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
 
                 return pending;
             },
-            asFreshAdmin: () => {
-                const pending = TestDataService.createUserRetryingTokenConflicts({ admin: true })
-                    .then(async (user) => {
-                        const loginPage = await createNewAdminPageContext(browser, SalesChannelBaseConfig);
-                        await withoutUpdateNotification(loginPage);
-
-                        return loginToAdministration(loginPage, user, AdminApiContext);
-                    });
-                otherPages.push(pending);
-
-                return pending;
-            },
+            asFreshAdmin: freshAdmin,
             asSalesChannelViewer: () => {
                 const pending = createUser('sales_channel.viewer', ['sales_channel.viewer']).then(({ page }) => page);
                 otherPages.push(pending);

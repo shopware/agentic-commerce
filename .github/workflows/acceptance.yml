@@ -158,9 +158,20 @@ jobs:
         run: |
           mapfile -t specs < <(jq -r '.[]' <<<"${CHANGED_SPECS}")
           # A changed spec under KnownBlocked/ is filtered out completely by --grep-invert.
-          # Two workers: ten copies of a spec on every core rush user inserts and deletes into MariaDB
-          # 11.6+ write conflicts (error 1020) in ATS fixtures that do not retry them.
+          # Two workers, the default on the 4-vCPU runner, so a smaller runner keeps the parallel load.
           npx playwright test --grep-invert @UcpKnownBlocked --repeat-each=10 --retries=0 --workers=2 --pass-with-no-tests --reporter=list -- "${specs[@]}"
+      # The failures' traces hold every Admin API response the ATS asserts without its body; the shop
+      # log holds the server-side errors. Both carry tokens of this throwaway shop, like the lane blobs.
+      - if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: acceptance-tests-changed-failure
+          path: |
+            agentic-commerce/tests/acceptance/test-results
+            shopware/var/log
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
   acceptance-check:
     # always(), not !cancelled(): a skipped gate would count as passing.

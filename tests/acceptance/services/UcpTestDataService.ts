@@ -56,7 +56,10 @@ export interface UcpConfigPayload {
 
 export const ALL_UCP_CAPABILITIES = ['catalog', 'cart', 'discount', 'checkout', 'order'];
 
-const USER_CREATION_ATTEMPTS = 3;
+const USER_CREATION_ATTEMPTS = 5;
+
+/** MariaDB's "record has changed since last read" (snapshot isolation). */
+const USER_INSERT_CONFLICT_CODE = '1020';
 
 export interface UcpSalesChannel {
     salesChannel: SalesChannel
@@ -479,29 +482,38 @@ export class UcpTestDataService extends TestDataService {
     }
 
     /**
-     * Core revokes refresh tokens on every user insert, which MariaDB 11.6+ snapshot isolation
-     * rejects (error 1020) while other workers log in. Before 6.7.13.1 the user row is already
-     * committed by then, so a failed attempt is registered for cleanup when the user exists.
+     * Core revokes a user's refresh tokens when it inserts the user. The delete scans the whole
+     * `refresh_token` table (no index on `user_id`), and MariaDB 11.6+ snapshot isolation rejects it
+     * with error 1020 while other workers log in; core answers 500 and does not retry. Only that
+     * conflict is retried, with a fresh user and a growing, jittered pause, since immediate retries
+     * were seen to fail again. Since 6.7.13.1 the insert rolls back with the revocation; before, the
+     * user row is already committed, so a failed attempt whose user exists is used and registered
+     * for cleanup.
      */
     async createUserRetryingTokenConflicts(overrides: Partial<User> = {}): Promise<User> {
-        const password = overrides.password ?? 'shopware';
+        const { localeId } = await this.getLanguageById(this.defaultSalesChannel.languageId);
 
         for (let attempt = 1; ; attempt++) {
-            const { uuid: id } = this.IdProvider.getIdPair();
-            try {
-                return await this.createUser({ ...overrides, id, password });
-            }
-            catch (error) {
-                const userLookup = await this.AdminApiClient.get(`./user/${id}`);
-                if (userLookup.ok()) {
-                    this.addCreatedRecord('user', id);
+            const user = this.getBasicUserStruct(localeId, overrides) as User;
+            const response = await this.AdminApiClient.post('user', { data: user });
+            if (response.ok()) {
+                this.addCreatedRecord('user', user.id);
 
-                    return { ...((await userLookup.json()) as { data: User }).data, password };
-                }
-                if (attempt === USER_CREATION_ATTEMPTS) {
-                    throw error;
-                }
+                return { ...await this.getUserById(user.id), password: user.password };
             }
+            const existing = await this.AdminApiClient.get(`./user/${user.id}`);
+            if (existing.ok()) {
+                this.addCreatedRecord('user', user.id);
+
+                return { ...((await existing.json()) as { data: User }).data, password: user.password };
+            }
+
+            const code = response.status() >= 500 ? await UcpTestDataService.refusalCode(response).catch(() => null) : null;
+            if (attempt === USER_CREATION_ATTEMPTS || code !== USER_INSERT_CONFLICT_CODE) {
+                throw new Error(`POST /api/user failed (attempt ${attempt}): HTTP ${response.status()} ${response.statusText()} ${(await response.text()).slice(0, 2000)}`);
+            }
+            const pause = 250 * 2 ** (attempt - 1);
+            await new Promise(resolve => setTimeout(resolve, pause + Math.random() * pause));
         }
     }
 
