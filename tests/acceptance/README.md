@@ -246,17 +246,18 @@ because they carry no key and truncate the digest and signature values.
 
 ### What the fixtures need from their host
 
-Beyond `APP_URL`, two fixtures touch the Shopware project directly. Each resolves what it needs from
-an environment variable when it is first used, and fails loudly when it cannot:
+Beyond `APP_URL`, two fixtures and `ShopwareLog` from `services/shopwareLog.ts` touch the Shopware
+project directly. Each resolves what it needs from an environment variable when it is first used,
+and fails loudly when it cannot:
 
-| Variable       | Default                                                                                                     | Needed by                                                                          |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there           |
-| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION`, the Administration ACL file and the feed templates |
-| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                                       |
+| Variable       | Default                                                                                                     | Needed by                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there; `ShopwareLog` reads its `var/log/` |
+| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION`, the Administration ACL file and the feed templates                           |
+| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                                                                 |
 
-A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
-profile host and the console need the project mounted.
+A runner that reaches Shopware only over HTTP can run every spec that uses none of them. The profile
+host, the console and the log reader need the project mounted.
 
 Channels on a host of their own need the web server to answer any `Host` (a catch-all vhost) and
 `TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The discovery journeys of `UcpAdmin`

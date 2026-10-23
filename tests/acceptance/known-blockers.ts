@@ -17,7 +17,7 @@ export const knownBlockers: KnownBlocker[] = [
         key: 'D1',
         description: 'SDK verification requires created, which the spec makes optional, so a spec-conformant signature without it is rejected under the strict signature policy. The SDK\'s own signing side still covers @method and @target-uri and always adds expires and alg. Its verifier already rebuilds the base from the components the client declares, @authority and @path included.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/229',
         reviewBy: '2026-12-31',
     },
     {
@@ -95,6 +95,13 @@ export const knownBlockers: KnownBlocker[] = [
         description: 'Before the Meteor select, cancelling the "Apply template" modal on a saved feed channel leaves the cancelled template in the select: onTemplateModalClose() restores the value templateName already has, so the select is not redrawn.',
         owner: 'alexdumea',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/310',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D14',
+        description: 'Under the signature policy log the SDK accepts a request whose signature fails, as the policy intends, but writes no log entry about the failure, so log behaves exactly like off.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/218',
         reviewBy: '2026-12-31',
     },
 ];
