@@ -135,9 +135,16 @@ test.describe('UCP Administration ACL @UcpAcl', () => {
 
         await goToAdminRoute(withoutUcpViewer, `/sw/sales/channel/detail/${salesChannel.id}/base`);
         await expect(insightsTab(withoutUcpViewer, salesChannel.id)).toHaveCount(0);
+        const statisticsSearchPaths = new Set([
+            '/api/search/order',
+            '/api/search/customer',
+            '/api/search/sales-channel-tracking-order',
+            '/api/search/sales-channel-tracking-customer',
+        ]);
         const statisticsRequests: string[] = [];
         withoutUcpViewer.on('request', (request) => {
-            if (/\/api\/search\/(order|customer|sales-channel-tracking-order|sales-channel-tracking-customer)/.test(request.url())) {
+            const pathname = new URL(request.url()).pathname;
+            if (statisticsSearchPaths.has(pathname)) {
                 statisticsRequests.push(request.url());
             }
         });
