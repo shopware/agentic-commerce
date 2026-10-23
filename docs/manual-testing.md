@@ -326,6 +326,7 @@ exploratory UX review:
 - Storefront and Headless channels show the UCP tab to users with `ucp.viewer`
 - users with `ucp.viewer` but without `ucp.editor` see a read-only banner and disabled controls
 - users with `ucp.editor` can save UCP configuration without `sales_channel.editor`
+- Agentic Commerce Insights remain hidden without `ucp.viewer`, including direct navigation
 - profile preview renders the lane-aware transports
 - browser console has no UCP runtime error
 - a Product Comparison and an Agentic Commerce channel show no UCP card, and saving their feed
@@ -510,6 +511,8 @@ UI:
 - `ucp.editor` without `sales_channel.editor`: Save writes only UCP configuration.
 - Users without a UCP role do not see the UCP tab or list column, and cannot read or write UCP
   configuration.
+- Agentic Commerce Insights require `ucp.viewer`; product-comparison Insights keep their core
+  permission behavior.
 
 ### 5. Real payment-tokenization handler
 

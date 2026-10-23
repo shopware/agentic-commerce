@@ -180,9 +180,12 @@ logs in a user with only `sales_channel.viewer`. `asFreshAdmin()` logs in a full
 own, for specs that change what the Administration stores per user, such as list filters; the
 worker's `AdminPage` user is shared with every test of the worker.
 
+`asWithCoreRoles()` creates a sales-channel viewer with additional role keys for comparisons that
+hold core card permissions constant and vary only `ucp.viewer`.
+
 `tests/UcpAcl/ucp-acl.spec.ts` gates the permission matrix. It checks read-only viewer and
 key-rotator UI, UCP-only saves by an editor without `sales_channel.editor`, authenticated direct API
-requests, the UCP list column and tab. Direct API requests use
+requests, the UCP list column and tab, and Insights visibility and loading. Direct API requests use
 the restricted user's own `loginService` token; privileged fixture requests are reserved for setup
 and independent state readback.
 

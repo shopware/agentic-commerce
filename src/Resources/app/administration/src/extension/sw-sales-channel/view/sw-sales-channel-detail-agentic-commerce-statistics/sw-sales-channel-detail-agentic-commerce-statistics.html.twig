@@ -1,5 +1,5 @@
 {% block sw_sales_channel_detail_agentic_commerce_statistics %}
-<sw-container class="sw-sales-channel-detail-agentic-commerce-statistics">
+<sw-container v-if="canViewInsights" class="sw-sales-channel-detail-agentic-commerce-statistics">
 
     {% block sw_sales_channel_detail_agentic_commerce_statistics_orders_card %}
     <template v-if="acl.can('order.viewer')">

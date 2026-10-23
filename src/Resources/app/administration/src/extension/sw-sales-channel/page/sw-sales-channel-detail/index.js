@@ -1,6 +1,7 @@
 import template from './sw-sales-channel-detail.html.twig';
 import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import { currentAdminVersion, isVersionAtLeast } from '../../agentic-commerce/admin-version';
 import {
     defaultForm as ucpDefaultForm,
     normalizeConfig as ucpNormalizeConfig,
@@ -81,6 +82,19 @@ export const swSalesChannelDetailOverride = {
                 : 'sw.sales.channel.detail.agenticCommerceStatistics';
         },
 
+        canViewUcpInsights() {
+            return this.acl.can('ucp.viewer');
+        },
+
+        salesChannelDetailTabs() {
+            const tabs = this.$super('salesChannelDetailTabs');
+            if (!Array.isArray(tabs) || !this.isAgenticCommerce || this.canViewUcpInsights) {
+                return tabs;
+            }
+
+            return tabs.filter((tab) => tab.name !== 'sw.sales.channel.detail.productExportInsights');
+        },
+
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
@@ -90,6 +104,16 @@ export const swSalesChannelDetailOverride = {
 
         isUcpConfigRoute() {
             return this.$route.name === 'sw.sales.channel.detail.agenticCommerce';
+        },
+
+        supportsVueRouterViewSlot() {
+            // Vue Router 4 (Shopware 6.6+) supports the scoped router-view slot.
+            return isVersionAtLeast(currentAdminVersion(), 6, 6);
+        },
+
+        shouldRenderAgenticCommerceContent() {
+            return (this.$route.name !== 'sw.sales.channel.detail.productExportInsights' || this.canViewUcpInsights)
+                && (this.$route.name !== 'sw.sales.channel.detail.agenticCommerce' || this.shouldRenderAgenticCommerceTab);
         },
 
         allowSaving() {

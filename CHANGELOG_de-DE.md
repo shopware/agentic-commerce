@@ -2,6 +2,7 @@
 
 - Zeige UCP-Einstellungen für Benutzer mit Lese- und Schlüsselrotationsrechten schreibgeschützt an.
   Benutzer mit UCP-Bearbeitungsrechten können die Einstellungen ohne Bearbeitungsrechte für Verkaufskanäle speichern.
+  Agentic-Commerce-Insights sind nur mit UCP-Leserechten verfügbar.
   Signaturschlüssel lassen sich weiterhin nur über Konsolenbefehle verwalten.
 - Agentic Files lassen sich zuverlässig mehrfach speichern. Die Administration lädt jede gespeicherte Dateikonfiguration neu, damit erneutes Speichern keine neue Datei anlegt und eine zurückgenommene Änderung erhalten bleibt.
 - Unter Shopware `6.7.1.0` bis `6.7.4.x` liefert der Shop `robots.txt` wieder aus, statt mit `500` zu antworten.

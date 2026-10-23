@@ -10,5 +10,6 @@ import './view/sw-sales-channel-create-base';
 import './view/sw-sales-channel-detail-agentic-commerce';
 import './view/sw-sales-channel-detail-agentic-commerce-integration';
 import './view/sw-sales-channel-detail-agentic-commerce-statistics';
+import './view/sw-sales-channel-detail-product-export-insights';
 import './view/sw-sales-channel-detail-product-comparison';
 import './routes.init';

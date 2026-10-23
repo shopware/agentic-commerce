@@ -1,6 +1,6 @@
 # next version
 
-- Show UCP settings as read-only to viewers and key rotators and let UCP editors save without sales-channel edit access.
+- Show UCP settings as read-only to viewers and key rotators, let UCP editors save without sales-channel edit access, and require UCP view access for Agentic Commerce Insights.
   Signing-key management remains available through console commands only.
 - Persist Agentic Files across repeated saves. The Administration reloads each saved file configuration, so saving again cannot recreate a new file or lose a reversed change.
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
