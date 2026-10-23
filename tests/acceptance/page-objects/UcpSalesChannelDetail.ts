@@ -17,6 +17,7 @@ const ucpApiPath = (salesChannelId: string, suffix = '') => `/api/_admin/ucp/sal
 export class UcpSalesChannelDetail {
     readonly agenticCommerceTab: Locator;
     readonly unsavedBanner: Locator;
+    readonly readOnlyBanner: Locator;
     readonly exposeSwitch: Locator;
     readonly preview: Locator;
     readonly saveButton: Locator;
@@ -24,6 +25,7 @@ export class UcpSalesChannelDetail {
     constructor(public readonly page: Page) {
         this.agenticCommerceTab = page.getByTestId('ac-ucp');
         this.unsavedBanner = page.getByTestId('ac-ucp__unsaved-banner');
+        this.readOnlyBanner = page.getByTestId('ac-ucp__read-only-banner');
         this.exposeSwitch = this.checkboxInput('ac-ucp__expose-switch');
         this.preview = page.getByTestId('ac-ucp__preview');
         this.saveButton = page.locator('.sw-sales-channel-detail__save-action');
@@ -57,8 +59,8 @@ export class UcpSalesChannelDetail {
     }
 
     /**
-     * Opens the Agentic Commerce tab and waits for the three requests the page loads the UCP state
-     * with, plus the preview request the loaded form triggers. Returns the `meta` the Admin API sent.
+     * Opens the Agentic Commerce tab and waits for the requests that load its saved UCP state.
+     * Returns the `meta` the Admin API sent.
      */
     async openAgenticCommerceTab(salesChannelId: string): Promise<UcpAdminMeta> {
         return this.loadAgenticCommerceTab(salesChannelId, () => goToAdminRoute(this.page, `/sw/sales/channel/detail/${salesChannelId}/agentic-commerce`));
@@ -69,24 +71,25 @@ export class UcpSalesChannelDetail {
     }
 
     /**
-     * Clicks the page's Save, waits for the UCP config write, the last request of the save chain,
-     * and then for the page to show the stored config again: the Administration loads it once more
-     * after the write, and until then the tab may be unmounted.
+     * Clicks the page's Save and waits for the UCP-only config write and refreshed saved preview.
+     * The dedicated save path does not reload the sales channel or its configuration.
      */
-    async saveUcpConfig(salesChannelId: string): Promise<void> {
+    async saveUcpConfig(salesChannelId: string): Promise<Response> {
         let writtenAt = Number.POSITIVE_INFINITY;
-        const storedConfigLoaded = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/config'))
+        const savedPreviewLoaded = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/profile-preview'))
           && response.request().timing().startTime > writtenAt);
         const configWrite = this.page.waitForResponse(response => isRequest(response, 'PUT', ucpApiPath(salesChannelId, '/config')));
 
         await this.saveButton.click();
         const response = await configWrite;
-        expect(response.ok(), await response.text()).toBeTruthy();
+        expect(response.status(), response.status() === 200 ? '' : await response.text()).toBe(200);
         const timing = response.request().timing();
         writtenAt = timing.startTime + Math.max(timing.responseStart, 0);
 
-        await storedConfigLoaded;
+        await savedPreviewLoaded;
         await this.waitUntilSettled();
+
+        return response;
     }
 
     /** Waits for the draft preview the tab requests for a form matching `matchesDraft`, and returns it. */
@@ -105,13 +108,12 @@ export class UcpSalesChannelDetail {
         const salesChannel = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId)));
         const config = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/config')));
         const savedPreview = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/profile-preview')));
-        const loadedFormPreview = this.page.waitForResponse(response => isRequest(response, 'POST', ucpApiPath(salesChannelId, '/profile-preview')));
 
         await navigate();
 
         const salesChannelResponse = await salesChannel;
         expect(salesChannelResponse.ok(), await salesChannelResponse.text()).toBeTruthy();
-        await Promise.all([config, savedPreview, loadedFormPreview]);
+        await Promise.all([config, savedPreview]);
         await this.waitUntilSettled();
 
         return ((await salesChannelResponse.json()) as { meta: UcpAdminMeta }).meta;
@@ -120,7 +122,7 @@ export class UcpSalesChannelDetail {
     private async waitUntilSettled(): Promise<void> {
         await expect(this.agenticCommerceTab).toBeVisible();
         await expect(this.agenticCommerceTab.locator('.sw-skeleton')).toHaveCount(0);
-        await expect(this.page.getByTestId('ac-ucp__expose-switch')).toBeVisible();
+        await expect(this.exposeSwitch).toBeVisible();
     }
 
     /** The hook sits on the checkbox's wrapper on every lane. */

@@ -1,5 +1,10 @@
 # next version
 
+- Zeige UCP-Einstellungen für Benutzer mit Lese- und Schlüsselrotationsrechten schreibgeschützt an.
+  Benutzer mit UCP-Bearbeitungsrechten können die Einstellungen ohne Bearbeitungsrechte für Verkaufskanäle speichern.
+  Agentic-Commerce-Insights sind nur mit UCP-Leserechten verfügbar.
+  Signaturschlüssel lassen sich weiterhin nur über Konsolenbefehle verwalten.
+- Agentic Files lassen sich zuverlässig mehrfach speichern. Die Administration lädt jede gespeicherte Dateikonfiguration neu, damit erneutes Speichern keine neue Datei anlegt und eine zurückgenommene Änderung erhalten bleibt.
 - Unter Shopware `6.7.1.0` bis `6.7.4.x` liefert der Shop `robots.txt` wieder aus, statt mit `500` zu antworten.
 - Für Requests unter einer Domain mit Pfad, etwa `https://shop.example/de`, gelten jetzt die UCP-Einstellungen des Verkaufskanals, dem diese Domain gehört. Bisher galten für sie die UCP-Einstellungen der Stammdomain des Hosts. Gilt die Signaturrichtlinie `strict`, werden korrekt signierte Requests an eine solche Domain nicht mehr abgelehnt. Agenten suchen ein UCP-Profil nur unter `/.well-known/ucp` im Wurzelverzeichnis einer Domain, deshalb braucht ein Verkaufskanal, den Agenten finden sollen, eine Domain ohne Pfad. Eine Domain mit Pfad liefert kein UCP-Profil mehr aus, und ihre Storefront-Seiten sowie ihre Discovery-Dateien verweisen auf keines mehr. Bisher lieferte `/de/.well-known/ucp` das Profil der Stammdomain des Hosts aus. `ucp:config:validate` warnt jetzt, wenn alle Domains eines für UCP freigegebenen Verkaufskanals einen Pfad enthalten.
 
