@@ -104,4 +104,18 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/218',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D15',
+        description: 'The SDK answers a missing signature and a body that does not match its Content-Digest with 401 signature_invalid, an unfetchable agent profile with agent_profile_* codes and a schema-violating profile with invalid_request, where UCP 2026-08-25 names signature_missing, 400 digest_mismatch, profile_unreachable and profile_malformed.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/219',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D16',
+        description: 'The SDK replay guard refuses a repeated signed request with 401, where UCP 2026-08-25 handles replays through the idempotency key and answers with the cached response.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/220',
+        reviewBy: '2026-12-31',
+    },
 ];
