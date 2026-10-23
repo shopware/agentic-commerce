@@ -123,7 +123,6 @@ final class UcpMcpProxyController
             $this->requestContextFactory->set($subRequest, $context);
         }
 
-        // Store API MCP is trunk-only and requires a sales-channel access key.
         // Keep the key server-side: clients discover /ucp/mcp, while this
         // internal sub-request authenticates against /store-api/_mcp.
         $subRequest->headers->set(PlatformRequest::HEADER_ACCESS_KEY, $accessKey);
@@ -134,11 +133,8 @@ final class UcpMcpProxyController
     }
 
     /**
-     * Advertises the UCP tools on the first `tools/list` of a `/ucp/mcp` connection, without putting
-     * them on every Store API connection. Core reads the pinned toolsets from the main request's
-     * query (it deliberately ignores sub-requests), so the pin goes on this request, merged with any
-     * toolsets the client asked for. It runs after the signature check, and only the query bag
-     * changes, so the signed URI stays as the client sent it.
+     * Core reads the pinned toolsets from the main request's query and ignores sub-requests, so the
+     * pin goes on this request. Only the query bag changes, so the signed URI stays as the client sent it.
      */
     private function pinUcpToolset(Request $request): void
     {
