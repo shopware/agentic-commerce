@@ -7,6 +7,12 @@
     <sw-skeleton v-if="isUcpLoading" />
 
     <template v-else>
+        <div v-if="!canEditConfig" data-testid="ac-ucp__read-only-banner">
+            <sw-alert variant="info">
+                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.readOnlyMessage') }}
+            </sw-alert>
+        </div>
+
         <sw-alert
             v-if="isDirty"
             variant="warning"

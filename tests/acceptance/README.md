@@ -180,6 +180,12 @@ logs in a user with only `sales_channel.viewer`. `asFreshAdmin()` logs in a full
 own, for specs that change what the Administration stores per user, such as list filters; the
 worker's `AdminPage` user is shared with every test of the worker.
 
+`tests/UcpAcl/ucp-acl.spec.ts` gates the permission matrix. It checks read-only viewer and
+key-rotator UI, UCP-only saves by an editor without `sales_channel.editor`, authenticated direct API
+requests, the UCP list column and tab. Direct API requests use
+the restricted user's own `loginService` token; privileged fixture requests are reserved for setup
+and independent state readback.
+
 **`UcpConsole`** (worker scope) runs `ucp:signing-keys:{generate,list,show-public,retire,delete}`,
 the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
 allow-list. Before the first command it probes the real prefix once. When that probe fails, the key

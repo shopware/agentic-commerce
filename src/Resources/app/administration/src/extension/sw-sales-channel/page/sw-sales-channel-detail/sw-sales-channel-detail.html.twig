@@ -4,7 +4,7 @@
     class="sw-sales-channel-detail__save-action"
     :is-loading="isLoading"
     :process-success="isSaveSuccessful"
-    :disabled="!allowSaving || isLoading || productComparison.invalidFileName"
+    :disabled="!allowSaving || isLoading || (!isUcpConfigRoute && productComparison.invalidFileName)"
     variant="primary"
     data-analytics-id="sw_sales_channel.detail.sales_channel_save"
     :data-analytics-sales-channel-type-id="salesChannel?.typeId ?? ''"

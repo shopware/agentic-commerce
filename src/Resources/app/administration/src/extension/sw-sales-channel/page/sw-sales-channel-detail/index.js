@@ -20,7 +20,7 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl', 'repositoryFactory'],
 
     provide() {
         return {
@@ -86,6 +86,18 @@ export const swSalesChannelDetailOverride = {
 
             return this.acl.can('ucp.viewer')
                 && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
+        },
+
+        isUcpConfigRoute() {
+            return this.$route.name === 'sw.sales.channel.detail.agenticCommerce';
+        },
+
+        allowSaving() {
+            if (this.isUcpConfigRoute) {
+                return this.acl.can('ucp.editor') || this.acl.can('sales_channel.editor');
+            }
+
+            return this.$super('allowSaving');
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -267,7 +279,7 @@ export const swSalesChannelDetailOverride = {
         // the page before this write, which replaces `ucpState.form` with the stored,
         // not yet updated config.
         async saveUcpState(salesChannelId, form) {
-            if (!form || !salesChannelId) {
+            if (!form || !salesChannelId || !this.acl.can('ucp.editor')) {
                 return true;
             }
 
@@ -347,6 +359,42 @@ export const swSalesChannelDetailOverride = {
         },
 
         async onSave() {
+            if (this.isUcpConfigRoute) {
+                const canEditUcp = this.acl.can('ucp.editor');
+                const canEditSalesChannel = this.acl.can('sales_channel.editor');
+                if ((!canEditUcp && !canEditSalesChannel)
+                    || this.isLoading
+                    || (canEditUcp && !this.ucpState.loaded)) {
+                    return;
+                }
+
+                const salesChannelId = this.salesChannel?.id;
+                const form = ucpNormalizeConfig(this.ucpState.form);
+                this.isLoading = true;
+                this.isSaveSuccessful = false;
+
+                try {
+                    if (canEditUcp && !await this.saveUcpState(salesChannelId, form)) {
+                        return;
+                    }
+
+                    if (!await this.saveAgenticFiles()) {
+                        return;
+                    }
+
+                    this.isSaveSuccessful = true;
+                    if (salesChannelId) {
+                        this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                            this.ucpState.preview = response.data.data || null;
+                        }).catch(() => {});
+                    }
+                } finally {
+                    this.isLoading = false;
+                }
+
+                return;
+            }
+
             if (!this.validateAgenticCommerceExportConfig()) {
                 this.isLoading = false;
                 return;
@@ -399,6 +447,74 @@ export const swSalesChannelDetailOverride = {
             // The legacy onSave reloaded the page before the UCP write; load what is stored now.
             if (ucpFormAtSave) {
                 this.loadUcpState(channelIdAtSave, typeIdAtSave);
+            }
+        },
+
+        async saveAgenticFiles() {
+            const configurations = this.salesChannel?.salesChannelFiles;
+            if (!configurations?.length) {
+                return true;
+            }
+
+            try {
+                const repository = this.repositoryFactory.create('sales_channel_file');
+                const changedConfigurations = [...configurations].filter((configuration) => {
+                    return configuration.isNew() || repository.hasChanges(configuration);
+                });
+
+                if (changedConfigurations.length === 0) {
+                    return true;
+                }
+
+                const writes = await Promise.allSettled(changedConfigurations.map((configuration) => {
+                    return repository.save(configuration, Context.api);
+                }));
+                const savedConfigurations = changedConfigurations.filter((_configuration, index) => {
+                    return writes[index].status === 'fulfilled';
+                });
+
+                // A successful create must stop looking new even if a subsequent
+                // reload fails; otherwise retrying Save attempts the same create again.
+                savedConfigurations.forEach((configuration) => {
+                    configuration._isNew = false;
+
+                    // A successful write changes the comparison point even when
+                    // reloading the entity fails. Keep later edits detectable.
+                    Object.assign(configuration.getOrigin(), configuration.getDraft());
+                });
+
+                const reloads = await Promise.allSettled(savedConfigurations.map((configuration) => {
+                    return repository.get(configuration.id, Context.api);
+                }));
+                let allSaved = writes.every((result) => result.status === 'fulfilled');
+
+                reloads.forEach((result) => {
+                    if (result.status !== 'fulfilled' || !result.value) {
+                        allSaved = false;
+                        return;
+                    }
+
+                    const indexInConfigurations = configurations.findIndex((existingConfiguration) => {
+                        return existingConfiguration.id === result.value.id;
+                    });
+                    if (indexInConfigurations !== -1) {
+                        configurations.splice(indexInConfigurations, 1, result.value);
+                    }
+                });
+
+                if (!allSaved) {
+                    this.createNotificationError({
+                        message: this.$t('sw-sales-channel.detail.messageAPIError'),
+                    });
+                }
+
+                return allSaved;
+            } catch {
+                this.createNotificationError({
+                    message: this.$t('sw-sales-channel.detail.messageAPIError'),
+                });
+
+                return false;
             }
         },
 
