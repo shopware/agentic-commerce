@@ -12,8 +12,9 @@ const skipCleanUp = ['1', 'true'].includes(process.env.ATS_SKIP_CLEANUP ?? '');
 
 const ATS_CLEANUP_ATTEMPTS = 2;
 
-// MariaDB 11.6.2+ snapshot isolation rejects a product delete with error 1020 while other workers write products, and core does not retry it.
-// The ATS asserts its first delete batch but returns the last one unchecked, so that response is checked here.
+// Retried for write conflicts between workers (MariaDB 11.6.2+ snapshot isolation answers some with error 1020, which core does
+// not retry); which write conflicts here has not been captured yet. The ATS asserts its first delete batch but returns the last
+// one unchecked, so that response is checked here.
 async function atsCleanUpRetryingWriteConflict(service: UcpTestDataService): Promise<void> {
     const cleanUpErrors: unknown[] = [];
 
@@ -30,7 +31,9 @@ async function atsCleanUpRetryingWriteConflict(service: UcpTestDataService): Pro
         }
     }
 
-    throw new AggregateError(cleanUpErrors, `ATS cleanup failed ${ATS_CLEANUP_ATTEMPTS} times; the first failure is usually the cause.`);
+    // Playwright reports an error's message and cause, not an AggregateError's errors, so the attempts go into the message.
+    const attempts = cleanUpErrors.map((error, index) => `attempt ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`ATS cleanup failed ${ATS_CLEANUP_ATTEMPTS} times; the first failure is usually the cause.\n${attempts.join('\n')}`);
 }
 
 /**

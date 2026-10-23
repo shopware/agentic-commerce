@@ -42,6 +42,23 @@ npm test
 with an opaque error. `npm run test:signer` is the exception: it sets `UCP_SIGNER_ONLY=1`, which
 drops the check and the wait for the server.
 
+### In CI
+
+`.github/workflows/acceptance.yml` runs the suite; `ci.yml` and `nightly.yml` call it.
+
+| When                                                | What runs                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Every pull request                                  | Lint, typecheck and `Signer`, then the gating run on trunk.                                            |
+| A pull request with the `run/acceptance-full` label | The 6.5 and 6.6 lanes as well. Adding the label starts a new run.                                      |
+| A pull request that changes specs                   | Every changed spec ten times on trunk, without retries, on two workers. `Setup` and `Signer` run once. |
+| Every push to `main` and every manual run           | Trunk, 6.5 and 6.6.                                                                                    |
+| Nightly                                             | Trunk, 6.5 and 6.6, every test three times.                                                            |
+
+The ten repetitions catch a flaky spec before it lands. Only changed `*.spec.ts` files are repeated;
+specs under `Setup`, `Signer` and `KnownBlocked` are not. A changed spec that selects no test, for
+example one without a project tag, fails the job. A change to a fixture, page object or service
+alone repeats nothing.
+
 ## Projects and tags
 
 Projects are routed by tag, the way core does it. A spec opts into a project by carrying its tag in
