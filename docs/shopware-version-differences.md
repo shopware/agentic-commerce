@@ -9,23 +9,38 @@ local lane tooling.
 
 ## Quick Matrix
 
-| Topic                                      | `6.5.x`                              | `6.6.x`                                  | `trunk`                                                |
-| ------------------------------------------ | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
-| Admin build mode                           | `webpack`                            | `webpack` and `vite`                     | `vite`                                                 |
-| Settings group for UCP                     | `shop`                               | `shop` fallback unless `commerce` exists | `commerce`                                             |
-| Admin card implementation                  | legacy `sw-card` is common           | mixed                                    | Meteor `mt-card` is common                             |
-| Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths       | Vite assets                                            |
-| Discovery support                          | unavailable                          | unavailable                              | available only when the trunk bridge exists            |
-| MCP transport                              | never                                | never                                    | only once the Store API MCP endpoint exists (see note) |
-| Local PHP runtime                          | `8.2`                                | `8.3`                                    | `8.4`                                                  |
+| Topic                                      | `6.5.x`                              | `6.6.x`                                  | `trunk`                                                      |
+| ------------------------------------------ | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------ |
+| Admin build mode                           | `webpack`                            | `webpack` and `vite`                     | `vite`                                                       |
+| Settings group for UCP                     | `shop`                               | `shop` fallback unless `commerce` exists | `commerce`                                                   |
+| Admin card implementation                  | legacy `sw-card` is common           | mixed                                    | Meteor `mt-card` is common                                   |
+| Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths       | Vite assets                                                  |
+| Discovery support                          | unavailable                          | unavailable                              | available only when the trunk bridge exists                  |
+| MCP transport                              | never                                | never                                    | from 6.7.12, see [MCP Tool Visibility](#mcp-tool-visibility) |
+| Local PHP runtime                          | `8.2`                                | `8.3`                                    | `8.4`                                                        |
 
-> **MCP on trunk is blocked upstream.** The Store API MCP endpoint the UCP plugin proxies to ships
-> with [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228). Until it merges,
-> `trunk` does not advertise the MCP transport. MCP is gated on a single runtime capability —
-> whether `StoreApiMcpServerController` exists — which the plugin uses to decide what
-> `/.well-known/ucp` advertises. `bin/ci-smoke.sh` asserts the strict "supported &hArr; advertised"
-> invariant server-side, and the public-profile Playwright tests skip their MCP-specific checks
-> while the transport is absent and verify once it appears. No per-lane flag to maintain.
+## MCP Tool Visibility
+
+The MCP transport is offered when core's `StoreApiMcpServerController` exists (first in
+`v6.7.12.0`), and on 6.7.12 and 6.7.13 only with the `MCP_SERVER` feature flag active.
+`/.well-known/ucp` advertises it on exactly those lines, which `bin/ci-smoke.sh` asserts.
+
+The UCP MCP tools belong to the `ucp` toolset, not to core's `discovery` group, whose tools are
+listed on every Store API session. What the first `tools/list` of a fresh session contains:
+
+| Shopware               | `/ucp/mcp`              | `/store-api/_mcp`         | Mechanism                                    | Evidence                        |
+| ---------------------- | ----------------------- | ------------------------- | -------------------------------------------- | ------------------------------- |
+| 6.5.x, 6.6.x, < 6.7.12 | no MCP transport        | no Store API MCP endpoint | none                                         | source                          |
+| 6.7.12 to 6.7.13       | every tool              | every tool                | no progressive disclosure in core            | source                          |
+| 6.7.14.x               | UCP and discovery tools | UCP and discovery tools   | `AdvertiseUcpToolsWithoutToolsetPinningPass` | CI `shopware-matrix (6.7.14.x)` |
+| 6.7.15 and later       | UCP and discovery tools | discovery tools only      | `/ucp/mcp` pins `?toolsets=ucp`              | CI `shopware-matrix (trunk)`    |
+
+- The pin is used when core defines `McpToolsetRegistry::ALL_TOOLSETS` (from 6.7.15.0); otherwise
+  the compiler pass adds the UCP tools to core's default list.
+- Core reads `?toolsets=` only from the main request, so the pin goes on the `/ucp/mcp` request
+  before the internal sub-request to `/store-api/_mcp`.
+- A plain Store API client on 6.7.15 or later reaches the UCP tools with `?toolsets=ucp` or
+  `shopware-toolset-enable`.
 
 ## Rules We Must Keep
 
