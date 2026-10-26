@@ -27,8 +27,9 @@ export class AgenticCommerceFeedDetail {
     }
 
     /**
-     * Opens a tab of the channel and waits until the provider settings are loaded: before that the
-     * page validates and saves none of them.
+     * Opens a tab of the channel and waits until the provider settings are loaded and no loader is
+     * left: before that the page validates and saves none of them, and Save behaves differently than
+     * on the page a merchant sees.
      */
     async open(salesChannelId: string, view: 'base' | 'product-comparison' = 'base'): Promise<void> {
         const providerSettings = [OPEN_AI_CONFIG_DOMAIN, GOOGLE_CONFIG_DOMAIN].map(domain => this.page.waitForResponse(
@@ -37,7 +38,7 @@ export class AgenticCommerceFeedDetail {
 
         await goToAdminRoute(this.page, `/sw/sales/channel/detail/${salesChannelId}/${view}`);
         await Promise.all(providerSettings);
-        await expect(this.page.locator('.sw-skeleton')).toHaveCount(0);
+        await this.expectLoaded();
     }
 
     /** 6.5 renders the template select as a native `<select>`, later lanes as a Meteor select. */
@@ -54,10 +55,15 @@ export class AgenticCommerceFeedDetail {
         await this.page.getByTestId(`mt-select-option--${templateName}`).click();
     }
 
-    /** Opens the create page of a new feed channel and waits until its provider settings are rendered. */
+    /** Opens the create page of a new feed channel and waits until its provider settings are rendered and no loader is left. */
     async openNew(): Promise<void> {
         await goToAdminRoute(this.page, `/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/base`);
         await expect(this.returnPolicyUrl).toBeVisible();
+        await this.expectLoaded();
+    }
+
+    private async expectLoaded(): Promise<void> {
+        await expect(this.page.locator('.sw-skeleton, .sw-loader')).toHaveCount(0);
     }
 
     /** 6.5 and 6.6 show the template as the native `<select>` value, later lanes as the Meteor select's label. */
