@@ -184,9 +184,12 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
 
 function renderFutureCompatibilityInclude(string $pluginDir): string
 {
-    $rules = $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon';
+    $includes = array_filter([
+        $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon',
+        $pluginDir.'/.tools/vendor/phpstan/phpstan-deprecation-rules/rules.neon',
+    ], 'is_file');
 
-    return is_file($rules) ? '    - '.$rules : '';
+    return implode("\n", array_map(static fn (string $rules): string => '    - '.$rules, $includes));
 }
 
 function renderShopwarePhpstanParameters(string $coreDir): string
