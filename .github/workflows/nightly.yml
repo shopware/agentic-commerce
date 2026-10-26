@@ -2,8 +2,8 @@ name: Nightly
 
 # The layer workflows once a day on main, with every acceptance lane repeated three times, so
 # breakage from the moving Shopware branches shows up between merges. A test that only passes on a
-# retry fails the nightly run; on pull requests it is only listed as flaky in the run summary. store-release.yml reads only
-# ci.yml push runs, so nightly-gate never makes a commit releasable.
+# retry fails the nightly run; on pull requests it is only listed as flaky in the run summary.
+# store-release.yml reads only ci.yml push runs, so nightly-gate never makes a commit releasable.
 
 on:
   schedule:
