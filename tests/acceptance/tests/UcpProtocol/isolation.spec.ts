@@ -1,0 +1,80 @@
+import { expect, test } from '@fixtures/AcceptanceTest';
+import type { APIResponse } from '@playwright/test';
+
+const CARTS_PATH = '/ucp/v1/carts';
+
+interface ShoppingRoute {
+    method: string
+    path: string
+    body?: unknown
+}
+
+const unknownId = crypto.randomUUID().replaceAll('-', '');
+
+const shoppingRoutes: ShoppingRoute[] = [
+    { method: 'POST', path: '/ucp/v1/catalog/search', body: { query: 'product' } },
+    { method: 'POST', path: '/ucp/v1/catalog/lookup', body: { ids: [unknownId] } },
+    { method: 'POST', path: '/ucp/v1/catalog/product', body: { id: unknownId } },
+    { method: 'POST', path: CARTS_PATH, body: { line_items: [] } },
+    { method: 'GET', path: `${CARTS_PATH}/${unknownId}` },
+    { method: 'PUT', path: `${CARTS_PATH}/${unknownId}`, body: { line_items: [] } },
+    { method: 'POST', path: `${CARTS_PATH}/${unknownId}/cancel` },
+    { method: 'POST', path: '/ucp/v1/checkout-sessions', body: { line_items: [] } },
+    { method: 'GET', path: `/ucp/v1/checkout-sessions/${unknownId}` },
+    { method: 'PUT', path: `/ucp/v1/checkout-sessions/${unknownId}`, body: { line_items: [] } },
+    { method: 'POST', path: `/ucp/v1/checkout-sessions/${unknownId}/complete` },
+    { method: 'POST', path: `/ucp/v1/checkout-sessions/${unknownId}/cancel` },
+    { method: 'GET', path: `/ucp/v1/orders/${unknownId}` },
+];
+
+async function messageCodes(response: APIResponse): Promise<string[]> {
+    const { messages = [] } = (await response.json()) as { messages?: { code?: string }[] };
+
+    return messages.map(message => message.code ?? '');
+}
+
+test.describe('Sales channel isolation @UcpProtocol', () => {
+    test('a cart created on one channel is not found on another', async ({ TestDataService, UcpAgent }) => {
+        const cartOwningChannel = await TestDataService.createStorefrontSalesChannel();
+        const nonOwningChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(cartOwningChannel.salesChannel.id);
+        await TestDataService.activateUcp(nonOwningChannel.salesChannel.id);
+        const productInBothChannels = await TestDataService.createBasicProduct({
+            visibilities: [
+                { salesChannelId: cartOwningChannel.salesChannel.id, visibility: 30 },
+                { salesChannelId: nonOwningChannel.salesChannel.id, visibility: 30 },
+            ],
+        });
+
+        const createdCart = await UcpAgent.at(cartOwningChannel.url).rest.send('POST', CARTS_PATH, {
+            body: { line_items: [{ item: { id: productInBothChannels.id }, quantity: 1 }] },
+        });
+        expect(createdCart.ok(), await createdCart.text()).toBeTruthy();
+        const { id: cartId } = (await createdCart.json()) as { id: string };
+
+        const cartReadOnOwningChannel = await UcpAgent.at(cartOwningChannel.url).rest.send('GET', `${CARTS_PATH}/${cartId}`);
+        expect(cartReadOnOwningChannel.status(), await cartReadOnOwningChannel.text()).toBe(200);
+
+        const cartReadOnNonOwningChannel = await UcpAgent.at(nonOwningChannel.url).rest.send('GET', `${CARTS_PATH}/${cartId}`);
+        expect(await messageCodes(cartReadOnNonOwningChannel), await cartReadOnNonOwningChannel.text()).toContain('not_found');
+        expect(await cartReadOnNonOwningChannel.text()).not.toContain(productInBothChannels.id);
+    });
+
+    test('a channel with UCP switched off serves none of the shopping routes', async ({ TestDataService, UcpAgent }) => {
+        const untouchedChannel = await TestDataService.createStorefrontSalesChannel();
+        const switchedOffChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(untouchedChannel.salesChannel.id);
+        await TestDataService.activateUcp(switchedOffChannel.salesChannel.id);
+        const switchOffResponse = await TestDataService.saveUcpConfig(switchedOffChannel.salesChannel.id, { active: false });
+        expect(switchOffResponse.ok(), await switchOffResponse.text()).toBeTruthy();
+
+        const searchOnUntouchedChannel = await UcpAgent.at(untouchedChannel.url).rest.send('POST', '/ucp/v1/catalog/search', { body: { query: 'product' } });
+        expect(searchOnUntouchedChannel.status(), await searchOnUntouchedChannel.text()).toBe(200);
+
+        for (const route of shoppingRoutes) {
+            const refusal = await UcpAgent.at(switchedOffChannel.url).rest.send(route.method, route.path, { body: route.body });
+
+            expect(refusal.ok(), `${route.method} ${route.path}: ${refusal.status()} ${await refusal.text()}`).toBeFalsy();
+        }
+    });
+});
