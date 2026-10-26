@@ -14,6 +14,9 @@ on:
         type: number
       repeat_each:
         type: number
+      fail_on_flaky:
+        description: 'Fail a lane when a test only passes on a retry'
+        type: boolean
       run_changed:
         description: 'On pull requests, repeat the changed specs ten times without retries'
         type: boolean
@@ -125,7 +128,9 @@ jobs:
           PLAYWRIGHT_BLOB_OUTPUT_FILE: ${{ github.workspace }}/acceptance-blob/acceptance-${{ matrix.lane }}-${{ matrix.shard }}.zip
           SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
           REPEAT_EACH: ${{ inputs.repeat_each || 1 }}
-        run: npx playwright test --grep-invert @UcpKnownBlocked --shard="${SHARD}" --repeat-each="${REPEAT_EACH}" --reporter=blob,list
+          FAIL_ON_FLAKY: ${{ inputs.fail_on_flaky && '--fail-on-flaky-tests' || '' }}
+        # FAIL_ON_FLAKY stays unquoted, so an empty value passes no argument.
+        run: npx playwright test --grep-invert @UcpKnownBlocked --shard="${SHARD}" --repeat-each="${REPEAT_EACH}" ${FAIL_ON_FLAKY} --reporter=blob,list
       - if: ${{ !cancelled() && steps.suite.outcome != 'skipped' }}
         uses: actions/upload-artifact@v6
         with:
