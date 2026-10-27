@@ -1,22 +1,40 @@
+import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { Page, Response } from '@playwright/test';
 import { goToAdminRoute } from '@page-objects/adminRoute';
 import { randomUUID } from 'node:crypto';
 
-/** A list search filtering on the feed channel; other searches of the list may run meanwhile. */
-function isFilteredSearch(response: Response, entity: 'order' | 'customer', feedId: string): boolean {
+/** A search of the list whose criteria carry every one of `needles`; other searches, such as the dashboard's, may run meanwhile. */
+function isListSearch(response: Response, entity: 'order' | 'customer', ...needles: string[]): boolean {
     const criteria = response.request().postData() ?? '';
 
     return response.request().method() === 'POST'
       && new URL(response.url()).pathname.endsWith(`/api/search/${entity}`)
-      && criteria.includes('salesChannelTracking.salesChannelId')
-      && criteria.includes(feedId);
+      && needles.every(needle => criteria.includes(needle));
 }
 
-/** The write that stores the user's list filters. */
+const isFilteredSearch = (response: Response, entity: 'order' | 'customer', feedId: string) => isListSearch(response, entity, 'salesChannelTracking.salesChannelId', feedId);
+
+/**
+ * Opens the list searched for `term` and waits for that search to answer. A busy server can take
+ * longer than an assertion's timeout to answer it, and only then can the rows render.
+ */
+async function openSearchedList(page: Page, entity: 'order' | 'customer', term: string): Promise<string> {
+    const listRoute = `/sw/${entity}/index?term=${term}`;
+    const termSearch = page.waitForResponse(response => isListSearch(response, entity, term));
+    await goToAdminRoute(page, listRoute);
+    const response = await termSearch;
+    expect(response.ok(), await response.text()).toBeTruthy();
+
+    return listRoute;
+}
+
+/** The write that stores the user's list filters: `config-me`, or on 6.5 the `user_config` entity itself. */
 function isStoredFilter(response: Response, feedId: string): boolean {
-    return response.request().method() === 'PATCH'
-      && new URL(response.url()).pathname.endsWith('/api/_info/config-me')
+    const pathname = new URL(response.url()).pathname;
+
+    return ['PATCH', 'POST'].includes(response.request().method())
+      && (pathname.endsWith('/api/_info/config-me') || /\/api\/user-config(\/[0-9a-f]{32})?$/.test(pathname))
       && (response.request().postData() ?? '').includes(feedId);
 }
 
@@ -46,7 +64,8 @@ async function filterByExportChannel(page: Page, entity: 'order' | 'customer', f
     const filteredList = await page.context().newPage();
     const storedFilterSearch = filteredList.waitForResponse(response => isFilteredSearch(response, entity, feed.id));
     await goToAdminRoute(filteredList, listRoute);
-    await storedFilterSearch;
+    const response = await storedFilterSearch;
+    expect(response.ok(), await response.text()).toBeTruthy();
 
     return filteredList;
 }
@@ -75,8 +94,7 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
         await TestDataService.attributeOrderToFeedChannel(viaOtherFeed.id, otherFeed.id);
 
         const page = await UcpAclUsers.asFreshAdmin();
-        const listRoute = `/sw/order/index?term=${buyer.lastName}`;
-        await goToAdminRoute(page, listRoute);
+        const listRoute = await openSearchedList(page, 'order', buyer.lastName);
         for (const order of [attributed, direct, viaOtherFeed]) {
             await expect(rowOf(page, order.orderNumber)).toBeVisible();
         }
@@ -99,8 +117,7 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
         await TestDataService.attributeCustomerToFeedChannel(referredElsewhere.id, otherFeed.id);
 
         const page = await UcpAclUsers.asFreshAdmin();
-        const listRoute = `/sw/customer/index?term=${lastName}`;
-        await goToAdminRoute(page, listRoute);
+        const listRoute = await openSearchedList(page, 'customer', lastName);
         for (const customer of [referred, direct, referredElsewhere]) {
             await expect(rowOf(page, customer.email)).toBeVisible();
         }
@@ -112,7 +129,8 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
         await expect(rowOf(filteredList, referredElsewhere.email)).toHaveCount(0);
     });
 
-    test('the feed channel\'s insights count only the orders and customers attributed to it', async ({ TestDataService, AdminPage }) => {
+    test('the feed channel\'s insights count only the orders and customers attributed to it', async ({ InstanceMeta, TestDataService, UcpAclUsers }) => {
+        test.skip(satisfies(InstanceMeta.version, '<6.7.10.0'), 'the totals are shown from 6.7.10.0, with core\'s product export insights; the plugin\'s own statistics tab before that shows the charts only');
         const { salesChannel: feed } = await TestDataService.createFeedSalesChannelWithExport();
         const { salesChannel: otherFeed } = await TestDataService.createFeedSalesChannelWithExport();
         const product = await TestDataService.createBasicProduct();
@@ -130,12 +148,13 @@ test.describe('Orders and customers attributed to a feed channel @UcpAdmin', () 
         await TestDataService.attributeOrderToFeedChannel(otherFeedOrder.id, otherFeed.id);
         await TestDataService.attributeCustomerToFeedChannel(referredElsewhere.id, otherFeed.id);
 
-        await goToAdminRoute(AdminPage, `/sw/sales/channel/detail/${feed.id}/base`);
+        const page = await UcpAclUsers.asFreshAdmin();
+        await goToAdminRoute(page, `/sw/sales/channel/detail/${feed.id}/base`);
         // From 6.7.10 core serves the insights under its own route and markup.
-        await AdminPage.locator(`a[href$="/${feed.id}/product-export-insights"], a[href$="/${feed.id}/agentic-commerce-statistics"]`).click();
+        await page.locator(`a[href$="/${feed.id}/product-export-insights"], a[href$="/${feed.id}/agentic-commerce-statistics"]`).click();
 
-        const total = (card: 'orders' | 'customers') => AdminPage.getByTestId(`ac-insights__${card}-total`)
-            .or(AdminPage.locator(`.sw-sales-channel-detail-product-export-insights__${card} .sw-sales-channel-detail-product-export-insights__summary`));
+        const total = (card: 'orders' | 'customers') => page.getByTestId(`ac-insights__${card}-total`)
+            .or(page.locator(`.sw-sales-channel-detail-product-export-insights__${card} .sw-sales-channel-detail-product-export-insights__summary`));
         await expect(total('orders')).toHaveText(/\b2$/);
         await expect(total('customers')).toHaveText(/\b2$/);
     });

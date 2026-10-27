@@ -1,0 +1,344 @@
+name: PHP
+
+# PHP quality, the Shopware lanes (smoke incl. the strict signature stage, integration and
+# functional suites, UCP e2e), the MySQL 8.4 install and the advisory checks.
+
+on:
+  workflow_call:
+    inputs:
+      sdk_ref:
+        type: string
+      shopware_65_ref:
+        type: string
+      shopware_66_ref:
+        type: string
+      shopware_trunk_ref:
+        type: string
+  workflow_dispatch:
+
+# A caller's env does not reach a called workflow, so every layer resolves the refs itself.
+env:
+  # Compatibility lanes intentionally exercise Shopware versions with known
+  # advisories. Keep dependency resolution running, then report advisories
+  # without making them the test result. Composer 2.9 uses the first variable;
+  # newer Composer versions use the policy variable.
+  COMPOSER_NO_SECURITY_BLOCKING: '1'
+  COMPOSER_POLICY_ADVISORIES_BLOCK: '0'
+  UCP_SDK_REF: ${{ inputs.sdk_ref || vars.UCP_SDK_REF || 'main' }}
+  SHOPWARE_65_REF: ${{ inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
+  SHOPWARE_66_REF: ${{ inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
+  SHOPWARE_TRUNK_REF: ${{ inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
+  SHOPWARE_6714_REF: ${{ vars.SHOPWARE_6714_REF || '6.7.14.x' }}
+  PHPSTAN_SHOPWARE_VERSION: '0.2.4'
+
+permissions:
+  contents: read
+
+jobs:
+  php-quality:
+    runs-on: ubuntu-latest
+    name: php-quality (${{ matrix.lane }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: 'php-8.1'
+            php-version: '8.1'
+          - lane: 'php-8.2'
+            php-version: '8.2'
+          # Future-compatibility rules inspect the upcoming core API annotations, which are
+          # available only on trunk.
+          - lane: 'trunk'
+            php-version: '8.2'
+            shopware-ref: 'trunk'
+          # 6.7.11.x: core still ships Defaults::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE here
+          # (present only in 6.7.10-6.7.11), so this lane keeps exercising the "core owns the
+          # feature" coexistence path. Moving branch ref -> always the latest 6.7.11 patch.
+          - lane: '6.7.11'
+            php-version: '8.2'
+            shopware-ref: '6.7.11.x'
+          # 6.7.12.x: core removed that constant and handed the feature back to the plugin, so
+          # this lane proves the "plugin re-owns the feature" path on the 6.7 framework. Moving
+          # branch ref -> always the latest 6.7.12 patch.
+          - lane: '6.7.12'
+            php-version: '8.2'
+            shopware-ref: '6.7.12.x'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.shopware-ref || matrix.php-version == '8.1' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
+          path: shopware
+      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
+        working-directory: shopware
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: agentic-commerce
+      - name: Install opt-in future compatibility rules
+        if: matrix.php-version != '8.1'
+        # Install without plugins so phpstan-shopware's default rules.neon is not registered.
+        # The package requires PHP 8.2, while this plugin remains compatible with PHP 8.1.
+        run: composer require --dev shopwarelabs/phpstan-shopware:0.2.4 --no-interaction --no-plugins --ignore-platform-req=php
+        working-directory: agentic-commerce
+      - name: Capture plugin Composer advisory report
+        if: matrix.lane == 'php-8.2'
+        working-directory: agentic-commerce
+        run: |
+          audit_file="${GITHUB_WORKSPACE}/composer-audit-plugin.json"
+          audit_status=0
+
+          if composer audit --no-dev --format=json > "${audit_file}"; then
+            audit_status=0
+          else
+            audit_status=$?
+          fi
+
+          if [[ ! -s "${audit_file}" ]]; then
+            if [[ "${audit_status}" -eq 0 ]]; then
+              printf '{"advisories":{},"abandoned":[]}\n' > "${audit_file}"
+            else
+              printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" > "${audit_file}"
+            fi
+          fi
+
+          echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
+      - name: Upload plugin Composer advisory report
+        if: always() && matrix.lane == 'php-8.2'
+        uses: actions/upload-artifact@v6
+        with:
+          name: composer-audit-plugin
+          path: composer-audit-plugin.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh
+      - run: composer ci
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+
+  # What Shopware trunk will require of this plugin, against the SDK release the plugin pins.
+  #
+  # Like every other gate job, the SDK is resolved from Packagist at the pinned versions rather
+  # than staged from a checkout: a job that blocks merges has to test what merchants install.
+  # See sdk-main-compatibility below for where the SDK-main signal lives now.
+  phpstan-trunk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
+        working-directory: shopware
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: agentic-commerce
+      - name: Install opt-in future compatibility rules
+        # Do not enable phpstan-shopware's default rules.neon via its extension installer.
+        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
+        working-directory: agentic-commerce
+      - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan.neon
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+
+  # The early warning that used to be spread across every gate job: does this plugin still build
+  # against the SDK's moving main branch, before that branch becomes a release the plugin pins?
+  #
+  # Deliberately the only job that stages an SDK checkout and relabels it as the pinned version,
+  # and deliberately non-blocking. A path repository pointed at main and labelled `0.0.7` tests a
+  # branch wearing a release's version number, which is not what any merchant installs -- and
+  # when main moved to require a newer `core`, that relabelling turned this repository's main red
+  # for five days and would have done the same to every open pull request at once. The warning is
+  # worth having; it is not worth blocking merges on, so the job is continue-on-error.
+  # Read it, and open an SDK issue -- do not let it stop a merge.
+  sdk-main-compatibility:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: actions/checkout@v6
+        with:
+          repository: agentic-commerce-alliance/ucp-php-sdk
+          ref: ${{ env.UCP_SDK_REF }}
+          path: ucp-php-sdk
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_66_REF }}
+          path: shopware
+      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
+        working-directory: shopware
+      - name: Configure private SDK path repositories
+        run: |
+          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
+          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.7"}}}'
+        working-directory: agentic-commerce
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: agentic-commerce
+      - run: composer ci
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+
+  # Advisory: reports public API breaks between the base and this change without blocking it. On a
+  # pull request HEAD is the merge commit, so HEAD^ is the base branch.
+  bc-check:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer bc-check
+
+  shopware-matrix:
+    runs-on: ubuntu-latest
+    # The 6.5 lane checks out the head of the 6.5.x branch, which is a 6.5.8 patch -- the
+    # oldest release composer.json accepts. Name the check after that floor so it is
+    # visible that the lowest supported version is the one under test.
+    name: shopware-matrix (${{ matrix.lane == '6.5.x' && '6.5.8' || matrix.lane }})
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+          - lane: '6.6.x'
+          # The newest release line without connect-time MCP toolsets: the only one where the
+          # UCP tools reach /ucp/mcp through AdvertiseUcpToolsWithoutToolsetPinningPass.
+          - lane: '6.7.14.x'
+          - lane: 'trunk'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || matrix.lane == '6.7.14.x' && env.SHOPWARE_6714_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
+      - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          SHOPWARE_REF: ${{ matrix.lane }}
+          # Run the integration and functional suites on every shopware-matrix lane. ci-smoke
+          # installs Shopware's dev deps so the suites run on the lane's own phpunit
+          # (6.5->9.x, 6.6->10.x, trunk->11.x; Shopware's test base classes are coupled
+          # to the phpunit major), covering lane-specific behavior everywhere the smoke runs.
+          CI_SMOKE_RUN_PHPUNIT: '1'
+          CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
+          # The e2e step below runs against this stack.
+          CI_SMOKE_KEEP_STACK: '1'
+      - name: Upload Composer advisory report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: composer-audit-${{ matrix.lane }}
+          path: composer-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - run: npm run test:e2e:ucp -- --reporter=list
+        working-directory: agentic-commerce
+        env:
+          BASE_URL: http://localhost:8000
+          SHOPWARE_REF: ${{ matrix.lane }}
+
+  # Non-blocking through continue-on-error (see CONTRIBUTING.md, Composer advisory reporting).
+  composer-security-report:
+    name: composer-security-report
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    needs:
+      - php-quality
+      - shopware-matrix
+    # Runs after failed lanes too, to report whatever audits they uploaded.
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - name: Download Composer advisory reports
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: composer-audit-*
+          path: composer-audits
+      - name: Summarize Composer security advisories
+        continue-on-error: true
+        run: bash agentic-commerce/bin/ci-composer-audit-report.sh composer-audits
+
+  mysql84-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
+      # Provision the stack on MySQL 8.4 (not the default MariaDB) and run the
+      # plugin install/migrations only. MySQL 8.4 rejects a foreign key that
+      # references a prefix of a composite key, so this lane catches migration
+      # regressions like the order (id, version_id) FK that MariaDB accepts.
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" trunk
+        env:
+          CI_DB_FLAVOR: mysql84
+      - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+        env:
+          SHOPWARE_REF: trunk
+          CI_DB_FLAVOR: mysql84
+          CI_SMOKE_BOOTSTRAP_ONLY: '1'
+
+  php-check:
+    # always(), not !cancelled(): a skipped gate would count as passing.
+    if: always()
+    needs:
+      - php-quality
+      - phpstan-trunk
+      - sdk-main-compatibility
+      - bc-check
+      - shopware-matrix
+      - composer-security-report
+      - mysql84-install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}

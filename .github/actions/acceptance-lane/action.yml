@@ -1,0 +1,49 @@
+name: Acceptance lane
+description: >-
+  Boots a Shopware lane through bin/ci-write-compose.sh with the plugin installed and the
+  administration built, then installs the acceptance suite. Expects the plugin checked out at
+  agentic-commerce/.
+
+inputs:
+  lane:
+    description: 'Lane for bin/ci-write-compose.sh: 6.5.x, 6.6.x, 6.7.14.x or trunk'
+    required: true
+  shopware-ref:
+    description: 'shopware/shopware ref to check out'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v6
+      with:
+        repository: shopware/shopware
+        ref: ${{ inputs.shopware-ref }}
+        path: shopware
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: agentic-commerce/tests/acceptance/package-lock.json
+    - name: Write the lane's compose stack
+      shell: bash
+      env:
+        LANE: ${{ inputs.lane }}
+      run: agentic-commerce/bin/ci-write-compose.sh "${GITHUB_WORKSPACE}/shopware" "${LANE}"
+    # The Setup project logs into the administration, so the bootstrap builds it. "auto" keeps each
+    # lane's default build tool and leaves the 6.6 feature dump untouched after the script exits.
+    - name: Boot the shop with the administration built
+      shell: bash
+      env:
+        SHOPWARE_REF: ${{ inputs.lane }}
+        CI_ADMIN_BOOTSTRAP_MODE: cold
+        CI_ADMIN_BROWSER_VALIDATE: '0'
+        CI_ADMIN_KEEP_STACK: '1'
+      run: agentic-commerce/bin/ci-admin-smoke.sh "${GITHUB_WORKSPACE}/shopware" auto
+    # After the bootstrap: bin/ci-smoke.sh copies the plugin checkout into the shop.
+    - name: Install the acceptance suite
+      shell: bash
+      working-directory: agentic-commerce/tests/acceptance
+      run: |
+        npm ci --no-audit --no-fund
+        npx playwright install chromium --with-deps
