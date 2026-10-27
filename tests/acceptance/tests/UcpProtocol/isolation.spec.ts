@@ -1,31 +1,6 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { APIResponse } from '@playwright/test';
-
-const CARTS_PATH = '/ucp/v1/carts';
-
-interface ShoppingRoute {
-    method: string
-    path: string
-    body?: unknown
-}
-
-const unknownId = crypto.randomUUID().replaceAll('-', '');
-
-const shoppingRoutes: ShoppingRoute[] = [
-    { method: 'POST', path: '/ucp/v1/catalog/search', body: { query: 'product' } },
-    { method: 'POST', path: '/ucp/v1/catalog/lookup', body: { ids: [unknownId] } },
-    { method: 'POST', path: '/ucp/v1/catalog/product', body: { id: unknownId } },
-    { method: 'POST', path: CARTS_PATH, body: { line_items: [] } },
-    { method: 'GET', path: `${CARTS_PATH}/${unknownId}` },
-    { method: 'PUT', path: `${CARTS_PATH}/${unknownId}`, body: { line_items: [] } },
-    { method: 'POST', path: `${CARTS_PATH}/${unknownId}/cancel` },
-    { method: 'POST', path: '/ucp/v1/checkout-sessions', body: { line_items: [] } },
-    { method: 'GET', path: `/ucp/v1/checkout-sessions/${unknownId}` },
-    { method: 'PUT', path: `/ucp/v1/checkout-sessions/${unknownId}`, body: { line_items: [] } },
-    { method: 'POST', path: `/ucp/v1/checkout-sessions/${unknownId}/complete` },
-    { method: 'POST', path: `/ucp/v1/checkout-sessions/${unknownId}/cancel` },
-    { method: 'GET', path: `/ucp/v1/orders/${unknownId}` },
-];
+import { CARTS_PATH, shoppingRoutes } from '@services/shoppingRoutes';
 
 async function messageCodes(response: APIResponse): Promise<string[]> {
     const { messages = [] } = (await response.json()) as { messages?: { code?: string }[] };
