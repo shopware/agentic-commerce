@@ -118,4 +118,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/220',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D17',
+        description: 'A sales channel with UCP switched off answers its shopping routes with 501 capability_unsupported, and checkout complete with 422, where a path that the channel does not serve answers 404.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/314',
+        reviewBy: '2026-12-31',
+    },
 ];
