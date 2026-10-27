@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1793003672">
+  <project timestamp="1793003672">
+    <file name="/home/runner/work/agentic-commerce/agentic-commerce/agentic-commerce/src/Shape.php">
+      <metrics loc="4" ncloc="4" classes="0" methods="0" coveredmethods="0" conditionals="0" coveredconditionals="0" statements="0" coveredstatements="0" elements="0" coveredelements="0"/>
+    </file>
+    <file name="/home/runner/work/agentic-commerce/agentic-commerce/agentic-commerce/src/Square.php">
+      <class name="Exp\Square" namespace="global">
+        <metrics complexity="3" methods="3" coveredmethods="2" conditionals="0" coveredconditionals="0" statements="3" coveredstatements="2" elements="6" coveredelements="4"/>
+      </class>
+      <line num="4" type="method" name="__construct" visibility="public" complexity="1" crap="1" count="1"/>
+      <line num="5" type="method" name="area" visibility="public" complexity="1" crap="1" count="1"/>
+      <line num="6" type="method" name="never" visibility="public" complexity="1" crap="2" count="0"/>
+      <metrics loc="8" ncloc="8" classes="1" methods="3" coveredmethods="2" conditionals="0" coveredconditionals="0" statements="3" coveredstatements="2" elements="6" coveredelements="4"/>
+    </file>
+    <file name="/home/runner/work/agentic-commerce/agentic-commerce/agentic-commerce/src/Unloaded.php">
+      <class name="Exp\Unloaded" namespace="global">
+        <metrics complexity="1" methods="1" coveredmethods="0" conditionals="0" coveredconditionals="0" statements="2" coveredstatements="0" elements="3" coveredelements="0"/>
+      </class>
+      <line num="6" type="method" name="x" visibility="public" complexity="1" crap="2" count="0"/>
+      <line num="8" type="stmt" count="0"/>
+      <line num="10" type="stmt" count="0"/>
+      <metrics loc="13" ncloc="13" classes="1" methods="1" coveredmethods="0" conditionals="0" coveredconditionals="0" statements="2" coveredstatements="0" elements="3" coveredelements="0"/>
+    </file>
+    <metrics files="3" loc="25" ncloc="25" classes="2" methods="4" coveredmethods="2" conditionals="0" coveredconditionals="0" statements="5" coveredstatements="2" elements="9" coveredelements="4"/>
+  </project>
+</coverage>

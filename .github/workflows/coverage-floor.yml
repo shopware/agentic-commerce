@@ -1,0 +1,145 @@
+name: Coverage floor
+
+# Proposes higher floors in .github/coverage-floor.json once the latest raiseAfterRuns ci.yml push
+# runs on main all succeeded and all measured above the committed floors. The new floor is the
+# lowest of those measurements, and a floor never moves down. The change goes through a pull
+# request on a bot branch, never a push to main. No pull request depends on this workflow. A broken
+# streak or an expired measurement raises nothing and still ends green; a failure to open the pull
+# request fails only this run.
+#
+# A pull request opened with the workflow token starts no ci.yml run, so validation-gate never
+# reports on it by itself. Close and reopen it to run CI before merging. Opening it needs the
+# repository setting "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: coverage-floor
+  cancel-in-progress: false
+
+jobs:
+  measurements:
+    if: github.repository == 'shopware/agentic-commerce'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      complete: ${{ steps.download.outputs.complete }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # The newest completed push runs of ci.yml on main, by run id. Any of them that did not
+      # succeed, or carries no measurement, breaks the streak and nothing is raised.
+      - name: Download the measurements of the latest runs on main
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          runs_needed="$(jq -er '.raiseAfterRuns | select(type == "number" and . >= 1 and . == floor)' .github/coverage-floor.json)"
+          runs="$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=push&branch=main&status=completed&per_page=100" \
+              --jq '.workflow_runs[]' \
+              | jq -s --arg repo "${GITHUB_REPOSITORY}" --argjson n "${runs_needed}" '
+                  map(select(.event == "push" and .head_branch == "main"
+                    and .head_repository.full_name == $repo
+                    and (.path | startswith(".github/workflows/ci.yml"))))
+                  | sort_by(.id) | reverse | .[:$n]'
+          )"
+
+          complete=true
+          if [[ "$(jq length <<<"${runs}")" -lt "${runs_needed}" ]]; then
+            echo "Fewer than ${runs_needed} completed CI push runs on main."
+            complete=false
+          elif ! jq -e 'all(.[]; .conclusion == "success")' <<<"${runs}" >/dev/null; then
+            echo "Not all of the latest ${runs_needed} CI push runs on main succeeded."
+            complete=false
+          else
+            mkdir -p "${RUNNER_TEMP}/measurements"
+            while read -r run_id; do
+              if ! gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" --name coverage-measurement \
+                --dir "${RUNNER_TEMP}/measurements/${run_id}"; then
+                echo "CI run ${run_id} has no coverage-measurement artifact."
+                complete=false
+                break
+              fi
+            done < <(jq -r '.[].id' <<<"${runs}")
+          fi
+
+          echo "complete=${complete}" >>"${GITHUB_OUTPUT}"
+
+      - uses: actions/upload-artifact@v6
+        if: steps.download.outputs.complete == 'true'
+        with:
+          name: coverage-measurements
+          path: ${{ runner.temp }}/measurements
+          if-no-files-found: error
+          retention-days: 7
+
+  propose:
+    needs: measurements
+    if: needs.measurements.outputs.complete == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: bot/raise-coverage-floor
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: coverage-measurements
+          path: ${{ runner.temp }}/measurements
+
+      # Applied to the floor file of this checkout, never lowering it, so a floor that a person
+      # changed meanwhile only moves further up.
+      - name: Raise the floors
+        id: raise
+        run: |
+          set -euo pipefail
+          mapfile -t measurements < <(find "${RUNNER_TEMP}/measurements" -type f -name measurement.json | sort)
+          python3 -I bin/ci-coverage-floor.py raise .github/coverage-floor.json "${measurements[@]}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          if git diff --quiet; then
+            echo "raised=false" >>"${GITHUB_OUTPUT}"
+          else
+            echo "raised=true" >>"${GITHUB_OUTPUT}"
+          fi
+
+      - name: Open or update the pull request
+        if: steps.raise.outputs.raised == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bot_email="$(git config user.email)"
+
+          # The branch is replaced only while the bot is its last author; a person's commit stays.
+          lease=''
+          if git fetch --quiet origin "refs/heads/${BRANCH}"; then
+            if [[ "$(git log -1 --format=%ae FETCH_HEAD)" != "${bot_email}" ]]; then
+              echo "${BRANCH} has a commit by someone else. Merge or close its pull request first." >&2
+              exit 1
+            fi
+            lease="$(git rev-parse FETCH_HEAD)"
+          fi
+
+          git switch -c "${BRANCH}"
+          git commit -m 'ci: raise the coverage floor' -- .github/coverage-floor.json
+          git push --force-with-lease="refs/heads/${BRANCH}:${lease}" origin "HEAD:refs/heads/${BRANCH}"
+
+          if [[ -z "$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${BRANCH}" --state open --json number --jq '.[].number')" ]]; then
+            gh pr create --repo "${GITHUB_REPOSITORY}" --base main --head "${BRANCH}" \
+              --title 'ci: raise the coverage floor' \
+              --body 'Raises .github/coverage-floor.json to the lowest coverage of the latest consecutive successful CI runs on main. Close and reopen this pull request to run CI on it.'
+          fi
