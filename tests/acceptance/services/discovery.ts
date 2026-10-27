@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { Browser } from '@playwright/test';
+import type { Browser, Response } from '@playwright/test';
 import type { UcpProfileDocument } from './UcpTestDataService';
 
 const ignoreHTTPSErrors = ['1', 'true'].includes(process.env.SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS ?? '');
@@ -18,6 +18,18 @@ export async function fetchDiscoveryDocument(browser: Browser, baseUrl: string):
 }
 
 export async function fetchDiscoveryResponse(browser: Browser, baseUrl: string): Promise<{ headers: Record<string, string>, document: UcpProfileDocument }> {
+    return readDiscoveryResponse(browser, baseUrl, async (response) => {
+        expect(response.ok(), `${await response.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
+
+        return { headers: response.headers(), document: (await response.json()) as UcpProfileDocument };
+    });
+}
+
+export async function fetchRawDiscoveryResponse(browser: Browser, baseUrl: string): Promise<{ status: number, body: string }> {
+    return readDiscoveryResponse(browser, baseUrl, async response => ({ status: response.status(), body: await response.text() }));
+}
+
+async function readDiscoveryResponse<T>(browser: Browser, baseUrl: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
     const url = `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`;
     const context = await browser.newContext({ ignoreHTTPSErrors });
     try {
@@ -26,9 +38,8 @@ export async function fetchDiscoveryResponse(browser: Browser, baseUrl: string):
             throw new Error(`${url} is not reachable. ${OWN_HOST_REQUIREMENT}\n${String(error)}`);
         });
         expect(response, `no response for ${url}`).not.toBeNull();
-        expect(response!.ok(), `${await response!.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
 
-        return { headers: response!.headers(), document: (await response!.json()) as UcpProfileDocument };
+        return await toResult(response!);
     }
     finally {
         await context.close();

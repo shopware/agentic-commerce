@@ -120,7 +120,7 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D17',
-        description: 'A sales channel with UCP switched off answers its shopping routes with 501 capability_unsupported, and checkout complete with 422, where a path that the channel does not serve answers 404.',
+        description: 'A sales channel with UCP switched off answers its shopping routes with 501 capability_unsupported, and checkout complete with 422, where a path that the channel does not serve answers 404. Its /.well-known/ucp answers 200 with a profile that advertises no services or capabilities.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/314',
         reviewBy: '2026-12-31',
