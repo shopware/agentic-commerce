@@ -144,7 +144,7 @@ export default defineConfig({
         {
             // Non-gating: excluded from `npm test` via --grep-invert, run by `npm run test:known-blocked`.
             name: 'UcpKnownBlocked',
-            use: { ...browser },
+            use: { ...browserWithOwnHosts },
             grep: /@UcpKnownBlocked/,
             dependencies: ['Signer', 'Setup'],
         },

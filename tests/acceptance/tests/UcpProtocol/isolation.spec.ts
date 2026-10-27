@@ -1,5 +1,6 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { APIResponse } from '@playwright/test';
+import { advertisedEndpoints, fetchDiscoveryDocument } from '@services/discovery';
 import { CARTS_PATH, shoppingRoutes } from '@services/shoppingRoutes';
 
 async function messageCodes(response: APIResponse): Promise<string[]> {
@@ -51,5 +52,20 @@ test.describe('Sales channel isolation @UcpProtocol', () => {
 
             expect(refusal.ok(), `${route.method} ${route.path}: ${refusal.status()} ${await refusal.text()}`).toBeFalsy();
         }
+    });
+
+    test('a channel with UCP switched off advertises no services or capabilities', async ({ TestDataService, browser }) => {
+        const untouchedChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
+        const switchedOffChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
+        await TestDataService.activateUcp(untouchedChannel.salesChannel.id);
+        await TestDataService.activateUcp(switchedOffChannel.salesChannel.id);
+        const switchOffResponse = await TestDataService.saveUcpConfig(switchedOffChannel.salesChannel.id, { active: false });
+        expect(switchOffResponse.ok(), await switchOffResponse.text()).toBeTruthy();
+
+        const untouchedChannelUcp = (await fetchDiscoveryDocument(browser, untouchedChannel.url)).ucp;
+        expect(advertisedEndpoints(untouchedChannelUcp)).not.toHaveLength(0);
+        const switchedOffChannelUcp = (await fetchDiscoveryDocument(browser, switchedOffChannel.url)).ucp;
+        expect(switchedOffChannelUcp.services).toEqual({});
+        expect(switchedOffChannelUcp.capabilities).toEqual({});
     });
 });
