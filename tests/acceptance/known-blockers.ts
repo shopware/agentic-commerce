@@ -125,4 +125,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/314',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D18',
+        description: 'The SDK matches an Idempotency-Key across all agents and operations, where UCP 2026-08-25 scopes it per client and operation type. A second agent reusing a key gets the first agent\'s stored response, and an agent reusing its key for another operation is refused with 409 idempotency_conflict.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/223',
+        reviewBy: '2026-12-31',
+    },
 ];
