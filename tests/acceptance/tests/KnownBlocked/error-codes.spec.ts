@@ -1,15 +1,9 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
-import type { APIResponse } from '@playwright/test';
 import { readUcpProtocolVersion } from '@services/pluginSource';
+import { messageCodes } from '@services/ucpMessages';
 
 const CATALOG_SEARCH_PATH = '/ucp/v1/catalog/search';
 const catalogSearchRequest = { body: { query: 'product' } };
-
-async function messageCodes(response: APIResponse): Promise<string[]> {
-    const { messages = [] } = (await response.json()) as { messages?: { code?: string }[] };
-
-    return messages.map(message => message.code ?? '');
-}
 
 test.describe('UCP 2026-08-25 error codes @UcpKnownBlocked @UcpBlockedByD15', () => {
     test('the strict policy refuses an unsigned request as signature_missing', async ({ TestDataService, UcpAgent }) => {

@@ -1,13 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
-import type { APIResponse } from '@playwright/test';
 import { advertisedEndpoints, fetchAnswerByRoute, fetchDiscoveryDocument } from '@services/discovery';
 import { CARTS_PATH, shoppingRoutes } from '@services/shoppingRoutes';
-
-async function messageCodes(response: APIResponse): Promise<string[]> {
-    const { messages = [] } = (await response.json()) as { messages?: { code?: string }[] };
-
-    return messages.map(message => message.code ?? '');
-}
+import { messageCodes } from '@services/ucpMessages';
 
 test.describe('Sales channel isolation @UcpProtocol', () => {
     test('a cart created on one channel is not found on another', async ({ TestDataService, UcpAgent }) => {

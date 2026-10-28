@@ -1,6 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
 import type { APIResponse } from '@playwright/test';
+import { messageCodes } from '@services/ucpMessages';
 
 type UcpAgent = FixtureTypes['UcpAgent'];
 
@@ -36,12 +37,6 @@ const invalidSignatures: SignatureDeviation[] = [
         send: agent => agent.tampered({ createdOffsetSeconds: 400 }).send('POST', CATALOG_SEARCH_PATH, catalogSearch),
     },
 ];
-
-async function messageCodes(response: APIResponse): Promise<string[]> {
-    const { messages = [] } = (await response.json()) as { messages?: { code?: string }[] };
-
-    return messages.map(message => message.code ?? '');
-}
 
 test.describe('Request signatures @UcpProtocol', () => {
     test('the strict policy accepts a correctly signed request', async ({ TestDataService, UcpAgent }) => {
