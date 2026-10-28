@@ -55,9 +55,14 @@ export class AgenticCommerceFeedDetail {
         await this.page.getByTestId(`mt-select-option--${templateName}`).click();
     }
 
-    /** Opens the create page of a new feed channel and waits until its provider settings are rendered and no loader is left. */
+    /** Opens the create page of a new feed channel and waits until it is ready. */
     async openNew(): Promise<void> {
         await goToAdminRoute(this.page, `/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/base`);
+        await this.expectCreatePageReady();
+    }
+
+    /** Waits until the create page of a new feed channel has rendered its provider settings and no loader is left. */
+    async expectCreatePageReady(): Promise<void> {
         await expect(this.returnPolicyUrl).toBeVisible();
         await this.expectLoaded();
     }
@@ -66,7 +71,7 @@ export class AgenticCommerceFeedDetail {
      * Waits until no skeleton or loader is left. The page re-renders while it loads, and a re-render
      * resets text that a URL field has not stored yet.
      */
-    async expectLoaded(): Promise<void> {
+    private async expectLoaded(): Promise<void> {
         await expect(this.page.locator('.sw-skeleton, .sw-loader')).toHaveCount(0);
     }
 

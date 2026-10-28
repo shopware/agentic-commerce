@@ -84,8 +84,7 @@ test.describe('Sales channel surfaces of the plugin @UcpAdmin', () => {
                 .getByTestId('ac-sales-channel-modal__agentic-badge'), 'the badge marks the Agentic Commerce type').toBeVisible();
             await addAgenticCommerce.click();
             await AdminPage.waitForURL(new RegExp(`/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/`));
-            await expect(feed.returnPolicyUrl).toBeVisible();
-            await feed.expectLoaded();
+            await feed.expectCreatePageReady();
         });
 
         await test.step('the merchant fills in what has no default and saves', async () => {
