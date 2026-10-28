@@ -56,4 +56,14 @@ test.describe('UCP 2026-08-25 error codes @UcpKnownBlocked @UcpBlockedByD15', ()
         expect(refusal.status(), await refusal.text()).toBe(422);
         expect(await messageCodes(refusal)).toContain('profile_malformed');
     });
+
+    test('an agent profile on a host outside the allowlist is refused as profile_not_trusted', async ({ TestDataService, UcpAgent }) => {
+        const profileFetchingChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(profileFetchingChannel.salesChannel.id);
+
+        const refusal = await UcpAgent.at(profileFetchingChannel.url).rest.send('POST', CATALOG_SEARCH_PATH, { ...catalogSearchRequest, headers: { 'UCP-Agent': 'profile="https://not-allowlisted.ucp-acceptance.test/agent.json"' } });
+
+        expect(refusal.status(), await refusal.text()).toBe(403);
+        expect(await messageCodes(refusal)).toContain('profile_not_trusted');
+    });
 });
