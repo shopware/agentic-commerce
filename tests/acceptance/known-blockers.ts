@@ -92,7 +92,7 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D15',
-        description: 'The SDK answers a missing signature and a body that does not match its Content-Digest with 401 signature_invalid, an unfetchable agent profile with agent_profile_* codes and a schema-violating profile with invalid_request, where UCP 2026-08-25 names signature_missing, 400 digest_mismatch, profile_unreachable and profile_malformed.',
+        description: 'The SDK answers a missing signature and a body that does not match its Content-Digest with 401 signature_invalid, an unfetchable agent profile with agent_profile_* codes, a schema-violating profile with invalid_request and a profile host outside the allowlist with 401 signature_invalid, where UCP 2026-08-25 names signature_missing, 400 digest_mismatch, profile_unreachable, profile_malformed and 403 profile_not_trusted.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/219',
         reviewBy: '2026-12-31',
