@@ -125,4 +125,18 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/223',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D19',
+        description: 'An unknown discount code on a checkout is reported with Shopware\'s cart error, type error and code promotion-not-found, where the UCP discount extension names a warning with discount_code_invalid.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/318',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D20',
+        description: 'The SDK reads no discounts on cart create and update, so codes sent with a cart are neither applied nor reported as rejected, although the profile advertises the discount capability for the cart.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/224',
+        reviewBy: '2026-12-31',
+    },
 ];
