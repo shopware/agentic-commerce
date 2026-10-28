@@ -49,13 +49,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D7',
-        description: 'The per-channel remoteProfileAllowlist reaches the request-context check but not the profile fetcher, whose UrlSafetyValidator is built from ucp_sdk.allowed_profile_hosts and never set, so every remote profile fetch is rejected.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/pull/150',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D9',
         description: 'Below Shopware 6.7.12.0 the plugin\'s fallback controller serves the discovery files and answers 404 for all of them once UCP is switched off, although the files do not depend on UCP.',
         owner: 'dgrothaus-sw',
