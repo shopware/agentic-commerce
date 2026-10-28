@@ -35,13 +35,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D4',
-        description: 'An unknown cart id answers HTTP 200 with an empty cart carrying the requested id instead of not_found.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D5',
         description: 'ucp-agent and idempotency-key are read from the MCP transport\'s HTTP request headers, not from meta on each call as the spec carries them, so a spec-conformant MCP client is rejected with "$.headers.idempotency-key is required". The tool names and the structured object payload were fixed in PR #224.',
         owner: 'dgrothaus-sw',
