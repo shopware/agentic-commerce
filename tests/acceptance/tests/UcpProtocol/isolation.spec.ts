@@ -1,6 +1,6 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { APIResponse } from '@playwright/test';
-import { advertisedEndpoints, fetchDiscoveryDocument } from '@services/discovery';
+import { advertisedEndpoints, fetchAnswerByRoute, fetchDiscoveryDocument } from '@services/discovery';
 import { CARTS_PATH, shoppingRoutes } from '@services/shoppingRoutes';
 
 async function messageCodes(response: APIResponse): Promise<string[]> {
@@ -67,5 +67,24 @@ test.describe('Sales channel isolation @UcpProtocol', () => {
         const switchedOffChannelUcp = (await fetchDiscoveryDocument(browser, switchedOffChannel.url)).ucp;
         expect(switchedOffChannelUcp.services).toEqual({});
         expect(switchedOffChannelUcp.capabilities).toEqual({});
+    });
+
+    test('an inactive sales channel serves neither its UCP profile nor any shopping route', async ({ TestDataService, browser }) => {
+        const untouchedChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
+        const deactivatedChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
+        await TestDataService.activateUcp(untouchedChannel.salesChannel.id);
+        await TestDataService.activateUcp(deactivatedChannel.salesChannel.id);
+        const deactivationResult = await TestDataService.AdminApiClient.patch(`./sales-channel/${deactivatedChannel.salesChannel.id}`, { data: { active: false } });
+        expect(deactivationResult.ok(), await deactivationResult.text()).toBeTruthy();
+        const ucpRoutes = [{ method: 'GET', path: '/.well-known/ucp' }, ...shoppingRoutes];
+
+        const untouchedChannelAnswerByRoute = await fetchAnswerByRoute(browser, untouchedChannel.url, ucpRoutes);
+        const routesUntouchedChannelLeavesToCore = Object.entries(untouchedChannelAnswerByRoute).filter(([, answer]) => !answer.contentType.includes('json')).map(([route]) => route);
+        expect(routesUntouchedChannelLeavesToCore, JSON.stringify(untouchedChannelAnswerByRoute, null, 2)).toEqual([]);
+
+        const answerByRoute = await fetchAnswerByRoute(browser, deactivatedChannel.url, ucpRoutes);
+        const jsonAnswerByRoute = Object.fromEntries(Object.entries(answerByRoute).filter(([, answer]) => answer.contentType.includes('json')));
+        // Core answers for the inactive channel, with a status that differs between Shopware versions.
+        expect(jsonAnswerByRoute, JSON.stringify(answerByRoute, null, 2)).toEqual({});
     });
 });
