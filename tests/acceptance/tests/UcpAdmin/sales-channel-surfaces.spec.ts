@@ -2,6 +2,7 @@ import { expect, test } from '@fixtures/AcceptanceTest';
 import type { Locator, Page, Request } from '@playwright/test';
 import { FEED_SALES_CHANNEL_TYPE_ID } from '@services/UcpTestDataService';
 import { goToAdminRoute } from '@page-objects/adminRoute';
+import { AgenticCommerceFeedDetail } from '@page-objects/AgenticCommerceFeedDetail';
 
 const listRoute = (term: string) => `/sw/sales/channel/list?term=${encodeURIComponent(term)}`;
 
@@ -68,6 +69,7 @@ test.describe('Sales channel surfaces of the plugin @UcpAdmin', () => {
     test('an Agentic Commerce channel created from the modal is saved with the prefilled feed export', async ({ TestDataService, AdminPage, DefaultSalesChannel }) => {
         const productStream = await TestDataService.createProductStream();
         const name = `${TestDataService.namePrefix}UCP-created-${Date.now()}`;
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
         let salesChannelId = '';
 
         await test.step('the type is offered with its badge in the create modal', async () => {
@@ -82,11 +84,13 @@ test.describe('Sales channel surfaces of the plugin @UcpAdmin', () => {
                 .getByTestId('ac-sales-channel-modal__agentic-badge'), 'the badge marks the Agentic Commerce type').toBeVisible();
             await addAgenticCommerce.click();
             await AdminPage.waitForURL(new RegExp(`/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/`));
+            await expect(feed.returnPolicyUrl).toBeVisible();
+            await feed.expectLoaded();
         });
 
         await test.step('the merchant fills in what has no default and saves', async () => {
             await AdminPage.locator('.sw-field--salesChannel-name input').fill(name);
-            await AdminPage.locator('input[name="SwagAgenticCommerce.openAiProductExport.returnPolicyUrl"]').fill('shop.example/returns');
+            await feed.fillReturnPolicyUrl('shop.example/returns');
             await chooseEntity(AdminPage.locator('.sw-sales-channel-detail__product-comparison-storefront'), DefaultSalesChannel.salesChannel.name);
             await chooseEntity(AdminPage.locator('.sw-sales-channel-detail__product-comparison-domain'), new URL(DefaultSalesChannel.url).host);
             await chooseEntity(AdminPage.locator('.sw-sales-channel-detail__product-comparison-product-stream'), productStream.name);

@@ -62,8 +62,22 @@ export class AgenticCommerceFeedDetail {
         await this.expectLoaded();
     }
 
-    private async expectLoaded(): Promise<void> {
+    /**
+     * Waits until no skeleton or loader is left. The page re-renders while it loads, and a re-render
+     * resets text that a URL field has not stored yet.
+     */
+    async expectLoaded(): Promise<void> {
         await expect(this.page.locator('.sw-skeleton, .sw-loader')).toHaveCount(0);
+    }
+
+    /**
+     * Enters the return policy URL and leaves the field: `sw-url-field` stores its text only on blur,
+     * and Save validates what is stored, not what is typed.
+     */
+    async fillReturnPolicyUrl(url: string): Promise<void> {
+        await this.returnPolicyUrl.fill(url);
+        await this.returnPolicyUrl.blur();
+        await expect(this.returnPolicyUrl).toHaveValue(url);
     }
 
     /** 6.5 and 6.6 show the template as the native `<select>` value, later lanes as the Meteor select's label. */
