@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Browser, Response } from '@playwright/test';
+import type { ShoppingRoute } from './shoppingRoutes';
 import type { UcpProfileDocument } from './UcpTestDataService';
 
 const ignoreHTTPSErrors = ['1', 'true'].includes(process.env.SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS ?? '');
@@ -27,6 +28,27 @@ export async function fetchDiscoveryResponse(browser: Browser, baseUrl: string):
 
 export async function fetchRawDiscoveryResponse(browser: Browser, baseUrl: string): Promise<{ status: number, body: string }> {
     return readDiscoveryResponse(browser, baseUrl, async response => ({ status: response.status(), body: await response.text() }));
+}
+
+/** Sent from a page because only the browser resolves the hosts of `createStorefrontSalesChannelOnOwnHost()`. */
+export async function fetchAnswerByRoute(browser: Browser, baseUrl: string, routes: ShoppingRoute[]): Promise<Record<string, { status: number, contentType: string }>> {
+    return readDiscoveryResponse(browser, baseUrl, async (profilePageResponse) => {
+        const page = profilePageResponse.frame().page();
+        const answerByRoute: Record<string, { status: number, contentType: string }> = {};
+        for (const route of routes) {
+            answerByRoute[`${route.method} ${route.path}`] = await page.evaluate(async ({ method, path, body }) => {
+                const routeAnswer = await fetch(path, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body === undefined ? undefined : JSON.stringify(body),
+                });
+
+                return { status: routeAnswer.status, contentType: routeAnswer.headers.get('content-type') ?? '' };
+            }, route);
+        }
+
+        return answerByRoute;
+    });
 }
 
 async function readDiscoveryResponse<T>(browser: Browser, baseUrl: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
