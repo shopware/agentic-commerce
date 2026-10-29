@@ -1,5 +1,5 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
-import { advertisedTransports, fetchDiscoveryDocument, fetchDiscoveryResponse } from '@services/discovery';
+import { advertisedTransports, fetchDiscoveryDocument, fetchDiscoveryResponse, fetchStorefrontLinkHeader } from '@services/discovery';
 
 test.describe('UCP discovery profile @UcpProtocol', () => {
     test('the profile is publicly cacheable for 60 seconds', async ({ TestDataService, browser }) => {
@@ -51,5 +51,14 @@ test.describe('UCP discovery profile @UcpProtocol', () => {
         for (const extendedCapability of extendedCapabilities) {
             expect(offeredCapabilities).toContain(extendedCapability);
         }
+    });
+
+    test('storefront pages link the profile as service-meta', async ({ TestDataService, browser }) => {
+        const profileLinkingChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
+        await TestDataService.activateUcp(profileLinkingChannel.salesChannel.id);
+
+        const linkHeader = await fetchStorefrontLinkHeader(browser, profileLinkingChannel.url);
+
+        expect(linkHeader).toContain('</.well-known/ucp>; rel="service-meta"');
     });
 });
