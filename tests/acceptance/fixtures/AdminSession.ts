@@ -9,6 +9,7 @@ type WorkerTypes = Pick<FixtureTypes, 'AdminSession' | 'AdminApiContext' | 'IdPr
  * The ATS `AdminSession` (acceptance-test-suite 12.20.0), with its user created through
  * `createUserRetryingTokenConflicts()`: the ATS asserts its one `POST /api/user`, so core's refresh
  * token conflict (MariaDB error 1020) failed the first test of a worker.
+ * Remove this override once the ATS release with https://github.com/shopware/acceptance-test-suite/pull/739 is used.
  */
 export const test = base.extend<NonNullable<unknown>, WorkerTypes>({
     AdminSession: [
