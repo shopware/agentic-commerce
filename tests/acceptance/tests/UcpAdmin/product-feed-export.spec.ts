@@ -76,7 +76,7 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         });
 
         await test.step('with it, the save goes through and stores the URL', async () => {
-            await feed.returnPolicyUrl.fill('shop.example/returns');
+            await feed.fillReturnPolicyUrl('shop.example/returns');
             await feed.save();
 
             await expect(feed.fieldOf(feed.returnPolicyUrl).locator('.mt-field__error, .sw-field__error')).toHaveCount(0);

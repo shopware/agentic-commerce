@@ -55,15 +55,34 @@ export class AgenticCommerceFeedDetail {
         await this.page.getByTestId(`mt-select-option--${templateName}`).click();
     }
 
-    /** Opens the create page of a new feed channel and waits until its provider settings are rendered and no loader is left. */
+    /** Opens the create page of a new feed channel and waits until it is ready. */
     async openNew(): Promise<void> {
         await goToAdminRoute(this.page, `/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/base`);
+        await this.expectCreatePageReady();
+    }
+
+    /** Waits until the create page of a new feed channel has rendered its provider settings and no loader is left. */
+    async expectCreatePageReady(): Promise<void> {
         await expect(this.returnPolicyUrl).toBeVisible();
         await this.expectLoaded();
     }
 
+    /**
+     * Waits until no skeleton or loader is left. The page re-renders while it loads, and a re-render
+     * resets text that a URL field has not stored yet.
+     */
     private async expectLoaded(): Promise<void> {
         await expect(this.page.locator('.sw-skeleton, .sw-loader')).toHaveCount(0);
+    }
+
+    /**
+     * Enters the return policy URL and leaves the field: `sw-url-field` stores its text only on blur,
+     * and Save validates what is stored, not what is typed.
+     */
+    async fillReturnPolicyUrl(url: string): Promise<void> {
+        await this.returnPolicyUrl.fill(url);
+        await this.returnPolicyUrl.blur();
+        await expect(this.returnPolicyUrl).toHaveValue(url);
     }
 
     /** 6.5 and 6.6 show the template as the native `<select>` value, later lanes as the Meteor select's label. */

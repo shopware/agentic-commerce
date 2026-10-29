@@ -61,6 +61,35 @@ const USER_CREATION_ATTEMPTS = 5;
 /** MariaDB's "record has changed since last read" (snapshot isolation). */
 const USER_INSERT_CONFLICT_CODE = '1020';
 
+/**
+ * Core revokes a user's refresh tokens when it inserts the user. The delete scans the whole
+ * `refresh_token` table (no index on `user_id`), and MariaDB 11.6+ snapshot isolation rejects it
+ * with error 1020 while other workers log in; core answers 500 and does not retry. Only that
+ * conflict is retried, with a fresh user from `buildUser` and a growing, jittered pause, since
+ * immediate retries were seen to fail again. Since 6.7.13.1 the insert rolls back with the
+ * revocation; before, the user row is already committed, so a failed attempt whose user exists is
+ * used. Returns the struct of the user that was stored.
+ */
+export async function createUserRetryingTokenConflicts<T extends { id: string }>(
+    adminApi: FixtureTypes['AdminApiContext'],
+    buildUser: () => T,
+): Promise<T> {
+    for (let attempt = 1; ; attempt++) {
+        const user = buildUser();
+        const response = await adminApi.post('user', { data: user });
+        if (response.ok() || (await adminApi.get(`./user/${user.id}`)).ok()) {
+            return user;
+        }
+
+        const code = response.status() >= 500 ? await UcpTestDataService.refusalCode(response).catch(() => null) : null;
+        if (attempt === USER_CREATION_ATTEMPTS || code !== USER_INSERT_CONFLICT_CODE) {
+            throw new Error(`POST /api/user failed (attempt ${attempt}): HTTP ${response.status()} ${response.statusText()} ${(await response.text()).slice(0, 2000)}`);
+        }
+        const pause = 250 * 2 ** (attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, pause + Math.random() * pause));
+    }
+}
+
 export interface UcpSalesChannel {
     salesChannel: SalesChannel
 
@@ -477,40 +506,13 @@ export class UcpTestDataService extends TestDataService {
         return ((await response.json()) as { data: UcpConfigPayload }).data;
     }
 
-    /**
-     * Core revokes a user's refresh tokens when it inserts the user. The delete scans the whole
-     * `refresh_token` table (no index on `user_id`), and MariaDB 11.6+ snapshot isolation rejects it
-     * with error 1020 while other workers log in; core answers 500 and does not retry. Only that
-     * conflict is retried, with a fresh user and a growing, jittered pause, since immediate retries
-     * were seen to fail again. Since 6.7.13.1 the insert rolls back with the revocation; before, the
-     * user row is already committed, so a failed attempt whose user exists is used and registered
-     * for cleanup.
-     */
+    /** A user created through `createUserRetryingTokenConflicts()` and registered for cleanup. */
     async createUserRetryingTokenConflicts(overrides: Partial<User> = {}): Promise<User> {
         const { localeId } = await this.getLanguageById(this.defaultSalesChannel.languageId);
+        const user = await createUserRetryingTokenConflicts(this.AdminApiClient, () => this.getBasicUserStruct(localeId, overrides) as User);
+        this.addCreatedRecord('user', user.id);
 
-        for (let attempt = 1; ; attempt++) {
-            const user = this.getBasicUserStruct(localeId, overrides) as User;
-            const response = await this.AdminApiClient.post('user', { data: user });
-            if (response.ok()) {
-                this.addCreatedRecord('user', user.id);
-
-                return { ...await this.getUserById(user.id), password: user.password };
-            }
-            const existing = await this.AdminApiClient.get(`./user/${user.id}`);
-            if (existing.ok()) {
-                this.addCreatedRecord('user', user.id);
-
-                return { ...((await existing.json()) as { data: User }).data, password: user.password };
-            }
-
-            const code = response.status() >= 500 ? await UcpTestDataService.refusalCode(response).catch(() => null) : null;
-            if (attempt === USER_CREATION_ATTEMPTS || code !== USER_INSERT_CONFLICT_CODE) {
-                throw new Error(`POST /api/user failed (attempt ${attempt}): HTTP ${response.status()} ${response.statusText()} ${(await response.text()).slice(0, 2000)}`);
-            }
-            const pause = 250 * 2 ** (attempt - 1);
-            await new Promise(resolve => setTimeout(resolve, pause + Math.random() * pause));
-        }
+        return { ...await this.getUserById(user.id), password: user.password };
     }
 
     /** The error code of a refused config write, or null when the response carries none. */

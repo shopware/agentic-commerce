@@ -36,8 +36,8 @@ export interface UcpAclUsersTypes {
 }
 
 export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclUsersTypes>({
-    // Not the worker's AdminSession: as a dependency it makes every worker create the ATS admin user
-    // up front, and the ATS does not retry core's refresh token conflict on that insert.
+    // Not the worker's AdminSession: as a dependency it makes every worker create its admin user up
+    // front, also for tests that ask for no role user.
     UcpAclUsers: async ({ TestDataService, AdminApiContext, SalesChannelBaseConfig, browser }, use) => {
         const mapping = await readAdminPrivilegeMapping();
         const users = new Map<UcpRole, Promise<UcpAclUser>>();
