@@ -139,4 +139,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/320',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D23',
+        description: 'Cancelling a cart answers with the emptied cart, where UCP 2026-08-25 requires the state before deletion. Get and update on the cancelled cart id answer 200, where UCP recommends not_found.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/321',
+        reviewBy: '2026-12-31',
+    },
 ];
