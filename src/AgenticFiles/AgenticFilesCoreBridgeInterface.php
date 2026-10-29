@@ -10,6 +10,9 @@ use Shopware\Core\Framework\Log\Package;
 #[Package('discovery')]
 interface AgenticFilesCoreBridgeInterface
 {
+    /**
+     * Initialize missing files as enabled defaults, preserving existing configurations.
+     */
     public function enableForSalesChannel(string $salesChannelId): void;
 
     public function syncActiveUcpSalesChannels(): void;
