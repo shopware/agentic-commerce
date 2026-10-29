@@ -18,5 +18,15 @@ export async function createCompletableCheckout(
     expect(readyCheckout.ok(), await readyCheckout.text()).toBeTruthy();
     const { id: checkoutId } = (await readyCheckout.json()) as { id: string };
 
-    return { agent, buyer, lineItems, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
+    return { agent, buyer, lineItems, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
+}
+
+export async function placeOrder(
+    agent: Awaited<ReturnType<typeof createCompletableCheckout>>['agent'],
+    checkoutPath: string,
+): Promise<{ id: string }> {
+    const completedCheckout = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: { payment: {} } });
+    expect(completedCheckout.status(), await completedCheckout.text()).toBe(200);
+
+    return ((await completedCheckout.json()) as { order: { id: string } }).order;
 }
