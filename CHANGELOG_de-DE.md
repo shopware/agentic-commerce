@@ -2,6 +2,9 @@
 
 - Die Produktexporte eines Verkaufskanals lassen sich wieder laden, etwa in Erweiterungen, die `sales_channel.productExports` lesen. Bisher schlugen diese Anfragen mit `FRAMEWORK__DEFINITION_NOT_FOUND` fehl, weil die Erweiterung die Definition der Produktexporte ein zweites Mal registrierte.
 - Beim Verlassen einer Agentic-Datei wird zum Tab „Agentic Commerce“ zurückgekehrt, wenn dieser verfügbar ist. Andernfalls führt der Link zurück zum Tab „Agentic-Dateien“, der für Verkaufskanäle und Benutzer ohne den Tab „Agentic Commerce“ wieder angezeigt wird.
+- UCP-Einstellungen werden für Benutzer mit Leserechten schreibgeschützt angezeigt.
+  Benutzer mit UCP-Bearbeitungsrechten können sie ohne Bearbeitungsrechte für Verkaufskanäle speichern.
+  Agentic-Commerce-Insights erfordern UCP-Leserechte.
 - Der Speichern-Ablauf von Shopware bleibt für Verkaufskanäle erhalten: Pflichtfelder werden bei allen Verkaufskanälen geprüft, und gewöhnliche Storefront-Verkaufskanäle erhalten ihre Theme-Zuweisung.
 - Deaktivierte Agentic-Dateien bleiben beim Aktivieren von UCP, beim Speichern der UCP-Einstellungen und beim Aktualisieren der Erweiterung deaktiviert.
   Bestehende eigene Inhalte bleiben erhalten, und fehlende Standarddateien werden angelegt.

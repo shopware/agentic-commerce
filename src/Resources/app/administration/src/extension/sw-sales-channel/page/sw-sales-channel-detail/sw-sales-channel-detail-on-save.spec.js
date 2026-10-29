@@ -97,6 +97,7 @@ function buildContext({ saveSalesChannel, isSaveSuccessful = true } = {}) {
         isLoading: false,
         isAgenticCommerce: true,
         allowSaving: true,
+        acl: { can: jest.fn(() => true) },
         systemConfigApiService: { batchSave: jest.fn(() => Promise.resolve()) },
         validateAgenticCommerceExportConfig: jest.fn(() => true),
         ucpState: { loaded: false, form: {}, savedForm: {}, generation: 0 },
@@ -497,6 +498,34 @@ describe('sw-sales-channel-detail onSave — refused save', () => {
 describe('sw-sales-channel-detail onSave — UCP config', () => {
     const UCP_FORM = { active: true, profileDomain: null, enabledCapabilities: ['cart', 'catalog'], enabledTransports: ['rest'] };
 
+    it('allows UCP editors to save on the UCP route without sales_channel.editor', () => {
+        expect(swSalesChannelDetailOverride.computed.allowSaving.call({
+            isUcpConfigRoute: true,
+            acl: { can: (privilege) => privilege === 'ucp.editor' },
+        })).toBe(true);
+    });
+
+    it('allows sales-channel editors to save file changes on the UCP route', () => {
+        expect(swSalesChannelDetailOverride.computed.allowSaving.call({
+            isUcpConfigRoute: true,
+            acl: { can: (privilege) => privilege === 'sales_channel.editor' },
+        })).toBe(true);
+    });
+
+    it.each(['ucp.viewer', 'ucp.key_rotator'])('does not allow %s to save without sales-channel edit permission', (role) => {
+        expect(swSalesChannelDetailOverride.computed.allowSaving.call({
+            isUcpConfigRoute: true,
+            acl: { can: (privilege) => privilege === role },
+        })).toBe(false);
+    });
+
+    it('uses the core save permission on other routes', () => {
+        const superMethod = jest.fn(() => false);
+
+        expect(swSalesChannelDetailOverride.computed.allowSaving.call({ isUcpConfigRoute: false, $super: superMethod })).toBe(false);
+        expect(superMethod).toHaveBeenCalledWith('allowSaving');
+    });
+
     it('writes the UCP form as it was when Save was clicked, although the legacy reload replaced it', async () => {
         const ctx = buildContext({ isSaveSuccessful: true });
         ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
@@ -561,6 +590,7 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         const ctx = {
             ucpState: { loaded: true, form: { active: false }, savedForm: { active: false }, generation: 3 },
             ucpAdminApiService: { saveConfig },
+            acl: { can: jest.fn(() => true) },
             createNotificationError: jest.fn(),
         };
         ctx.reloadAgenticFiles = swSalesChannelDetailOverride.methods.reloadAgenticFiles.bind(ctx);
@@ -585,6 +615,7 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
                 generation: 3,
             },
             ucpAdminApiService: { saveConfig },
+            acl: { can: jest.fn(() => true) },
             createNotificationError: jest.fn(),
             reloadAgenticFiles,
         };
@@ -688,6 +719,7 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         const ctx = {
             ucpState: { loaded: true, form: { ...storedForm }, savedForm: { ...storedForm }, generation: 3 },
             ucpAdminApiService: { saveConfig },
+            acl: { can: jest.fn(() => true) },
             createNotificationError: jest.fn(),
         };
 
@@ -698,6 +730,38 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         expect(ctx.ucpState.form).toEqual(UCP_FORM);
         expect(ctx.ucpState.savedForm).toEqual(storedForm);
         expect(ctx.ucpState.generation).toBe(4);
+    });
+
+    it('lets a UCP viewer with sales-channel edit access save Agentic Files without writing UCP settings', async () => {
+        const file = createFileEntity('new-file', { fileName: 'agents.md' }, true);
+        const { repository: fileRepository } = createFileRepository([
+            { id: 'new-file', data: { fileName: 'agents.md' } },
+        ]);
+        const ctx = buildUcpContext();
+        ctx.acl.can.mockImplementation((privilege) => privilege === 'sales_channel.editor' || privilege === 'ucp.viewer');
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+        ctx.salesChannel.salesChannelFiles = [file];
+        ctx.repositoryFactory = { create: jest.fn(() => fileRepository) };
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn(() => Promise.resolve({ data: { data: null } })) };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(fileRepository.save).toHaveBeenCalledWith(file, Shopware.Context.api);
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it('does not write UCP configuration from other tabs when the user lacks ucp.editor', async () => {
+        const ctx = {
+            ucpState: { loaded: true, form: { active: true }, savedForm: {}, generation: 0 },
+            acl: { can: jest.fn(() => false) },
+            ucpAdminApiService: { saveConfig: jest.fn() },
+        };
+
+        const saved = await swSalesChannelDetailOverride.methods.saveUcpState.call(ctx, 'channel-id', { active: true });
+
+        expect(saved).toBe(true);
+        expect(ctx.ucpAdminApiService.saveConfig).not.toHaveBeenCalled();
     });
 
     it('saves the sales channel from the UCP tab before writing UCP and refreshing the preview', async () => {
@@ -721,6 +785,215 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         expect(ctx.ucpState.preview).toEqual(preview.data.data);
         expect(ctx.isSaveSuccessful).toBe(true);
         expect(ctx.isSavingUcp).toBe(false);
+    });
+
+    it('includes changed Agentic Files in the page-wide save from the UCP tab', async () => {
+        const draft = { ...UCP_FORM };
+        const newConfiguration = createFileEntity('new-file', {}, true);
+        const changedConfiguration = createFileEntity('changed-file', { fileName: 'old' });
+        changedConfiguration.fileName = 'new';
+        const unchangedConfiguration = createFileEntity('unchanged-file', { fileName: 'same' });
+        const { repository: fileRepository } = createFileRepository([
+            { id: 'new-file', data: { fileName: 'new' } },
+            { id: 'changed-file', data: { fileName: 'new' } },
+            { id: 'unchanged-file', data: { fileName: 'same' } },
+        ]);
+        const ctx = buildUcpContext();
+        ctx.ucpState = { loaded: true, form: draft, savedForm: {}, generation: 0 };
+        ctx.salesChannel.salesChannelFiles = [newConfiguration, changedConfiguration, unchangedConfiguration];
+        ctx.repositoryFactory = { create: jest.fn(() => fileRepository) };
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn(() => Promise.resolve({ data: { data: null } })) };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        await Promise.resolve();
+
+        expect(ctx.saveUcpState).toHaveBeenCalledWith('channel-id', draft);
+        expect(ctx.repositoryFactory.create).toHaveBeenCalledWith('sales_channel_file');
+        expect(fileRepository.hasChanges).toHaveBeenCalledWith(changedConfiguration);
+        expect(fileRepository.hasChanges).toHaveBeenCalledWith(unchangedConfiguration);
+        expect(fileRepository.save).toHaveBeenCalledTimes(2);
+        expect(fileRepository.save).toHaveBeenCalledWith(newConfiguration, Shopware.Context.api);
+        expect(fileRepository.save).toHaveBeenCalledWith(changedConfiguration, Shopware.Context.api);
+        expect(ctx.$super).toHaveBeenCalledWith('onSave');
+        expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it('saves Agentic File drafts before activating UCP so defaults cannot replace their state', async () => {
+        const file = createFileEntity('draft-file', {
+            fileName: 'agents.md',
+            enabled: false,
+            content: '# Customized instructions',
+        }, true);
+        const { repository } = createFileRepository();
+        const ctx = buildUcpContext();
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+        ctx.salesChannel.salesChannelFiles = [file];
+        ctx.repositoryFactory = { create: jest.fn(() => repository) };
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn(() => Promise.resolve({ data: { data: null } })) };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(repository.save).toHaveBeenCalledWith(file, Shopware.Context.api);
+        expect(repository.save.mock.invocationCallOrder[0]).toBeLessThan(ctx.saveUcpState.mock.invocationCallOrder[0]);
+        expect(file.enabled).toBe(false);
+        expect(file.content).toBe('# Customized instructions');
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it('does not save Agentic Files without sales-channel edit permission', async () => {
+        const file = createFileEntity('draft-file', { fileName: 'agents.md' }, true);
+        const ctx = buildContext();
+        ctx.isUcpConfigRoute = true;
+        ctx.acl.can.mockImplementation((privilege) => privilege === 'ucp.editor');
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+        ctx.pendingAgenticFilesReload = 'channel-id';
+        ctx.reloadAgenticFiles = jest.fn();
+        ctx.salesChannel.salesChannelFiles = [file];
+        ctx.saveAgenticFiles = jest.fn(() => Promise.resolve(true));
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn(() => Promise.resolve({ data: { data: null } })) };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveUcpState).toHaveBeenCalledWith('channel-id', ctx.ucpState.form);
+        expect(ctx.$super).not.toHaveBeenCalled();
+        expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.saveAgenticFiles).not.toHaveBeenCalled();
+        expect(ctx.reloadAgenticFiles).not.toHaveBeenCalled();
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it('skips unchanged UCP settings without saving the sales channel for a UCP-only editor', async () => {
+        const ctx = buildUcpContext();
+        ctx.isUcpConfigRoute = true;
+        ctx.acl.can.mockImplementation((privilege) => privilege === 'ucp.editor');
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: { ...UCP_FORM }, generation: 0 };
+        ctx.saveAgenticFiles = jest.fn();
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn() };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.$super).not.toHaveBeenCalled();
+        expect(ctx.saveAgenticFiles).not.toHaveBeenCalled();
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+        expect(ctx.ucpAdminApiService.getProfilePreview).not.toHaveBeenCalled();
+        expect(ctx.isSavingUcp).toBe(false);
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it('releases the UCP-only save guard after a failed write so the draft can be retried', async () => {
+        const ctx = buildUcpContext();
+        ctx.isUcpConfigRoute = true;
+        ctx.acl.can.mockImplementation((privilege) => privilege === 'ucp.editor');
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+        ctx.saveUcpState.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn(async () => ({ data: { data: null } })) };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.isSavingUcp).toBe(false);
+        expect(ctx.isLoading).toBe(false);
+        expect(ctx.isSaveSuccessful).toBe(false);
+        expect(ctx.ucpState.form).toEqual(UCP_FORM);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.$super).not.toHaveBeenCalled();
+        expect(ctx.saveUcpState).toHaveBeenCalledTimes(2);
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it('does not create the same Agentic File again on a repeated save', async () => {
+        const { repository: fileRepository } = createFileRepository();
+        const ctx = buildContext();
+        ctx.salesChannel.salesChannelFiles = [createFileEntity('file-id', { fileName: 'agents.md' }, true)];
+        ctx.repositoryFactory = { create: jest.fn(() => fileRepository) };
+
+        await swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx);
+        await swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx);
+
+        expect(fileRepository.save).toHaveBeenCalledTimes(1);
+        expect(fileRepository.get).toHaveBeenCalledTimes(1);
+        expect(ctx.salesChannel.salesChannelFiles[0].isNew()).toBe(false);
+    });
+
+    it('keeps a successfully created file saved when its reload fails, so retry does not create it again', async () => {
+        const file = createFileEntity('file-id', { fileName: 'agents.md' }, true);
+        const { repository } = createFileRepository([
+            { id: 'file-id', data: { fileName: 'agents.md' } },
+        ]);
+        repository.get.mockRejectedValueOnce(new Error('reload failed'));
+        const ctx = buildContext();
+        ctx.salesChannel.salesChannelFiles = [file];
+        ctx.repositoryFactory = { create: jest.fn(() => repository) };
+
+        await expect(swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx)).resolves.toBe(false);
+        expect(file.isNew()).toBe(false);
+
+        await expect(swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx)).resolves.toBe(true);
+        expect(repository.save).toHaveBeenCalledTimes(1);
+        expect(repository.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists a reversed toggle after a successful write whose reload fails', async () => {
+        const { repository, persistedFiles } = createFileRepository([
+            { id: 'file-id', data: { enabled: false } },
+        ]);
+        repository.get.mockRejectedValueOnce(new Error('reload failed'));
+        const ctx = buildContext();
+        const file = createFileEntity('file-id', { enabled: false });
+        ctx.salesChannel.salesChannelFiles = [file];
+        ctx.repositoryFactory = { create: jest.fn(() => repository) };
+
+        file.enabled = true;
+        await expect(swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx)).resolves.toBe(false);
+        expect(persistedFiles.get('file-id')).toEqual({ enabled: true });
+
+        file.enabled = false;
+        await expect(swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx)).resolves.toBe(true);
+
+        expect(repository.save).toHaveBeenCalledTimes(2);
+        expect(persistedFiles.get('file-id')).toEqual({ enabled: false });
+    });
+
+    it('persists a reversed Agentic File toggle after reloading the saved entity', async () => {
+        const { repository: fileRepository, persistedFiles } = createFileRepository([
+            { id: 'file-id', data: { enabled: false } },
+        ]);
+        const ctx = buildContext();
+        ctx.salesChannel.salesChannelFiles = [createFileEntity('file-id', { enabled: false })];
+        ctx.repositoryFactory = { create: jest.fn(() => fileRepository) };
+        ctx.salesChannel.salesChannelFiles[0].enabled = true;
+
+        await swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx);
+        ctx.salesChannel.salesChannelFiles[0].enabled = false;
+        await swSalesChannelDetailOverride.methods.saveAgenticFiles.call(ctx);
+
+        expect(fileRepository.save).toHaveBeenCalledTimes(2);
+        expect(fileRepository.get).toHaveBeenCalledTimes(2);
+        expect(persistedFiles.get('file-id')).toEqual({ enabled: false });
+    });
+
+    it('reports a failed Agentic Files write as an unsuccessful UCP-tab save', async () => {
+        const ctx = buildUcpContext();
+        ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
+        ctx.salesChannel.salesChannelFiles = [createFileEntity('new-file', {}, true)];
+        ctx.repositoryFactory = {
+            create: jest.fn(() => ({
+                hasChanges: jest.fn(),
+                save: jest.fn(() => Promise.reject(new Error('write failed'))),
+                get: jest.fn(),
+            })),
+        };
+        ctx.ucpAdminApiService = { getProfilePreview: jest.fn() };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.createNotificationError).toHaveBeenCalledWith({
+            message: ctx.$t('sw-sales-channel.detail.messageAPIError'),
+        });
+        expect(ctx.isSaveSuccessful).toBe(false);
+        expect(ctx.ucpAdminApiService.getProfilePreview).not.toHaveBeenCalled();
     });
 
     it('does not save from the UCP tab when core disallows saving', async () => {

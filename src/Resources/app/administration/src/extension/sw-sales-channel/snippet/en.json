@@ -1,4 +1,11 @@
 {
+  "sw-privileges": {
+    "permissions": {
+      "ucp": {
+        "label": "UCP (Universal Commerce Protocol)"
+      }
+    }
+  },
   "swagAgenticCommerce": {
     "modalGrid": {
       "agenticCommerceBadge": "New"
@@ -14,9 +21,11 @@
       "messageNoProductStreams": "In order to create product comparison or agentic commerce sales channels, a dynamic product group has to be created first."
     },
     "detail": {
+      "contentDenied": "You do not have permission to view this content.",
       "agenticCommerce": {
         "tabAgenticCommerce": "Agentic Commerce",
         "ucp": {
+          "readOnlyMessage": "You can view this configuration, but only users with UCP edit permission can change and save it.",
           "cardTitle": "UCP",
           "cardIntro": "Configure how this sales channel is exposed to AI agents over the Universal Commerce Protocol (UCP): which capabilities agents may use, how requests are secured, and which profile they discover.",
           "exposeLabel": "Expose via UCP",

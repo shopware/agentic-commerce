@@ -2,6 +2,7 @@
 
 - Load the product exports of a sales channel again, for example in extensions that read `sales_channel.productExports`. These requests failed with `FRAMEWORK__DEFINITION_NOT_FOUND`, because the extension registered its product export definition a second time.
 - When leaving an agentic file, return to the _Agentic Commerce_ tab if it is available. Otherwise, return to the _Agentic files_ tab, which shows again for sales channels and users without the _Agentic Commerce_ tab.
+- Show UCP settings as read-only to viewers, let UCP editors save without sales-channel edit access, and require UCP view access for Agentic Commerce Insights.
 - Preserve the core save flow for sales channels: required fields are validated for all sales channels, and Storefront theme assignment runs for ordinary Storefront channels.
 - Keep disabled agentic files disabled when activating UCP, saving UCP settings, or updating the extension.
   Existing custom content is preserved, and missing default files are created.

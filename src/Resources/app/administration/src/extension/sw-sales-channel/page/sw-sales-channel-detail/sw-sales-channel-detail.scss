@@ -16,3 +16,16 @@
         }
     }
 }
+
+.sw-sales-channel-detail__content-denied {
+    width: 100%;
+    max-width: 960px;
+    margin-left: auto;
+    margin-right: auto;
+
+    @media (max-width: 1360px) {
+        &--legacy {
+            max-width: 770px;
+        }
+    }
+}
