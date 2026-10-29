@@ -1,0 +1,15 @@
+{
+  "tolerance": 0.1,
+  "patchFailUnder": 80,
+  "raiseAfterRuns": 5,
+  "suites": {
+    "php": {
+      "format": "clover",
+      "floor": 73.64
+    },
+    "admin": {
+      "format": "cobertura",
+      "floor": 73.11
+    }
+  }
+}

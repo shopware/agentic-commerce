@@ -44,8 +44,10 @@ jobs:
         include:
           - lane: 'php-8.1'
             php-version: '8.1'
+          # The reference lane: the only one whose unit coverage feeds the coverage floor.
           - lane: 'php-8.2'
             php-version: '8.2'
+            coverage: pcov
           # Future-compatibility rules inspect the upcoming core API annotations, which are
           # available only on trunk.
           - lane: 'trunk'
@@ -70,7 +72,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          coverage: none
+          coverage: ${{ matrix.coverage || 'none' }}
       - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
@@ -121,6 +123,23 @@ jobs:
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+      # The filter is passed here rather than as <source> in phpunit.xml.dist: the 6.5 lane runs that
+      # file on PHPUnit 9.6, whose schema has no <source>. Uncovered files count, so new code that
+      # no test loads lowers the figure.
+      - name: Unit coverage
+        if: matrix.coverage
+        run: php bin/run.php phpunit --testsuite unit --coverage-filter src --coverage-clover coverage/php/clover.xml
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+      - name: Upload unit coverage
+        if: matrix.coverage
+        uses: actions/upload-artifact@v6
+        with:
+          name: php-unit-coverage
+          path: agentic-commerce/coverage/php/clover.xml
+          if-no-files-found: error
+          retention-days: 7
 
   # What Shopware trunk will require of this plugin, against the SDK release the plugin pins.
   #
