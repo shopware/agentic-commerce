@@ -196,6 +196,18 @@ describe('ordinary sales-channel saves', () => {
         expect(ctx.saveUcpState).not.toHaveBeenCalled();
     });
 
+    it('does not write UCP settings without UCP edit permission', async () => {
+        const ctx = createContext();
+        ctx.ucpState.form.active = true;
+        ctx.acl.can.mockReturnValue(false);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.$super).toHaveBeenCalledWith('onSave');
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+        expect(ctx.ucpAdminApiService.getProfilePreview).not.toHaveBeenCalled();
+    });
+
     it('does not write UCP settings that have not loaded', async () => {
         const ctx = createContext();
         ctx.ucpState.loaded = false;

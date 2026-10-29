@@ -20,6 +20,9 @@ export interface UcpAclUsers {
     /** One Administration user per UCP role, created and logged in on first use. */
     as(role: UcpRole): Promise<UcpAclUser>
 
+    /** A sales-channel viewer with additional role keys, used to compare UCP visibility. */
+    asWithCoreRoles(roleKeys: string[]): Promise<Page>
+
     /**
      * A full admin of the test's own, logged in. The worker's `AdminPage` user is shared by every
      * test of the worker and its retries, so state the Administration stores per user, such as list
@@ -101,6 +104,12 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes & UcpAclU
                 }
 
                 return pending;
+            },
+            asWithCoreRoles: async (roleKeys) => {
+                const { page } = await createUser('core-roles', ['sales_channel.viewer', ...roleKeys]);
+                otherPages.push(Promise.resolve(page));
+
+                return page;
             },
             asFreshAdmin: freshAdmin,
             asSalesChannelViewer: () => {

@@ -40,6 +40,10 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce-statistics', {
     },
 
     computed: {
+        canViewInsights() {
+            return this.acl.can('ucp.viewer');
+        },
+
         orderRepository() {
             return this.repositoryFactory.create('order');
         },
@@ -162,11 +166,20 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce-statistics', {
     },
 
     created() {
-        this.fetchData();
+        if (this.canViewInsights) {
+            this.fetchData();
+        } else {
+            this.isLoading = false;
+        }
     },
 
     methods: {
         async fetchData() {
+            if (!this.canViewInsights) {
+                this.isLoading = false;
+                return;
+            }
+
             this.isLoading = true;
 
             const promises = [];

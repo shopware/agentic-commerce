@@ -17,6 +17,7 @@ const ucpApiPath = (salesChannelId: string, suffix = '') => `/api/_admin/ucp/sal
 export class UcpSalesChannelDetail {
     readonly agenticCommerceTab: Locator;
     readonly unsavedBanner: Locator;
+    readonly readOnlyBanner: Locator;
     readonly exposeSwitch: Locator;
     readonly preview: Locator;
     readonly saveButton: Locator;
@@ -24,6 +25,7 @@ export class UcpSalesChannelDetail {
     constructor(public readonly page: Page) {
         this.agenticCommerceTab = page.getByTestId('ac-ucp');
         this.unsavedBanner = page.getByTestId('ac-ucp__unsaved-banner');
+        this.readOnlyBanner = page.getByTestId('ac-ucp__read-only-banner');
         this.exposeSwitch = this.checkboxInput('ac-ucp__expose-switch');
         this.preview = page.getByTestId('ac-ucp__preview');
         this.saveButton = page.locator('.sw-sales-channel-detail__save-action');

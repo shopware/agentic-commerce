@@ -3,7 +3,6 @@
     class="sw-sales-channel-detail-agentic-commerce"
     data-testid="ac-ucp"
 >
-
     {% block sw_sales_channel_detail_agentic_commerce_loading %}
     <sw-skeleton v-if="isUcpLoading" />
     {% endblock %}
@@ -12,6 +11,16 @@
        so we must NOT nest another one here — a second sw-card-view is
        position:absolute with its own 40px padding and shifts the cards. #}
     <template v-else>
+        <div
+            v-if="!canEditConfig"
+            class="sw-sales-channel-detail-agentic-commerce__read-only-banner"
+            data-testid="ac-ucp__read-only-banner"
+        >
+            <mt-banner variant="attention">
+                {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.readOnlyMessage') }}
+            </mt-banner>
+        </div>
+
         {% block sw_sales_channel_detail_agentic_commerce_unsaved_banner %}
         {# Always-visible unsaved-changes notice — visible from any sub-tab. #}
         <mt-banner

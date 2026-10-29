@@ -1,5 +1,8 @@
 # next version
 
+- UCP-Einstellungen werden für Benutzer mit Leserechten schreibgeschützt angezeigt.
+  Benutzer mit UCP-Bearbeitungsrechten können sie ohne Bearbeitungsrechte für Verkaufskanäle speichern.
+  Agentic-Commerce-Insights erfordern UCP-Leserechte.
 - Deaktivierte Agentic Files bleiben beim Aktivieren von UCP oder Speichern der UCP-Einstellungen deaktiviert.
   Bestehende eigene Inhalte bleiben erhalten, und fehlende Standarddateien werden angelegt.
 - Unter Shopware `6.7.1.0` bis `6.7.4.x` liefert der Shop `robots.txt` wieder aus, statt mit `500` zu antworten.
