@@ -132,4 +132,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/319',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D22',
+        description: 'Cancelling a checkout answers 200 canceled also when it is completed or already cancelled, where UCP 2026-08-25 asks for an error. A cancelled checkout is read back as incomplete, accepts updates and can be completed into an order.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/320',
+        reviewBy: '2026-12-31',
+    },
 ];
