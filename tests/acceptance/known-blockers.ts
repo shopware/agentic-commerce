@@ -153,4 +153,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/105',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D25',
+        description: 'Completing a checkout with no payment instrument or with several answers completed and places an order, where UCP 2026-08-25 requires exactly one instrument and a payment_failed error otherwise.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/225',
+        reviewBy: '2026-12-31',
+    },
 ];
