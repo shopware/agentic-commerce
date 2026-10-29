@@ -22,9 +22,9 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D2',
-        description: 'The profile advertises an empty payment_handlers map, yet checkout.complete requires a payment instrument bound to a handler, so no spec agent can complete a purchase.',
+        description: 'The profile advertises an empty payment_handlers map, so an agent has no handler to pay with. Completion places the order on the sales channel\'s default payment method without processing a payment.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/105',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/279',
         reviewBy: '2026-12-31',
     },
     {
@@ -144,6 +144,13 @@ export const knownBlockers: KnownBlocker[] = [
         description: 'Cancelling a cart answers with the emptied cart, where UCP 2026-08-25 requires the state before deletion. Get and update on the cancelled cart id answer 200, where UCP recommends not_found.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/321',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D24',
+        description: 'Completing a checkout with an instrument whose handler the profile does not advertise answers completed and places an unpaid order on the sales channel\'s default payment method, where it should be refused with payment_failed.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/105',
         reviewBy: '2026-12-31',
     },
 ];
