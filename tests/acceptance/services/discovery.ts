@@ -51,8 +51,19 @@ export async function fetchAnswerByRoute(browser: Browser, baseUrl: string, rout
     });
 }
 
+export async function fetchStorefrontLinkHeader(browser: Browser, baseUrl: string): Promise<string> {
+    return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/`, async (homePageResponse) => {
+        expect(homePageResponse.ok(), `${await homePageResponse.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
+
+        return (await homePageResponse.allHeaders()).link ?? '';
+    });
+}
+
 async function readDiscoveryResponse<T>(browser: Browser, baseUrl: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
-    const url = `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`;
+    return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`, toResult);
+}
+
+async function readPageResponse<T>(browser: Browser, url: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
     const context = await browser.newContext({ ignoreHTTPSErrors });
     try {
         const page = await context.newPage();
