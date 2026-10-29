@@ -562,6 +562,14 @@ export class UcpTestDataService extends TestDataService {
             }
         }
 
+        // A purchase in a created channel leaves an order and a guest customer that block deleting the channel.
+        for (const entity of ['order', 'customer']) {
+            const failure = await this.deleteRecordsOfCreatedSalesChannels(entity);
+            if (failure !== null) {
+                failures.push(failure);
+            }
+        }
+
         if (this.createdSalesChannelIds.length > 0) {
             const deletion = await this.AdminApiClient.post('./_action/sync', {
                 data: {
@@ -580,5 +588,29 @@ export class UcpTestDataService extends TestDataService {
         if (failures.length > 0) {
             throw new Error(`UCP test data cleanup failed:\n- ${failures.join('\n- ')}`);
         }
+    }
+
+    private async deleteRecordsOfCreatedSalesChannels(entity: string): Promise<string | null> {
+        if (this.createdSalesChannelIds.length === 0) {
+            return null;
+        }
+
+        const matchingRecordIdsResponse = await this.AdminApiClient.post(`./search-ids/${entity}`, {
+            data: { filter: [{ type: 'equalsAny', field: 'salesChannelId', value: this.createdSalesChannelIds }] },
+        });
+        if (!matchingRecordIdsResponse.ok()) {
+            return `finding the ${entity} records of the created sales channels: ${matchingRecordIdsResponse.status()} ${await matchingRecordIdsResponse.text()}`;
+        }
+
+        const recordIds = ((await matchingRecordIdsResponse.json()) as { data: string[] }).data;
+        if (recordIds.length === 0) {
+            return null;
+        }
+
+        const recordDeletionResult = await this.AdminApiClient.post('./_action/sync', {
+            data: { [`delete-${entity}`]: { entity, action: 'delete', payload: recordIds.map(id => ({ id })) } },
+        });
+
+        return recordDeletionResult.ok() ? null : `deleting the ${entity} records of the created sales channels: ${recordDeletionResult.status()} ${await recordDeletionResult.text()}`;
     }
 }

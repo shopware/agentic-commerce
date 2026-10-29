@@ -42,13 +42,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D6',
-        description: 'On Shopware 6.5 a POST /ucp/v1/catalog/search with the canonical query body was observed to fail with "Parameter \'search\' is missing". Needs confirming on the 6.5 lane.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D9',
         description: 'Below Shopware 6.7.12.0 the plugin\'s fallback controller serves the discovery files and answers 404 for all of them once UCP is switched off, although the files do not depend on UCP.',
         owner: 'dgrothaus-sw',
