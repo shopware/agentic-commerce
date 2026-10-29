@@ -7,6 +7,8 @@ import './component/sw-sales-channel-modal';
 import './page/sw-sales-channel-detail';
 import './view/sw-sales-channel-detail-base';
 import './view/sw-sales-channel-create-base';
+import './view/sw-sales-channel-detail-agentic-files';
+import './view/sw-sales-channel-detail-agentic-file';
 import './view/sw-sales-channel-detail-agentic-commerce';
 import './view/sw-sales-channel-detail-agentic-commerce-integration';
 import './view/sw-sales-channel-detail-agentic-commerce-statistics';
