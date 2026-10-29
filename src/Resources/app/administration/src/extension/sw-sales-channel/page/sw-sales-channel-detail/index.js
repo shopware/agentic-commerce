@@ -1,6 +1,7 @@
 import template from './sw-sales-channel-detail.html.twig';
 import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import { mergeAgenticFileDrafts, saveAgenticFileConfigurations } from '../../agentic-file-persistence';
 import {
     defaultForm as ucpDefaultForm,
     normalizeConfig as ucpNormalizeConfig,
@@ -20,7 +21,7 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl', 'repositoryFactory'],
 
     provide() {
         return {
@@ -47,10 +48,30 @@ export const swSalesChannelDetailOverride = {
                 // Bumped by every UCP write; a load started before the write must not apply.
                 generation: 0,
             },
+            pendingAgenticFilesReconciliation: null,
+            pendingAgenticFilesReload: null,
         };
     },
 
     watch: {
+        salesChannel(salesChannel) {
+            const pendingReconciliation = this.pendingAgenticFilesReconciliation;
+            if (!pendingReconciliation) {
+                return;
+            }
+
+            if (this.$route.params.id?.toLowerCase() !== pendingReconciliation.salesChannelId) {
+                this.pendingAgenticFilesReconciliation = null;
+                return;
+            }
+
+            if (salesChannel?.id !== pendingReconciliation.salesChannelId) {
+                return;
+            }
+
+            salesChannel.salesChannelFiles = pendingReconciliation.salesChannelFiles;
+            this.pendingAgenticFilesReconciliation = null;
+        },
         'productComparison.templateOptions'(options) {
             if (options?.length) {
                 this.detectCurrentTemplate();
@@ -86,6 +107,10 @@ export const swSalesChannelDetailOverride = {
 
             return this.acl.can('ucp.viewer')
                 && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
+        },
+
+        isUcpConfigRoute() {
+            return this.$route.name === 'sw.sales.channel.detail.agenticCommerce';
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -271,12 +296,13 @@ export const swSalesChannelDetailOverride = {
                 return true;
             }
 
+            const isActivatingUcp = form.active && !this.ucpState.savedForm?.active;
+
             try {
                 await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(form));
                 this.ucpState.generation += 1;
                 this.ucpState.form = ucpNormalizeConfig(form);
                 this.ucpState.savedForm = ucpNormalizeConfig(form);
-                return true;
             } catch (error) {
                 // Keep the draft so the user can fix and retry: a reload already in flight
                 // from the legacy onSave would otherwise replace it with the stored config.
@@ -284,6 +310,52 @@ export const swSalesChannelDetailOverride = {
                 this.ucpState.form = ucpNormalizeConfig(form);
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
                 return false;
+            }
+
+            if (isActivatingUcp) {
+                try {
+                    await this.reloadAgenticFiles(salesChannelId);
+                } catch {
+                    this.pendingAgenticFilesReload = salesChannelId;
+                }
+            }
+
+            return true;
+        },
+
+        async reloadAgenticFiles(salesChannelId) {
+            const hasCoreAgenticFiles = Boolean(
+                Shopware?.Component?.getComponentRegistry?.().has('sw-sales-channel-detail-agentic-files'),
+            );
+            if (!hasCoreAgenticFiles) {
+                return;
+            }
+
+            const salesChannel = await this.salesChannelRepository.get(
+                salesChannelId,
+                Context.api,
+                this.getLoadSalesChannelCriteria(),
+            );
+
+            if (this.salesChannel?.id === salesChannelId) {
+                if (this.salesChannel.salesChannelFiles?.length) {
+                    mergeAgenticFileDrafts(
+                        this.salesChannel.salesChannelFiles,
+                        salesChannel.salesChannelFiles,
+                        this.repositoryFactory.create('sales_channel_file'),
+                    );
+                }
+
+                this.salesChannel.salesChannelFiles = salesChannel.salesChannelFiles;
+                this.pendingAgenticFilesReload = null;
+                return;
+            }
+
+            if (this.$route.params.id?.toLowerCase() === salesChannelId) {
+                this.pendingAgenticFilesReconciliation = {
+                    salesChannelId,
+                    salesChannelFiles: salesChannel.salesChannelFiles,
+                };
             }
         },
 
@@ -347,6 +419,79 @@ export const swSalesChannelDetailOverride = {
         },
 
         async onSave() {
+            if (this.pendingAgenticFilesReload
+                && this.pendingAgenticFilesReload === this.salesChannel?.id
+                && this.allowSaving) {
+                if (this.isLoading) {
+                    return;
+                }
+
+                this.isLoading = true;
+                this.isSaveSuccessful = false;
+                try {
+                    await this.reloadAgenticFiles(this.salesChannel.id);
+                } catch {
+                    this.createNotificationError({ message: this.$t('sw-sales-channel.detail.messageAPIError') });
+                    return;
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+
+            if (this.isUcpConfigRoute) {
+                if (!this.allowSaving
+                    || this.isLoading
+                    || !this.ucpState.loaded) {
+                    return;
+                }
+
+                const salesChannelId = this.salesChannel?.id;
+                const form = ucpNormalizeConfig(this.ucpState.form);
+                this.isLoading = true;
+                this.isSaveSuccessful = false;
+
+                try {
+                    if (!await this.saveAgenticFiles()) {
+                        return;
+                    }
+
+                    if (!await this.saveUcpState(salesChannelId, form)) {
+                        return;
+                    }
+
+                    this.isSaveSuccessful = true;
+                    if (salesChannelId) {
+                        this.refreshUcpPreview(salesChannelId);
+                    }
+                } finally {
+                    this.isLoading = false;
+                }
+
+                return;
+            }
+
+            if (!this.isAgenticCommerce) {
+                const salesChannelId = this.salesChannel?.id;
+                const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
+                const hasUcpChanges = form
+                    && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
+
+                // Keep core validation and Storefront theme assignment in the save chain.
+                // The parent owns the reload; unchanged UCP settings must not delay it.
+                this.isSaveSuccessful = false;
+                await this.$super('onSave');
+
+                if (this.isSaveSuccessful && hasUcpChanges) {
+                    this.isSaveSuccessful = await this.saveUcpState(salesChannelId, form);
+
+                    if (this.isSaveSuccessful) {
+                        this.refreshUcpPreview(salesChannelId);
+                    }
+                }
+
+                return;
+            }
+
             if (!this.validateAgenticCommerceExportConfig()) {
                 this.isLoading = false;
                 return;
@@ -400,6 +545,38 @@ export const swSalesChannelDetailOverride = {
             if (ucpFormAtSave) {
                 this.loadUcpState(channelIdAtSave, typeIdAtSave);
             }
+        },
+
+        async saveAgenticFiles() {
+            const configurations = this.salesChannel?.salesChannelFiles;
+            if (!configurations?.length) {
+                return true;
+            }
+
+            try {
+                const allSaved = await saveAgenticFileConfigurations(
+                    configurations,
+                    this.repositoryFactory.create('sales_channel_file'),
+                    Context.api,
+                );
+                if (allSaved) {
+                    return true;
+                }
+            } catch {
+                // Repository failures and incomplete saves share the same notification.
+            }
+
+            this.createNotificationError({
+                message: this.$t('sw-sales-channel.detail.messageAPIError'),
+            });
+            return false;
+        },
+
+        /** @private */
+        refreshUcpPreview(salesChannelId) {
+            return this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                this.ucpState.preview = response.data.data || null;
+            }).catch(() => {});
         },
 
         validateAgenticCommerceExportConfig() {

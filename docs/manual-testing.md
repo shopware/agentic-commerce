@@ -504,6 +504,19 @@ that hold exactly one of the UCP ACL roles.
 Also visually verify the signing-key management UX: the algorithm select, the `kid` input, and the
 retire/delete confirmation dialogs.
 
+Verify that saving from the UCP tab preserves pending changes on other tabs:
+
+- With `sales_channel.editor`, Save on the UCP tab also persists Agentic Files.
+- Save on the UCP tab does not persist pending Base, domain, or export edits; save those drafts from
+  their appropriate non-UCP tab.
+- To verify mixed edits, use a user with `ucp.editor` and `sales_channel.editor`, change one UCP
+  setting, one Agentic Files setting, and one Base, domain, or export setting, then click Save on
+  the UCP tab.
+- Keep the original draft open and use a fresh second admin session or API read to confirm that the
+  UCP and Agentic Files values persisted while the Base, domain, or export value remains unchanged.
+- Save the pending Base, domain, or export edit from its appropriate non-UCP tab in the original
+  session, then use the fresh session or API read to confirm that value persisted too.
+
 ### 5. Real payment-tokenization handler
 
 CI only checks the `501` stub. The acceptance suite expects at least one payment handler in the
