@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Defaults;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileBridge;
 use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
@@ -14,30 +16,20 @@ use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 
 /** @internal */
+#[CoversClass(CoreSalesChannelFileBridge::class)]
+#[Package('discovery')]
 final class CoreSalesChannelFileBridgeTest extends TestCase
 {
-    public function testItEnablesAllAgenticFilesForSalesChannel(): void
+    public function testItInitializesMissingAgenticFilesForSalesChannel(): void
     {
         $salesChannelId = Uuid::randomHex();
-        $updatedFiles = [];
         $insertedFiles = [];
 
         $connection = $this->createMock(Connection::class);
         $connection
-            ->expects(static::once())
             ->method('fetchOne')
-            ->willReturn(1);
-        $connection
-            ->expects(static::exactly(3))
-            ->method('update')
-            ->willReturnCallback(static function (string $table, array $data, array $criteria) use (&$updatedFiles): int {
-                static::assertSame('sales_channel_file', $table);
-                static::assertTrue($data['enabled']);
-
-                $updatedFiles[] = $criteria['file_name'];
-
-                return 0;
-            });
+            ->willReturnOnConsecutiveCalls(1, false, false, false);
+        $connection->expects(static::never())->method('update');
         $connection
             ->expects(static::exactly(3))
             ->method('insert')
@@ -58,7 +50,6 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
         $bridge->enableForSalesChannel($salesChannelId);
 
         $expectedFiles = ['llms.txt', 'agents.md', '.well-known/ai-catalog.json'];
-        static::assertSame($expectedFiles, $updatedFiles);
         static::assertSame($expectedFiles, $insertedFiles);
     }
 
@@ -69,7 +60,7 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
         $enabledSalesChannelIds = [];
 
         $connection = $this->createMock(Connection::class);
-        $connection->method('fetchOne')->willReturn(1);
+        $connection->method('fetchOne')->willReturnOnConsecutiveCalls(1, 1, 1, false, false, false);
         $connection->method('fetchAllAssociative')->willReturn([
             [
                 'sales_channel_id' => $storefrontChannelId,
@@ -83,13 +74,13 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
             ],
         ]);
         $connection
-            ->method('update')
-            ->willReturnCallback(static function (string $table, array $data, array $criteria) use (&$enabledSalesChannelIds): int {
-                $enabledSalesChannelIds[] = Uuid::fromBytesToHex($criteria['sales_channel_id']);
+            ->method('insert')
+            ->willReturnCallback(static function (string $table, array $data) use (&$enabledSalesChannelIds): int {
+                $enabledSalesChannelIds[] = Uuid::fromBytesToHex($data['sales_channel_id']);
 
                 return 1;
             });
-        $connection->expects(static::never())->method('insert');
+        $connection->expects(static::never())->method('update');
 
         $bridge = new CoreSalesChannelFileBridge(
             $connection,
@@ -108,7 +99,7 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
         $enabledSalesChannelIds = [];
 
         $connection = $this->createMock(Connection::class);
-        $connection->method('fetchOne')->willReturn(1);
+        $connection->method('fetchOne')->willReturnOnConsecutiveCalls(1, 1, 1, false, false, false);
         $connection->method('fetchAllAssociative')->willReturn([
             [
                 'sales_channel_id' => $storefrontChannelId,
@@ -122,13 +113,13 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
             ],
         ]);
         $connection
-            ->method('update')
-            ->willReturnCallback(static function (string $table, array $data, array $criteria) use (&$enabledSalesChannelIds): int {
-                $enabledSalesChannelIds[] = Uuid::fromBytesToHex($criteria['sales_channel_id']);
+            ->method('insert')
+            ->willReturnCallback(static function (string $table, array $data) use (&$enabledSalesChannelIds): int {
+                $enabledSalesChannelIds[] = Uuid::fromBytesToHex($data['sales_channel_id']);
 
                 return 1;
             });
-        $connection->expects(static::never())->method('insert');
+        $connection->expects(static::never())->method('update');
 
         // Inverted on purpose: the resolver's answer has to win over the stored type id.
         $bridge = new CoreSalesChannelFileBridge(
