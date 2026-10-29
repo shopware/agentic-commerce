@@ -125,4 +125,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/224',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D21',
+        description: 'A checkout with line items and a buyer but no shipping address reports ready_for_complete without messages, where UCP 2026-08-25 answers incomplete while information is missing. Completing it is refused with 422.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/319',
+        reviewBy: '2026-12-31',
+    },
 ];
