@@ -1,5 +1,7 @@
 import { expect } from '@playwright/test';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- typescript-eslint does not see the {@link} references in placeOrder()'s doc comment
+import type { knownBlockers } from '../known-blockers';
 import { CHECKOUT_SESSIONS_PATH } from './shoppingRoutes';
 
 export async function createCompletableCheckout(
@@ -18,15 +20,22 @@ export async function createCompletableCheckout(
     expect(readyCheckout.ok(), await readyCheckout.text()).toBeTruthy();
     const { id: checkoutId } = (await readyCheckout.json()) as { id: string };
 
-    return { agent, buyer, lineItems, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
+    return { agent, buyer, fulfillment, lineItems, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
 }
 
+/**
+ * Completes without a payment instrument, because the profile advertises no payment handler
+ * (known blocker D2 in {@link knownBlockers}).
+ * Breaks once the SDK requires exactly one instrument (known blocker D25 in {@link knownBlockers}).
+ */
 export async function placeOrder(
     agent: Awaited<ReturnType<typeof createCompletableCheckout>>['agent'],
     checkoutPath: string,
 ): Promise<{ id: string }> {
     const completedCheckout = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: { payment: {} } });
     expect(completedCheckout.status(), await completedCheckout.text()).toBe(200);
+    const { status, order } = (await completedCheckout.json()) as { status: string, order: { id: string } };
+    expect(status).toBe('completed');
 
-    return ((await completedCheckout.json()) as { order: { id: string } }).order;
+    return order;
 }

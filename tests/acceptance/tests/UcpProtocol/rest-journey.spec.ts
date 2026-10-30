@@ -1,6 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { APIResponse } from '@playwright/test';
 import { searchIds } from '@services/adminSearch';
+import { placeOrder } from '@services/completableCheckout';
 import { CARTS_PATH, CHECKOUT_SESSIONS_PATH } from '@services/shoppingRoutes';
 
 interface UcpTotal {
@@ -71,14 +72,10 @@ test.describe('REST shopping journey @UcpProtocol', () => {
             expect(addressedCheckout.status(), await addressedCheckout.text()).toBe(200);
             expect(((await addressedCheckout.json()) as { status: string }).status).toBe('ready_for_complete');
 
-            const completedCheckout = await agent.rest.send('POST', `${CHECKOUT_SESSIONS_PATH}/${checkoutId}/complete`, { body: { payment: {} } });
-            const buyerOrderIds = await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email);
-            expect(completedCheckout.status(), await completedCheckout.text()).toBe(200);
-            const { status, order } = (await completedCheckout.json()) as { status: string, order: { id: string } };
-            expect(status).toBe('completed');
-            expect(buyerOrderIds).toEqual([order.id]);
+            const placedOrder = await placeOrder(agent, `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`);
+            expect(await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email)).toEqual([placedOrder.id]);
 
-            return order.id;
+            return placedOrder.id;
         });
 
         await test.step('the shop has the order in the channel', async () => {

@@ -1,14 +1,12 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import { searchIds } from '@services/adminSearch';
-import { createCompletableCheckout } from '@services/completableCheckout';
+import { createCompletableCheckout, placeOrder } from '@services/completableCheckout';
 import { isRefusal } from '@services/ucpMessages';
 
 test.describe('Checkout state @UcpKnownBlocked @UcpBlockedByD22', () => {
     test('a completed checkout cannot be cancelled', async ({ TestDataService, UcpAgent }) => {
         const { agent, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
-        const completedCheckout = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: { payment: {} } });
-        expect(completedCheckout.status(), await completedCheckout.text()).toBe(200);
-        const { order: placedOrder } = (await completedCheckout.json()) as { order: { id: string } };
+        const placedOrder = await placeOrder(agent, checkoutPath);
 
         const cancelAfterCompletion = await agent.rest.send('POST', `${checkoutPath}/cancel`);
         expect(await isRefusal(cancelAfterCompletion), await cancelAfterCompletion.text()).toBe(true);
