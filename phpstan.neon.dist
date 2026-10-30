@@ -29,10 +29,11 @@ parameters:
         - tests/phpstan/EntityWriteResult.php
 __SHOPWARE_PHPSTAN_PARAMETERS__
     ignoreErrors:
-        # addFlags is deprecated in trunk (v6.8.0 return-type-change only); cross-version code must keep using it.
+        # addFlags() is deprecated in trunk (v6.8.0 return-type-change only); cross-version code must keep using it.
+        # Only that call is ignored, so any other deprecated call in this directory still fails the job.
         -
             identifier: method.deprecated
-            message: '#.+#'
+            message: '#^Call to deprecated method addFlags\(\) of class #'
             path: src/Content/ProductExport/Tracking
 __SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__
         # DBAL fetchAllKeyValue() declares array<int|string, mixed>; the actual keys/values are strings.

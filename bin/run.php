@@ -120,7 +120,7 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
-        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir),
+        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir, $coreDir),
         '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
         '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
@@ -182,14 +182,19 @@ function renderShopwarePhpstanIncludes(string $coreDir): string
     ]);
 }
 
-function renderFutureCompatibilityInclude(string $pluginDir): string
+function renderFutureCompatibilityInclude(string $pluginDir, string $coreDir): string
 {
-    $includes = array_filter([
-        $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon',
-        $pluginDir.'/.tools/vendor/phpstan/phpstan-deprecation-rules/rules.neon',
-    ], 'is_file');
+    $includes = [$pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon'];
+    // A dev install of Shopware already registers these through phpstan/extension-installer,
+    // and a second registration makes PHPStan refuse to start.
+    if (!is_file(\dirname($coreDir, 2).'/vendor/phpstan/phpstan-deprecation-rules/rules.neon')) {
+        $includes[] = $pluginDir.'/.tools/vendor/phpstan/phpstan-deprecation-rules/rules.neon';
+    }
 
-    return implode("\n", array_map(static fn (string $rules): string => '    - '.$rules, $includes));
+    return implode("\n", array_map(
+        static fn (string $rules): string => '    - '.$rules,
+        array_filter($includes, 'is_file'),
+    ));
 }
 
 function renderShopwarePhpstanParameters(string $coreDir): string
