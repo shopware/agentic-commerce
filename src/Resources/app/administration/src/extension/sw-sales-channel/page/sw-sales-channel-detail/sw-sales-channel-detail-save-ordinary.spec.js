@@ -12,7 +12,9 @@ const { normalizeConfig } = require('../../agentic-commerce/ucp-form-state');
 function createContext() {
     const ctx = {
         isAgenticCommerce: false,
-        isUcpConfigRoute: false,
+        shouldRenderAgenticCommerceTab: true,
+        allowSaving: true,
+        $route: { name: 'sw.sales.channel.detail.base', params: { id: 'ordinary-channel' } },
         salesChannel: { id: 'ordinary-channel' },
         ucpState: {
             loaded: true,
@@ -32,6 +34,7 @@ function createContext() {
         }),
         saveAgenticCommerceExportConfig: jest.fn(async () => true),
         saveUcpState: jest.fn(async () => true),
+        saveAgenticFiles: jest.fn(async () => true),
         loadEntityData: jest.fn(),
         loadUcpState: jest.fn(),
         ucpAdminApiService: { getProfilePreview: jest.fn(async () => ({ data: { data: { active: true } } })) },
@@ -39,11 +42,90 @@ function createContext() {
     ctx.$super = jest.fn(async () => {
         ctx.isSaveSuccessful = true;
     });
+    Object.entries(swSalesChannelDetailOverride.computed).forEach(([name, getter]) => {
+        if (!(name in ctx)) {
+            Object.defineProperty(ctx, name, { get: () => getter.call(ctx) });
+        }
+    });
     ctx.refreshUcpPreview = swSalesChannelDetailOverride.methods.refreshUcpPreview.bind(ctx);
     return ctx;
 }
 
 describe('ordinary sales-channel saves', () => {
+    it.each(['base', 'agenticCommerce'])('saves pending sales-channel and UCP drafts from the %s tab', async (tab) => {
+        const ctx = createContext();
+        ctx.$route.name = `sw.sales.channel.detail.${tab}`;
+        ctx.salesChannel.name = 'Updated channel';
+        ctx.salesChannel.domains = [{ url: 'https://updated.example' }];
+        ctx.salesChannel.salesChannelFiles = [{ enabled: false }];
+        ctx.ucpState.form.active = true;
+        const persisted = {};
+        ctx.$super.mockImplementation(async () => {
+            Object.assign(persisted, JSON.parse(JSON.stringify(ctx.salesChannel)));
+            ctx.salesChannel = null;
+            ctx.isSaveSuccessful = true;
+        });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(persisted).toMatchObject({
+            name: 'Updated channel',
+            domains: [{ url: 'https://updated.example' }],
+            salesChannelFiles: [{ enabled: false }],
+        });
+        expect(ctx.saveUcpState).toHaveBeenCalledWith('ordinary-channel', expect.objectContaining({ active: true }));
+        expect(ctx.$super.mock.invocationCallOrder[0]).toBeLessThan(ctx.saveUcpState.mock.invocationCallOrder[0]);
+        expect(ctx.isSaveSuccessful).toBe(true);
+    });
+
+    it.each([true, false])('blocks repeated saves after the entity reload until UCP finishes with %s', async (saved) => {
+        const ctx = createContext();
+        ctx.ucpState.form.active = true;
+        let finishReload;
+        const reload = new Promise((resolve) => { finishReload = resolve; });
+        ctx.salesChannelRepository = { get: jest.fn(() => reload) };
+        ctx.getLoadSalesChannelCriteria = jest.fn(() => ({}));
+        ctx.generateAccessUrl = jest.fn();
+        ctx.loadAgenticCommerceExportConfig = jest.fn();
+        ctx.$super.mockImplementation(async () => {
+            ctx.isSaveSuccessful = true;
+            swSalesChannelDetailOverride.methods.loadSalesChannel.call(ctx);
+        });
+        let finishWrite;
+        ctx.saveUcpState.mockImplementation(() => new Promise((resolve) => { finishWrite = resolve; }));
+        const firstSave = swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        await Promise.resolve();
+
+        expect(ctx.isLoading).toBe(true);
+        expect(ctx.isSaveSuccessful).toBe(false);
+        finishReload({ id: 'ordinary-channel', maintenanceIpWhitelist: [] });
+        await reload;
+        expect(ctx.isLoading).toBe(false);
+
+        const secondSave = swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        await Promise.resolve();
+        expect(ctx.$super).toHaveBeenCalledTimes(1);
+        expect(ctx.saveUcpState).toHaveBeenCalledTimes(1);
+        expect(ctx.isSavingUcp).toBe(true);
+
+        finishWrite(saved);
+        await Promise.all([firstSave, secondSave]);
+        expect(ctx.isSavingUcp).toBe(false);
+        expect(ctx.isSaveSuccessful).toBe(saved);
+    });
+
+    it('honors parent validation when saving from the Agentic Commerce tab', async () => {
+        const ctx = createContext();
+        ctx.$route.name = 'sw.sales.channel.detail.agenticCommerce';
+        ctx.ucpState.form.active = true;
+        ctx.$super.mockImplementation(async () => {});
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+        expect(ctx.isSaveSuccessful).toBe(false);
+    });
+
     it('leaves the save and reload to the parent without writing unchanged UCP settings', async () => {
         const ctx = createContext();
 

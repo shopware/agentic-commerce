@@ -69,8 +69,7 @@ export class UcpSalesChannelDetail {
     }
 
     /**
-     * Clicks the page's Save and waits for the UCP-only config write and refreshed saved preview.
-     * The dedicated save path does not reload the sales channel or its configuration.
+     * Saves pending sales channel settings and waits for the UCP write and refreshed saved preview.
      */
     async saveUcpConfig(salesChannelId: string): Promise<void> {
         let writtenAt = Number.POSITIVE_INFINITY;
