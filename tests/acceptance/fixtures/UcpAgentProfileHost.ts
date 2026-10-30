@@ -41,6 +41,7 @@ export interface PublishOptions {
     kid?: string
     /** Replaces the default set entirely; `{}` publishes an agent that can negotiate nothing. */
     capabilities?: CapabilityMap
+    services?: Record<string, unknown[]>
 }
 
 export interface UcpAgentProfileHost {
@@ -112,13 +113,13 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
             fs.mkdirSync(directory, { recursive: true });
             fs.accessSync(directory, fs.constants.W_OK);
 
-            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities } = {}) => {
+            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities, services } = {}) => {
                 const agentKid = kid ?? `acceptance-w${workerInfo.parallelIndex}-${crypto.randomUUID().slice(0, 8)}`;
                 const { publicJwk, privateKeyPem } = generateSigningKey(agentKid);
                 const profile = {
                     ucp: {
                         version,
-                        services: {},
+                        services: services ?? {},
                         capabilities: capabilities ?? specShoppingCapabilities(version),
                         payment_handlers: {},
                     },

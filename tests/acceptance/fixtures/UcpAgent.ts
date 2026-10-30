@@ -10,6 +10,7 @@ const METHODS_CARRYING_IDEMPOTENCY_KEY = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 export interface UcpCallOptions {
     body?: unknown
+    rawBody?: string
     query?: Record<string, string>
     /** A fresh key is generated on POST, PUT, PATCH and DELETE; `false` sends none. */
     idempotencyKey?: string | false
@@ -107,7 +108,8 @@ export class UcpAgent {
             headers['Idempotency-Key'] = options.idempotencyKey ?? crypto.randomUUID();
         }
 
-        const body = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body), 'utf8');
+        const bodyText = options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
+        const body = bodyText === undefined ? undefined : Buffer.from(bodyText, 'utf8');
 
         return { method: sentMethod, url: url.toString(), headers, body };
     }

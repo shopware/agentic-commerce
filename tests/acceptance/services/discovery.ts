@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
-import type { Browser } from '@playwright/test';
+import type { Browser, Response } from '@playwright/test';
+import type { ShoppingRoute } from './shoppingRoutes';
 import type { UcpProfileDocument } from './UcpTestDataService';
 
 const ignoreHTTPSErrors = ['1', 'true'].includes(process.env.SHOPWARE_PLAYWRIGHT_IGNORE_HTTPS_ERRORS ?? '');
@@ -14,7 +15,55 @@ const OWN_HOST_REQUIREMENT = 'A channel on a host of its own needs the web serve
  * the per-channel hosts of `createStorefrontSalesChannelOnOwnHost()`.
  */
 export async function fetchDiscoveryDocument(browser: Browser, baseUrl: string): Promise<UcpProfileDocument> {
-    const url = `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`;
+    return (await fetchDiscoveryResponse(browser, baseUrl)).document;
+}
+
+export async function fetchDiscoveryResponse(browser: Browser, baseUrl: string): Promise<{ headers: Record<string, string>, document: UcpProfileDocument }> {
+    return readDiscoveryResponse(browser, baseUrl, async (response) => {
+        expect(response.ok(), `${await response.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
+
+        return { headers: response.headers(), document: (await response.json()) as UcpProfileDocument };
+    });
+}
+
+export async function fetchRawDiscoveryResponse(browser: Browser, baseUrl: string): Promise<{ status: number, body: string }> {
+    return readDiscoveryResponse(browser, baseUrl, async response => ({ status: response.status(), body: await response.text() }));
+}
+
+/** Sent from a page because only the browser resolves the hosts of `createStorefrontSalesChannelOnOwnHost()`. */
+export async function fetchAnswerByRoute(browser: Browser, baseUrl: string, routes: ShoppingRoute[]): Promise<Record<string, { status: number, contentType: string }>> {
+    return readDiscoveryResponse(browser, baseUrl, async (profilePageResponse) => {
+        const page = profilePageResponse.frame().page();
+        const answerByRoute: Record<string, { status: number, contentType: string }> = {};
+        for (const route of routes) {
+            answerByRoute[`${route.method} ${route.path}`] = await page.evaluate(async ({ method, path, body }) => {
+                const routeAnswer = await fetch(path, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body === undefined ? undefined : JSON.stringify(body),
+                });
+
+                return { status: routeAnswer.status, contentType: routeAnswer.headers.get('content-type') ?? '' };
+            }, route);
+        }
+
+        return answerByRoute;
+    });
+}
+
+export async function fetchStorefrontLinkHeader(browser: Browser, baseUrl: string): Promise<string> {
+    return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/`, async (homePageResponse) => {
+        expect(homePageResponse.ok(), `${await homePageResponse.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
+
+        return (await homePageResponse.allHeaders()).link ?? '';
+    });
+}
+
+async function readDiscoveryResponse<T>(browser: Browser, baseUrl: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
+    return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`, toResult);
+}
+
+async function readPageResponse<T>(browser: Browser, url: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
     const context = await browser.newContext({ ignoreHTTPSErrors });
     try {
         const page = await context.newPage();
@@ -22,9 +71,8 @@ export async function fetchDiscoveryDocument(browser: Browser, baseUrl: string):
             throw new Error(`${url} is not reachable. ${OWN_HOST_REQUIREMENT}\n${String(error)}`);
         });
         expect(response, `no response for ${url}`).not.toBeNull();
-        expect(response!.ok(), `${await response!.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
 
-        return (await response!.json()) as UcpProfileDocument;
+        return await toResult(response!);
     }
     finally {
         await context.close();
