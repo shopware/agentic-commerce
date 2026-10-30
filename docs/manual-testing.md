@@ -504,6 +504,18 @@ that hold exactly one of the UCP ACL roles.
 Also visually verify the signing-key management UX: the algorithm select, the `kid` input, and the
 retire/delete confirmation dialogs.
 
+Verify that Save applies pending changes across sales channel tabs:
+
+- Use a user with `ucp.editor` and `sales_channel.editor`.
+- Change a UCP setting, an Agentic Files setting, and a Base, domain, or export setting.
+- Click Save on the UCP tab.
+- Use a fresh admin session or API read to confirm that all three changes persisted.
+- Repeat with Save on the Base tab and confirm the same result.
+- Enter an invalid sales channel setting.
+- Verify that Save on the UCP tab respects the same validation as the other tabs.
+- Activate UCP and verify that existing disabled files and custom content are preserved.
+- Change a file setting and save again to check that no duplicate is created.
+
 ### 5. Real payment-tokenization handler
 
 CI only checks the `501` stub. The acceptance suite expects at least one payment handler in the
