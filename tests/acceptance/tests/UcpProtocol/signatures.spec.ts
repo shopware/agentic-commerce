@@ -66,14 +66,13 @@ test.describe('Request signatures @UcpProtocol', () => {
         expect(refusal.status(), await refusal.text()).toBe(401);
     });
 
-    test(`the strict policy refuses ${tamperedBody.name} with a client error`, async ({ TestDataService, UcpAgent }) => {
+    test(`the strict policy refuses ${tamperedBody.name} with 400 or 401`, async ({ TestDataService, UcpAgent }) => {
         const strictChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(strictChannel.salesChannel.id, { signaturePolicy: 'strict' });
 
         const refusal = await tamperedBody.send(UcpAgent.at(strictChannel.url));
 
-        expect(refusal.status(), await refusal.text()).toBeGreaterThanOrEqual(400);
-        expect(refusal.status(), await refusal.text()).toBeLessThan(500);
+        expect([400, 401], await refusal.text()).toContain(refusal.status());
     });
 
     for (const invalidSignature of invalidSignatures) {

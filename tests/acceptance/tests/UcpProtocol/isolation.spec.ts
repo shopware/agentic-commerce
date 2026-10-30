@@ -2,7 +2,7 @@ import { expect, test } from '@fixtures/AcceptanceTest';
 import { createCompletableCheckout, placeOrder } from '@services/completableCheckout';
 import { advertisedEndpoints, fetchAnswerByRoute, fetchDiscoveryDocument } from '@services/discovery';
 import { CARTS_PATH, shoppingRoutes } from '@services/shoppingRoutes';
-import { messageCodes } from '@services/ucpMessages';
+import { isRefusal, messageCodes } from '@services/ucpMessages';
 
 test.describe('Sales channel isolation @UcpProtocol', () => {
     test('a cart created on one channel is not found on another', async ({ TestDataService, UcpAgent }) => {
@@ -45,7 +45,7 @@ test.describe('Sales channel isolation @UcpProtocol', () => {
         for (const route of shoppingRoutes) {
             const refusal = await UcpAgent.at(switchedOffChannel.url).rest.send(route.method, route.path, { body: route.body });
 
-            expect(refusal.ok(), `${route.method} ${route.path}: ${refusal.status()} ${await refusal.text()}`).toBeFalsy();
+            expect([404, 422, 501], `${route.method} ${route.path}: ${refusal.status()} ${await refusal.text()}`).toContain(refusal.status());
         }
     });
 
@@ -91,7 +91,7 @@ test.describe('Agent isolation @UcpProtocol', () => {
 
         const foreignOrderRefusal = await UcpAgentB.at(channelUrl).rest.send('GET', `/ucp/v1/orders/${placedOrder.id}`);
 
-        expect(foreignOrderRefusal.ok(), await foreignOrderRefusal.text()).toBeFalsy();
+        expect(await isRefusal(foreignOrderRefusal), await foreignOrderRefusal.text()).toBe(true);
         expect(await foreignOrderRefusal.text()).not.toContain(buyer.email);
     });
 });
