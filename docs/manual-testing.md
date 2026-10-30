@@ -504,18 +504,17 @@ that hold exactly one of the UCP ACL roles.
 Also visually verify the signing-key management UX: the algorithm select, the `kid` input, and the
 retire/delete confirmation dialogs.
 
-Verify that saving from the UCP tab preserves pending changes on other tabs:
+Verify that Save applies pending changes across sales channel tabs:
 
-- With `sales_channel.editor`, Save on the UCP tab also persists Agentic Files.
-- Save on the UCP tab does not persist pending Base, domain, or export edits; save those drafts from
-  their appropriate non-UCP tab.
-- To verify mixed edits, use a user with `ucp.editor` and `sales_channel.editor`, change one UCP
-  setting, one Agentic Files setting, and one Base, domain, or export setting, then click Save on
-  the UCP tab.
-- Keep the original draft open and use a fresh second admin session or API read to confirm that the
-  UCP and Agentic Files values persisted while the Base, domain, or export value remains unchanged.
-- Save the pending Base, domain, or export edit from its appropriate non-UCP tab in the original
-  session, then use the fresh session or API read to confirm that value persisted too.
+- Use a user with `ucp.editor` and `sales_channel.editor`.
+- Change a UCP setting, an Agentic Files setting, and a Base, domain, or export setting.
+- Click Save on the UCP tab.
+- Use a fresh admin session or API read to confirm that all three changes persisted.
+- Repeat with Save on the Base tab and confirm the same result.
+- Enter an invalid sales channel setting.
+- Verify that Save on the UCP tab respects the same validation as the other tabs.
+- Activate UCP and verify that existing disabled files and custom content are preserved.
+- Change a file setting and save again to check that no duplicate is created.
 
 ### 5. Real payment-tokenization handler
 

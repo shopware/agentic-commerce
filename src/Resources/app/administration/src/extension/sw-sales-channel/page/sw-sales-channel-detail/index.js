@@ -37,6 +37,7 @@ export const swSalesChannelDetailOverride = {
         return {
             agenticCommerceExportConfig: [],
             previousTemplateName: null,
+            isSavingUcp: false,
             ucpState: {
                 loaded: false,
                 isLoading: false,
@@ -107,10 +108,6 @@ export const swSalesChannelDetailOverride = {
 
             return this.acl.can('ucp.viewer')
                 && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
-        },
-
-        isUcpConfigRoute() {
-            return this.$route.name === 'sw.sales.channel.detail.agenticCommerce';
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -419,13 +416,12 @@ export const swSalesChannelDetailOverride = {
         },
 
         async onSave() {
-            if (this.pendingAgenticFilesReload
-                && this.pendingAgenticFilesReload === this.salesChannel?.id
-                && this.allowSaving) {
-                if (this.isLoading) {
-                    return;
-                }
+            if (!this.allowSaving || this.isLoading || this.isSavingUcp) {
+                return;
+            }
 
+            if (this.pendingAgenticFilesReload
+                && this.pendingAgenticFilesReload === this.salesChannel?.id) {
                 this.isLoading = true;
                 this.isSaveSuccessful = false;
                 try {
@@ -436,38 +432,6 @@ export const swSalesChannelDetailOverride = {
                 } finally {
                     this.isLoading = false;
                 }
-            }
-
-            if (this.isUcpConfigRoute) {
-                if (!this.allowSaving
-                    || this.isLoading
-                    || !this.ucpState.loaded) {
-                    return;
-                }
-
-                const salesChannelId = this.salesChannel?.id;
-                const form = ucpNormalizeConfig(this.ucpState.form);
-                this.isLoading = true;
-                this.isSaveSuccessful = false;
-
-                try {
-                    if (!await this.saveAgenticFiles()) {
-                        return;
-                    }
-
-                    if (!await this.saveUcpState(salesChannelId, form)) {
-                        return;
-                    }
-
-                    this.isSaveSuccessful = true;
-                    if (salesChannelId) {
-                        this.refreshUcpPreview(salesChannelId);
-                    }
-                } finally {
-                    this.isLoading = false;
-                }
-
-                return;
             }
 
             if (!this.isAgenticCommerce) {
@@ -482,10 +446,18 @@ export const swSalesChannelDetailOverride = {
                 await this.$super('onSave');
 
                 if (this.isSaveSuccessful && hasUcpChanges) {
-                    this.isSaveSuccessful = await this.saveUcpState(salesChannelId, form);
+                    this.isSavingUcp = true;
+                    this.isLoading = true;
+                    this.isSaveSuccessful = false;
+                    try {
+                        this.isSaveSuccessful = await this.saveUcpState(salesChannelId, form);
 
-                    if (this.isSaveSuccessful) {
-                        this.refreshUcpPreview(salesChannelId);
+                        if (this.isSaveSuccessful) {
+                            this.refreshUcpPreview(salesChannelId);
+                        }
+                    } finally {
+                        this.isSavingUcp = false;
+                        this.isLoading = false;
                     }
                 }
 
@@ -506,7 +478,9 @@ export const swSalesChannelDetailOverride = {
             const typeIdAtSave = this.salesChannel?.typeId;
             const exportConfigAtSave = this.agenticCommerceExportConfig;
             const providerAtSave = this.productExport?.provider;
-            const ucpFormAtSave = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
+            const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
+            const ucpFormAtSave = form
+                && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm)) ? form : null;
 
             let saveSuccessful;
             if (isLegacyOnSave) {
@@ -533,6 +507,7 @@ export const swSalesChannelDetailOverride = {
             const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
 
             if (!ucpSaveSuccessful) {
+                this.isSaveSuccessful = false;
                 return;
             }
 
