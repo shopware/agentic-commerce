@@ -1,7 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import { searchIds } from '@services/adminSearch';
 import { createCompletableCheckout } from '@services/completableCheckout';
-import { messageCodes } from '@services/ucpMessages';
+import { isRefusal, messageCodes } from '@services/ucpMessages';
 
 const unadvertisedCardInstrument = { id: 'instrument-1', handler_id: 'com.example.unadvertised', type: 'card', credential: { type: 'token', token: 'tok_test' } };
 
@@ -22,7 +22,7 @@ test.describe('Payment with a handler the profile does not advertise @UcpKnownBl
 
         const refusal = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: { payment: { instruments: [unadvertisedCardInstrument] } } });
 
-        expect.soft(refusal.ok(), await refusal.text()).toBeFalsy();
+        expect.soft(await isRefusal(refusal), await refusal.text()).toBe(true);
         expect.soft(await messageCodes(refusal)).toContain('payment_failed');
         expect(await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email)).toEqual([]);
     });
