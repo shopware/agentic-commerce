@@ -256,11 +256,14 @@ Expected result:
 - `SwagAgenticCommerce` administration assets exist under `public`
 - `/admin` still renders after the build
 
-The CI admin matrix runs Playwright automatically when `CI_ADMIN_BROWSER_VALIDATE=1` is set,
-covering UCP module render, overview, detail, the authenticated admin API
-list/detail/config/preview, and the signing-key lifecycle. The Playwright suite is the
-release-confidence check for those flows; the manual browser steps below are for exploratory UX
-review and for the ACL/UX matrix that CI cannot run (CI runs as a privileged user only).
+The CI admin matrix runs the legacy `test:e2e:admin` Playwright suite when
+`CI_ADMIN_BROWSER_VALIDATE=1` is set. It does not run the acceptance suite or the `@UcpAcl`
+permission matrix. Run the gating acceptance suite, including the `UcpAcl` project, with
+`npm run acceptance` from the plugin root after completing the acceptance setup described in
+[the acceptance README](../tests/acceptance/README.md).
+
+Use the manual browser steps below for exploratory UX review across the supported Administration
+builds.
 
 Install the local browser QA dependency before running it manually:
 
@@ -316,12 +319,14 @@ If needed, reset inside the lane:
 bin/console user:change-password admin --password 'shopware'
 ```
 
-The module render, overview, detail, save, signing-key actions, and profile preview are asserted by
-the Playwright admin suite. Use the manual open for exploratory UX review:
+The sales-channel detail, UCP configuration, and profile preview are asserted by the Playwright
+Administration suite. Signing-key commands are verified through the console. Use the manual open for
+exploratory UX review:
 
-- settings page shows the UCP entry in the expected settings group for the lane
-- direct route opens: `#/sw/settings/ucp/index`
-- overview renders real sales channels and the native sales-channel shortcut
+- Storefront and Headless channels show the UCP tab to users with `ucp.viewer`
+- users with `ucp.viewer` but without `ucp.editor` see a read-only banner and disabled controls
+- users with `ucp.editor` can save UCP configuration without `sales_channel.editor`
+- Agentic Commerce Insights remain hidden without `ucp.viewer`, including direct navigation
 - profile preview renders the lane-aware transports
 - browser console has no UCP runtime error
 - a Product Comparison and an Agentic Commerce channel show no UCP card, and saving their feed
@@ -331,6 +336,8 @@ the Playwright admin suite. Use the manual open for exploratory UX review:
   is accepted
 - `ucp:channels` lists no feed channel, and
   `ucp:config:set --sales-channel <feed-channel-id> --active 1` exits non-zero
+- signing keys are managed with `ucp:signing-keys:{generate,list,show-public,retire,delete}` through
+  `bin/console`; there is no Administration signing-key interface
 
 ## Storefront Build Validation
 
@@ -494,15 +501,18 @@ Steps:
 
 ### 4. Admin ACL / UX
 
-CI runs the admin suite as a privileged user only. Verify the role matrix by logging in as users
-that hold exactly one of the UCP ACL roles.
+The `UcpAcl` acceptance project verifies these role-specific behaviors. The gating acceptance suite
+runs with `npm run acceptance` from the plugin root; `CI_ADMIN_BROWSER_VALIDATE` runs only the
+legacy admin Playwright suite. Use manual accounts with the same role assignments when exploring the
+UI:
 
-- `ucp.viewer`: save and signing-key actions are disabled; a read-only banner is shown.
-- `ucp.key_rotator`: can create, retire, and delete signing keys, but cannot save config.
-- `ucp.editor`: can save config.
-
-Also visually verify the signing-key management UX: the algorithm select, the `kid` input, and the
-retire/delete confirmation dialogs.
+- `ucp.viewer` and `ucp.key_rotator`: configuration controls and Save are disabled, and the
+  read-only banner is shown.
+- `ucp.editor` without `sales_channel.editor`: Save on the UCP tab persists only UCP configuration.
+- Users without a UCP role do not see the UCP tab or list column, and cannot read or write UCP
+  configuration.
+- Agentic Commerce Insights require `ucp.viewer`; product-comparison Insights keep their core
+  permission behavior.
 
 Verify that Save applies pending changes across sales channel tabs:
 
@@ -601,7 +611,8 @@ A lane passes manual validation when all are true:
 
 - plugin installs through Composer and activates
 - admin build for the lane succeeds
-- UCP administration module renders in browser (exploratory)
+- Agentic Commerce sales-channel UCP settings render in browser (exploratory)
+- Storefront and Headless channels show the UCP tab to users with `ucp.viewer`
 - storefront build for the lane succeeds and the storefront UI renders
 - real-browser cross-origin iframe enforcement behaves correctly: embed renders
   - bridge works on an allowlisted origin, browser blocks the frame with a CSP violation on a
@@ -610,8 +621,7 @@ A lane passes manual validation when all are true:
   (scenario 2)
 - the remote-profile allowlist accepts an allowlisted external profile host and rejects a
   non-allowlisted one (scenario 3)
-- admin ACL/UX matrix is correct for `ucp.viewer`, `ucp.editor`, and `ucp.key_rotator`, and the
-  signing-key UX renders (scenario 4)
+- admin ACL/UX matrix is correct for `ucp.viewer`, `ucp.editor`, and `ucp.key_rotator` (scenario 4)
 - with a real tokenizing handler installed, the profile advertises it, `tokenize` returns a token,
   and a paid order completes (scenario 5)
 - concurrent `/complete` requests produce exactly one order with no duplicate and no `500`

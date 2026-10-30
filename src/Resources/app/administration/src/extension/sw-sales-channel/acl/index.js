@@ -32,10 +32,9 @@ Shopware.Service('privileges').addPrivilegeMappingEntry({
     },
 });
 
-// UCP privileges (moved here from the removed sw-settings-ucp module). The
-// Agentic Commerce tab gates editing on `ucp.editor` and signing-key actions on
-// `ucp.key_rotator`; the parent is null since UCP config now lives on the sales
-// channel rather than a dedicated Settings module.
+// UCP config privileges. `ucp.key_rotator` currently adds only the viewer
+// dependency; signing keys are managed through console commands, not the UI.
+// The parent is null since UCP config lives on the sales channel.
 Shopware.Service('privileges').addPrivilegeMappingEntry({
     category: 'permissions',
     parent: null,

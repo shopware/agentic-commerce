@@ -1,4 +1,11 @@
 {
+  "sw-privileges": {
+    "permissions": {
+      "ucp": {
+        "label": "UCP (Universal Commerce Protocol)"
+      }
+    }
+  },
   "swagAgenticCommerce": {
     "modalGrid": {
       "agenticCommerceBadge": "Neu"
@@ -14,9 +21,11 @@
       "messageNoProductStreams": "Um Produktvergleichs- oder Agentic-Commerce-Verkaufskanäle zu erstellen, musst Du zunächst eine dynamische Produktgruppe erstellen."
     },
     "detail": {
+      "contentDenied": "Du hast keine Berechtigung, diesen Inhalt anzusehen.",
       "agenticCommerce": {
         "tabAgenticCommerce": "Agentic Commerce",
         "ucp": {
+          "readOnlyMessage": "Du kannst diese Konfiguration ansehen. Ändern und speichern können nur Benutzer mit UCP-Bearbeitungsrechten.",
           "cardTitle": "UCP",
           "cardIntro": "Lege fest, wie dieser Verkaufskanal KI-Agenten über das Universal Commerce Protocol (UCP) bereitgestellt wird: welche Fähigkeiten Agenten nutzen dürfen, wie Anfragen abgesichert werden und welches Profil sie finden.",
           "exposeLabel": "Über UCP bereitstellen",

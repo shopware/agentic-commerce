@@ -33,7 +33,7 @@ global.Shopware = {
 const { swSalesChannelDetailOverride } = require('Resources/extension/sw-sales-channel/page/sw-sales-channel-detail');
 
 const { syncExportFileName } = swSalesChannelDetailOverride.methods;
-const { shouldRenderAgenticCommerceTab } = swSalesChannelDetailOverride.computed;
+const { shouldRenderAgenticCommerceTab, shouldRenderAgenticCommerceContent } = swSalesChannelDetailOverride.computed;
 
 describe('sw-sales-channel-detail syncExportFileName', () => {
     it.each([
@@ -134,5 +134,45 @@ describe('sw-sales-channel-detail shouldRenderAgenticCommerceTab', () => {
         };
 
         expect(shouldRenderAgenticCommerceTab.call(context)).toBe(true);
+    });
+});
+
+describe('sw-sales-channel-detail shouldRenderAgenticCommerceContent', () => {
+    it('renders ordinary Agentic Commerce routes', () => {
+        expect(shouldRenderAgenticCommerceContent.call({
+            $route: { name: 'sw.sales.channel.detail.base' },
+            canViewUcpInsights: false,
+            shouldRenderAgenticCommerceTab: false,
+        })).toBe(true);
+    });
+
+    it('allows UCP Insights only to users with ucp.viewer', () => {
+        const context = {
+            isAgenticCommerce: true,
+            $route: { name: 'sw.sales.channel.detail.productExportInsights' },
+            canViewUcpInsights: false,
+            shouldRenderAgenticCommerceTab: true,
+        };
+
+        expect(shouldRenderAgenticCommerceContent.call(context)).toBe(false);
+        expect(shouldRenderAgenticCommerceContent.call({ ...context, canViewUcpInsights: true })).toBe(true);
+    });
+
+    it('keeps product-comparison Insights visible without ucp.viewer', () => {
+        expect(shouldRenderAgenticCommerceContent.call({
+            isAgenticCommerce: false,
+            $route: { name: 'sw.sales.channel.detail.productExportInsights' },
+            canViewUcpInsights: false,
+            shouldRenderAgenticCommerceTab: false,
+        })).toBe(true);
+    });
+
+    it('hides UCP configuration when the user cannot see the UCP tab', () => {
+        expect(shouldRenderAgenticCommerceContent.call({
+            isAgenticCommerce: true,
+            $route: { name: 'sw.sales.channel.detail.agenticCommerce' },
+            canViewUcpInsights: true,
+            shouldRenderAgenticCommerceTab: false,
+        })).toBe(false);
     });
 });

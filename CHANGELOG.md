@@ -1,5 +1,6 @@
 # next version
 
+- Show UCP settings as read-only to viewers, let UCP editors save without sales-channel edit access, and require UCP view access for Agentic Commerce Insights.
 - Keep disabled Agentic Files disabled when activating UCP or saving its settings.
   Existing custom content is preserved, and missing default files are created.
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.

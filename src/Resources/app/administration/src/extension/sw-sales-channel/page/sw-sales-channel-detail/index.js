@@ -2,6 +2,7 @@ import template from './sw-sales-channel-detail.html.twig';
 import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
 import { mergeAgenticFileDrafts, saveAgenticFileConfigurations } from '../../agentic-file-persistence';
+import { currentAdminVersion, isVersionAtLeast, useMtComponents } from '../../agentic-commerce/admin-version';
 import {
     defaultForm as ucpDefaultForm,
     normalizeConfig as ucpNormalizeConfig,
@@ -103,11 +104,52 @@ export const swSalesChannelDetailOverride = {
                 : 'sw.sales.channel.detail.agenticCommerceStatistics';
         },
 
+        canViewUcpInsights() {
+            return this.acl.can('ucp.viewer');
+        },
+
+        salesChannelDetailTabs() {
+            const tabs = this.$super('salesChannelDetailTabs');
+            if (!Array.isArray(tabs) || !this.isAgenticCommerce || this.canViewUcpInsights) {
+                return tabs;
+            }
+
+            return tabs.filter((tab) => tab.name !== 'sw.sales.channel.detail.productExportInsights');
+        },
+
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
             return this.acl.can('ucp.viewer')
                 && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
+        },
+
+        isUcpConfigRoute() {
+            return this.$route.name === 'sw.sales.channel.detail.agenticCommerce';
+        },
+
+        usesMeteorComponents() {
+            return useMtComponents();
+        },
+
+        supportsVueRouterViewSlot() {
+            // Vue Router 4 (Shopware 6.6+) supports the scoped router-view slot.
+            return isVersionAtLeast(currentAdminVersion(), 6, 6);
+        },
+
+        shouldRenderAgenticCommerceContent() {
+            return (!this.isAgenticCommerce
+                    || this.$route.name !== 'sw.sales.channel.detail.productExportInsights'
+                    || this.canViewUcpInsights)
+                && (this.$route.name !== 'sw.sales.channel.detail.agenticCommerce' || this.shouldRenderAgenticCommerceTab);
+        },
+
+        allowSaving() {
+            if (this.isUcpConfigRoute) {
+                return this.acl.can('ucp.editor') || this.acl.can('sales_channel.editor');
+            }
+
+            return this.$super('allowSaving');
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -289,7 +331,7 @@ export const swSalesChannelDetailOverride = {
         // the page before this write, which replaces `ucpState.form` with the stored,
         // not yet updated config.
         async saveUcpState(salesChannelId, form) {
-            if (!form || !salesChannelId) {
+            if (!form || !salesChannelId || !this.acl.can('ucp.editor')) {
                 return true;
             }
 
@@ -421,7 +463,8 @@ export const swSalesChannelDetailOverride = {
             }
 
             if (this.pendingAgenticFilesReload
-                && this.pendingAgenticFilesReload === this.salesChannel?.id) {
+                && this.pendingAgenticFilesReload === this.salesChannel?.id
+                && this.acl.can('sales_channel.editor')) {
                 this.isLoading = true;
                 this.isSaveSuccessful = false;
                 try {
@@ -434,10 +477,40 @@ export const swSalesChannelDetailOverride = {
                 }
             }
 
+            if (this.isUcpConfigRoute && !this.acl.can('sales_channel.editor')) {
+                if (!this.acl.can('ucp.editor') || !this.ucpState.loaded) {
+                    return;
+                }
+
+                const salesChannelId = this.salesChannel?.id;
+                const form = ucpNormalizeConfig(this.ucpState.form);
+                const hasUcpChanges = JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
+                this.isSavingUcp = true;
+                this.isLoading = true;
+                this.isSaveSuccessful = false;
+
+                try {
+                    if (hasUcpChanges && !await this.saveUcpState(salesChannelId, form)) {
+                        return;
+                    }
+
+                    this.isSaveSuccessful = true;
+                    if (salesChannelId && hasUcpChanges) {
+                        this.refreshUcpPreview(salesChannelId);
+                    }
+                } finally {
+                    this.isSavingUcp = false;
+                    this.isLoading = false;
+                }
+
+                return;
+            }
+
             if (!this.isAgenticCommerce) {
                 const salesChannelId = this.salesChannel?.id;
                 const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
                 const hasUcpChanges = form
+                    && this.acl.can('ucp.editor')
                     && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
 
                 // Keep core validation and Storefront theme assignment in the save chain.
