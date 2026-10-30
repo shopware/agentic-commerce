@@ -12,6 +12,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutLegalLinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
@@ -47,6 +48,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly ContextTokenGenerator $contextTokenGenerator,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
+        private readonly CheckoutLegalLinkBuilder $legalLinkBuilder,
     ) {
     }
 
@@ -74,6 +76,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $status,
             $request->buyer,
             $this->continueUrlBuilder->build($salesChannelContext->getToken(), $salesChannelContext->getSalesChannelId()),
+            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
         );
     }
 
@@ -120,7 +123,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
+            return $this->completedCheckout($order, $id, $resolvedContext, $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -133,6 +136,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $this->statusFor($cart->getLineItems()->count(), null !== $buyer),
             $buyer,
             $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
+            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
         );
     }
 
@@ -173,6 +177,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $status,
             $buyer,
             $this->continueUrlBuilder->build($request->id, $salesChannelContext->getSalesChannelId()),
+            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
         );
     }
 
@@ -223,7 +228,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $resolvedContext = $this->completedCheckoutContext($metadata, $context);
             $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
 
-            return $this->completedCheckout($order, $id, $resolvedContext->getSalesChannelId(), $context);
+            return $this->completedCheckout($order, $id, $resolvedContext, $context);
         }
 
         $contextToken = $this->sessionStore->contextToken($metadata, $id);
@@ -268,6 +273,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             CheckoutStatus::Canceled,
             $buyer,
             $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
+            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
         );
     }
 
@@ -313,15 +319,16 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     private function completedCheckout(
         OrderEntity $order,
         string $checkoutId,
-        string $salesChannelId,
+        SalesChannelContext $salesChannelContext,
         RequestContext $context,
     ): Checkout {
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
-            $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
             orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $context),
+            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
         );
     }
 }

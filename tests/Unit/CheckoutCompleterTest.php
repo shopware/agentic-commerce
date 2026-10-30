@@ -6,15 +6,26 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\IdSearchResult;
 use Shopware\Core\System\Currency\CurrencyEntity;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
+use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Shopware\Core\System\SystemConfig\SystemConfigService;
+use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutContinueUrlBuilderInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutLegalLinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
@@ -29,9 +40,11 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
+use Symfony\Component\Routing\RouterInterface;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Common\Buyer;
+use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
@@ -47,6 +60,9 @@ final class CheckoutCompleterTest extends TestCase
     private const ORDER_ID = '00000000000000000000000000000002';
     private const ROTATED_CONTEXT_TOKEN = 'rotated-context-token';
     private const LOCK_KEY = 'ucp.checkout.completion.'.self::CHECKOUT_ID.'.'.self::SALES_CHANNEL_ID;
+    private const DOMAIN_ID = '00000000000000000000000000000003';
+    private const TOS_PAGE_ID = '00000000000000000000000000000004';
+    private const PRIVACY_PAGE_ID = '00000000000000000000000000000005';
 
     #[Test]
     public function testAlreadyCompletedBeforeLockAcquireReplays(): void
@@ -69,12 +85,17 @@ final class CheckoutCompleterTest extends TestCase
         $expectedCheckout = $this->uninitialized(Checkout::class);
 
         $mapper = new class($expectedCheckout) implements ShopwareDataMapperInterface {
+            /** @var list<Link>|null */
+            public ?array $legalLinks = null;
+
             public function __construct(private readonly Checkout $checkout)
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = []): Checkout
             {
+                $this->legalLinks = $legalLinks;
+
                 return $this->checkout;
             }
 
@@ -93,6 +114,7 @@ final class CheckoutCompleterTest extends TestCase
 
         $salesChannelContext = $this->createMock(SalesChannelContext::class);
         $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $this->withLegalLinkDomain($salesChannelContext);
 
         $store = new InMemoryStore();
         $lockFactory = new LockFactory($store);
@@ -110,11 +132,13 @@ final class CheckoutCompleterTest extends TestCase
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
             new UnappliedCompletionPayment(),
+            $this->legalLinkBuilder(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
 
         static::assertSame($expectedCheckout, $result);
+        static::assertEquals($this->legalLinks(), $mapper->legalLinks);
 
         // Lock was never acquired so it remains acquirable
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false));
@@ -153,6 +177,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
             new UnappliedCompletionPayment(),
+            $this->legalLinkBuilder(),
         );
 
         $this->expectExceptionObject(new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.'));
@@ -173,6 +198,7 @@ final class CheckoutCompleterTest extends TestCase
         $customerContext = $this->createMock(SalesChannelContext::class);
         $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
         $customerContext->method('getCurrency')->willReturn($currency);
+        $this->withLegalLinkDomain($customerContext);
 
         $order = new OrderEntity();
         $order->setId(self::ORDER_ID);
@@ -215,12 +241,17 @@ final class CheckoutCompleterTest extends TestCase
         $expectedCheckout = $this->uninitialized(Checkout::class);
 
         $mapper = new class($expectedCheckout) implements ShopwareDataMapperInterface {
+            /** @var list<Link>|null */
+            public ?array $legalLinks = null;
+
             public function __construct(private readonly Checkout $checkout)
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = []): Checkout
             {
+                $this->legalLinks = $legalLinks;
+
                 return $this->checkout;
             }
 
@@ -272,11 +303,13 @@ final class CheckoutCompleterTest extends TestCase
             $orderWebhookPublisher,
             new OrderPermalinkBuilder(),
             new UnappliedCompletionPayment(),
+            $this->legalLinkBuilder(),
         );
 
         $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
 
         static::assertSame($expectedCheckout, $result);
+        static::assertEquals($this->legalLinks(), $mapper->legalLinks);
         static::assertSame(1, $saveCalled, 'sessionManager->saveForCheckoutId() must be called exactly once');
 
         // Lock released via finally — a new acquire must succeed
@@ -327,6 +360,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
             new UnappliedCompletionPayment(),
+            $this->legalLinkBuilder(),
         );
 
         try {
@@ -384,7 +418,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
+            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = []): Checkout
             {
                 return $this->checkout;
             }
@@ -419,6 +453,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
             new UnappliedCompletionPayment(),
+            $this->legalLinkBuilder(),
         );
 
         $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
@@ -429,6 +464,64 @@ final class CheckoutCompleterTest extends TestCase
             $orderedCart->getToken(),
             'The ordered cart must carry the post-registration context token, otherwise the order route cannot find its storage entry',
         );
+    }
+
+    /**
+     * @return list<Link>
+     */
+    private function legalLinks(): array
+    {
+        return [
+            new Link('terms_of_service', 'https://shop.example/page/cms/'.self::TOS_PAGE_ID, 'Terms of Service'),
+            new Link('privacy_policy', 'https://shop.example/page/cms/'.self::PRIVACY_PAGE_ID, 'Privacy Policy'),
+        ];
+    }
+
+    private function legalLinkBuilder(): CheckoutLegalLinkBuilder
+    {
+        $systemConfigService = $this->createMock(SystemConfigService::class);
+        $systemConfigService->method('get')->willReturnMap([
+            ['core.basicInformation.tosPage', self::SALES_CHANNEL_ID, self::TOS_PAGE_ID],
+            ['core.basicInformation.privacyPage', self::SALES_CHANNEL_ID, self::PRIVACY_PAGE_ID],
+        ]);
+
+        $router = $this->createMock(RouterInterface::class);
+        $router->method('generate')->willReturnCallback(static fn (string $name, array $parameters): string => '/page/cms/'.$parameters['id']);
+
+        $cmsPageRepository = $this->createMock(EntityRepository::class);
+        $cmsPageRepository->method('searchIds')->willReturnCallback(static function (Criteria $criteria, Context $context): IdSearchResult {
+            $found = [];
+            foreach ($criteria->getIds() as $id) {
+                \assert(\is_string($id));
+                $found[$id] = ['primaryKey' => $id, 'data' => ['id' => $id]];
+            }
+
+            return new IdSearchResult(\count($found), $found, $criteria, $context);
+        });
+
+        return new CheckoutLegalLinkBuilder(
+            $router,
+            $systemConfigService,
+            new SalesChannelBaseUrlResolver($this->createMock(EntityRepository::class)),
+            $cmsPageRepository,
+        );
+    }
+
+    /**
+     * Only a context with a storefront domain gets legal links, which proves which context the completer used.
+     */
+    private function withLegalLinkDomain(SalesChannelContext&MockObject $context): void
+    {
+        $domain = new SalesChannelDomainEntity();
+        $domain->setId(self::DOMAIN_ID);
+        $domain->setUrl('https://shop.example');
+
+        $salesChannel = new SalesChannelEntity();
+        $salesChannel->setDomains(new SalesChannelDomainCollection([$domain]));
+
+        $context->method('getDomainId')->willReturn(self::DOMAIN_ID);
+        $context->method('getSalesChannel')->willReturn($salesChannel);
+        $context->method('getContext')->willReturn(Context::createDefaultContext());
     }
 
     private function nullProvisioner(): GuestCustomerContextProvisionerInterface

@@ -129,6 +129,9 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         );
     }
 
+    /**
+     * @param list<Link> $legalLinks
+     */
     public function toCheckout(
         Cart $cart,
         SalesChannelContext $context,
@@ -136,6 +139,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         ?Buyer $buyer = null,
         ?string $continueUrl = null,
         ?OrderEntity $order = null,
+        array $legalLinks = [],
     ): Checkout {
         return new Checkout(
             id: $cart->getToken() ?: $context->getToken(),
@@ -144,14 +148,20 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             lineItems: $this->mapShopwareLineItems($cart->getLineItems()),
             totals: $this->cartMoneySummary($cart),
             messages: $this->mapCartMessages($cart),
-            links: null !== $continueUrl ? [new Link('continue', $continueUrl, 'Continue checkout')] : [],
+            links: [
+                ...(null !== $continueUrl ? [new Link('continue', $continueUrl, 'Continue checkout')] : []),
+                ...$legalLinks,
+            ],
             buyer: $buyer,
             continueUrl: $continueUrl,
             order: null !== $order ? new OrderConfirmation($order->getId(), $continueUrl) : null,
         );
     }
 
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null): Checkout
+    /**
+     * @param list<Link> $legalLinks
+     */
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = []): Checkout
     {
         return new Checkout(
             id: $checkoutId,
@@ -160,7 +170,10 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             lineItems: $this->mapOrderLineItems($order),
             totals: $this->orderMoneySummary($order),
             messages: [],
-            links: null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : [],
+            links: [
+                ...(null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : []),
+                ...$legalLinks,
+            ],
             buyer: $this->mapOrderBuyer($order),
             continueUrl: $continueUrl,
             // The order's creation time used to be passed here positionally, and slot ten is
