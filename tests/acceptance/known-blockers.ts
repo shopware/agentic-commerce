@@ -160,4 +160,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/225',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D26',
+        description: 'The SDK answers an unknown cart id with 404, where the cart REST binding of UCP 2026-08-25 returns not found as a business outcome with 200 and a not_found message.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/230',
+        reviewBy: '2026-12-31',
+    },
 ];
