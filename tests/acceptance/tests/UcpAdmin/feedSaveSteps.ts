@@ -28,9 +28,10 @@ export async function expectSaveRefusedWithoutReturnPolicyUrl(feed: AgenticComme
     expect(storedConfig[RETURN_POLICY_URL], 'the stored return policy URL is unchanged').toBe(storedUrl);
 }
 
-/** Saves a new feed channel without a return policy URL twice: the field stays marked, and nothing is written. */
+/** Saves a validly named new feed channel without a return policy URL twice: both attempts are refused. */
 export async function expectNewFeedStaysUnsaved(feed: AgenticCommerceFeedDetail): Promise<void> {
     await feed.openNew();
+    await feed.page.getByRole('textbox', { name: 'Name' }).fill('Acceptance test feed');
 
     const writes: Request[] = [];
     feed.page.on('request', request => isSaveWrite(request) && writes.push(request));
