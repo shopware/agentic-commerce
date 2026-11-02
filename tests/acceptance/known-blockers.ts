@@ -29,16 +29,16 @@ export const knownBlockers: KnownBlocker[] = [
     },
     {
         key: 'D3',
-        description: 'The A2A and embedded transports run no signature, idempotency or UCP-Agent check; A2aController builds a bare RequestContext without a platform profile.',
+        description: 'The A2A transport runs no signature check, so the strict signature policy accepts an unsigned A2A request. A2aController builds a bare RequestContext without a platform profile.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/pull/185',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/206',
         reviewBy: '2026-12-31',
     },
     {
         key: 'D5',
-        description: 'ucp-agent and idempotency-key are read from the MCP transport\'s HTTP request headers, not from meta on each call as the spec carries them, so a spec-conformant MCP client is rejected with "$.headers.idempotency-key is required". The tool names and the structured object payload were fixed in PR #224.',
+        description: 'The MCP tools read the request from payload, where the MCP binding of UCP 2026-08-25 sends it in checkout or cart with an id and meta, so a spec-conformant create_checkout is refused with "$.line_items is required". The idempotency key is read only from the HTTP request, not from meta. tools/list offers no get_product.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/187',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/329',
         reviewBy: '2026-12-31',
     },
     {
@@ -165,6 +165,13 @@ export const knownBlockers: KnownBlocker[] = [
         description: 'The SDK answers an unknown cart id with 404, where the cart REST binding of UCP 2026-08-25 returns not found as a business outcome with 200 and a not_found message.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/230',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D27',
+        description: 'The SDK serves JSON-RPC methods named after the UCP operations on /ucp/a2a and answers message/send with -32601, where the A2A binding of UCP 2026-08-25 carries the checkout in an A2A message. The profile names /ucp/a2a as the a2a endpoint instead of the agent card, and the agent card lists no UCP extension.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/239',
         reviewBy: '2026-12-31',
     },
 ];

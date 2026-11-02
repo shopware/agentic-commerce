@@ -51,6 +51,14 @@ export async function fetchAnswerByRoute(browser: Browser, baseUrl: string, rout
     });
 }
 
+export async function fetchAgentCard(browser: Browser, baseUrl: string): Promise<Record<string, unknown>> {
+    return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/.well-known/agent-card.json`, async (agentCardResponse) => {
+        expect(agentCardResponse.ok(), `${await agentCardResponse.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
+
+        return (await agentCardResponse.json()) as Record<string, unknown>;
+    });
+}
+
 export async function fetchStorefrontLinkHeader(browser: Browser, baseUrl: string): Promise<string> {
     return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/`, async (homePageResponse) => {
         expect(homePageResponse.ok(), `${await homePageResponse.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
