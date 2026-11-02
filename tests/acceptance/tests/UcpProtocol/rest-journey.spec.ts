@@ -65,7 +65,7 @@ test.describe('REST shopping journey @UcpProtocol', () => {
             return convertedCheckoutId;
         });
 
-        const orderId = await test.step('the checkout completes with a shipping address', async () => {
+        const { orderId, checkoutTotal } = await test.step('the checkout completes with a shipping address', async () => {
             const checkoutLineItems = ((await (await agent.rest.send('GET', `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`)).json()) as { line_items: { id: string, item: { id: string }, quantity: number }[] }).line_items;
             const fulfillment = { methods: [{ type: 'shipping', line_item_ids: checkoutLineItems.map(lineItem => lineItem.id), destinations: [{ street_address: '1 Test Street', address_locality: 'London', postal_code: 'SW1A 1AA', address_country: 'GB' }] }] };
             const addressedCheckout = await agent.rest.send('PUT', `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`, { body: { line_items: checkoutLineItems.map(lineItem => ({ item: lineItem.item, quantity: lineItem.quantity })), buyer, fulfillment } });
@@ -75,7 +75,7 @@ test.describe('REST shopping journey @UcpProtocol', () => {
             const placedOrder = await placeOrder(agent, `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`);
             expect(await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email)).toEqual([placedOrder.id]);
 
-            return placedOrder.id;
+            return { orderId: placedOrder.id, checkoutTotal: await grandTotal(addressedCheckout) };
         });
 
         await test.step('the shop has the order in the channel', async () => {
@@ -83,7 +83,7 @@ test.describe('REST shopping journey @UcpProtocol', () => {
             expect(shopOrder.ok(), await shopOrder.text()).toBeTruthy();
             const { data: { salesChannelId, amountTotal } } = (await shopOrder.json()) as { data: { salesChannelId: string, amountTotal: number } };
             expect(salesChannelId).toBe(ucpChannel.salesChannel.id);
-            expect(amountTotal).toBe(20);
+            expect(Math.round(amountTotal * 100), 'the order total in minor units').toBe(checkoutTotal);
         });
     });
 

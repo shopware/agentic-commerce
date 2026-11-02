@@ -22,6 +22,7 @@ test.describe('Checkout state @UcpProtocol', () => {
             expect(await isRefusal(updateAfterCompletion), await updateAfterCompletion.text()).toBe(true);
 
             const storedCheckout = await agent.rest.send('GET', checkoutPath);
+            expect(storedCheckout.status(), await storedCheckout.text()).toBe(200);
             const { status, order } = (await storedCheckout.json()) as { status: string, order: { id: string } };
             expect(status).toBe('completed');
             expect(order.id).toBe(placedOrder.id);
