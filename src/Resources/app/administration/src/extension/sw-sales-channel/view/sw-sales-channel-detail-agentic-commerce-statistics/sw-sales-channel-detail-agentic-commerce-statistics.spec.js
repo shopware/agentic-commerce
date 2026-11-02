@@ -146,18 +146,6 @@ describe('sw-sales-channel-detail-agentic-commerce-statistics', () => {
         expect(instance.orderCountCriteria.filters).not.toContainEqual(expect.objectContaining({ field: 'transactions.stateMachineState.technicalName' }));
     });
 
-    it('does not request statistics without ucp.viewer', async () => {
-        const orderSearch = jest.fn(() => Promise.resolve([]));
-        const customerSearch = jest.fn(() => Promise.resolve([]));
-        const instance = createInstance({ privileges: ['order.viewer', 'customer.viewer'], orderSearch, customerSearch });
-
-        await instance.fetchData();
-
-        expect(orderSearch).not.toHaveBeenCalled();
-        expect(customerSearch).not.toHaveBeenCalled();
-        expect(instance.isLoading).toBe(false);
-    });
-
     it.each([
         ['30Days', new Date(2026, 8, 7)],
         ['yesterday', new Date(2026, 9, 6)],

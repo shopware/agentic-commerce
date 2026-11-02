@@ -2,7 +2,7 @@ import template from './sw-sales-channel-detail.html.twig';
 import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
 import { mergeAgenticFileDrafts } from '../../agentic-file-persistence';
-import { currentAdminVersion, isVersionAtLeast, useMtComponents } from '../../agentic-commerce/admin-version';
+import { useMtComponents } from '../../agentic-commerce/admin-version';
 import {
     defaultForm as ucpDefaultForm,
     normalizeConfig as ucpNormalizeConfig,
@@ -134,11 +134,6 @@ export const swSalesChannelDetailOverride = {
             return useMtComponents();
         },
 
-        supportsVueRouterViewSlot() {
-            // Vue Router 4 (Shopware 6.6+) supports the scoped router-view slot.
-            return isVersionAtLeast(currentAdminVersion(), 6, 6);
-        },
-
         shouldRenderAgenticCommerceContent() {
             return (!this.isAgenticCommerce
                     || this.$route.name !== 'sw.sales.channel.detail.productExportInsights'
@@ -148,7 +143,8 @@ export const swSalesChannelDetailOverride = {
 
         allowSaving() {
             if (this.isUcpConfigRoute) {
-                return this.acl.can('ucp.editor') || this.acl.can('sales_channel.editor');
+                return this.acl.can('sales_channel.editor')
+                    || (this.acl.can('ucp.editor') && this.ucpState.loaded);
             }
 
             return this.$super('allowSaving');
@@ -486,7 +482,7 @@ export const swSalesChannelDetailOverride = {
 
                 const salesChannelId = this.salesChannel?.id;
                 const form = ucpNormalizeConfig(this.ucpState.form);
-                const hasUcpChanges = JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
+                const hasUcpChanges = this.hasUcpChanges(form);
                 this.isSavingUcp = true;
                 this.isLoading = true;
                 this.isSaveSuccessful = false;
@@ -511,9 +507,7 @@ export const swSalesChannelDetailOverride = {
             if (!this.isAgenticCommerce) {
                 const salesChannelId = this.salesChannel?.id;
                 const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
-                const hasUcpChanges = form
-                    && this.acl.can('ucp.editor')
-                    && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
+                const hasUcpChanges = this.acl.can('ucp.editor') && this.hasUcpChanges(form);
 
                 // Keep core validation and Storefront theme assignment in the save chain.
                 // The parent owns the reload; unchanged UCP settings must not delay it.
@@ -549,8 +543,7 @@ export const swSalesChannelDetailOverride = {
             const exportConfigAtSave = this.agenticCommerceExportConfig;
             const providerAtSave = this.productExport?.provider;
             const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
-            const ucpFormAtSave = form
-                && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm)) ? form : null;
+            const ucpFormAtSave = this.hasUcpChanges(form) ? form : null;
 
             if (!this.validateAgenticCommerceExportConfig()) {
                 this.isSaveSuccessful = false;
@@ -613,6 +606,12 @@ export const swSalesChannelDetailOverride = {
             } finally {
                 this.isSavingUcp = false;
             }
+        },
+
+        /** @private */
+        hasUcpChanges(form) {
+            return Boolean(form)
+                && JSON.stringify(ucpNormalizeConfig(form)) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
         },
 
         /** @private */

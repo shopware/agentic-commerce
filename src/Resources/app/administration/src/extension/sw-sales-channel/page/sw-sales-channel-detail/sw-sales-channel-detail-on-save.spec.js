@@ -119,6 +119,7 @@ function buildContext({ saveSalesChannel, isSaveSuccessful = true } = {}) {
     ctx.$super = jest.fn(async () => {
         ctx.isSaveSuccessful = isSaveSuccessful;
     });
+    ctx.hasUcpChanges = swSalesChannelDetailOverride.methods.hasUcpChanges.bind(ctx);
     ctx.refreshUcpPreview = swSalesChannelDetailOverride.methods.refreshUcpPreview.bind(ctx);
     ctx.defaultAgenticCommerceExportConfig = [{ provider: 'open-ai' }];
     ctx.realSaveAgenticCommerceExportConfig = swSalesChannelDetailOverride.methods.saveAgenticCommerceExportConfig.bind(ctx);
@@ -502,7 +503,16 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         expect(swSalesChannelDetailOverride.computed.allowSaving.call({
             isUcpConfigRoute: true,
             acl: { can: (privilege) => privilege === 'ucp.editor' },
+            ucpState: { loaded: true },
         })).toBe(true);
+    });
+
+    it('keeps UCP editor saving disabled until the configuration has loaded', () => {
+        expect(swSalesChannelDetailOverride.computed.allowSaving.call({
+            isUcpConfigRoute: true,
+            acl: { can: (privilege) => privilege === 'ucp.editor' },
+            ucpState: { loaded: false },
+        })).toBe(false);
     });
 
     it('allows sales-channel editors to save file changes on the UCP route', () => {
@@ -524,6 +534,26 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
 
         expect(swSalesChannelDetailOverride.computed.allowSaving.call({ isUcpConfigRoute: false, $super: superMethod })).toBe(false);
         expect(superMethod).toHaveBeenCalledWith('allowSaving');
+    });
+
+    it('compares normalized UCP forms in one shared dirty check', () => {
+        const ctx = {
+            ucpState: {
+                savedForm: { active: false, enabledCapabilities: ['catalog'], enabledTransports: ['rest'] },
+            },
+        };
+
+        expect(swSalesChannelDetailOverride.methods.hasUcpChanges.call(ctx, {
+            active: false,
+            enabledCapabilities: ['catalog'],
+            enabledTransports: ['rest'],
+        })).toBe(false);
+        expect(swSalesChannelDetailOverride.methods.hasUcpChanges.call(ctx, {
+            active: true,
+            enabledCapabilities: ['catalog'],
+            enabledTransports: ['rest'],
+        })).toBe(true);
+        expect(swSalesChannelDetailOverride.methods.hasUcpChanges.call(ctx, null)).toBe(false);
     });
 
     it('writes the UCP form as it was when Save was clicked, although the legacy reload replaced it', async () => {

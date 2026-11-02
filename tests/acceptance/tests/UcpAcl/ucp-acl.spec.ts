@@ -18,6 +18,9 @@ const insightsCards = (page: Page) => page.locator([
 ].join(', '));
 
 type AdminGlobal = typeof globalThis & {
+    document: {
+        location: { hash: string }
+    }
     Shopware: {
         Service(name: string): { getToken(): string }
     }
@@ -157,7 +160,14 @@ test.describe('UCP Administration ACL @UcpAcl', () => {
             });
         });
 
-        await goToAdminRoute(withoutUcpViewer, insightsRoute);
+        await withoutUcpViewer.evaluate((route) => {
+            (globalThis as AdminGlobal).document.location.hash = route;
+        }, insightsRoute);
+        await expect.poll(async () => {
+            const denied = await withoutUcpViewer.locator('.sw-sales-channel-detail__content-denied').isVisible();
+            const privilegeError = await withoutUcpViewer.locator('.sw-privilege-error').isVisible();
+            return denied || privilegeError;
+        }).toBe(true);
         await expect(insightsCards(withoutUcpViewer)).toHaveCount(0);
         expect(requests.filter(({ pathname }) => statisticsSearchPaths.has(pathname))).toEqual([]);
     });

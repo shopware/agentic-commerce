@@ -47,6 +47,7 @@ function createContext() {
         }
     });
     ctx.refreshUcpPreview = swSalesChannelDetailOverride.methods.refreshUcpPreview.bind(ctx);
+    ctx.hasUcpChanges = swSalesChannelDetailOverride.methods.hasUcpChanges.bind(ctx);
     return ctx;
 }
 
