@@ -56,7 +56,7 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
         const route = getAgenticFileListRoute({
             name: 'sw.sales.channel.detail.agenticFile',
             query: { swagAgenticCommerceFrom: 'agentic-commerce' },
-        }, salesChannelId);
+        }, salesChannelId, false);
 
         expect(route).toEqual({
             name: 'sw.sales.channel.detail.agenticCommerce',
@@ -64,8 +64,17 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
         });
     });
 
-    it('returns to Agentic Files for a direct or unmarked detail route', () => {
-        const route = getAgenticFileListRoute({ name: 'sw.sales.channel.detail.agenticFile', query: {} }, salesChannelId);
+    it('returns to Agentic Commerce for a direct detail route when its tab is available', () => {
+        const route = getAgenticFileListRoute({ name: 'sw.sales.channel.detail.agenticFile', query: {} }, salesChannelId, true);
+
+        expect(route).toEqual({
+            name: 'sw.sales.channel.detail.agenticCommerce',
+            params: { id: salesChannelId },
+        });
+    });
+
+    it('returns to Agentic Files for a direct detail route when its tab is unavailable', () => {
+        const route = getAgenticFileListRoute({ name: 'sw.sales.channel.detail.agenticFile', query: {} }, salesChannelId, false);
 
         expect(route).toEqual({
             name: 'sw.sales.channel.detail.agenticFiles',
@@ -108,6 +117,7 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
                 params: { id: salesChannelId },
                 query: { swagAgenticCommerceFrom: 'agentic-commerce' },
             },
+            swSalesChannelShouldRenderAgenticCommerceTab: () => false,
         });
 
         expect(route).toEqual({
@@ -123,10 +133,27 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
                 params: { id: salesChannelId },
                 query: {},
             },
+            swSalesChannelShouldRenderAgenticCommerceTab: () => false,
         });
 
         expect(route).toEqual({
             name: 'sw.sales.channel.detail.agenticFiles',
+            params: { id: salesChannelId },
+        });
+    });
+
+    it('returns to Agentic Commerce from a direct detail route when its tab is available', () => {
+        const { config } = loadOverride('sw-sales-channel-detail-agentic-file');
+        const route = config.computed.listRoute.call({
+            $route: {
+                params: { id: salesChannelId },
+                query: {},
+            },
+            swSalesChannelShouldRenderAgenticCommerceTab: () => true,
+        });
+
+        expect(route).toEqual({
+            name: 'sw.sales.channel.detail.agenticCommerce',
             params: { id: salesChannelId },
         });
     });

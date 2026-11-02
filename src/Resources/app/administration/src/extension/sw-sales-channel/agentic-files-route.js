@@ -18,9 +18,10 @@ export function getAgenticFileDetailRoute(sourceRoute, fileRoute) {
     };
 }
 
-export function getAgenticFileListRoute(currentRoute, salesChannelId) {
+export function getAgenticFileListRoute(currentRoute, salesChannelId, shouldRenderAgenticCommerceTab) {
     return {
         name: currentRoute.query?.[AGENTIC_COMMERCE_SOURCE_QUERY] === AGENTIC_COMMERCE_SOURCE_VALUE
+            || shouldRenderAgenticCommerceTab
             ? AGENTIC_COMMERCE_ROUTE
             : AGENTIC_FILES_ROUTE,
         params: {
