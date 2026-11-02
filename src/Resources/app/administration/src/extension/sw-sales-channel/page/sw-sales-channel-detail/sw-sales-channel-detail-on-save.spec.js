@@ -146,6 +146,15 @@ describe('sw-sales-channel-detail onSave — 6.7.9.0+ parent save path', () => {
         expect(ctx.loadEntityData).not.toHaveBeenCalled();
     });
 
+    it('leaves provider validation to core on the modern save path', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.$super).toHaveBeenCalledWith('onSave');
+        expect(ctx.validateAgenticCommerceExportConfig).not.toHaveBeenCalled();
+    });
+
     it('does not write UCP settings when the parent save fails', async () => {
         const ctx = buildContext({ saveSalesChannel: jest.fn(), isSaveSuccessful: false });
         ctx.ucpState = { loaded: true, form: { active: true }, savedForm: { active: false }, generation: 0 };
@@ -158,6 +167,16 @@ describe('sw-sales-channel-detail onSave — 6.7.9.0+ parent save path', () => {
 });
 
 describe('sw-sales-channel-detail onSave — 6.7.0–6.7.8.x legacy path', () => {
+    it('validates provider fields before delegating to the legacy save', async () => {
+        const ctx = buildContext();
+        ctx.validateAgenticCommerceExportConfig.mockReturnValue(false);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.validateAgenticCommerceExportConfig).toHaveBeenCalledTimes(1);
+        expect(ctx.$super).not.toHaveBeenCalled();
+    });
+
     it('falls back to $super(\'onSave\') and reads isSaveSuccessful', async () => {
         const ctx = buildContext({ isSaveSuccessful: true });
 
@@ -378,10 +397,10 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         await swSalesChannelDetailOverride.methods.reloadAgenticFiles.call(ctx, 'channel-id');
 
         expect(ctx.salesChannelRepository.get).toHaveBeenCalledWith('channel-id', Shopware.Context.api, {});
-        expect(ctx.salesChannel.salesChannelFiles[0]).toMatchObject({
-            id: 'backend-default-id',
-            enabled: false,
-            templateOverrides: { content: 'Merchant instructions' },
+        expect(ctx.salesChannel.salesChannelFiles[0].id).toBe('backend-default-id');
+        expect(ctx.salesChannel.salesChannelFiles[0].enabled).toBe(false);
+        expect(ctx.salesChannel.salesChannelFiles[0].templateOverrides).toEqual({
+            content: 'Merchant instructions',
         });
     });
 
@@ -470,7 +489,6 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         expect(ctx.ucpAdminApiService.getProfilePreview).toHaveBeenCalledWith('channel-id');
         expect(ctx.ucpState.preview).toEqual(preview.data.data);
         expect(ctx.isSaveSuccessful).toBe(true);
-        expect(ctx.isLoading).toBe(true);
         expect(ctx.isSavingUcp).toBe(false);
     });
 

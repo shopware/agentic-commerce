@@ -527,7 +527,7 @@ export const swSalesChannelDetailOverride = {
             }
 
             // The legacy onSave reloaded the page before the UCP write; load what is stored now.
-            if (ucpFormAtSave) {
+            if (isLegacyOnSave && ucpFormAtSave) {
                 this.loadUcpState(channelIdAtSave, typeIdAtSave);
             }
         },
