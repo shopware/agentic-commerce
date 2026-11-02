@@ -81,7 +81,7 @@ final class UcpConfigService
             $this->repository->save($salesChannelId, $config);
 
             if ($config->active) {
-                $this->agenticFilesCoreBridge?->enableForSalesChannel($salesChannelId);
+                $this->agenticFilesCoreBridge?->initializeForSalesChannel($salesChannelId);
             }
         }
 
@@ -155,7 +155,7 @@ final class UcpConfigService
         $this->repository->save($salesChannelId, $config);
 
         if ($config->active) {
-            $this->agenticFilesCoreBridge?->enableForSalesChannel($salesChannelId);
+            $this->agenticFilesCoreBridge?->initializeForSalesChannel($salesChannelId);
             $this->ensureSigningKey($salesChannelId);
         }
 

@@ -47,7 +47,7 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
             new CoreSalesChannelFileFeature([self::class]),
         );
 
-        $bridge->enableForSalesChannel($salesChannelId);
+        $bridge->initializeForSalesChannel($salesChannelId);
 
         $expectedFiles = ['llms.txt', 'agents.md', '.well-known/ai-catalog.json'];
         static::assertSame($expectedFiles, $insertedFiles);

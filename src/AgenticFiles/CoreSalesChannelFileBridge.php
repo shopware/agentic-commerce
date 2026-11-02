@@ -35,14 +35,14 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
     ) {
     }
 
-    public function enableForSalesChannel(string $salesChannelId): void
+    public function initializeForSalesChannel(string $salesChannelId): void
     {
         if (!$this->feature->isDatabaseReady($this->connection) || !Uuid::isValid($salesChannelId)) {
             return;
         }
 
         foreach (self::FILE_NAMES as $fileName) {
-            $this->enableFile($salesChannelId, $fileName);
+            $this->createMissingFile($salesChannelId, $fileName);
         }
     }
 
@@ -53,7 +53,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         }
 
         foreach ($this->loadActiveUcpSalesChannelIds() as $salesChannelId) {
-            $this->enableForSalesChannel($salesChannelId);
+            $this->initializeForSalesChannel($salesChannelId);
         }
     }
 
@@ -62,7 +62,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         (new self($connection, new CoreSalesChannelFileFeature()))->syncActiveUcpSalesChannels();
     }
 
-    private function enableFile(string $salesChannelId, string $fileName): void
+    private function createMissingFile(string $salesChannelId, string $fileName): void
     {
         $timestamp = (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT);
         $criteria = [

@@ -79,11 +79,11 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
     {
         $this->storeUcpConfig('{"active":true}');
         $bridge = new CoreSalesChannelFileBridge($this->connection, new CoreSalesChannelFileFeature());
-        $bridge->enableForSalesChannel($this->salesChannelId);
+        $bridge->initializeForSalesChannel($this->salesChannelId);
         $this->setFileSettings(enabled: false);
         $disabledFiles = $this->fileRows();
 
-        $bridge->enableForSalesChannel($this->salesChannelId);
+        $bridge->initializeForSalesChannel($this->salesChannelId);
         $this->sync();
         $this->sync();
 
@@ -92,7 +92,7 @@ final class CoreSalesChannelFileBridgeTest extends TestCase
 
         $this->setFileSettings(enabled: true);
         $enabledFiles = $this->fileRows();
-        $bridge->enableForSalesChannel($this->salesChannelId);
+        $bridge->initializeForSalesChannel($this->salesChannelId);
         $this->sync();
 
         static::assertSame($enabledFiles, $this->fileRows());

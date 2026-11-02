@@ -2,7 +2,7 @@
 
 - Load the product exports of a sales channel again, for example in extensions that read `sales_channel.productExports`. These requests failed with `FRAMEWORK__DEFINITION_NOT_FOUND`, because the extension registered its product export definition a second time.
 - When leaving an agentic file, return to the _Agentic Commerce_ tab if it is available. Otherwise, return to the _Agentic files_ tab, which shows again for sales channels and users without the _Agentic Commerce_ tab.
-- Keep disabled Agentic Files disabled when activating UCP or saving its settings.
+- Keep disabled agentic files disabled when activating UCP, saving UCP settings, or updating the extension.
   Existing custom content is preserved, and missing default files are created.
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
 - Mark a missing required feed setting, such as the return policy URL, every time _Save_ is clicked on an Agentic Commerce sales channel, and say so in a message. On an existing channel the message names the _General_ tab, since _Save_ also works from the other tabs, and the field stays marked when that tab is opened. On Shopware `6.5` the save was refused without marking the field or showing a message, so _Save_ looked broken. On a new channel on `6.5` and `6.6`, the second click saved the channel anyway, without the missing setting. Clearing the stored return policy URL is now refused and marked the same way. On `6.5` and on `6.6` before `6.6.9.0` the cleared field kept the stored URL, so _Save_ went through and the old URL reappeared.
