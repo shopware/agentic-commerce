@@ -34,7 +34,6 @@ function createContext() {
         }),
         saveAgenticCommerceExportConfig: jest.fn(async () => true),
         saveUcpState: jest.fn(async () => true),
-        saveAgenticFiles: jest.fn(async () => true),
         loadEntityData: jest.fn(),
         loadUcpState: jest.fn(),
         ucpAdminApiService: { getProfilePreview: jest.fn(async () => ({ data: { data: { active: true } } })) },

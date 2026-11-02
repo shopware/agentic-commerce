@@ -2,6 +2,7 @@
 
 - Die Produktexporte eines Verkaufskanals lassen sich wieder laden, etwa in Erweiterungen, die `sales_channel.productExports` lesen. Bisher schlugen diese Anfragen mit `FRAMEWORK__DEFINITION_NOT_FOUND` fehl, weil die Erweiterung die Definition der Produktexporte ein zweites Mal registrierte.
 - Beim Verlassen einer Agentic-Datei wird zum Tab „Agentic Commerce“ zurückgekehrt, wenn dieser verfügbar ist. Andernfalls führt der Link zurück zum Tab „Agentic-Dateien“, der für Verkaufskanäle und Benutzer ohne den Tab „Agentic Commerce“ wieder angezeigt wird.
+- Der Speichern-Ablauf von Shopware bleibt für Verkaufskanäle erhalten: Pflichtfelder werden bei Agentic-Commerce-Verkaufskanälen geprüft, und gewöhnliche Storefront-Verkaufskanäle erhalten ihre Themenzuweisung.
 - Deaktivierte Agentic-Dateien bleiben beim Aktivieren von UCP, beim Speichern der UCP-Einstellungen und beim Aktualisieren der Erweiterung deaktiviert.
   Bestehende eigene Inhalte bleiben erhalten, und fehlende Standarddateien werden angelegt.
 - Unter Shopware `6.7.1.0` bis `6.7.4.x` liefert der Shop `robots.txt` wieder aus, statt mit `500` zu antworten.

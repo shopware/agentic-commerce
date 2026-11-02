@@ -1,7 +1,7 @@
 import template from './sw-sales-channel-detail.html.twig';
 import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
-import { mergeAgenticFileDrafts, saveAgenticFileConfigurations } from '../../agentic-file-persistence';
+import { mergeAgenticFileDrafts } from '../../agentic-file-persistence';
 import {
     defaultForm as ucpDefaultForm,
     normalizeConfig as ucpNormalizeConfig,
@@ -448,7 +448,6 @@ export const swSalesChannelDetailOverride = {
 
                 if (this.isSaveSuccessful && hasUcpChanges) {
                     this.isSavingUcp = true;
-                    this.isLoading = true;
                     this.isSaveSuccessful = false;
                     try {
                         this.isSaveSuccessful = await this.saveUcpState(salesChannelId, form);
@@ -458,28 +457,9 @@ export const swSalesChannelDetailOverride = {
                         }
                     } finally {
                         this.isSavingUcp = false;
-                        this.isLoading = false;
                     }
                 }
 
-                return;
-            }
-
-            if (!this.validateAgenticCommerceExportConfig()) {
-                this.isLoading = false;
-                // The create page has no tabs, so only the detail page names the tab holding the field.
-                const messageKey = this.salesChannel?.isNew?.()
-                    ? 'messageRequiredSettingsMissing'
-                    : 'messageRequiredSettingsMissingOnGeneralTab';
-                this.createNotificationError({
-                    message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
-                });
-                // On the create page this method is reached through `$super`, and core advances its pointer past
-                // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
-                // behind this check. Reset it the way core does when a chain completes.
-                if (this._virtualCallStack) {
-                    this._virtualCallStack.onSave = undefined;
-                }
                 return;
             }
 
@@ -496,26 +476,47 @@ export const swSalesChannelDetailOverride = {
             const ucpFormAtSave = form
                 && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm)) ? form : null;
 
-            let saveSuccessful;
             if (isLegacyOnSave) {
+                if (!this.validateAgenticCommerceExportConfig()) {
+                    this.isLoading = false;
+                    // The create page has no tabs, so only the detail page names the tab holding the field.
+                    const messageKey = this.salesChannel?.isNew?.()
+                        ? 'messageRequiredSettingsMissing'
+                        : 'messageRequiredSettingsMissingOnGeneralTab';
+                    this.createNotificationError({
+                        message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
+                    });
+                    // On the create page this method is reached through `$super`, and core advances its pointer past
+                    // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
+                    // behind this check. Reset it the way core does when a chain completes.
+                    if (this._virtualCallStack) {
+                        this._virtualCallStack.onSave = undefined;
+                    }
+                    return;
+                }
+
                 await this.$super('onSave');
-                saveSuccessful = this.isSaveSuccessful;
+                if (!this.isSaveSuccessful) {
+                    return;
+                }
+
+                const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
+                    channelIdAtSave,
+                    exportConfigAtSave,
+                    providerAtSave,
+                );
+                if (!configSaveSuccessful) {
+                    this.isSaveSuccessful = false;
+                    return;
+                }
             } else {
-                saveSuccessful = await this.saveSalesChannel();
-            }
-
-            if (!saveSuccessful) {
-                return;
-            }
-
-            const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
-                channelIdAtSave,
-                exportConfigAtSave,
-                providerAtSave,
-            );
-
-            if (!configSaveSuccessful) {
-                return;
+                // Core owns required-field validation, theme assignment, the channel save,
+                // export-config persistence and the background entity reload.
+                this.isSaveSuccessful = false;
+                await this.$super('onSave');
+                if (!this.isSaveSuccessful) {
+                    return;
+                }
             }
 
             const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
@@ -525,40 +526,10 @@ export const swSalesChannelDetailOverride = {
                 return;
             }
 
-            if (!isLegacyOnSave) {
-                this.loadEntityData();
-                return;
-            }
-
             // The legacy onSave reloaded the page before the UCP write; load what is stored now.
             if (ucpFormAtSave) {
                 this.loadUcpState(channelIdAtSave, typeIdAtSave);
             }
-        },
-
-        async saveAgenticFiles() {
-            const configurations = this.salesChannel?.salesChannelFiles;
-            if (!configurations?.length) {
-                return true;
-            }
-
-            try {
-                const allSaved = await saveAgenticFileConfigurations(
-                    configurations,
-                    this.repositoryFactory.create('sales_channel_file'),
-                    Context.api,
-                );
-                if (allSaved) {
-                    return true;
-                }
-            } catch {
-                // Repository failures and incomplete saves share the same notification.
-            }
-
-            this.createNotificationError({
-                message: this.$t('sw-sales-channel.detail.messageAPIError'),
-            });
-            return false;
         },
 
         /** @private */
@@ -722,6 +693,7 @@ export const swSalesChannelDetailOverride = {
 
                 return true;
             } catch {
+                this.isSaveSuccessful = false;
                 this.createNotificationError({
                     message: this.$t('sw-sales-channel.detail.messageSaveError', {
                         name: this.salesChannel?.name || this.placeholder(this.salesChannel ?? {}, 'name'),
