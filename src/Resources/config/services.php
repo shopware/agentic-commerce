@@ -238,8 +238,6 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../../Ucp/Test',
             __DIR__.'/../../Ucp/Command/SeedSmokeCatalogCommand.php',
             __DIR__.'/../../TestData',
-            // Registered below under core's service id only. A second service under its own
-            // class name would claim `product_export` in both definition registries (issue #276).
             __DIR__.'/../../Content/ProductExport/AgenticProductExportDefinition.php',
         ]);
 

@@ -13,8 +13,8 @@ use Shopware\Core\System\SalesChannel\Entity\SalesChannelDefinitionInstanceRegis
 use Shopware\Core\System\SalesChannel\SalesChannelDefinition;
 
 /**
- * Regression guard for issue #276: the plugin's product export definition was registered a second
- * time under its own class name, which took over `product_export` in both definition registries.
+ * The plugin's product export definition must not be registered a second time under its own class
+ * name. That service took over `product_export` in both definition registries.
  * The sales channel registry then had no definition under core's class name, so every association
  * to it (e.g. `sales_channel.productExports`) failed with FRAMEWORK__DEFINITION_NOT_FOUND.
  *
