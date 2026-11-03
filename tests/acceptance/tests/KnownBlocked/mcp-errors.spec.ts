@@ -1,7 +1,10 @@
+import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
+import { STORE_API_MCP_MISSING } from '@services/mcpSession';
 
 test.describe('MCP signature errors @UcpKnownBlocked @UcpBlockedByD35', () => {
-    test('the strict policy refuses an unsigned MCP request with a JSON-RPC error', async ({ TestDataService, UcpAgent }) => {
+    test('the strict policy refuses an unsigned MCP request with a JSON-RPC error', async ({ InstanceMeta, TestDataService, UcpAgent }) => {
+        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP arrived in 6.7.12.0');
         const strictChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(strictChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'], signaturePolicy: 'strict' });
         const requestId = crypto.randomUUID();
