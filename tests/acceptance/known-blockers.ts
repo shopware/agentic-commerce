@@ -230,4 +230,18 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/337',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D36',
+        description: 'The SDK answers checkout operations with an empty ucp.services, also when the embedded transport is enabled, where UCP 2026-08-25 requires an embedded service binding with config.delegate in the checkout response for a checkout that can be embedded.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/243',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D37',
+        description: 'A checkout carries no continue_url unless the merchant configures a template, and the embedded page sends ucp.embedded.ready and ucp.embedded.state, where UCP 2026-08-25 loads the embedded checkout from continue_url with ec_version and starts it with the JSON-RPC request ec.ready.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/281',
+        reviewBy: '2026-12-31',
+    },
 ];
