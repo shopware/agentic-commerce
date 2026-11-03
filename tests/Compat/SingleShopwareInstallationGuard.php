@@ -7,9 +7,9 @@ namespace Swag\AgenticCommerce\Tests\Compat;
 use Composer\Autoload\ClassLoader;
 
 /**
- * Stops a PHPStan or PHPUnit process in which two Composer trees map a Shopware namespace to
- * different directories. PHP would then build one class hierarchy out of two Shopware versions,
- * a parent from one tree and its child from the other.
+ * Stops a PHPStan or PHPUnit process that autoloads Shopware from more than one installation.
+ * PHP would then build one class hierarchy out of two Shopware versions, a parent from one tree
+ * and its child from the other.
  *
  * @see docs/local-development.md
  *
@@ -18,13 +18,13 @@ use Composer\Autoload\ClassLoader;
 final class SingleShopwareInstallationGuard
 {
     /**
-     * Storefront and administration require shopware/core "*", so Composer alone would accept them
-     * from another installation than core.
+     * One class at the root of each package. Storefront and administration require shopware/core
+     * "*", so Composer alone would accept them from another installation than core.
      */
-    private const NAMESPACES = [
-        'Shopware\\Core\\',
-        'Shopware\\Storefront\\',
-        'Shopware\\Administration\\',
+    private const PACKAGE_CLASSES = [
+        'Shopware\\Core\\Kernel',
+        'Shopware\\Storefront\\Storefront',
+        'Shopware\\Administration\\Administration',
     ];
 
     public static function assertRegisteredLoaders(): void
@@ -37,31 +37,23 @@ final class SingleShopwareInstallationGuard
      */
     public static function assertSingleInstallation(array $loaders): void
     {
-        $conflicts = [];
-        foreach (self::NAMESPACES as $namespace) {
-            $vendorDirsByDirectory = [];
-            foreach ($loaders as $vendorDir => $loader) {
-                foreach ($loader->getPrefixesPsr4()[$namespace] ?? [] as $directory) {
-                    $realDirectory = realpath($directory);
-                    if (false !== $realDirectory) {
-                        $vendorDirsByDirectory[$realDirectory][] = $vendorDir;
-                    }
+        $sourcesByInstallation = [];
+        foreach ($loaders as $vendorDir => $loader) {
+            foreach (self::PACKAGE_CLASSES as $class) {
+                // Composer's own lookup: exact and parent prefixes (a checkout's `Shopware\` => src/) and classmaps.
+                $file = $loader->findFile($class);
+                $realFile = \is_string($file) ? realpath($file) : false;
+                if (false !== $realFile) {
+                    // <installation>/<package>/<Class>.php: src/ of a checkout, vendor/shopware/ of an install.
+                    $sourcesByInstallation[\dirname($realFile, 2)][] = \sprintf('%s from %s (registered by %s)', $class, $realFile, $vendorDir);
                 }
-            }
-
-            if (\count($vendorDirsByDirectory) <= 1) {
-                continue;
-            }
-
-            foreach ($vendorDirsByDirectory as $directory => $vendorDirs) {
-                $conflicts[] = \sprintf('%s from %s (registered by %s)', $namespace, $directory, implode(', ', array_unique($vendorDirs)));
             }
         }
 
-        if ([] === $conflicts) {
+        if (\count($sourcesByInstallation) <= 1) {
             return;
         }
 
-        throw new \RuntimeException(\sprintf("Shopware is autoloaded from more than one installation:\n  - %s\nLoad a single tree: link the checkout into the plugin with bin/ci-link-shopware.sh, or run inside the Shopware project.", implode("\n  - ", $conflicts)));
+        throw new \RuntimeException(\sprintf("Shopware is autoloaded from more than one installation:\n  - %s\nLoad a single tree: link the checkout into the plugin with bin/ci-link-shopware.sh, or run inside the Shopware project.", implode("\n  - ", array_merge(...array_values($sourcesByInstallation)))));
     }
 }

@@ -17,13 +17,19 @@ final class SingleShopwareInstallationGuardTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir().'/single-shopware-installation-guard-'.bin2hex(random_bytes(4));
-        foreach (['Core', 'Storefront'] as $package) {
-            mkdir($this->root.'/checkout/src/'.$package, 0o777, true);
-            mkdir($this->root.'/other/src/'.$package, 0o777, true);
+        foreach (['/checkout/vendor/composer', '/packagist/vendor/composer', '/plugin/.tools/vendor/composer', '/plugin/.tools/vendor/shopware'] as $directory) {
+            mkdir($this->root.$directory, 0o777, true);
         }
-        mkdir($this->root.'/checkout/vendor/composer', 0o777, true);
-        mkdir($this->root.'/plugin/.tools/vendor/composer', 0o777, true);
-        mkdir($this->root.'/plugin/.tools/vendor/shopware', 0o777, true);
+        foreach ([
+            '/checkout/src/Core/Kernel.php',
+            '/checkout/src/Storefront/Storefront.php',
+            '/checkout/src/Administration/Administration.php',
+            '/other/src/Storefront/Storefront.php',
+            '/packagist/vendor/shopware/core/Kernel.php',
+        ] as $file) {
+            mkdir(\dirname($this->root.$file), 0o777, true);
+            touch($this->root.$file);
+        }
     }
 
     protected function tearDown(): void
@@ -31,25 +37,21 @@ final class SingleShopwareInstallationGuardTest extends TestCase
         (new Filesystem())->remove($this->root);
     }
 
-    public function testATreeLinkedToTheCheckoutCountsAsTheSameInstallation(): void
+    public function testThePluginTreeLinkedToTheCheckoutIsTheSameInstallation(): void
     {
         symlink($this->root.'/checkout/src/Core', $this->root.'/plugin/.tools/vendor/shopware/core');
         symlink($this->root.'/checkout/src/Storefront', $this->root.'/plugin/.tools/vendor/shopware/storefront');
-        static::assertIsString(realpath($this->root.'/checkout/vendor/composer/../../src/Core/'));
-        static::assertSame(
-            realpath($this->root.'/checkout/vendor/composer/../../src/Core/'),
-            realpath($this->root.'/plugin/.tools/vendor/composer/../shopware/core/'),
-        );
+        $checkout = $this->loader(['Shopware\\' => $this->root.'/checkout/vendor/composer/../../src/']);
+        $pluginTree = $this->loader([
+            'Shopware\\Core\\' => $this->root.'/plugin/.tools/vendor/composer/../shopware/core/',
+            'Shopware\\Storefront\\' => $this->root.'/plugin/.tools/vendor/composer/../shopware/storefront/',
+        ]);
+        static::assertIsString($checkout->findFile('Shopware\\Core\\Kernel'));
+        static::assertIsString($pluginTree->findFile('Shopware\\Core\\Kernel'));
 
         SingleShopwareInstallationGuard::assertSingleInstallation([
-            $this->root.'/checkout/vendor' => $this->loader([
-                'Shopware\\Core\\' => $this->root.'/checkout/vendor/composer/../../src/Core/',
-                'Shopware\\Storefront\\' => $this->root.'/checkout/vendor/composer/../../src/Storefront/',
-            ]),
-            $this->root.'/plugin/.tools/vendor' => $this->loader([
-                'Shopware\\Core\\' => $this->root.'/plugin/.tools/vendor/composer/../shopware/core/',
-                'Shopware\\Storefront\\' => $this->root.'/plugin/.tools/vendor/composer/../shopware/storefront/',
-            ]),
+            $this->root.'/checkout/vendor' => $checkout,
+            $this->root.'/plugin/.tools/vendor' => $pluginTree,
         ]);
     }
 
@@ -57,36 +59,33 @@ final class SingleShopwareInstallationGuardTest extends TestCase
     {
         SingleShopwareInstallationGuard::assertSingleInstallation([
             $this->root.'/tools/vendor' => $this->loader(['PHPStan\\' => $this->root.'/tools/vendor/phpstan/src/']),
-            $this->root.'/checkout/vendor' => $this->loader(['Shopware\\Core\\' => $this->root.'/checkout/src/Core/']),
+            $this->root.'/checkout/vendor' => $this->loader(['Shopware\\' => $this->root.'/checkout/src/']),
         ]);
 
         $this->addToAssertionCount(1);
     }
 
-    public function testTwoCoreInstallationsAreRejectedWithBothSourcesNamed(): void
+    public function testACheckoutNextToAnInstalledCoreIsRejected(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches(\sprintf(
-            '#Shopware\\\\Core\\\\ from %1$s/other/src/Core \(registered by .*/other/vendor\).*Shopware\\\\Core\\\\ from %1$s/checkout/src/Core \(registered by .*/checkout/vendor\)#s',
+            '#Shopware\\\\Core\\\\Kernel from %1$s/checkout/src/Core/Kernel\.php \(registered by .*/checkout/vendor\).*Shopware\\\\Core\\\\Kernel from %1$s/packagist/vendor/shopware/core/Kernel\.php \(registered by .*/packagist/vendor\)#s',
             preg_quote((string) realpath($this->root), '#'),
         ));
 
         SingleShopwareInstallationGuard::assertSingleInstallation([
-            $this->root.'/other/vendor' => $this->loader(['Shopware\\Core\\' => $this->root.'/other/src/Core/']),
-            $this->root.'/checkout/vendor' => $this->loader(['Shopware\\Core\\' => $this->root.'/checkout/src/Core/']),
+            $this->root.'/checkout/vendor' => $this->loader(['Shopware\\' => $this->root.'/checkout/src/']),
+            $this->root.'/packagist/vendor' => $this->loader(['Shopware\\Core\\' => $this->root.'/packagist/vendor/shopware/core/']),
         ]);
     }
 
-    public function testStorefrontFromAnotherInstallationThanCoreIsRejected(): void
+    public function testCoreAndStorefrontFromDifferentCheckoutsAreRejected(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('#Shopware\\\\Storefront\\\\ from .*/checkout/src/Storefront.*Shopware\\\\Storefront\\\\ from .*/other/src/Storefront#s');
+        $this->expectExceptionMessageMatches('#Shopware\\\\Core\\\\Kernel from .*/checkout/src/Core/Kernel\.php.*Shopware\\\\Storefront\\\\Storefront from .*/other/src/Storefront/Storefront\.php#s');
 
         SingleShopwareInstallationGuard::assertSingleInstallation([
-            $this->root.'/checkout/vendor' => $this->loader([
-                'Shopware\\Core\\' => $this->root.'/checkout/src/Core/',
-                'Shopware\\Storefront\\' => $this->root.'/checkout/src/Storefront/',
-            ]),
+            $this->root.'/checkout/vendor' => $this->loader(['Shopware\\Core\\' => $this->root.'/checkout/src/Core/']),
             $this->root.'/other/vendor' => $this->loader(['Shopware\\Storefront\\' => $this->root.'/other/src/Storefront/']),
         ]);
     }
