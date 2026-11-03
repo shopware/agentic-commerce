@@ -57,6 +57,15 @@ const ownHostResolverRules = {
     },
 };
 
+// The embedding hosts are served by page.route(), which Chromium treats as public, and a public page
+// may not frame the private APP_URL host. In production both the host and the shop are public.
+const browserEmbeddingPrivateShop = {
+    ...browser,
+    launchOptions: {
+        args: ['--disable-features=LocalNetworkAccessChecks'],
+    },
+};
+
 const browserWithOwnHosts = {
     ...browser,
     ...ownHostResolverRules,
@@ -118,7 +127,7 @@ export default defineConfig({
         },
         {
             name: 'UcpEmbedded',
-            use: { ...browser },
+            use: { ...browserEmbeddingPrivateShop },
             grep: /@UcpEmbedded/,
             dependencies: ['Signer', 'Setup'],
         },
