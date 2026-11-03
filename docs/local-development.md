@@ -35,3 +35,32 @@ Adjust the paths to match your local checkout layout.
 
 The plugin stores tooling dependencies in `.tools/vendor`, not `vendor`, so lane-local Composer
 installs do not collide with the Shopware runtime dependency graph.
+
+### One Shopware per process
+
+PHPStan and the unit suite load exactly one Composer tree. With a `.tools/vendor` present it is that
+tree, and PHPStan analyses the `shopware/core` installed there. A plain `composer install` resolves
+the newest release from Packagist. To analyse against a lane instead, resolve the lane's packages
+into `.tools` the way CI does:
+
+```bash
+bin/ci-link-shopware.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT"
+composer update
+SHOPWARE_PROJECT_DIR="$AGENTIC_COMMERCE_SHOPWARE_66_ROOT" composer ci
+```
+
+In this mode PHPStan uses the plugin's rules only, as CI does; core's own rules (`common.neon`) run
+only when you analyse from inside a Shopware project.
+
+The script rewrites `composer.json` with path repositories for `shopware/core`, `storefront` and
+`administration`; do not commit that change. Never load a lane's own `vendor/` next to `.tools`: PHP
+would combine classes from two Shopware versions, and a release that preloads classes in an autoload
+file turns that into a fatal. Three checks refuse such a run. `bin/run.php` stops when
+`SHOPWARE_CORE_DIR` or `SHOPWARE_PROJECT_DIR` names a different core than `.tools` holds, the
+generated PHPStan autoload file loads only one tree, and `tests/bootstrap.php` fails the run when
+two registered autoloaders map `Shopware\Core\`, `Shopware\Storefront\` or
+`Shopware\Administration\` to different directories.
+
+`composer bc-check` runs `roave/backward-compatibility-check` from its own tree, as core does, so
+its constraints never pick the versions the plugin is analysed against. Install it once with
+`composer install -d vendor-bin/roave-backward-compatibility-check`.

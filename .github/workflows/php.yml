@@ -63,6 +63,12 @@ jobs:
           - lane: '6.7.12'
             php-version: '8.2'
             shopware-ref: '6.7.12.x'
+          # The newest 6.7 patch branch: the release most shops run, which trunk is already past.
+          # Moving variable like SHOPWARE_6714_REF; point it at the next X.Y.Z.x branch when one is
+          # cut.
+          - lane: '6.7-latest'
+            php-version: '8.2'
+            shopware-ref: ${{ vars.SHOPWARE_67_LATEST_REF || '6.7.16.x' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -76,8 +82,10 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.shopware-ref || matrix.php-version == '8.1' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
           path: shopware
-      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
-        working-directory: shopware
+      # The checkout is the only Shopware in the run: never `composer install` it next to the
+      # plugin tree. See bin/ci-link-shopware.sh.
+      - run: bash bin/ci-link-shopware.sh ../shopware
+        working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules
@@ -86,36 +94,6 @@ jobs:
         # The package requires PHP 8.2, while this plugin remains compatible with PHP 8.1.
         run: composer require --dev shopwarelabs/phpstan-shopware:0.2.4 --no-interaction --no-plugins --ignore-platform-req=php
         working-directory: agentic-commerce
-      - name: Capture plugin Composer advisory report
-        if: matrix.lane == 'php-8.2'
-        working-directory: agentic-commerce
-        run: |
-          audit_file="${GITHUB_WORKSPACE}/composer-audit-plugin.json"
-          audit_status=0
-
-          if composer audit --no-dev --format=json > "${audit_file}"; then
-            audit_status=0
-          else
-            audit_status=$?
-          fi
-
-          if [[ ! -s "${audit_file}" ]]; then
-            if [[ "${audit_status}" -eq 0 ]]; then
-              printf '{"advisories":{},"abandoned":[]}\n' > "${audit_file}"
-            else
-              printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" > "${audit_file}"
-            fi
-          fi
-
-          echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
-      - name: Upload plugin Composer advisory report
-        if: always() && matrix.lane == 'php-8.2'
-        uses: actions/upload-artifact@v6
-        with:
-          name: composer-audit-plugin
-          path: composer-audit-plugin.json
-          if-no-files-found: ignore
-          retention-days: 7
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh
       - run: composer ci
         working-directory: agentic-commerce
@@ -142,8 +120,8 @@ jobs:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
-        working-directory: shopware
+      - run: bash bin/ci-link-shopware.sh ../shopware
+        working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules
@@ -186,8 +164,8 @@ jobs:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
           path: shopware
-      - run: composer install --no-dev --no-scripts --no-interaction --prefer-dist
-        working-directory: shopware
+      - run: bash bin/ci-link-shopware.sh ../shopware
+        working-directory: agentic-commerce
       - name: Configure private SDK path repositories
         run: |
           composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
@@ -199,6 +177,48 @@ jobs:
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+
+  # The plugin's dependencies resolved from Packagist alone, the way a merchant's `composer require`
+  # resolves them: the released shopware/core plus the pinned SDK. Blocking, because every other PHP
+  # job resolves Shopware from a checkout, so none of them would notice the published packages no
+  # longer installing together. Also the source of the plugin's Composer advisory report.
+  plugin-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - name: Capture plugin Composer advisory report
+        run: |
+          audit_file="${GITHUB_WORKSPACE}/composer-audit-plugin.json"
+          audit_status=0
+
+          if composer audit --no-dev --format=json > "${audit_file}"; then
+            audit_status=0
+          else
+            audit_status=$?
+          fi
+
+          if [[ ! -s "${audit_file}" ]]; then
+            if [[ "${audit_status}" -eq 0 ]]; then
+              printf '{"advisories":{},"abandoned":[]}\n' > "${audit_file}"
+            else
+              printf '{"error":"composer audit produced no JSON","exitCode":%d}\n' "${audit_status}" > "${audit_file}"
+            fi
+          fi
+
+          echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
+      - name: Upload plugin Composer advisory report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: composer-audit-plugin
+          path: composer-audit-plugin.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Advisory: reports public API breaks between the base and this change without blocking it. On a
   # pull request HEAD is the merge commit, so HEAD^ is the base branch.
@@ -213,7 +233,8 @@ jobs:
         with:
           php-version: '8.2'
           coverage: none
-      - run: composer install --no-interaction --prefer-dist
+      # Its own tree, as in core, so its constraints stay out of the plugin's.
+      - run: composer install -d vendor-bin/roave-backward-compatibility-check --no-interaction --prefer-dist
       - run: composer bc-check
 
   shopware-matrix:
@@ -282,7 +303,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     needs:
-      - php-quality
+      - plugin-dependencies
       - shopware-matrix
     # Runs after failed lanes too, to report whatever audits they uploaded.
     if: always()
@@ -333,6 +354,7 @@ jobs:
       - php-quality
       - phpstan-trunk
       - sdk-main-compatibility
+      - plugin-dependencies
       - bc-check
       - shopware-matrix
       - composer-security-report
