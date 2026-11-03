@@ -5,7 +5,7 @@ import { UcpAgentKeyring } from '@services/UcpAgentKeyring';
 import { readUcpProtocolVersion } from '@services/pluginSource';
 import { UcpSigner } from '@services/UcpSigner';
 import type { SignatureKnobs, SignedRequest } from '@services/UcpSigner';
-import type { TestAgent, UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
+import type { PublishOptions, TestAgent, UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
 
 const METHODS_CARRYING_IDEMPOTENCY_KEY = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -140,6 +140,10 @@ export interface UcpAgentTypes {
     UcpAgentB: UcpAgent
 }
 
+export interface UcpAgentTestTypes {
+    UcpAgentWithProfile: (options: PublishOptions) => Promise<UcpAgent>
+}
+
 async function agentFor(name: string, identity: TestAgent, keyring: UcpAgentKeyring, signer: UcpSigner, use: (agent: UcpAgent) => Promise<void>): Promise<void> {
     await keyring.addPkcs8Pem(identity.kid, identity.privateKeyPem);
     const api = await request.newContext({ ignoreHTTPSErrors: true });
@@ -152,7 +156,23 @@ async function agentFor(name: string, identity: TestAgent, keyring: UcpAgentKeyr
     }
 }
 
-export const test = base.extend<NonNullable<unknown>, UcpAgentTypes & UcpAgentProfileHostTypes>({
+export const test = base.extend<UcpAgentTestTypes, UcpAgentTypes & UcpAgentProfileHostTypes>({
+    UcpAgentWithProfile: async ({ UcpAgentProfileHost, UcpAgentKeyring: keyring, UcpSigner: signer }, use) => {
+        const api = await request.newContext({ ignoreHTTPSErrors: true });
+
+        try {
+            await use(async (options) => {
+                const identity = await UcpAgentProfileHost.publish(options);
+                await keyring.addPkcs8Pem(identity.kid, identity.privateKeyPem);
+
+                return new UcpAgent('Agent with its own profile', identity, api, signer, process.env.APP_URL ?? '');
+            });
+        }
+        finally {
+            await api.dispose();
+        }
+    },
+
     UcpAgentKeyring: [
         async ({}, use) => {
             await use(new UcpAgentKeyring());

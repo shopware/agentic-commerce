@@ -217,6 +217,9 @@ a sales channel. `rest.send(method, path, options)` signs a REST call, and `a2a.
 returns the signed request without sending it. Every `POST`, `PUT`, `PATCH` and `DELETE` gets a
 fresh `Idempotency-Key` unless the call passes one, or `false` for none.
 
+**`UcpAgentWithProfile`** (test scope) creates a further agent whose profile carries what the test
+passes, such as the `webhook_url` of its order capability.
+
 The lane has to run with `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1` for the
 shop to fetch a test agent's profile from `localhost` over plain http.
 
@@ -267,6 +270,13 @@ Channels on a host of their own need the web server to answer any `Host` (a catc
 `TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The discovery journeys of `UcpAdmin`
 and `UcpProtocol` use such channels, because a domain with a path serves no UCP profile.
 `fetchDiscoveryDocument()` fails with that message when the lane does not serve them.
+
+The order webhook specs read what the shop sent from the plugin's capture route. The route answers
+only outside `prod` and with `SWAG_AGENTIC_COMMERCE_TEST_CAPTURE=1` in the shop's environment. It
+keeps only the last webhook, whichever channel sent it. `npm run test:all` runs the webhook specs of
+`UcpSerial` and `UcpKnownBlocked` at the same time, so one of them can read the other's webhook and
+fail. `npm test` and CI leave `UcpKnownBlocked` out; run it on its own with
+`npm run test:known-blocked`.
 
 `UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
 machine where `docker` is only an alias for `podman`, the default prefix is not found and the
