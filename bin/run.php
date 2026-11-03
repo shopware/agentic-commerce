@@ -191,14 +191,19 @@ function assertLaneMatchesToolsCore(string $toolsCoreDir): void
                 continue;
             }
 
+            // bin/ci-link-shopware.sh takes a source checkout's root, never a core directory.
+            $recovery = str_ends_with($laneCoreDir, '/src/Core')
+                ? \sprintf('Link the lane first: bin/ci-link-shopware.sh %s && composer update', \dirname($laneCoreDir, 2))
+                : 'An installed shopware/core cannot be linked into .tools; unset the variable or run inside that project.';
+
             fwrite(\STDERR, \sprintf(
                 "%s points at shopware/core %s, but the plugin's .tools/vendor holds %s.\n"
                 ."Analysing one against the other loads two Shopware versions into one process.\n"
-                ."Link the lane first: bin/ci-link-shopware.sh %s && composer update\n",
+                ."%s\n",
                 $variable,
                 $laneCoreDir,
                 $toolsCoreDir,
-                $dir,
+                $recovery,
             ));
             exit(1);
         }
