@@ -1,0 +1,9 @@
+{
+    "description": "roave/backward-compatibility-check in its own tree, so its constraints never pick the versions the plugin is analysed and tested against. Install with: composer install -d vendor-bin/roave-backward-compatibility-check",
+    "require": {
+        "roave/backward-compatibility-check": "^8.6"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

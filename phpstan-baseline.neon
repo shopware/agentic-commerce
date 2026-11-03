@@ -109,12 +109,6 @@ parameters:
 			path: tests/Unit/UcpExtensionCapabilityTest.php
 
 		-
-			message: '#^Class like namespace "Mcp\\Capability\\Attribute" does not follow PSR\-4 configuration in composer\.json$#'
-			identifier: check.classnamespacepsr4
-			count: 1
-			path: tests/phpstan/McpTool.php
-
-		-
 			message: '#^Access to constant on deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
 			identifier: classConstant.deprecatedClass
 			count: 1
