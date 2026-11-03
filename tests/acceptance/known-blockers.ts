@@ -174,4 +174,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/239',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D35',
+        description: 'UcpMcpProxyController answers the errors it raises itself, a refused signature included, with the REST error body, where UCP 2026-08-25 returns protocol errors on MCP as a JSON-RPC error with code -32000.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/339',
+        reviewBy: '2026-12-31',
+    },
 ];
