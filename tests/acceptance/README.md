@@ -64,20 +64,22 @@ alone repeats nothing.
 Projects are routed by tag, the way core does it. A spec opts into a project by carrying its tag in
 the title.
 
-| Project           | Tag                | Notes                                                                                                                            |
-| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `Signer`          | `@Signer`          | RFC 9421 signer proofs. No browser. Every UCP project depends on it.                                                             |
-| `Setup`           | `@Setup`           | The known-blockers guard, the bootstrap check and the fixture proofs. `@UcpConsole` marks the one spec that needs `bin/console`. |
-| `UcpProtocol`     | `@UcpProtocol`     | UCP transport journeys.                                                                                                          |
-| `UcpContent`      | `@UcpContent`      | Product feed, tracking, discovery files.                                                                                         |
-| `UcpEmbedded`     | `@UcpEmbedded`     | Embedded transport.                                                                                                              |
-| `UcpAdmin`        | `@UcpAdmin`        | Administration UI.                                                                                                               |
-| `UcpAcl`          | `@UcpAcl`          | ACL matrix.                                                                                                                      |
-| `UcpSerial`       | `@UcpSerial`       | Runs with `workers: 1` for specs that cannot be parallelised.                                                                    |
-| `UcpKnownBlocked` | `@UcpKnownBlocked` | **Non-gating.** See below.                                                                                                       |
+| Project           | Tag                | Notes                                                                 |
+| ----------------- | ------------------ | --------------------------------------------------------------------- |
+| `Signer`          | `@Signer`          | RFC 9421 signer proofs. No browser. Every UCP project depends on it.  |
+| `Setup`           | `@Setup`           | The known-blockers guard, the bootstrap check and the fixture proofs. |
+| `UcpProtocol`     | `@UcpProtocol`     | UCP transport journeys.                                               |
+| `UcpContent`      | `@UcpContent`      | Product feed, tracking, discovery files.                              |
+| `UcpEmbedded`     | `@UcpEmbedded`     | Embedded transport.                                                   |
+| `UcpAdmin`        | `@UcpAdmin`        | Administration UI.                                                    |
+| `UcpAcl`          | `@UcpAcl`          | ACL matrix.                                                           |
+| `UcpSerial`       | `@UcpSerial`       | Runs with `workers: 1` for specs that cannot be parallelised.         |
+| `UcpKnownBlocked` | `@UcpKnownBlocked` | **Non-gating.** See below.                                            |
 
 Most projects match no specs yet; their issues add them. A project with no matching spec reports
 zero tests and passes.
+
+`@UcpConsole` marks the specs that need `bin/console`, in `Setup` and `UcpSerial`.
 
 ### `UcpKnownBlocked`
 
@@ -206,7 +208,7 @@ worker's `AdminPage` user is shared with every test of the worker.
 the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
 allow-list. Before the first command it probes the real prefix once. When that probe fails, the key
 cleanup is skipped with a warning naming the sales channels whose keys stay behind, and the
-`@UcpConsole` spec fails.
+`@UcpConsole` specs fail.
 
 **`UcpAgent`** and **`UcpAgentB`** (worker scope) are two external shopping agents, each with its
 own key pair and published profile. They do not extend the ATS `Actor`, which is bound to a browser
