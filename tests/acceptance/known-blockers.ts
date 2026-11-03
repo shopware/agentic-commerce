@@ -209,4 +209,25 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/280',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D32',
+        description: 'The SDK serves the REST shopping routes also when rest is not among the enabled transports, so a channel with only a2a still creates carts over REST. Only the A2A and embedded controllers check their transport.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/242',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D33',
+        description: 'With embedded origins configured, EmbeddedResponseListener answers an OPTIONS preflight to the embedded routes with 204 also when the embedded transport is switched off, where the GET to the same route answers 404.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/336',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D34',
+        description: 'A sales channel with MCP switched off answers /ucp/mcp with 403 "UCP MCP is not available for this host", where /ucp/a2a answers 404 while A2A is switched off.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/337',
+        reviewBy: '2026-12-31',
+    },
 ];
