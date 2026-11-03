@@ -133,6 +133,14 @@ function renderPhpstanConfig(string $pluginDir): string
 
 function locateShopwareCore(string $pluginDir): string
 {
+    // PHPStan always loads the plugin's own tree when it exists, so its core is the one analysed.
+    $toolsCoreDir = realpath($pluginDir.'/.tools/vendor/shopware/core');
+    if (false !== $toolsCoreDir) {
+        assertLaneMatchesToolsCore($toolsCoreDir);
+
+        return $toolsCoreDir;
+    }
+
     $envCoreDir = getenv('SHOPWARE_CORE_DIR');
     if (\is_string($envCoreDir) && '' !== $envCoreDir && is_dir($envCoreDir.'/DevOps')) {
         return (string) realpath($envCoreDir);
@@ -149,7 +157,6 @@ function locateShopwareCore(string $pluginDir): string
         $projectsDir.'/shopware-trunk/src/Core',
         $projectsDir.'/shopware-6-6-branch/src/Core',
         $projectsDir.'/shopware-6-5-branch/src/Core',
-        $pluginDir.'/vendor/shopware/core',
         \dirname($pluginDir, 3).'/src/Core',
         \dirname($pluginDir, 4).'/src/Core',
         \dirname($pluginDir, 3).'/vendor/shopware/core',
@@ -163,6 +170,39 @@ function locateShopwareCore(string $pluginDir): string
 
     fwrite(\STDERR, "Unable to locate shopware/core for PHPStan. Set SHOPWARE_CORE_DIR or SHOPWARE_PROJECT_DIR.\n");
     exit(1);
+}
+
+function assertLaneMatchesToolsCore(string $toolsCoreDir): void
+{
+    $lanes = [
+        'SHOPWARE_CORE_DIR' => [''],
+        'SHOPWARE_PROJECT_DIR' => ['/src/Core', '/vendor/shopware/core'],
+    ];
+
+    foreach ($lanes as $variable => $suffixes) {
+        $dir = getenv($variable);
+        if (!\is_string($dir) || '' === $dir) {
+            continue;
+        }
+
+        foreach ($suffixes as $suffix) {
+            $laneCoreDir = realpath($dir.$suffix);
+            if (false === $laneCoreDir || !is_file($laneCoreDir.'/Kernel.php') || $laneCoreDir === $toolsCoreDir) {
+                continue;
+            }
+
+            fwrite(\STDERR, \sprintf(
+                "%s points at shopware/core %s, but the plugin's .tools/vendor holds %s.\n"
+                ."Analysing one against the other loads two Shopware versions into one process.\n"
+                ."Link the lane first: bin/ci-link-shopware.sh %s && composer update\n",
+                $variable,
+                $laneCoreDir,
+                $toolsCoreDir,
+                $dir,
+            ));
+            exit(1);
+        }
+    }
 }
 
 function renderShopwarePhpstanIncludes(string $coreDir): string
@@ -237,27 +277,18 @@ function supportsConfigurableCoversRule(string $coreDir): bool
 function renderPhpstanAutoload(string $pluginDir, string $coreDir, string $tmpDir): string
 {
     $autoloadPath = $tmpDir.'/autoload.php';
-    $shopwareProjectDir = \dirname($coreDir, 2);
-    $content = <<<'PHP'
-        <?php
 
-        $autoloadCandidates = [
-            '__PLUGIN_DIR__/.tools/vendor/autoload.php',
-            '__PLUGIN_DIR__/vendor/autoload.php',
-            '__SHOPWARE_PROJECT_DIR__/vendor/autoload.php',
-        ];
+    // Exactly one tree: the plugin's own when it exists, the Shopware project's otherwise.
+    $treeAutoload = $pluginDir.'/.tools/vendor/autoload.php';
+    if (!is_file($treeAutoload)) {
+        $treeAutoload = \dirname($coreDir, 2).'/vendor/autoload.php';
+    }
 
-        foreach ($autoloadCandidates as $candidate) {
-            if (is_file($candidate)) {
-                require_once $candidate;
-            }
-        }
-        PHP;
-
-    $rendered = strtr($content, [
-        '__PLUGIN_DIR__' => $pluginDir,
-        '__SHOPWARE_PROJECT_DIR__' => $shopwareProjectDir,
-    ]);
+    $rendered = \sprintf(
+        "<?php\n\nif (is_file(%s)) {\n    require_once %s;\n}\n",
+        var_export($treeAutoload, true),
+        var_export($treeAutoload, true),
+    );
 
     file_put_contents($autoloadPath, $rendered);
 

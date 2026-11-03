@@ -55,3 +55,9 @@ require_once __DIR__.'/phpstan/McpTool.php';
 if ('1' === getenv('SWAG_AGENTIC_COMMERCE_SHOPWARE_BOOTSTRAP')) {
     require __DIR__.'/TestBootstrap.php';
 }
+
+// Also PHPStan's bootstrap file, so this sees every tree the run loaded, its --autoload-file included.
+if (class_exists(ClassLoader::class, false)) {
+    require_once __DIR__.'/Compat/SingleShopwareInstallationGuard.php';
+    Swag\AgenticCommerce\Tests\Compat\SingleShopwareInstallationGuard::assertRegisteredLoaders();
+}
