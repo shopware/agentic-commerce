@@ -3,11 +3,6 @@
 # Composer tree (.tools/vendor) from one Shopware checkout, so static analysis, rector and the
 # unit suite run against that checkout and nothing else.
 #
-# The alternative -- the plugin tree resolving shopware/core from Packagist while the checkout's
-# own vendor/ is loaded next to it -- puts two Shopware versions in one PHP process. PHPStan
-# always loads the plugin tree first, and any class one of its autoload files touches is then
-# fixed to that version; 6.7.16.0's class alias registry made every 6.6 lane fatal that way.
-#
 # The packages are path repositories labelled with the checkout's own
 # Kernel::SHOPWARE_FALLBACK_VERSION, the version a Shopware source checkout reports for itself and
 # the COMPOSER_ROOT_VERSION core's own CI uses on every branch, patch branches included.

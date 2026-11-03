@@ -49,6 +49,9 @@ composer update
 SHOPWARE_PROJECT_DIR="$AGENTIC_COMMERCE_SHOPWARE_66_ROOT" composer ci
 ```
 
+In this mode PHPStan uses the plugin's rules only, as CI does; core's own rules (`common.neon`) run
+only when you analyse from inside a Shopware project.
+
 The script rewrites `composer.json` with path repositories for `shopware/core`, `storefront` and
 `administration`; do not commit that change. Never load a lane's own `vendor/` next to `.tools`: PHP
 would combine classes from two Shopware versions, and a release that preloads classes in an autoload
