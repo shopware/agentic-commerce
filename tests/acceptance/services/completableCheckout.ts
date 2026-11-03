@@ -20,7 +20,7 @@ export async function createCompletableCheckout(
     expect(readyCheckout.ok(), await readyCheckout.text()).toBeTruthy();
     const { id: checkoutId } = (await readyCheckout.json()) as { id: string };
 
-    return { agent, buyer, fulfillment, lineItems, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
+    return { agent, buyer, fulfillment, lineItems, salesChannelId: ucpChannel.salesChannel.id, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
 }
 
 /**

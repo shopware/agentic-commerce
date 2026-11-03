@@ -1,9 +1,12 @@
+import type { webcrypto } from 'node:crypto';
 import { expect } from '@playwright/test';
 import { TestDataService } from '@shopware-ag/acceptance-test-suite';
 import type { DataServiceOptions, FixtureTypes, SalesChannel, User } from '@shopware-ag/acceptance-test-suite';
 import type { UcpConsole } from './UcpConsole';
 import { readFeedTemplates } from './pluginSource';
 import type { FeedTemplate } from './pluginSource';
+import { WEBHOOK_CAPTURE_PATH } from './webhookCapture';
+import type { WebhookCapture } from './webhookCapture';
 
 /** Core's headless (API) sales channel type, `Defaults::SALES_CHANNEL_TYPE_API`. */
 export const HEADLESS_SALES_CHANNEL_TYPE_ID = 'f183ee5650cf4bdb8a774337575067a6';
@@ -133,6 +136,8 @@ interface ApiErrorBody {
     errors?: { code?: string, detail?: string }[]
 }
 
+export type ProfileSigningKey = webcrypto.JsonWebKey & { kid: string };
+
 /** The `/.well-known/ucp` document, as far as the specs read it. */
 export interface UcpProfileDocument {
     ucp: {
@@ -149,6 +154,7 @@ export interface UcpDataServiceOptions extends DataServiceOptions {
     baseConfig: FixtureTypes['SalesChannelBaseConfig']
     /** Host the shop fetches agent profiles from, allowlisted on every channel this service activates. */
     agentHost: string
+    webContainerBaseUrl: string
     console?: UcpConsole
 }
 
@@ -159,6 +165,7 @@ export class UcpTestDataService extends TestDataService {
     private readonly appUrl: string;
     private readonly baseConfig: FixtureTypes['SalesChannelBaseConfig'];
     private readonly agentHost: string;
+    private readonly webContainerBaseUrl: string;
     private readonly console?: UcpConsole;
 
     private readonly createdSalesChannelIds: string[] = [];
@@ -172,6 +179,7 @@ export class UcpTestDataService extends TestDataService {
         this.appUrl = options.appUrl;
         this.baseConfig = options.baseConfig;
         this.agentHost = options.agentHost;
+        this.webContainerBaseUrl = options.webContainerBaseUrl.replace(/\/+$/, '') + '/';
         this.console = options.console;
     }
 
@@ -271,6 +279,23 @@ export class UcpTestDataService extends TestDataService {
         expect(response.ok(), await response.text()).toBeTruthy();
 
         return ((await response.json()) as { accessKey: string }).accessKey;
+    }
+
+    async createWebhookCaptureChannel(): Promise<WebhookCapture> {
+        const { uuid } = this.IdProvider.getIdPair();
+        const webContainerCaptureBaseUrl = `${this.webContainerBaseUrl}test-${uuid}/`;
+        const appCaptureBaseUrl = `${this.appUrl}test-${uuid}/`;
+        const captureDomains = [webContainerCaptureBaseUrl, appCaptureBaseUrl].map(url => ({
+            id: this.IdProvider.getIdPair().uuid,
+            url,
+            languageId: this.baseConfig.currentLanguageId,
+            snippetSetId: this.baseConfig.currentSnippetSetId,
+            currencyId: this.baseConfig.currentCurrencyId,
+        }));
+
+        await this.createUcpSalesChannel(this.baseConfig.storefrontTypeId, { domains: captureDomains } as Partial<SalesChannel>, null);
+
+        return { targetUrl: `${webContainerCaptureBaseUrl}${WEBHOOK_CAPTURE_PATH}`, readUrl: `${appCaptureBaseUrl}${WEBHOOK_CAPTURE_PATH}` };
     }
 
     /** Registers a channel a spec created through the Administration, so the cleanup deletes it. */
@@ -464,10 +489,18 @@ export class UcpTestDataService extends TestDataService {
     }
 
     async getProfilePreview(salesChannelId: string): Promise<UcpProfileDocument['ucp']> {
-        const response = await this.AdminApiClient.get(`./_admin/ucp/sales-channels/${salesChannelId}/profile-preview`);
-        expect(response.ok(), await response.text()).toBeTruthy();
+        return (await this.readSavedProfile(salesChannelId)).ucp;
+    }
 
-        return ((await response.json()) as { data: { ucp: UcpProfileDocument['ucp'] } }).data.ucp;
+    async getProfileSigningKeys(salesChannelId: string): Promise<ProfileSigningKey[]> {
+        return (await this.readSavedProfile(salesChannelId)).keys;
+    }
+
+    private async readSavedProfile(salesChannelId: string): Promise<Pick<UcpProfileDocument, 'ucp'> & { keys: ProfileSigningKey[] }> {
+        const savedProfileResponse = await this.AdminApiClient.get(`./_admin/ucp/sales-channels/${salesChannelId}/profile-preview`);
+        expect(savedProfileResponse.ok(), await savedProfileResponse.text()).toBeTruthy();
+
+        return ((await savedProfileResponse.json()) as { data: Pick<UcpProfileDocument, 'ucp'> & { keys: ProfileSigningKey[] } }).data;
     }
 
     /**

@@ -77,7 +77,7 @@ export interface UcpAgentProfileHostTypes {
     UcpAgentProfileHost: UcpAgentProfileHost
 }
 
-function agentProfileBaseUrl(): URL {
+export function agentProfileBaseUrl(): URL {
     return new URL((process.env.UCP_AGENT_PROFILE_BASE_URL ?? DEFAULT_AGENT_PROFILE_BASE_URL).replace(/\/+$/, '') + '/');
 }
 

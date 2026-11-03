@@ -144,7 +144,7 @@ channel.
 `listUcpSalesChannels()`, `createProductFeed()` and `saveFeedSettings()`. `createProductFeed()`
 builds a feed channel with a product export over the given products for the worker channel, from a
 template `readFeedTemplates()` reads out of the shipped Administration modules, with `interval: 0`
-so every request renders the current products. For the Administration journeys it also has:
+so every request renders the current products. It also has:
 
 - `createStorefrontSalesChannelOnOwnHost()`: a channel whose only domain is the root of
   `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp`
@@ -157,6 +157,10 @@ so every request renders the current products. For the Administration journeys i
   from the plugin's shipped template, so the Administration finds nothing to align on load.
 - `attributeOrderToFeedChannel()` and `attributeCustomerToFeedChannel()`: the tracking rows the
   storefront's `referringSalesChannel` tracking would write.
+- `createWebhookCaptureChannel()`: a channel that serves the webhook capture route, with the URL the
+  shop sends webhooks to and the URL a spec reads them from.
+- `getProfileSigningKeys()`: the signing keys of a channel's profile, read through the profile
+  preview.
 - `getSalesChannelReadback()`, `getChannelSystemConfig()`, `setChannelSystemConfig()`,
   `createProductStream()`, `markUcpActivated()` for a channel activated through the UI, and
   `adoptSalesChannel()` for one created through the UI, so the cleanup still covers them.
