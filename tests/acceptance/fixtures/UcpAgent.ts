@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { expect, request, test as base } from '@playwright/test';
 import type { APIRequestContext, APIResponse } from '@playwright/test';
 import { UcpAgentKeyring } from '@services/UcpAgentKeyring';
+import { readUcpProtocolVersion } from '@services/pluginSource';
 import { UcpSigner } from '@services/UcpSigner';
 import type { SignatureKnobs, SignedRequest } from '@services/UcpSigner';
 import type { TestAgent, UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
@@ -68,7 +69,7 @@ export class UcpAgent {
     }
 
     get a2a(): JsonRpcClient {
-        return this.jsonRpc('/ucp/a2a');
+        return this.jsonRpc('/ucp/a2a', { 'X-A2A-Extensions': `https://ucp.dev/${readUcpProtocolVersion()}/specification/reference` });
     }
 
     get mcp(): JsonRpcClient {
@@ -87,10 +88,11 @@ export class UcpAgent {
         return this.signer.sign(this.requestParts(method, path, options), this.identity.kid, options.knobs ?? {});
     }
 
-    private jsonRpc(path: string): JsonRpcClient {
+    private jsonRpc(path: string, bindingHeaders: Record<string, string> = {}): JsonRpcClient {
         return {
             call: (method, params = {}, options = {}) => this.send('POST', path, {
                 ...options,
+                headers: { ...bindingHeaders, ...options.headers },
                 body: { jsonrpc: '2.0', id: crypto.randomUUID(), method, params },
             }),
         };
