@@ -34,9 +34,12 @@ use Ucp\Sdk\Internal\Service\DefaultHttpRequestContextFactory;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Model\RequestContext;
+use Ucp\Sdk\Repository\NegotiationSessionRepositoryInterface;
 use Ucp\Sdk\Service\AgentProfileFetcherInterface;
 use Ucp\Sdk\Service\CapabilityNegotiatorInterface;
+use Ucp\Sdk\Service\EventDispatcherInterface;
 use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
+use Ucp\Sdk\Service\ProfileBuilderInterface;
 use Ucp\Sdk\Service\RequestSignatureServiceInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\UcpSdkConfiguration;
@@ -224,6 +227,11 @@ final class UcpMcpProxyControllerTest extends TestCase
             $agentProfileFetcher,
             $requestSignatureService,
             $capabilityNegotiator,
+            // Named: SDK main reorders these four and makes them required; 0.0.7 has them optional.
+            negotiationSessionRepository: $this->createMock(NegotiationSessionRepositoryInterface::class),
+            eventDispatcher: $this->createMock(EventDispatcherInterface::class),
+            profileBuilder: $this->createMock(ProfileBuilderInterface::class),
+            merchantAuthorizationService: null,
         );
 
         $controller = $this->controller(
