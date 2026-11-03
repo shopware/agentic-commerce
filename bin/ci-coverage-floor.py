@@ -4,6 +4,7 @@
 Usage:
   bin/ci-coverage-floor.py check <floor.json> <suite>=<report.xml>... [--measurement <out.json>]
   bin/ci-coverage-floor.py raise <floor.json> <measurement.json>...
+  bin/ci-coverage-floor.py missing <php|admin> <report.xml> <phpunit.xml> < changed-paths
 
 check reads one report per suite named in the floor file (Clover for PHPUnit, Cobertura for Jest),
 computes covered lines / executable lines over the whole report, and fails when a suite measures
@@ -14,6 +15,10 @@ has none yet: it fails and prints the measured figure, which is committed as its
 raise lifts each floor to the lowest of the given measurements when every one of them is above it.
 A floor never moves down. The workflow passes the measurements of the latest consecutive runs on
 main, see .github/workflows/coverage-floor.yml.
+
+missing reads NUL-separated changed paths from stdin and prints the source files of a suite that its
+report does not list, for bin/ci-patch-coverage.sh. PHP files that <source> in phpunit.xml excludes
+are not source files, since PHPUnit leaves them out of the report.
 
 Reports are untrusted input: a report that is missing, malformed, declares entities, or has no
 executable lines fails the check instead of counting as covered.
@@ -29,6 +34,7 @@ from pathlib import Path
 CENT = Decimal('0.01')
 HUNDRED = Decimal(100)
 FORMATS = ('clover', 'cobertura')
+ADMIN_SOURCE = 'src/Resources/app/administration/src/'
 
 
 class CoverageError(Exception):
@@ -208,6 +214,38 @@ def raise_floors(config: dict, measurements: list[dict]) -> list[str]:
     return raised
 
 
+def source_excludes(phpunit_config: str) -> tuple[list[str], list[str]]:
+    """Returns the directories and files that <source><exclude> leaves out of PHP coverage."""
+    exclude = _parse(phpunit_config).find('source/exclude')
+    if exclude is None:
+        return [], []
+    directories = [element.text.strip().rstrip('/') + '/' for element in exclude.findall('directory') if element.text]
+    files = [element.text.strip() for element in exclude.findall('file') if element.text]
+    return directories, files
+
+
+def missing_from_report(suite: str, changed: list[str], report: str, phpunit_config: str) -> list[str]:
+    """Returns the changed source files of a suite that its report does not list."""
+    root = _parse(report)
+    if suite == 'php':
+        directories, files = source_excludes(phpunit_config)
+        in_scope = [
+            path for path in changed
+            if path.startswith('src/') and path.endswith('.php')
+            and path not in files and not path.startswith(tuple(directories))
+        ]
+        listed = [element.get('name', '') for element in root.iter('file')]
+        return [path for path in in_scope if not any(name.endswith('/' + path) for name in listed)]
+    if suite == 'admin':
+        in_scope = [
+            path for path in changed
+            if path.startswith(ADMIN_SOURCE) and path.endswith('.js') and not path.endswith('.spec.js')
+        ]
+        listed = {element.get('filename') for element in root.iter('class')}
+        return [path for path in in_scope if path not in listed]
+    raise CoverageError(f'unknown suite {suite}.')
+
+
 def dump(value: object, indent: str = '') -> str:
     """JSON with Decimals written as they read, so a raise rewrites nothing but the floors."""
     inner = indent + '  '
@@ -288,8 +326,18 @@ def _raise_command(args: list[str]) -> int:
     return 0
 
 
+def _missing_command(args: list[str]) -> int:
+    if len(args) != 3:
+        raise CoverageError('usage: missing <php|admin> <report.xml> <phpunit.xml> < changed-paths')
+
+    changed = [path for path in sys.stdin.buffer.read().decode().split('\0') if path]
+    for path in missing_from_report(args[0], changed, args[1], args[2]):
+        print(path)
+    return 0
+
+
 def main(argv: list[str]) -> int:
-    commands = {'check': _check_command, 'raise': _raise_command}
+    commands = {'check': _check_command, 'raise': _raise_command, 'missing': _missing_command}
     if not argv or argv[0] not in commands:
         print(__doc__.strip(), file=sys.stderr)
         return 2

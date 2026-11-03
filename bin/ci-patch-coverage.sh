@@ -7,7 +7,8 @@
 # Runs diff-cover once per report, so a well covered suite never hides a poorly covered one. diff-cover
 # skips a changed file its report does not list, which would pass uncovered code, so every changed
 # source file of a suite must first appear in that suite's report. Both reports list every source file,
-# loaded or not. A change without executable lines in a suite passes that suite.
+# loaded or not; PHP files that <source> in phpunit.xml.dist excludes are not source files. A change
+# without executable lines in a suite passes that suite.
 # Needs diff-cover on PATH, jq, and the compare ref in the local history.
 
 set -euo pipefail
@@ -33,36 +34,9 @@ printf '### Patch coverage\n\nChanged executable lines must be at least %s%% cov
 for suite in php admin; do
   if [[ "${suite}" == php ]]; then report="${php_report}"; else report="${admin_report}"; fi
 
-  # Changed paths come from git with -z and stay inside Python, so no file name reaches a shell.
-  if ! python3 -I - "${compare_ref}" "${suite}" "${report}" >"${work_dir}/${suite}-missing.txt" <<'PYTHON'
-import subprocess
-import sys
-import xml.etree.ElementTree as ET
-
-compare_ref, suite, report = sys.argv[1:]
-
-changed = subprocess.run(
-    ['git', 'diff', '--name-only', '-z', '--diff-filter=AMR', f'{compare_ref}...HEAD', '--'],
-    check=True, capture_output=True,
-).stdout.decode().split('\0')
-
-if suite == 'php':
-    in_scope = [path for path in changed if path.startswith('src/') and path.endswith('.php')]
-    listed = [element.get('name', '') for element in ET.parse(report).getroot().iter('file')]
-    missing = [path for path in in_scope if not any(name.endswith('/' + path) for name in listed)]
-else:
-    admin_source = 'src/Resources/app/administration/src/'
-    in_scope = [
-        path for path in changed
-        if path.startswith(admin_source) and path.endswith('.js') and not path.endswith('.spec.js')
-    ]
-    listed = {element.get('filename') for element in ET.parse(report).getroot().iter('class')}
-    missing = [path for path in in_scope if path not in listed]
-
-for path in missing:
-    print(path)
-PYTHON
-  then
+  # Changed paths go from git to Python NUL-separated, so no file name reaches a shell.
+  if ! git diff --name-only -z --diff-filter=AMR "${compare_ref}...HEAD" -- \
+    | python3 -I bin/ci-coverage-floor.py missing "${suite}" "${report}" phpunit.xml.dist >"${work_dir}/${suite}-missing.txt"; then
     echo "FAIL: cannot compare the ${suite} report with the changed files." >&2
     status=1
     continue

@@ -257,6 +257,44 @@ class CoverageFloorTest(unittest.TestCase):
 
         self.assertEqual(original.replace('29.40', '30.00'), Path(floor_file).read_text())
 
+    def clover_listing(self, *paths: str) -> str:
+        files = ''.join(f'<file name="/home/runner/work/a/a/agentic-commerce/{path}"/>' for path in paths)
+        return self.write('clover.xml', f'<coverage><project>{files}<metrics statements="1" coveredstatements="1"/></project></coverage>')
+
+    def test_files_excluded_from_source_are_not_missing(self):
+        phpunit = self.write('phpunit.xml', (
+            '<phpunit><source><include><directory suffix=".php">src</directory></include><exclude>'
+            '<directory suffix=".php">src/Migration</directory><file>src/Tracking/OrderEntity.php</file>'
+            '</exclude></source></phpunit>'
+        ))
+        changed = ['src/Migration/Migration1.php', 'src/Tracking/OrderEntity.php', 'src/Listed.php', 'src/New.php', 'README.md']
+        self.assertEqual(['src/New.php'], floor.missing_from_report('php', changed, self.clover_listing('src/Listed.php'), phpunit))
+
+    def test_changed_migration_is_not_missing_with_the_repository_config(self):
+        migrations = sorted((ROOT / 'src' / 'Migration').glob('*.php'))
+        self.assertTrue(migrations)
+        changed = [str(path.relative_to(ROOT)) for path in migrations]
+        self.assertEqual([], floor.missing_from_report('php', changed, self.clover_listing(), str(ROOT / 'phpunit.xml.dist')))
+
+    def test_without_source_every_php_file_is_in_scope(self):
+        phpunit = self.write('phpunit.xml', '<phpunit/>')
+        changed = ['src/Migration/Migration1.php']
+        self.assertEqual(changed, floor.missing_from_report('php', changed, self.clover_listing(), phpunit))
+
+    def test_admin_source_missing_from_cobertura(self):
+        admin = floor.ADMIN_SOURCE
+        report = self.write('cobertura.xml', f'<coverage><packages><package><classes><class filename="{admin}a.js"/></classes></package></packages></coverage>')
+        changed = [f'{admin}a.js', f'{admin}b.js', f'{admin}b.spec.js', 'src/Listed.php']
+        self.assertEqual([f'{admin}b.js'], floor.missing_from_report('admin', changed, report, self.write('phpunit.xml', '<phpunit/>')))
+
+    def test_missing_cli_reads_nul_separated_paths(self):
+        phpunit = self.write('phpunit.xml', '<phpunit/>')
+        stdin = io.TextIOWrapper(io.BytesIO(b'src/Listed.php\0src/New.php\0'))
+        output = io.StringIO()
+        with unittest.mock.patch('sys.stdin', stdin), contextlib.redirect_stdout(output):
+            self.assertEqual(0, floor.main(['missing', 'php', self.clover_listing('src/Listed.php'), phpunit]))
+        self.assertEqual('src/New.php\n', output.getvalue())
+
     def test_raise_cli_leaves_the_file_untouched_without_a_raise(self):
         original = '{"tolerance": 0.1, "suites": {"admin": {"format": "cobertura", "floor": 73.10}}}'
         floor_file = self.write('floor.json', original)
