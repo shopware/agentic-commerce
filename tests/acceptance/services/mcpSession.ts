@@ -1,12 +1,13 @@
 import { expect } from '@playwright/test';
 import type { APIResponse } from '@playwright/test';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
+import type { JsonRpcCallOptions } from '@fixtures/UcpAgent';
 
 /** `/ucp/mcp` proxies core's Store API MCP server, which arrived in 6.7.12.0. */
 export const STORE_API_MCP_MISSING = '<6.7.12.0';
 
 export interface McpSession {
-    call(method: string, params?: Record<string, unknown>): Promise<APIResponse>
+    call(method: string, params?: Record<string, unknown>, options?: JsonRpcCallOptions): Promise<APIResponse>
 }
 
 export async function openMcpSession(agent: FixtureTypes['UcpAgent']): Promise<McpSession> {
@@ -19,7 +20,7 @@ export async function openMcpSession(agent: FixtureTypes['UcpAgent']): Promise<M
     const sessionId = initializeResponse.headers()['mcp-session-id'];
     expect(sessionId, 'initialize answers with a session id').toEqual(expect.any(String));
 
-    return { call: (method, params) => agent.mcp.call(method, params, { headers: { 'Mcp-Session-Id': sessionId } }) };
+    return { call: (method, params, options = {}) => agent.mcp.call(method, params, { ...options, headers: { ...options.headers, 'Mcp-Session-Id': sessionId } }) };
 }
 
 export async function toolOutput(toolCallResponse: APIResponse): Promise<Record<string, unknown>> {
