@@ -1,0 +1,35 @@
+name: Acceptance report
+description: >-
+  Merges every acceptance-blob-* artifact of the run into one Playwright report, writes the failure
+  table to the step summary and uploads the report as the acceptance-report artifact. Expects the
+  plugin checked out at the workspace root.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: tests/acceptance/package-lock.json
+    - name: Install the acceptance suite
+      shell: bash
+      working-directory: tests/acceptance
+      run: npm ci --no-audit --no-fund
+    - name: Download the shard reports
+      uses: actions/download-artifact@v7
+      with:
+        pattern: acceptance-blob-*
+        path: ${{ runner.temp }}/acceptance-blobs
+        merge-multiple: true
+    - name: Merge the shard reports
+      shell: bash
+      run: bin/ci-acceptance-report.sh "${RUNNER_TEMP}/acceptance-blobs" "${RUNNER_TEMP}/acceptance-report"
+    - name: Upload the merged report
+      uses: actions/upload-artifact@v6
+      with:
+        name: acceptance-report
+        path: ${{ runner.temp }}/acceptance-report
+        if-no-files-found: error
+        overwrite: true
+        retention-days: 14

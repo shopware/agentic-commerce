@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import type { Locator, Page, Response } from '@playwright/test';
+import { FEED_SALES_CHANNEL_TYPE_ID } from '@services/UcpTestDataService';
 import { goToAdminRoute } from './adminRoute';
 
 const OPEN_AI_CONFIG_DOMAIN = 'SwagAgenticCommerce.openAiProductExport';
@@ -26,8 +27,9 @@ export class AgenticCommerceFeedDetail {
     }
 
     /**
-     * Opens a tab of the channel and waits until the provider settings are loaded: before that the
-     * page validates and saves none of them.
+     * Opens a tab of the channel and waits until the provider settings are loaded and no loader is
+     * left: before that the page validates and saves none of them, and Save behaves differently than
+     * on the page a merchant sees.
      */
     async open(salesChannelId: string, view: 'base' | 'product-comparison' = 'base'): Promise<void> {
         const providerSettings = [OPEN_AI_CONFIG_DOMAIN, GOOGLE_CONFIG_DOMAIN].map(domain => this.page.waitForResponse(
@@ -36,7 +38,7 @@ export class AgenticCommerceFeedDetail {
 
         await goToAdminRoute(this.page, `/sw/sales/channel/detail/${salesChannelId}/${view}`);
         await Promise.all(providerSettings);
-        await expect(this.page.locator('.sw-skeleton')).toHaveCount(0);
+        await this.expectLoaded();
     }
 
     /** 6.5 renders the template select as a native `<select>`, later lanes as a Meteor select. */
@@ -53,6 +55,48 @@ export class AgenticCommerceFeedDetail {
         await this.page.getByTestId(`mt-select-option--${templateName}`).click();
     }
 
+    /** Opens the create page of a new feed channel and waits until it is ready. */
+    async openNew(): Promise<void> {
+        await goToAdminRoute(this.page, `/sw/sales/channel/create/${FEED_SALES_CHANNEL_TYPE_ID}/base`);
+        await this.expectCreatePageReady();
+    }
+
+    /** Waits until the create page of a new feed channel has rendered its provider settings and no loader is left. */
+    async expectCreatePageReady(): Promise<void> {
+        await expect(this.returnPolicyUrl).toBeVisible();
+        await this.expectLoaded();
+    }
+
+    /**
+     * Waits until no skeleton or loader is left. The page re-renders while it loads, and a re-render
+     * resets text that a URL field has not stored yet.
+     */
+    private async expectLoaded(): Promise<void> {
+        await expect(this.page.locator('.sw-skeleton, .sw-loader')).toHaveCount(0);
+    }
+
+    /**
+     * Enters the return policy URL and leaves the field: `sw-url-field` stores its text only on blur,
+     * and Save validates what is stored, not what is typed.
+     */
+    async fillReturnPolicyUrl(url: string): Promise<void> {
+        await this.returnPolicyUrl.fill(url);
+        await this.returnPolicyUrl.blur();
+        await expect(this.returnPolicyUrl).toHaveValue(url);
+    }
+
+    /** 6.5 and 6.6 show the template as the native `<select>` value, later lanes as the Meteor select's label. */
+    async expectTemplateShown(templateName: 'open_ai' | 'google', label: RegExp): Promise<void> {
+        const nativeSelect = this.templateSelect.locator('select');
+        if (await nativeSelect.count() > 0) {
+            await expect(nativeSelect).toHaveValue(templateName);
+
+            return;
+        }
+
+        await expect(this.templateSelect.locator('.mt-select-selection-list__input')).toHaveValue(label);
+    }
+
     /** The template modal's primary action applies the chosen template. */
     async confirmTemplateChange(): Promise<void> {
         await expect(this.templateModal).toBeVisible();
@@ -60,10 +104,10 @@ export class AgenticCommerceFeedDetail {
         await expect(this.templateModal).toBeHidden();
     }
 
-    /** The template modal's secondary action keeps the current template. */
+    /** The template modal's secondary action keeps the current template. On 6.5 it is a footer button without a variant. */
     async cancelTemplateChange(): Promise<void> {
         await expect(this.templateModal).toBeVisible();
-        await this.templateModal.locator('.mt-button--secondary, .sw-button--secondary').click();
+        await this.templateModal.locator('.mt-button--secondary, .sw-button--secondary, .sw-modal__footer .sw-button:not(.sw-button--primary)').click();
         await expect(this.templateModal).toBeHidden();
     }
 

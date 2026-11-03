@@ -83,9 +83,7 @@ final class SwagAgenticCommerce extends Plugin
         // configured remote profile hosts are actually fetchable.
         $container->addCompilerPass(new ReplaceSdkUrlSafetyValidatorPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
 
-        // Keeps the UCP MCP tools on the first tools/list on Shopware releases without connect-time
-        // toolset pinning. Must run after core's McpToolDiscoveryCompilerPass (priority 0 on 6.7.14,
-        // 20 from 6.7.15), which resets the list it extends.
+        // Must run after core's McpToolDiscoveryCompilerPass (priority 0 on 6.7.14, 20 from 6.7.15), which resets the list.
         $container->addCompilerPass(new AdvertiseUcpToolsWithoutToolsetPinningPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, -10);
 
         // In the test environment, swap the SDK's HTTP agent-profile fetcher for a fixed,

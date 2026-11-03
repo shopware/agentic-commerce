@@ -178,8 +178,8 @@ through the centralized reporting flow:
   `storefront-matrix`, MySQL, or individual smoke jobs. A nonzero `composer audit` status can also
   represent abandoned packages; inspect the JSON `advisories` data instead of treating the exit code
   as proof of a security advisory.
-- Keep `composer-security-report` outside `validation-gate`. Missing, malformed, or known-vulnerable
-  compatibility reports must remain visible without blocking functional validation.
+- Keep `composer-security-report` non-blocking (job-level `continue-on-error`). Missing, malformed,
+  or known-vulnerable compatibility reports must remain visible without failing `validation-gate`.
 
 Do not reuse a complete installed Shopware tree across these jobs. Lanes use different Shopware
 versions and administration build modes, and the tests mutate dependencies, assets, databases, and

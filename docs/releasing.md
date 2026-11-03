@@ -103,11 +103,11 @@ Every job that blocks a merge resolves both SDK packages **from Packagist at the
 exception and the only job that stages an SDK checkout: it points a path repository at `UCP_SDK_REF`
 and relabels that source as the pinned version.
 
-That relabelling is why the exception is `continue-on-error` and absent from both `expected_checks`
-and `validation-gate`. A branch wearing a release's version number is not what anyone installs, and
-when SDK `main` moved to require a newer `core`, having it on the merge path turned this
-repository's `main` red for five days — and would have done the same to every open pull request at
-once. Read the job, open an SDK issue; do not let it stop a merge.
+That relabelling is why the exception is `continue-on-error`, so it never fails `validation-gate`. A
+branch wearing a release's version number is not what anyone installs, and when SDK `main` moved to
+require a newer `core`, having it on the merge path turned this repository's `main` red for five
+days — and would have done the same to every open pull request at once. Read the job, open an SDK
+issue; do not let it stop a merge.
 
 `bin/ci-smoke.sh` follows the same rule through `UCP_SDK_SOURCE`, which defaults to `packagist`;
 only `sdk-main-compatibility` and local manual testing set `path`.

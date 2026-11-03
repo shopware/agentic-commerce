@@ -1,0 +1,117 @@
+name: Administration
+
+# Administration lint, Jest with coverage, and the per-lane webpack and Vite build gates.
+
+on:
+  workflow_call:
+    inputs:
+      shopware_65_ref:
+        type: string
+      shopware_66_ref:
+        type: string
+      shopware_trunk_ref:
+        type: string
+  workflow_dispatch:
+
+# A caller's env does not reach a called workflow, so every layer resolves the refs itself.
+env:
+  SHOPWARE_65_REF: ${{ inputs.shopware_65_ref || vars.SHOPWARE_65_REF || '6.5.x' }}
+  SHOPWARE_66_REF: ${{ inputs.shopware_66_ref || vars.SHOPWARE_66_REF || '6.6.x' }}
+  SHOPWARE_TRUNK_REF: ${{ inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
+
+permissions:
+  contents: read
+
+jobs:
+  admin-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: agentic-commerce/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - run: npm run ci:admin-static
+        working-directory: agentic-commerce
+        env:
+          ADMIN_PATH: ${{ github.workspace }}/shopware/src/Administration/Resources/app/administration
+      - name: Upload Jest coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: admin-jest-coverage
+          path: agentic-commerce/tests/jest/administration/coverage
+          if-no-files-found: warn
+          retention-days: 7
+
+  admin-matrix:
+    runs-on: ubuntu-latest
+    name: admin-matrix (${{ matrix.lane == '6.5.x' && '6.5.8' || matrix.lane }}, ${{ matrix.mode }})
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: '6.5.x'
+            mode: webpack
+          - lane: '6.6.x'
+            mode: webpack
+          - lane: '6.6.x'
+            mode: vite
+          - lane: 'trunk'
+            mode: vite
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: agentic-commerce
+      - uses: actions/checkout@v6
+        with:
+          repository: shopware/shopware
+          ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
+          path: shopware
+      - run: npm ci --no-audit --no-fund
+        working-directory: agentic-commerce
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('agentic-commerce/package-lock.json') }}
+      - name: Install Playwright browser + system deps (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: agentic-commerce
+      - name: Install Playwright system deps (cached browser)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: agentic-commerce
+      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh
+      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
+      - run: agentic-commerce/bin/ci-admin-smoke.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.mode }}"
+        env:
+          SHOPWARE_REF: ${{ matrix.lane }}
+          CI_ADMIN_BOOTSTRAP_MODE: cold
+          CI_ADMIN_BROWSER_VALIDATE: 1
+          CI_ADMIN_KEEP_STACK: 0
+
+  admin-check:
+    # always(), not !cancelled(): a skipped gate would count as passing.
+    if: always()
+    needs:
+      - admin-static
+      - admin-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}

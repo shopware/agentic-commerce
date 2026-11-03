@@ -75,7 +75,7 @@ final class UcpMcpDiscoveryFlowTest extends TestCase
     private function requireShopware(string $minimumVersion): void
     {
         $detector = static::getContainer()->get(ShopwareVersionDetector::class);
-        if (!$detector->supportsStoreApiMcp() || !$detector->isAtLeast($minimumVersion)) {
+        if (!$detector->supportsStoreApiMcp() || version_compare($detector->currentVersion(), $minimumVersion, '<')) {
             self::markTestSkipped(\sprintf('Needs the Store API MCP endpoint on Shopware %s or newer.', $minimumVersion));
         }
     }

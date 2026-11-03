@@ -1,0 +1,60 @@
+name: Nightly
+
+# The layer workflows once a day on main, with every acceptance lane repeated three times, so
+# breakage from the moving Shopware branches shows up between merges. A test that only passes on a
+# retry fails the nightly run; on pull requests it is only listed as flaky in the run summary.
+# store-release.yml reads only ci.yml push runs, so nightly-gate never makes a commit releasable.
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Includes phpstan-trunk, against SHOPWARE_TRUNK_REF.
+  php:
+    uses: ./.github/workflows/php.yml
+
+  admin:
+    uses: ./.github/workflows/admin.yml
+
+  storefront:
+    uses: ./.github/workflows/storefront.yml
+
+  zip-artifact:
+    uses: ./.github/workflows/package-zip.yml
+
+  acceptance:
+    uses: ./.github/workflows/acceptance.yml
+    with:
+      lanes: '["6.5.x", "6.6.x", "trunk"]'
+      repeat_each: 3
+      fail_on_flaky: true
+
+  acceptance-report:
+    needs:
+      - acceptance
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/acceptance-report
+
+  nightly-gate:
+    # always(), not !cancelled(): a skipped gate would count as passing.
+    if: always()
+    needs:
+      - php
+      - admin
+      - storefront
+      - zip-artifact
+      - acceptance
+      - acceptance-report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}

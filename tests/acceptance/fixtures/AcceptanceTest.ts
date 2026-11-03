@@ -1,5 +1,6 @@
 import { test as ShopwareTestSuite, mergeTests } from '@shopware-ag/acceptance-test-suite';
 import type { FixtureTypes as BaseTypes } from '@shopware-ag/acceptance-test-suite';
+import { test as adminSession } from './AdminSession';
 import { test as ucpConsole } from './UcpConsole';
 import { test as ucpTestData } from './UcpTestData';
 import { test as ucpAgentProfileHost } from './UcpAgentProfileHost';
@@ -22,6 +23,7 @@ export type FixtureTypes = Omit<BaseTypes, 'TestDataService'>
 
 export const test = mergeTests(
     ShopwareTestSuite,
+    adminSession,
     ucpConsole,
     ucpTestData,
     ucpAgentProfileHost,

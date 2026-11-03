@@ -102,10 +102,15 @@ export class UcpSalesChannelDetail {
     }
 
     private async loadAgenticCommerceTab(salesChannelId: string, navigate: () => Promise<unknown>): Promise<UcpAdminMeta> {
-        const salesChannel = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId)));
-        const config = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/config')));
-        const savedPreview = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/profile-preview')));
-        const loadedFormPreview = this.page.waitForResponse(response => isRequest(response, 'POST', ucpApiPath(salesChannelId, '/profile-preview')));
+        // Before 6.7.9 the save loads the UCP state once more, so a request of the page being left can
+        // still answer after the navigation started; its body is gone once the navigation commits.
+        const navigatedAt = Date.now();
+        const loaded = (method: string, path: string) => this.page.waitForResponse(response => isRequest(response, method, path)
+          && response.request().timing().startTime >= navigatedAt);
+        const salesChannel = loaded('GET', ucpApiPath(salesChannelId));
+        const config = loaded('GET', ucpApiPath(salesChannelId, '/config'));
+        const savedPreview = loaded('GET', ucpApiPath(salesChannelId, '/profile-preview'));
+        const loadedFormPreview = loaded('POST', ucpApiPath(salesChannelId, '/profile-preview'));
 
         await navigate();
 
@@ -120,7 +125,8 @@ export class UcpSalesChannelDetail {
     private async waitUntilSettled(): Promise<void> {
         await expect(this.agenticCommerceTab).toBeVisible();
         await expect(this.agenticCommerceTab.locator('.sw-skeleton')).toHaveCount(0);
-        await expect(this.page.getByTestId('ac-ucp__expose-switch')).toBeVisible();
+        // On 6.6 `mt-switch` passes the hook to its container and its field, so it matches twice.
+        await expect(this.page.getByTestId('ac-ucp__expose-switch').first()).toBeVisible();
     }
 
     /** The hook sits on the checkbox's wrapper on every lane. */

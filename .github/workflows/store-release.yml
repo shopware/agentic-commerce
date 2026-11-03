@@ -39,7 +39,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
-      checks: read
+      # Job-level permissions replace the workflow's: reading CI's runs needs actions: read here.
+      actions: read
       contents: read
     outputs:
       version: ${{ steps.metadata.outputs.version }}
@@ -92,18 +93,49 @@ jobs:
             exit 1
           fi
 
-          gate_id="$(
-            gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
-              --jq '.check_runs[] | select(.name == "validation-gate" and .conclusion == "success") | .id' \
-              | head -n 1
+          # A check run named validation-gate proves nothing: any workflow, dispatch or app can
+          # create one. Require the newest ci.yml push run on main for this commit to be complete,
+          # with a successful validation-gate job in its latest attempt. A run still in progress
+          # fails, so an older green run cannot outvote a newer one.
+          runs="$(
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&event=push&branch=main&per_page=100" \
+              --jq '.workflow_runs[]' \
+              | jq -s --arg sha "${GITHUB_SHA}" --arg repo "${GITHUB_REPOSITORY}" '
+                  map(select(.event == "push" and .head_branch == "main" and .head_sha == $sha
+                    and .head_repository.full_name == $repo
+                    and (.path | startswith(".github/workflows/ci.yml"))))
+                  | sort_by(.id)'
           )"
 
-          if [[ -z "${gate_id}" ]]; then
-            echo "The exact main commit has no successful validation-gate check." >&2
+          if [[ "$(jq length <<<"${runs}")" -eq 0 ]]; then
+            echo "No CI push run on main exists for ${GITHUB_SHA}." >&2
             exit 1
           fi
 
-          echo "Validated main HEAD ${GITHUB_SHA} with CI gate ${gate_id}."
+          if jq -e 'any(.[]; .status != "completed")' <<<"${runs}" >/dev/null; then
+            echo "CI for ${GITHUB_SHA} is still running. Release once it has finished." >&2
+            exit 1
+          fi
+
+          run_id="$(jq -r 'last.id' <<<"${runs}")"
+          attempt="$(jq -r 'last.run_attempt' <<<"${runs}")"
+
+          # filter=latest lists each job's latest attempt. The gate needs every other job, so it is
+          # re-run whenever any of them is.
+          gates="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" \
+              --jq '.jobs[] | select(.name == "validation-gate")' \
+              | jq -s .
+          )"
+
+          if ! jq -e --argjson attempt "${attempt}" \
+            'length == 1 and .[0].conclusion == "success" and .[0].run_attempt == $attempt' <<<"${gates}" >/dev/null; then
+            echo "CI run ${run_id} (attempt ${attempt}) has no successful validation-gate job." >&2
+            exit 1
+          fi
+
+          echo "Validated main HEAD ${GITHUB_SHA} with CI run ${run_id} (attempt ${attempt})."
 
   release-package:
     name: Build and install-test the release package

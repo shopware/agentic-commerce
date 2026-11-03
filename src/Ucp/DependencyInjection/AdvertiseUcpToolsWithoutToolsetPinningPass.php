@@ -9,17 +9,10 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 /**
- * Keeps the UCP tools on the first `tools/list` on Shopware releases that cannot pin a toolset at
- * connect time.
+ * Advertises the UCP tools on every Store API connection where core cannot pin
+ * {@see UcpMcpToolset} at connect time (6.7.14.x).
  *
- * The UCP tools sit in their own toolset ({@see UcpMcpToolset}), and `/ucp/mcp` pins it with
- * `?toolsets=ucp`. Releases before 6.7.15.0 have progressive disclosure on the Store API endpoint
- * but no connect-time pinning, so there a UCP agent would see only the discovery meta-tools. On
- * those releases this pass adds the UCP tools to the endpoint's default surface, which is what the
- * plugin did before. From 6.7.15.0 on it does nothing.
- *
- * Must run after core's McpToolDiscoveryCompilerPass, which resets the parameter before writing it,
- * so it is registered below that pass's priority on every release line.
+ * @see docs/shopware-version-differences.md
  *
  * @internal
  */
