@@ -182,7 +182,18 @@ describe('sw-sales-channel-detail onSave — refused save', () => {
         expect(ctx.$super).not.toHaveBeenCalled();
     });
 
-    // Regression #309: on the create page the next Save started behind this check and saved the channel.
+    it('tells the merchant which tab holds the missing setting, since Save also works from other tabs', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.validateAgenticCommerceExportConfig = jest.fn(() => false);
+        ctx.$t = jest.fn((key) => key);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.createNotificationError).toHaveBeenCalledWith({
+            message: 'sw-sales-channel.detail.agenticCommerce.messageRequiredSettingsMissing',
+        });
+    });
+
     it('resets core\'s $super pointer so the next Save on the create page runs the check again', async () => {
         const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
         ctx.validateAgenticCommerceExportConfig = jest.fn(() => false);

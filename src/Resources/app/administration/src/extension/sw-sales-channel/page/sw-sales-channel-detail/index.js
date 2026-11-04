@@ -349,6 +349,9 @@ export const swSalesChannelDetailOverride = {
         async onSave() {
             if (!this.validateAgenticCommerceExportConfig()) {
                 this.isLoading = false;
+                this.createNotificationError({
+                    message: this.$t('sw-sales-channel.detail.agenticCommerce.messageRequiredSettingsMissing'),
+                });
                 // On the create page this method is reached through `$super`, and core advances its pointer past
                 // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
                 // behind this check. Reset it the way core does when a chain completes.

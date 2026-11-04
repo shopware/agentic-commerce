@@ -1,7 +1,7 @@
 const { Component } = Shopware;
 
 // From 6.6.3 `sw-url-field` only switches between implementations; the legacy field is `sw-url-field-deprecated`.
-export const legacyUrlFieldName = Component.getComponentRegistry().has('sw-url-field-deprecated')
+const legacyUrlFieldName = Component.getComponentRegistry().has('sw-url-field-deprecated')
     ? 'sw-url-field-deprecated'
     : 'sw-url-field';
 

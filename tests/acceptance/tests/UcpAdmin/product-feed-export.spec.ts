@@ -3,7 +3,8 @@ import { expect, test } from '@fixtures/AcceptanceTest';
 import { AgenticCommerceFeedDetail } from '@page-objects/AgenticCommerceFeedDetail';
 import { readFeedTemplates } from '@services/pluginSource';
 import { TEMPLATE_SELECT_KEEPS_CANCELLED_CHOICE } from '../UcpContent/knownBlockerRanges';
-import { RETURN_POLICY_URL, expectCancelledTemplateChangeShowsCurrent, expectNewFeedStaysUnsaved, expectSaveRefusedWithoutReturnPolicyUrl } from './feedSaveSteps';
+import type { Request } from '@playwright/test';
+import { RETURN_POLICY_URL, expectCancelledTemplateChangeShowsCurrent, expectNewFeedStaysUnsaved, expectSaveRefusedWithoutReturnPolicyUrl, isSaveWrite } from './feedSaveSteps';
 
 test.describe('Product feed export settings @UcpAdmin', () => {
     test('switching the export template asks first, then stores the template and aligns the file', async ({ TestDataService, AdminPage }) => {
@@ -94,6 +95,19 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         await feed.fillReturnPolicyUrl('');
 
         await expectSaveRefusedWithoutReturnPolicyUrl(feed, TestDataService, salesChannel.id, storedUrl);
+    });
+
+    test('saving from another tab without a return policy URL says where the missing setting is', async ({ TestDataService, AdminPage }) => {
+        const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai');
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
+        await feed.open(salesChannel.id, 'product-comparison');
+        const writes: Request[] = [];
+        AdminPage.on('request', request => isSaveWrite(request) && writes.push(request));
+
+        await feed.saveButton.click();
+
+        await expect(AdminPage.getByText('A required feed setting is missing. Fill in the marked field on the General tab, then save again.')).toBeVisible();
+        expect(writes.map(request => request.url()), 'the refused save wrote nothing').toEqual([]);
     });
 
     test('a new feed channel without a return policy URL stays unsaved however often Save is clicked', async ({ AdminPage }) => {
