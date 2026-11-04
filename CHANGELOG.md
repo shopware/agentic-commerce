@@ -2,7 +2,7 @@
 
 - Load the product exports of a sales channel again, for example in extensions that read `sales_channel.productExports`. These requests failed with `FRAMEWORK__DEFINITION_NOT_FOUND`, because the extension registered its product export definition a second time.
 - When leaving an agentic file, return to the _Agentic Commerce_ tab if it is available. Otherwise, return to the _Agentic files_ tab, which shows again for sales channels and users without the _Agentic Commerce_ tab.
-- Preserve the core save flow for sales channels: required fields are validated for Agentic Commerce channels, and Storefront theme assignment runs for ordinary Storefront channels.
+- Preserve the core save flow for sales channels: required fields are validated for all sales channels, and Storefront theme assignment runs for ordinary Storefront channels.
 - Keep disabled agentic files disabled when activating UCP, saving UCP settings, or updating the extension.
   Existing custom content is preserved, and missing default files are created.
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
