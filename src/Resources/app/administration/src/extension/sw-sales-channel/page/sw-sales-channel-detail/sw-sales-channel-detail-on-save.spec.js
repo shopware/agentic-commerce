@@ -262,6 +262,94 @@ describe('feed settings compatibility by Administration version', () => {
         });
     });
 
+    it('keeps saved feed settings when the old read finishes before the write', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        const key = 'SwagAgenticCommerce.openAiProductExport.returnPolicyUrl';
+        const updatedUrl = 'https://shop.example/updated-returns';
+        const oldUrl = 'https://shop.example/old-returns';
+        ctx.defaultAgenticCommerceExportConfig = [{
+            provider: 'open-ai',
+            systemConfigDomain: 'SwagAgenticCommerce.openAiProductExport',
+        }];
+        ctx.agenticCommerceExportConfig[0].elements = [{ name: key, config: { required: true } }];
+        ctx.agenticCommerceExportConfig[0].values = { [key]: updatedUrl };
+
+        let finishRead;
+        let finishWrite;
+        const oldRead = new Promise((resolve) => { finishRead = resolve; });
+        const write = new Promise((resolve) => { finishWrite = resolve; });
+        ctx.systemConfigApiService.getConfig = jest.fn(async () => [{ elements: [{ name: key, config: { required: true } }] }]);
+        ctx.systemConfigApiService.getValues = jest.fn(() => oldRead);
+        ctx.systemConfigApiService.batchSave.mockImplementationOnce(() => write);
+        ctx.loadAgenticCommerceExportConfig = swSalesChannelDetailOverride.methods.loadAgenticCommerceExportConfig.bind(ctx);
+        let reload;
+        ctx.$super = jest.fn(async () => {
+            reload = ctx.loadAgenticCommerceExportConfig();
+            ctx.isSaveSuccessful = true;
+        });
+
+        const saving = swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        await Promise.resolve();
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        expect(ctx.$super).toHaveBeenCalledTimes(1);
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenCalledWith({ 'channel-id': { [key]: updatedUrl } });
+
+        finishRead({ [key]: oldUrl });
+        await reload;
+        finishWrite();
+        await saving;
+        expect(ctx.agenticCommerceExportConfig[0].values[key]).toBe(updatedUrl);
+
+        ctx.$super.mockImplementation(async () => { ctx.isSaveSuccessful = true; });
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenLastCalledWith({ 'channel-id': { [key]: updatedUrl } });
+    });
+
+    it('keeps saved feed settings when the write finishes before the old read', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        const key = 'SwagAgenticCommerce.openAiProductExport.returnPolicyUrl';
+        const updatedUrl = 'https://shop.example/updated-returns';
+        const oldUrl = 'https://shop.example/old-returns';
+        ctx.defaultAgenticCommerceExportConfig = [{
+            provider: 'open-ai',
+            systemConfigDomain: 'SwagAgenticCommerce.openAiProductExport',
+        }];
+        ctx.agenticCommerceExportConfig[0].elements = [{ name: key, config: { required: true } }];
+        ctx.agenticCommerceExportConfig[0].values = { [key]: updatedUrl };
+
+        let finishRead;
+        let finishWrite;
+        const oldRead = new Promise((resolve) => { finishRead = resolve; });
+        const write = new Promise((resolve) => { finishWrite = resolve; });
+        ctx.systemConfigApiService.getConfig = jest.fn(async () => [{ elements: [{ name: key, config: { required: true } }] }]);
+        ctx.systemConfigApiService.getValues = jest.fn(() => oldRead);
+        ctx.systemConfigApiService.batchSave.mockImplementationOnce(() => write);
+        ctx.loadAgenticCommerceExportConfig = swSalesChannelDetailOverride.methods.loadAgenticCommerceExportConfig.bind(ctx);
+        let reload;
+        ctx.$super = jest.fn(async () => {
+            reload = ctx.loadAgenticCommerceExportConfig();
+            ctx.isSaveSuccessful = true;
+        });
+
+        const saving = swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        await Promise.resolve();
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        expect(ctx.$super).toHaveBeenCalledTimes(1);
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenCalledWith({ 'channel-id': { [key]: updatedUrl } });
+
+        finishWrite();
+        await saving;
+        finishRead({ [key]: oldUrl });
+        await reload;
+        expect(ctx.agenticCommerceExportConfig[0].values[key]).toBe(updatedUrl);
+
+        ctx.$super.mockImplementation(async () => { ctx.isSaveSuccessful = true; });
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenLastCalledWith({ 'channel-id': { [key]: updatedUrl } });
+    });
+
     it('stops UCP writes when the actual feed settings API write fails', async () => {
         Shopware.Context.app.config.version = '6.7.9.0';
         const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });

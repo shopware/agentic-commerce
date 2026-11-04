@@ -479,61 +479,66 @@ export const swSalesChannelDetailOverride = {
             const ucpFormAtSave = form
                 && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm)) ? form : null;
 
-            if (pluginHandlesExportConfig) {
+            if (pluginHandlesExportConfig && !this.validateAgenticCommerceExportConfig()) {
                 this.isSaveSuccessful = false;
-
-                if (!this.validateAgenticCommerceExportConfig()) {
-                    this.isLoading = false;
-                    // The create page has no tabs, so only the detail page names the tab holding the field.
-                    const messageKey = this.salesChannel?.isNew?.()
-                        ? 'messageRequiredSettingsMissing'
-                        : 'messageRequiredSettingsMissingOnGeneralTab';
-                    this.createNotificationError({
-                        message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
-                    });
-                    // On the create page this method is reached through `$super`, and core advances its pointer past
-                    // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
-                    // behind this check. Reset it the way core does when a chain completes.
-                    if (this._virtualCallStack) {
-                        this._virtualCallStack.onSave = undefined;
-                    }
-                    return;
+                this.isLoading = false;
+                // The create page has no tabs, so only the detail page names the tab holding the field.
+                const messageKey = this.salesChannel?.isNew?.()
+                    ? 'messageRequiredSettingsMissing'
+                    : 'messageRequiredSettingsMissingOnGeneralTab';
+                this.createNotificationError({
+                    message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
+                });
+                // On the create page this method is reached through `$super`, and core advances its pointer past
+                // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
+                // behind this check. Reset it the way core does when a chain completes.
+                if (this._virtualCallStack) {
+                    this._virtualCallStack.onSave = undefined;
                 }
-
-                await this.$super('onSave');
-                if (!this.isSaveSuccessful) {
-                    return;
-                }
-
-                const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
-                    channelIdAtSave,
-                    exportConfigAtSave,
-                    providerAtSave,
-                );
-                if (!configSaveSuccessful) {
-                    this.isSaveSuccessful = false;
-                    return;
-                }
-            } else {
-                // Core owns required-field validation, theme assignment, the channel save,
-                // export-config persistence and the background entity reload.
-                this.isSaveSuccessful = false;
-                await this.$super('onSave');
-                if (!this.isSaveSuccessful) {
-                    return;
-                }
-            }
-
-            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
-
-            if (!ucpSaveSuccessful) {
-                this.isSaveSuccessful = false;
                 return;
             }
 
-            // Older core reloads the page before the UCP write; load what is stored now.
-            if (pluginHandlesExportConfig && ucpFormAtSave) {
-                this.loadUcpState(channelIdAtSave, typeIdAtSave);
+            this.isSavingUcp = pluginHandlesExportConfig;
+            try {
+                // Core owns validation and persistence on versions that support feed settings.
+                this.isSaveSuccessful = false;
+                await this.$super('onSave');
+                if (!this.isSaveSuccessful) {
+                    return;
+                }
+
+                if (pluginHandlesExportConfig) {
+                    const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
+                        channelIdAtSave,
+                        exportConfigAtSave,
+                        providerAtSave,
+                    );
+                    if (!configSaveSuccessful) {
+                        this.isSaveSuccessful = false;
+                        return;
+                    }
+
+                    // WHY: A core reload can read old settings before the write and finish afterwards.
+                    if (!isLegacyOnSave
+                        && (!this.$route?.params?.id || this.$route.params.id.toLowerCase() === channelIdAtSave)
+                        && (!this.salesChannel || this.salesChannel.id === channelIdAtSave)) {
+                        this.agenticCommerceExportConfig = exportConfigAtSave;
+                    }
+                }
+
+                const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
+
+                if (!ucpSaveSuccessful) {
+                    this.isSaveSuccessful = false;
+                    return;
+                }
+
+                // Older core reloads the page before the UCP write; load what is stored now.
+                if (pluginHandlesExportConfig && ucpFormAtSave) {
+                    this.loadUcpState(channelIdAtSave, typeIdAtSave);
+                }
+            } finally {
+                this.isSavingUcp = false;
             }
         },
 
