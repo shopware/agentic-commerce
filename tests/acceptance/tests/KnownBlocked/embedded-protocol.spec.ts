@@ -1,9 +1,11 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
-import { openInEmbeddingHost } from '@services/embeddedHost';
+import { EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS, openInEmbeddingHost } from '@services/embeddedHost';
 import { CHECKOUT_SESSIONS_PATH } from '@services/shoppingRoutes';
 
 const TRUSTED_HOST_ORIGIN = 'http://trusted-host.example';
+
+test.use({ launchOptions: EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS });
 
 interface CheckoutWithServices {
     continue_url?: string

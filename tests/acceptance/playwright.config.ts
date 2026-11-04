@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'node:path';
 import process from 'node:process';
+import { EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS } from './services/embeddedHost';
 
 dotenv.config({ quiet: true });
 
@@ -57,13 +58,9 @@ const ownHostResolverRules = {
     },
 };
 
-// The embedding hosts are served by page.route(), which Chromium treats as public, and a public page
-// may not frame the private APP_URL host. In production both the host and the shop are public.
 const browserEmbeddingPrivateShop = {
     ...browser,
-    launchOptions: {
-        args: ['--disable-features=LocalNetworkAccessChecks'],
-    },
+    launchOptions: EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS,
 };
 
 const browserWithOwnHosts = {

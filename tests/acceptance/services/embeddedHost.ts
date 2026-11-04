@@ -1,4 +1,10 @@
-import type { Browser, Page } from '@playwright/test';
+import type { Browser, LaunchOptions, Page } from '@playwright/test';
+
+// The embedding hosts are served by page.route(), which Chromium treats as public, and a public page
+// may not frame the private APP_URL host. In production both the host and the shop are public.
+export const EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS: LaunchOptions = {
+    args: ['--disable-features=LocalNetworkAccessChecks'],
+};
 
 export interface EmbeddingHostPage {
     page: Page

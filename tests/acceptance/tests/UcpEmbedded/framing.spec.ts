@@ -44,4 +44,17 @@ test.describe('Embedded checkout framing @UcpEmbedded', () => {
         const foreignOriginLoad = await request.get(checkoutUrl, { headers: { Origin: FOREIGN_HOST_ORIGIN } });
         expect(foreignOriginLoad.status(), await foreignOriginLoad.text()).toBe(403);
     });
+
+    test('a preflight from the trusted host is granted, a preflight from a foreign host is refused', async ({ TestDataService, UcpAgent, request }) => {
+        const checkoutUrl = await embeddedCheckoutUrl(TestDataService, UcpAgent);
+
+        const trustedPreflight = await request.fetch(checkoutUrl, { method: 'OPTIONS', headers: { Origin: TRUSTED_HOST_ORIGIN, 'Access-Control-Request-Method': 'GET' } });
+        expect(trustedPreflight.status(), await trustedPreflight.text()).toBe(204);
+        expect(trustedPreflight.headers()['access-control-allow-origin']).toBe(TRUSTED_HOST_ORIGIN);
+        expect(trustedPreflight.headers()['access-control-allow-methods']).toContain('GET');
+        expect(trustedPreflight.headers()['content-security-policy']).toBe(`frame-ancestors ${TRUSTED_HOST_ORIGIN}`);
+
+        const foreignPreflight = await request.fetch(checkoutUrl, { method: 'OPTIONS', headers: { Origin: FOREIGN_HOST_ORIGIN, 'Access-Control-Request-Method': 'GET' } });
+        expect(foreignPreflight.status(), await foreignPreflight.text()).toBe(403);
+    });
 });
