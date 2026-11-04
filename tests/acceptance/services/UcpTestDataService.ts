@@ -285,15 +285,18 @@ export class UcpTestDataService extends TestDataService {
         const { uuid } = this.IdProvider.getIdPair();
         const webContainerCaptureBaseUrl = `${this.webContainerBaseUrl}test-${uuid}/`;
         const appCaptureBaseUrl = `${this.appUrl}test-${uuid}/`;
-        const captureDomains = [webContainerCaptureBaseUrl, appCaptureBaseUrl].map(url => ({
-            id: this.IdProvider.getIdPair().uuid,
-            url,
-            languageId: this.baseConfig.currentLanguageId,
-            snippetSetId: this.baseConfig.currentSnippetSetId,
-            currencyId: this.baseConfig.currentCurrencyId,
-        }));
+        // Where the shop reaches itself on APP_URL, as in CI, both URLs are the same domain.
+        const captureBaseUrls = [...new Set([webContainerCaptureBaseUrl, appCaptureBaseUrl])];
 
-        await this.createUcpSalesChannel(this.baseConfig.storefrontTypeId, { domains: captureDomains } as Partial<SalesChannel>, null);
+        await this.createUcpSalesChannel(this.baseConfig.storefrontTypeId, {
+            domains: captureBaseUrls.map(captureBaseUrl => ({
+                id: this.IdProvider.getIdPair().uuid,
+                url: captureBaseUrl,
+                languageId: this.baseConfig.currentLanguageId,
+                snippetSetId: this.baseConfig.currentSnippetSetId,
+                currencyId: this.baseConfig.currentCurrencyId,
+            })),
+        } as Partial<SalesChannel>, null);
 
         return { targetUrl: `${webContainerCaptureBaseUrl}${WEBHOOK_CAPTURE_PATH}`, readUrl: `${appCaptureBaseUrl}${WEBHOOK_CAPTURE_PATH}` };
     }
