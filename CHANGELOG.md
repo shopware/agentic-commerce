@@ -1,5 +1,6 @@
 # next version
 
+- Load the product exports of a sales channel again, for example in extensions that read `sales_channel.productExports`. These requests failed with `FRAMEWORK__DEFINITION_NOT_FOUND`, because the extension registered its product export definition a second time.
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
 - Apply a sales channel's own UCP settings to requests under a domain with a path, such as `https://shop.example/de`. These requests used the UCP settings of the host's root domain. Under the `strict` signature policy, correctly signed requests to such a domain are no longer refused. Agents only discover a UCP profile at `/.well-known/ucp` on the root of a domain, so a sales channel that agents should find needs a domain without a path. A domain with a path no longer serves a UCP profile, and its storefront pages and discovery files no longer link one. Until now `/de/.well-known/ucp` served the profile of the host's root domain. `ucp:config:validate` now warns about a UCP sales channel whose domains all have a path.
 
