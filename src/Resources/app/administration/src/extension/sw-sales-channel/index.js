@@ -6,7 +6,6 @@ import './component/sw-sales-channel-modal-grid';
 import './component/sw-sales-channel-modal';
 import './component/sw-agentic-commerce-url-field';
 import './page/sw-sales-channel-detail';
-import './page/sw-sales-channel-create';
 import './view/sw-sales-channel-detail-base';
 import './view/sw-sales-channel-create-base';
 import './view/sw-sales-channel-detail-agentic-commerce';
