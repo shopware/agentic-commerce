@@ -1,13 +1,7 @@
-import { getAgenticFileDetailRoute, getAgenticFileListRoute } from './agentic-files-route';
+import { getAgenticFileListRoute } from './agentic-files-route';
 
 describe('extension/sw-sales-channel Agentic Files routes', () => {
     const salesChannelId = 'sales-channel-id';
-    const file = { fileName: 'llms.txt' };
-    const fileDetailRoute = {
-        name: 'sw.sales.channel.detail.agenticFile',
-        params: { id: salesChannelId, fileName: file.fileName },
-    };
-
     afterEach(() => {
         delete global.Shopware;
         jest.resetModules();
@@ -22,11 +16,6 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
         global.Shopware = { Component };
 
         jest.isolateModules(() => {
-            if (componentName === 'sw-sales-channel-detail-agentic-files') {
-                require('./view/sw-sales-channel-detail-agentic-files');
-                return;
-            }
-
             require('./view/sw-sales-channel-detail-agentic-file');
         });
 
@@ -36,36 +25,8 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
         };
     }
 
-    it('marks file links opened from the Agentic Commerce tab', () => {
-        const route = getAgenticFileDetailRoute({ name: 'sw.sales.channel.detail.agenticCommerce' }, fileDetailRoute);
-
-        expect(route).toEqual({
-            ...fileDetailRoute,
-            query: { swagAgenticCommerceFrom: 'agentic-commerce' },
-        });
-        expect(route.params).toEqual({ id: salesChannelId, fileName: file.fileName });
-    });
-
-    it('leaves file links from the Agentic Files tab unchanged', () => {
-        const route = getAgenticFileDetailRoute({ name: 'sw.sales.channel.detail.agenticFiles' }, fileDetailRoute);
-
-        expect(route).toBe(fileDetailRoute);
-    });
-
-    it('returns to Agentic Commerce when the file was opened from its embedded list', () => {
-        const route = getAgenticFileListRoute({
-            name: 'sw.sales.channel.detail.agenticFile',
-            query: { swagAgenticCommerceFrom: 'agentic-commerce' },
-        }, salesChannelId, false);
-
-        expect(route).toEqual({
-            name: 'sw.sales.channel.detail.agenticCommerce',
-            params: { id: salesChannelId },
-        });
-    });
-
     it('returns to Agentic Commerce for a direct detail route when its tab is available', () => {
-        const route = getAgenticFileListRoute({ name: 'sw.sales.channel.detail.agenticFile', query: {} }, salesChannelId, true);
+        const route = getAgenticFileListRoute(salesChannelId, true);
 
         expect(route).toEqual({
             name: 'sw.sales.channel.detail.agenticCommerce',
@@ -74,7 +35,7 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
     });
 
     it('returns to Agentic Files for a direct detail route when its tab is unavailable', () => {
-        const route = getAgenticFileListRoute({ name: 'sw.sales.channel.detail.agenticFile', query: {} }, salesChannelId, false);
+        const route = getAgenticFileListRoute(salesChannelId, false);
 
         expect(route).toEqual({
             name: 'sw.sales.channel.detail.agenticFiles',
@@ -82,35 +43,7 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
         });
     });
 
-    it('adds the origin marker only to file detail links from the Agentic Commerce tab', () => {
-        const { config } = loadOverride('sw-sales-channel-detail-agentic-files');
-        const superRoute = jest.fn(() => fileDetailRoute);
-
-        const route = config.methods.getDetailRoute.call({
-            $route: { name: 'sw.sales.channel.detail.agenticCommerce' },
-            $super: superRoute,
-        }, file);
-
-        expect(superRoute).toHaveBeenCalledWith('getDetailRoute', file);
-        expect(route).toEqual({
-            ...fileDetailRoute,
-            query: { swagAgenticCommerceFrom: 'agentic-commerce' },
-        });
-    });
-
-    it('keeps file detail links from Agentic Files unchanged', () => {
-        const { config } = loadOverride('sw-sales-channel-detail-agentic-files');
-        const superRoute = jest.fn(() => fileDetailRoute);
-
-        const route = config.methods.getDetailRoute.call({
-            $route: { name: 'sw.sales.channel.detail.agenticFiles' },
-            $super: superRoute,
-        }, file);
-
-        expect(route).toBe(fileDetailRoute);
-    });
-
-    it('returns to the embedded source from the overridden file-detail component', () => {
+    it('returns to Agentic Files from a marked detail route when its tab is unavailable', () => {
         const { config } = loadOverride('sw-sales-channel-detail-agentic-file');
         const route = config.computed.listRoute.call({
             $route: {
@@ -121,7 +54,7 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
         });
 
         expect(route).toEqual({
-            name: 'sw.sales.channel.detail.agenticCommerce',
+            name: 'sw.sales.channel.detail.agenticFiles',
             params: { id: salesChannelId },
         });
     });
@@ -156,12 +89,6 @@ describe('extension/sw-sales-channel Agentic Files routes', () => {
             name: 'sw.sales.channel.detail.agenticCommerce',
             params: { id: salesChannelId },
         });
-    });
-
-    it('does not register an override when the file list component is unavailable', () => {
-        const { Component } = loadOverride('sw-sales-channel-detail-agentic-files', false);
-
-        expect(Component.override).not.toHaveBeenCalled();
     });
 
     it('does not register an override when the file detail component is unavailable', () => {

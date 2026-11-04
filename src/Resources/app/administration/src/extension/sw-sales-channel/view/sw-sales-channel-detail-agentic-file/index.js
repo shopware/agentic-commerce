@@ -10,7 +10,6 @@ if (componentRegistry?.has(COMPONENT_NAME)) {
         computed: {
             listRoute() {
                 return getAgenticFileListRoute(
-                    this.$route,
                     this.$route.params.id,
                     this.swSalesChannelShouldRenderAgenticCommerceTab(),
                 );
