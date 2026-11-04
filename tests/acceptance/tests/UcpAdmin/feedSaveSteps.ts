@@ -12,8 +12,8 @@ export const isSaveWrite = (request: Request) => request.method() !== 'GET'
 
 const fieldError = (feed: AgenticCommerceFeedDetail) => feed.fieldOf(feed.returnPolicyUrl).locator('.mt-field__error, .sw-field__error');
 
-/** Saves an opened OpenAI feed whose return policy URL is empty: the field is marked, and nothing is written. */
-export async function expectSaveRefusedWithoutReturnPolicyUrl(feed: AgenticCommerceFeedDetail, testData: UcpTestDataService, salesChannelId: string): Promise<void> {
+/** Saves an opened OpenAI feed whose return policy URL is empty: the field is marked, nothing is written, and the stored URL stays as it was. */
+export async function expectSaveRefusedWithoutReturnPolicyUrl(feed: AgenticCommerceFeedDetail, testData: UcpTestDataService, salesChannelId: string, storedUrl?: string): Promise<void> {
     const writes: Request[] = [];
     const recordWrite = (request: Request) => isSaveWrite(request) && writes.push(request);
     feed.page.on('request', recordWrite);
@@ -24,8 +24,8 @@ export async function expectSaveRefusedWithoutReturnPolicyUrl(feed: AgenticComme
     await expect(fieldError(feed)).toBeVisible();
     feed.page.off('request', recordWrite);
     expect(writes.map(request => request.url()), 'the refused save wrote nothing').toEqual([]);
-    expect(await testData.getChannelSystemConfig('SwagAgenticCommerce.openAiProductExport', salesChannelId))
-        .not.toHaveProperty([RETURN_POLICY_URL]);
+    const storedConfig = await testData.getChannelSystemConfig('SwagAgenticCommerce.openAiProductExport', salesChannelId);
+    expect(storedConfig[RETURN_POLICY_URL], 'the stored return policy URL is unchanged').toBe(storedUrl);
 }
 
 /** Saves a new feed channel without a return policy URL twice: the field stays marked, and nothing is written. */

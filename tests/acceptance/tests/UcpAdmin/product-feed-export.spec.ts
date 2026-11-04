@@ -84,6 +84,18 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         });
     });
 
+    test('clearing the stored return policy URL refuses the save and keeps the stored URL', async ({ TestDataService, AdminPage }) => {
+        const storedUrl = 'https://shop.example/returns';
+        const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai');
+        await TestDataService.setChannelSystemConfig(salesChannel.id, { [RETURN_POLICY_URL]: storedUrl });
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
+        await feed.open(salesChannel.id);
+
+        await feed.fillReturnPolicyUrl('');
+
+        await expectSaveRefusedWithoutReturnPolicyUrl(feed, TestDataService, salesChannel.id, storedUrl);
+    });
+
     test('a new feed channel without a return policy URL stays unsaved however often Save is clicked', async ({ AdminPage }) => {
         await expectNewFeedStaysUnsaved(new AgenticCommerceFeedDetail(AdminPage));
     });

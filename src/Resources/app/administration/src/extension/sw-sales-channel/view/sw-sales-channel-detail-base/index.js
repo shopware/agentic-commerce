@@ -1,5 +1,6 @@
 import template from './sw-sales-channel-detail-base.html.twig';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import { urlFieldReportsClearedValue } from '../../agentic-commerce/admin-version';
 
 const { Component, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -135,6 +136,10 @@ export const swSalesChannelDetailBaseOverride = {
 
             if (bind.type === 'text-editor') {
                 bind.config.componentName = 'sw-text-editor';
+            }
+
+            if (bind.type === 'url' && !urlFieldReportsClearedValue()) {
+                bind.config.componentName = 'sw-agentic-commerce-url-field';
             }
 
             return bind;

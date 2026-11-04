@@ -4,6 +4,7 @@ import './page/sw-sales-channel-list';
 import './component/sw-agentic-commerce-tracking-config';
 import './component/sw-sales-channel-modal-grid';
 import './component/sw-sales-channel-modal';
+import './component/sw-agentic-commerce-url-field';
 import './page/sw-sales-channel-detail';
 import './page/sw-sales-channel-create';
 import './view/sw-sales-channel-detail-base';

@@ -17,6 +17,7 @@ local lane tooling.
 | Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths       | Vite assets                                                  |
 | Discovery support                          | unavailable                          | unavailable                              | available only when the trunk bridge exists                  |
 | MCP transport                              | never                                | never                                    | from 6.7.12, see [MCP Tool Visibility](#mcp-tool-visibility) |
+| URL field reports a cleared value          | no                                   | from `6.6.9.0`                           | yes                                                          |
 | Local PHP runtime                          | `8.2`                                | `8.3`                                    | `8.4`                                                        |
 
 ## MCP Tool Visibility
