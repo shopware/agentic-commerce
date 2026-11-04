@@ -31,11 +31,15 @@ const Shopware = {
             }
         },
     },
-    Context: { api: {} },
+    Context: { api: {}, app: { config: { version: '6.7.10.0' } } },
     Defaults: { agenticCommerceTypeId: 'agentic-type-id' },
 };
 
 global.Shopware = Shopware;
+
+afterEach(() => {
+    Shopware.Context.app.config.version = '6.7.10.0';
+});
 
 jest.mock(
     './sw-sales-channel-detail.html.twig',
@@ -115,6 +119,11 @@ function buildContext({ saveSalesChannel, isSaveSuccessful = true } = {}) {
         ctx.isSaveSuccessful = isSaveSuccessful;
     });
     ctx.refreshUcpPreview = swSalesChannelDetailOverride.methods.refreshUcpPreview.bind(ctx);
+    ctx.defaultAgenticCommerceExportConfig = [{ provider: 'open-ai' }];
+    ctx.realSaveAgenticCommerceExportConfig = swSalesChannelDetailOverride.methods.saveAgenticCommerceExportConfig.bind(ctx);
+    ctx.realValidateAgenticCommerceExportConfig = swSalesChannelDetailOverride.methods.validateAgenticCommerceExportConfig.bind(ctx);
+    ctx.saveAgenticCommerceExportConfig = jest.fn((...args) => ctx.realSaveAgenticCommerceExportConfig(...args));
+    ctx.validateAgenticCommerceExportConfig = jest.fn(() => ctx.realValidateAgenticCommerceExportConfig());
 
     return ctx;
 }
@@ -166,6 +175,118 @@ describe('sw-sales-channel-detail onSave — 6.7.9.0+ parent save path', () => {
     });
 });
 
+describe('feed settings compatibility by Administration version', () => {
+    it.each(['6.7.9.0', '6.7.9.8', '6.6.10.0', '', 'unknown'])('saves valid feed settings on %s', async (version) => {
+        Shopware.Context.app.config.version = version;
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.agenticCommerceExportConfig[0].elements = [{ name: 'returnPolicyUrl', config: { required: true } }];
+        ctx.agenticCommerceExportConfig[0].values = { returnPolicyUrl: 'https://shop.example/updated-returns' };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenCalledWith({
+            'channel-id': { returnPolicyUrl: 'https://shop.example/updated-returns' },
+        });
+    });
+
+    it.each(['6.7.9.0', '6.7.9.8', '6.6.10.0', '', 'unknown'])('rejects an empty required feed setting on %s', async (version) => {
+        Shopware.Context.app.config.version = version;
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.agenticCommerceExportConfig[0].elements = [{ name: 'returnPolicyUrl', config: { required: true } }];
+        ctx.agenticCommerceExportConfig[0].values = { returnPolicyUrl: '' };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.$super).not.toHaveBeenCalled();
+        expect(ctx.systemConfigApiService.batchSave).not.toHaveBeenCalled();
+        expect(ctx.agenticCommerceExportConfig[0].errors.returnPolicyUrl).toBeDefined();
+    });
+
+    it('leaves feed validation and persistence to core from 6.7.10', async () => {
+        Shopware.Context.app.config.version = '6.7.10.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.validateAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
+    });
+
+    it('stops after the channel save fails', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(), isSaveSuccessful: false });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+    });
+
+    it('does not reuse a previous success when core returns early without changing the save state', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)), isSaveSuccessful: true });
+        ctx.$super = jest.fn(async () => {});
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.isSaveSuccessful).toBe(false);
+        expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+    });
+
+    it('blocks the channel save when the required return policy URL is empty', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.agenticCommerceExportConfig[0].elements = [{ name: 'returnPolicyUrl', config: { required: true } }];
+        ctx.agenticCommerceExportConfig[0].values = { returnPolicyUrl: '' };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveSalesChannel).not.toHaveBeenCalled();
+        expect(ctx.$super).not.toHaveBeenCalled();
+        expect(ctx.agenticCommerceExportConfig[0].errors.returnPolicyUrl).toBeDefined();
+    });
+
+    it('persists a changed return policy URL for the edited channel', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.agenticCommerceExportConfig[0].elements = [{ name: 'returnPolicyUrl', config: { required: true } }];
+        ctx.agenticCommerceExportConfig[0].values = { returnPolicyUrl: 'https://shop.example/updated-returns' };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenCalledWith({
+            'channel-id': {
+                returnPolicyUrl: 'https://shop.example/updated-returns',
+            },
+        });
+    });
+
+    it('stops UCP writes when the actual feed settings API write fails', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.systemConfigApiService.batchSave.mockRejectedValue(new Error('write failed'));
+        ctx.ucpState = { loaded: true, form: { active: true }, savedForm: {}, generation: 0 };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+        expect(ctx.isSaveSuccessful).toBe(false);
+    });
+
+    it('stops UCP writes and clears success when feed persistence fails', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.saveAgenticCommerceExportConfig.mockResolvedValue(false);
+        ctx.ucpState = { loaded: true, form: { active: true }, savedForm: {}, generation: 0 };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveUcpState).not.toHaveBeenCalled();
+        expect(ctx.isSaveSuccessful).toBe(false);
+    });
+});
+
 describe('sw-sales-channel-detail onSave — 6.7.0–6.7.8.x legacy path', () => {
     it('validates provider fields before delegating to the legacy save', async () => {
         const ctx = buildContext();
@@ -213,6 +334,7 @@ describe('sw-sales-channel-detail onSave — 6.7.0–6.7.8.x legacy path', () =>
              */
             ctx.salesChannel = null;
             ctx.agenticCommerceExportConfig = [];
+            ctx.isSaveSuccessful = true;
         });
 
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
@@ -291,6 +413,7 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
         ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
         ctx.$super = jest.fn(() => {
             ctx.ucpState.form = { active: false, profileDomain: null, enabledCapabilities: [], enabledTransports: ['rest'] };
+            ctx.isSaveSuccessful = true;
         });
 
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
@@ -308,6 +431,7 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
     });
 
     it('leaves reloading to the parent on the modern save path', async () => {
+        Shopware.Context.app.config.version = '6.7.10.0';
         const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
         ctx.ucpState = { loaded: true, form: { ...UCP_FORM }, savedForm: {}, generation: 0 };
 
@@ -315,6 +439,24 @@ describe('sw-sales-channel-detail onSave — UCP config', () => {
 
         expect(ctx.$super).toHaveBeenCalledWith('onSave');
         expect(ctx.loadUcpState).not.toHaveBeenCalled();
+    });
+
+    it('persists the original feed settings and channel after the core reload replaces live state', async () => {
+        Shopware.Context.app.config.version = '6.7.9.0';
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.productExport = { provider: 'open-ai' };
+        ctx.$super = jest.fn(() => {
+            ctx.salesChannel = { id: 'another-channel', typeId: 'other-type' };
+            ctx.agenticCommerceExportConfig = [];
+            ctx.productExport = { provider: 'other-provider' };
+            ctx.isSaveSuccessful = true;
+        });
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.systemConfigApiService.batchSave).toHaveBeenCalledWith({
+            'channel-id': { 'SwagAgenticCommerce.openAiProductExport.foo': 'bar' },
+        });
     });
 
     it('does not write a UCP config that was never loaded', async () => {

@@ -9,6 +9,7 @@ import {
 } from '../../agentic-commerce/ucp-form-state';
 import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
 import { isKnownSalesChannelType, isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
+import { currentAdminVersion, isVersionAtLeast } from '../../agentic-commerce/admin-version';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -465,6 +466,8 @@ export const swSalesChannelDetailOverride = {
 
             // 6.7.9.0+ provides saveSalesChannel(); earlier versions inline the save in onSave().
             const isLegacyOnSave = typeof this.saveSalesChannel !== 'function';
+            const coreHandlesExportConfig = isVersionAtLeast(currentAdminVersion(), 6, 7, 10);
+            const pluginHandlesExportConfig = isLegacyOnSave || !coreHandlesExportConfig;
 
             // Snapshot before saving: legacy onSave triggers loadEntityData() which nulls
             // salesChannel and resets agenticCommerceExportConfig mid-flight.
@@ -476,7 +479,9 @@ export const swSalesChannelDetailOverride = {
             const ucpFormAtSave = form
                 && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm)) ? form : null;
 
-            if (isLegacyOnSave) {
+            if (pluginHandlesExportConfig) {
+                this.isSaveSuccessful = false;
+
                 if (!this.validateAgenticCommerceExportConfig()) {
                     this.isLoading = false;
                     // The create page has no tabs, so only the detail page names the tab holding the field.
@@ -526,8 +531,8 @@ export const swSalesChannelDetailOverride = {
                 return;
             }
 
-            // The legacy onSave reloaded the page before the UCP write; load what is stored now.
-            if (isLegacyOnSave && ucpFormAtSave) {
+            // Older core reloads the page before the UCP write; load what is stored now.
+            if (pluginHandlesExportConfig && ucpFormAtSave) {
                 this.loadUcpState(channelIdAtSave, typeIdAtSave);
             }
         },
