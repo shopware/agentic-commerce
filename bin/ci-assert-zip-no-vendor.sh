@@ -18,7 +18,7 @@
 #   - the two SDK packages are still required, so the install has something to resolve
 #   - composer.json carries a concrete version -- the path repository derives the package version
 #     from it, and a require of `<name>:<version>` that cannot match fails the install
-#   - no build-only trees (.sdk, .tools, node_modules)
+#   - no build-only trees (.sdk, .tools, node_modules, vendor-bin)
 #   - no test scaffolding (Jest specs, src/Ucp/Test), which .shopware-extension.yml removes
 
 set -euo pipefail
@@ -59,7 +59,7 @@ else
   echo "ok: the archive bundles no dependencies."
 fi
 
-for build_only in .sdk .tools node_modules; do
+for build_only in .sdk .tools node_modules vendor-bin; do
   if printf '%s\n' "${listing}" | grep "^${PLUGIN}/${build_only}/" >/dev/null; then
     echo "FAIL: the archive ships the build-only ${build_only}/ tree." >&2
     echo "      Add ${build_only} to zip.pack.excludes.paths in .shopware-extension.yml." >&2

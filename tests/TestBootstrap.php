@@ -7,20 +7,26 @@ use Shopware\Core\TestBootstrapper;
 
 $shopwareProjectDir = getenv('SHOPWARE_PROJECT_DIR');
 
-// When SHOPWARE_PROJECT_DIR is set (CI): load Shopware's vendor autoloader directly.
-// The full TestBootstrapper->bootstrap() initialises the kernel and compiles the DI
-// container, which is too heavy for unit tests and fails on CI test fixtures.
+$shopwareLoaded = static fn (): bool => class_exists(InstalledVersions::class) && InstalledVersions::isInstalled('shopware/core');
+
+// When SHOPWARE_PROJECT_DIR is set (CI): no kernel. The full TestBootstrapper->bootstrap()
+// initialises the kernel and compiles the DI container, which is too heavy for unit tests and
+// fails on CI test fixtures. Shopware comes from the tree tests/bootstrap.php already loaded
+// (CI links the lane checkout into .tools); the project's own vendor/ only when there is none,
+// since a second tree would mix two Shopware versions in this process.
 if (\is_string($shopwareProjectDir) && is_dir($shopwareProjectDir)) {
     $vendorAutoload = $shopwareProjectDir.'/vendor/autoload.php';
-    if (is_file($vendorAutoload)) {
+    if (!$shopwareLoaded() && is_file($vendorAutoload)) {
         /** @var Composer\Autoload\ClassLoader $classLoader */
         $classLoader = require $vendorAutoload;
         $classLoader->addPsr4('Swag\\AgenticCommerce\\', \dirname(__DIR__).'/src');
         $classLoader->addPsr4('Swag\\AgenticCommerce\\Tests\\', __DIR__);
+    }
 
+    if ($shopwareLoaded()) {
         Swag\AgenticCommerce\Tests\Compat\FakeConnection::register();
 
-        return $classLoader;
+        return;
     }
 }
 
