@@ -105,10 +105,10 @@ like `https://shop.example/de` serves no UCP profile.
    Paste the printed `curl`. Expect `200` with `"status": "success"` in the `ucp` envelope. Without
    an argument the command lists every operation; `--id` fills in product and resource ids.
 
-4. **Change and re-check.** Exposure (active, profile domain, capabilities, transports) lives in the
-   Administration under the sales channel; allowlists and policy in `ucp:config:set`;
-   `bin/console ucp:config:validate --sales-channel=Storefront` re-runs the readiness checks any
-   time.
+4. **Change and re-check.** Exposure (active, profile domain, capabilities, transports, allowed
+   agent platforms) lives in the Administration under the sales channel; the other allowlists and
+   the policy in `ucp:config:set`; `bin/console ucp:config:validate --sales-channel=Storefront`
+   re-runs the readiness checks any time.
 
 What the shortcut in step 2 does and does not prove, and what to do when you need a real second
 profile (strict signatures, the conformance agent, a staging platform), is in the SDK's
@@ -157,7 +157,8 @@ first to see channel ids and which channels currently expose UCP.
 - `--signature-policy=strict|log|off`
 - `--idempotency=true|false`
 - `--agent-allowlist`, `--remote-profile-allowlist`, `--platform-allowlist` — bare hosts, no scheme
-  (repeatable)
+  (repeatable). The platform allowlist is also the _Allowed agent platforms_ field in the
+  Administration. The agent and remote-profile allowlists take precedence over it when set.
 - `--embedded-allowed-origins`, `--embedded-frame-ancestors` — origins, scheme + host (repeatable)
 - `--webhook-url-override` — absolute https URL whose host is in an allowlist (pass an empty value
   to clear)

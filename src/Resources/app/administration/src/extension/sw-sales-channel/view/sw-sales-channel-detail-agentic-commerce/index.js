@@ -3,7 +3,12 @@ import templateSw from './sw-sales-channel-detail-agentic-commerce.sw.html.twig'
 import './sw-sales-channel-detail-agentic-commerce.scss';
 import { registerOrOverride } from '../../../../helper/register-or-override';
 import { useMtComponents } from '../../agentic-commerce/admin-version';
-import { toggleArrayValue, buildConfigPayload } from '../../agentic-commerce/ucp-form-state';
+import {
+    toggleArrayValue,
+    buildConfigPayload,
+    isValidHostEntry,
+    normalizeHostList,
+} from '../../agentic-commerce/ucp-form-state';
 import {
     buildSubTabItems,
     resolveActiveSubTab,
@@ -24,7 +29,7 @@ const { Mixin, Defaults } = Shopware;
  *
  * The UCP form/preview live on the parent page (injected via
  * `swSalesChannelGetUcpState`) so edits survive tab switches and persist through
- * the page's global Save. Signature policy, signing keys and the advanced
+ * the page's global Save. Signature policy, signing keys and the remaining
  * host/delivery settings are managed via console commands (ucp:config:* /
  * ucp:signing-keys:*), not this UI. This component is the thin view layer over the pure
  * helpers in ../../agentic-commerce/*.
@@ -210,6 +215,18 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
 
         isTransportEnabled(transport) {
             return this.form.enabledTransports.includes(transport);
+        },
+
+        // 6.5 emits `change`, 6.6+ `update:value`; the legacy template listens to both.
+        setPlatformAllowlist(values) {
+            if (!Array.isArray(values)) {
+                return;
+            }
+            this.form.platformAllowlist = normalizeHostList(values);
+        },
+
+        isValidPlatformHost(value) {
+            return isValidHostEntry(value);
         },
     },
 });

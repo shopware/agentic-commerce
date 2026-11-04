@@ -85,6 +85,30 @@
                     </p>
                 </div>
 
+                {% block sw_sales_channel_detail_agentic_commerce_ucp_platform_allowlist %}
+                <div
+                    class="sw-sales-channel-detail-agentic-commerce__section"
+                    data-testid="ac-ucp__platform-allowlist"
+                >
+                    <sw-multi-tag-select
+                        :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistLabel')"
+                        :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHelpText')"
+                        :placeholder="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistPlaceholder')"
+                        :validate="isValidPlatformHost"
+                        :disabled="!canEditConfig || !isActive"
+                        :value="form.platformAllowlist"
+                        @update:value="setPlatformAllowlist"
+                    >
+                        <template #message-enter-valid-data>
+                            <span>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistInvalid') }}</span>
+                        </template>
+                    </sw-multi-tag-select>
+                    <p class="sw-sales-channel-detail-agentic-commerce__hint">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHint') }}
+                    </p>
+                </div>
+                {% endblock %}
+
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
                     <div class="sw-sales-channel-detail-agentic-commerce__option-grid">
                         <div class="sw-sales-channel-detail-agentic-commerce__option-column">

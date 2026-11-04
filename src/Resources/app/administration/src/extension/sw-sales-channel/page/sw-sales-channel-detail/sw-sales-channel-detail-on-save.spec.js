@@ -175,7 +175,7 @@ describe('sw-sales-channel-detail onSave — post-save validation', () => {
 });
 
 describe('sw-sales-channel-detail onSave — UCP config', () => {
-    const UCP_FORM = { active: true, profileDomain: null, enabledCapabilities: ['cart', 'catalog'], enabledTransports: ['rest'] };
+    const UCP_FORM = { active: true, profileDomain: null, enabledCapabilities: ['cart', 'catalog'], enabledTransports: ['rest'], platformAllowlist: ['platform.example'] };
 
     it('writes the UCP form as it was when Save was clicked, although the legacy reload replaced it', async () => {
         const ctx = buildContext({ isSaveSuccessful: true });

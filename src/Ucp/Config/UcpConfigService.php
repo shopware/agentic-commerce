@@ -122,8 +122,8 @@ final class UcpConfigService
      * Persist a (possibly partial) config payload. The incoming keys are merged
      * over the currently stored config, so callers that only own a subset of the
      * fields do not reset the rest: the admin UI saves the Exposure subset
-     * (active / profileDomain / capabilities / transports) while signature
-     * policy, signing keys and the advanced host/delivery settings are managed
+     * (active / profileDomain / capabilities / transports / platform allowlist)
+     * while signature policy, signing keys and the other host/delivery settings are managed
      * via console commands (ucp:config:* / ucp:signing-keys:*). Whichever writes last
      * preserves the other's fields.
      *
