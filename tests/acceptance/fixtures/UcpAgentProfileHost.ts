@@ -121,7 +121,11 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
                 const { publicJwk, privateKeyPem } = generateSigningKey(agentKid);
                 const publishedCapabilities = capabilities ?? specShoppingCapabilities(version);
                 if (orderWebhookUrl !== undefined) {
-                    publishedCapabilities['dev.ucp.shopping.order'] = publishedCapabilities['dev.ucp.shopping.order']
+                    const orderCapability = publishedCapabilities['dev.ucp.shopping.order'];
+                    if (orderCapability === undefined) {
+                        throw new Error('orderWebhookUrl is published in the dev.ucp.shopping.order capability, which the given capabilities leave out.');
+                    }
+                    publishedCapabilities['dev.ucp.shopping.order'] = orderCapability
                         .map(entry => ({ ...entry, config: { ...entry.config, webhook_url: orderWebhookUrl } }));
                 }
                 const profile = {

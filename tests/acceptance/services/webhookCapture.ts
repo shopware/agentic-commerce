@@ -74,7 +74,11 @@ export async function checkWebhookSignature(
     const [, label = '', signatureParams = ''] = /^([^=]+)=(\(.*)$/.exec(webhook.headers['signature-input'] ?? '') ?? [];
     const coveredComponents = [...signatureParams.slice(0, signatureParams.indexOf(')')).matchAll(/"([^"]+)"/g)].map(match => match[1]);
     const keyId = /;keyid="([^"]+)"/.exec(signatureParams)?.[1];
-    const signature = new RegExp(`^${label}=:([^:]+):$`).exec(webhook.headers.signature ?? '')?.[1];
+    const signatureHeader = webhook.headers.signature ?? '';
+    const signaturePrefix = `${label}=:`;
+    const signature = signatureHeader.startsWith(signaturePrefix) && signatureHeader.endsWith(':')
+        ? signatureHeader.slice(signaturePrefix.length, -1)
+        : undefined;
     const profileKey = profileKeys.find(key => key.kid === keyId);
 
     let verified = false;

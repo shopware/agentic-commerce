@@ -28,7 +28,7 @@ test.describe('Embedded transport switched off @UcpKnownBlocked @UcpBlockedByD33
         await TestDataService.activateUcp(restOnlyChannel.salesChannel.id, { enabledTransports: ['rest'], embeddedAllowedOrigins: ['https://agent.example'] });
         const embeddedCheckoutUrl = `${restOnlyChannel.url}ucp/embedded/checkout/${crypto.randomUUID()}`;
 
-        const preflight = await request.fetch(embeddedCheckoutUrl, { method: 'OPTIONS', headers: { Origin: 'https://agent.example' } });
+        const preflight = await request.fetch(embeddedCheckoutUrl, { method: 'OPTIONS', headers: { Origin: 'https://agent.example', 'Access-Control-Request-Method': 'GET' } });
 
         expect(preflight.status(), JSON.stringify(preflight.headers())).toBe(404);
     });
