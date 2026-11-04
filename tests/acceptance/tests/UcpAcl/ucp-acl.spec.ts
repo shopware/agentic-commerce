@@ -87,9 +87,21 @@ test.describe('UCP Administration ACL @UcpAcl', () => {
         const detail = new UcpSalesChannelDetail(editor.page);
         await detail.openAgenticCommerceTab(salesChannel.id);
         await expect(detail.readOnlyBanner).toBeHidden();
-        await expect(detail.saveButton).toBeEnabled();
 
+        await goToAdminRoute(editor.page, `/sw/sales/channel/detail/${salesChannel.id}/base`);
+        const salesChannelName = editor.page.locator('.sw-field--salesChannel-name input');
+        await expect(salesChannelName).toBeDisabled();
+        await salesChannelName.evaluate((input, value) => {
+            const editableInput = input as unknown as { value: string, dispatchEvent: (event: Event) => boolean };
+            editableInput.value = value;
+            editableInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }, `${salesChannel.name} unsaved`);
+        await expect(salesChannelName).toHaveValue(`${salesChannel.name} unsaved`);
+        await goToAdminRoute(editor.page, `/sw/sales/channel/detail/${salesChannel.id}/agentic-commerce`);
+        await expect(detail.agenticCommerceTab).toBeVisible();
+        await expect(detail.capability('discount')).toBeVisible();
         await detail.capability('discount').uncheck();
+        await expect(detail.saveButton).toBeEnabled();
         const requests: Array<{ method: string, pathname: string }> = [];
         editor.page.on('request', (request) => {
             requests.push({
@@ -101,7 +113,7 @@ test.describe('UCP Administration ACL @UcpAcl', () => {
         expect((await TestDataService.getUcpConfig(salesChannel.id)).enabledCapabilities).not.toContain('discount');
         expect(requests.filter(({ method, pathname }) =>
             method !== 'GET'
-            && (pathname.endsWith('/api/sales-channel') || pathname.endsWith('/api/_action/sync')),
+            && (pathname.startsWith('/api/sales-channel') || pathname.endsWith('/api/_action/sync')),
         )).toEqual([]);
         await detail.reload(salesChannel.id);
         await expect(detail.capability('discount')).not.toBeChecked();

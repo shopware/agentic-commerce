@@ -67,7 +67,7 @@ describe('sw-sales-channel-detail-agentic-commerce-statistics', () => {
     });
 
     function createInstance({
-        privileges = ['ucp.viewer'],
+        privileges = [],
         orderSearch = jest.fn(() => Promise.resolve([])),
         customerSearch = jest.fn(() => Promise.resolve([])),
     } = {}) {
@@ -90,12 +90,12 @@ describe('sw-sales-channel-detail-agentic-commerce-statistics', () => {
     }
 
     it('loads order statistics only for order viewers and customer statistics only for customer viewers', async () => {
-        const orderViewer = createInstance({ privileges: ['ucp.viewer', 'order.viewer'] });
+        const orderViewer = createInstance({ privileges: ['order.viewer'] });
         await orderViewer.fetchData();
         expect(orderViewer.orderRepository.search).toHaveBeenCalledTimes(2);
         expect(orderViewer.customerRepository.search).not.toHaveBeenCalled();
 
-        const customerViewer = createInstance({ privileges: ['ucp.viewer', 'customer.viewer'] });
+        const customerViewer = createInstance({ privileges: ['customer.viewer'] });
         await customerViewer.fetchData();
         expect(customerViewer.orderRepository.search).not.toHaveBeenCalled();
         expect(customerViewer.customerRepository.search).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe('sw-sales-channel-detail-agentic-commerce-statistics', () => {
         const customers = [{ id: 'customer' }];
         const isPaidQuery = (criteria) => criteria.filters.some((filter) => filter.field === 'transactions.stateMachineState.technicalName');
         const instance = createInstance({
-            privileges: ['ucp.viewer', 'order.viewer', 'customer.viewer'],
+            privileges: ['order.viewer', 'customer.viewer'],
             orderSearch: jest.fn((criteria) => Promise.resolve(isPaidQuery(criteria) ? paidOrders : allOrders)),
             customerSearch: jest.fn(() => Promise.resolve(customers)),
         });
@@ -124,7 +124,7 @@ describe('sw-sales-channel-detail-agentic-commerce-statistics', () => {
 
     it('stops loading when a statistics request fails', async () => {
         const instance = createInstance({
-            privileges: ['ucp.viewer', 'order.viewer', 'customer.viewer'],
+            privileges: ['order.viewer', 'customer.viewer'],
             orderSearch: jest.fn(() => Promise.reject(new Error('Request failed'))),
         });
 
