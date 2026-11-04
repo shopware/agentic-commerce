@@ -2,7 +2,7 @@ import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
 import { AgenticCommerceFeedDetail } from '@page-objects/AgenticCommerceFeedDetail';
 import { readFeedTemplates } from '@services/pluginSource';
-import { NEW_FEED_SAVES_ON_SECOND_CLICK, SAVE_SHOWS_NO_REQUIRED_SETTING_ERROR, TEMPLATE_SELECT_KEEPS_CANCELLED_CHOICE } from '../UcpContent/knownBlockerRanges';
+import { TEMPLATE_SELECT_KEEPS_CANCELLED_CHOICE } from '../UcpContent/knownBlockerRanges';
 import { RETURN_POLICY_URL, expectCancelledTemplateChangeShowsCurrent, expectNewFeedStaysUnsaved, expectSaveRefusedWithoutReturnPolicyUrl } from './feedSaveSteps';
 
 test.describe('Product feed export settings @UcpAdmin', () => {
@@ -65,8 +65,7 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         expect(stored.bodyTemplate).toBe(openAi.bodyTemplate);
     });
 
-    test('an OpenAI feed is not saved without a return policy URL', async ({ InstanceMeta, TestDataService, AdminPage }) => {
-        test.skip(satisfies(InstanceMeta.version, SAVE_SHOWS_NO_REQUIRED_SETTING_ERROR), 'known blocker D12, asserted in tests/KnownBlocked/product-feed-export.spec.ts');
+    test('an OpenAI feed is not saved without a return policy URL', async ({ TestDataService, AdminPage }) => {
         const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai');
         const feed = new AgenticCommerceFeedDetail(AdminPage);
         await feed.open(salesChannel.id);
@@ -85,8 +84,7 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         });
     });
 
-    test('a new feed channel without a return policy URL stays unsaved however often Save is clicked', async ({ InstanceMeta, AdminPage }) => {
-        test.skip(satisfies(InstanceMeta.version, NEW_FEED_SAVES_ON_SECOND_CLICK), 'known blocker D12, asserted in tests/KnownBlocked/product-feed-export.spec.ts');
+    test('a new feed channel without a return policy URL stays unsaved however often Save is clicked', async ({ AdminPage }) => {
         await expectNewFeedStaysUnsaved(new AgenticCommerceFeedDetail(AdminPage));
     });
 

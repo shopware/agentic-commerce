@@ -158,10 +158,13 @@ export const swSalesChannelDetailBaseOverride = {
 
         onAgenticCommerceExportFieldUpdate(configEntry, fieldName, value) {
             if (value instanceof Event) return;
-            configEntry.values[fieldName] = value;
+            // Reassigned instead of mutated: Vue 2.7 (6.5) does not track added or deleted keys.
+            configEntry.values = { ...configEntry.values, [fieldName]: value };
 
             if (configEntry.errors?.[fieldName]) {
-                delete configEntry.errors[fieldName];
+                const remainingErrors = { ...configEntry.errors };
+                delete remainingErrors[fieldName];
+                configEntry.errors = remainingErrors;
             }
         },
 

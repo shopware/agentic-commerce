@@ -1,6 +1,7 @@
 # next version
 
 - Serve `robots.txt` again on Shopware `6.7.1.0` to `6.7.4.x` instead of answering `500`.
+- Mark a missing required feed setting, such as the return policy URL, every time _Save_ is clicked on an Agentic Commerce sales channel. On Shopware `6.5` the save was refused without marking the field or showing a message, so _Save_ looked broken. On a new channel on `6.5` and `6.6`, the second click saved the channel anyway, without the missing setting.
 - Apply a sales channel's own UCP settings to requests under a domain with a path, such as `https://shop.example/de`. These requests used the UCP settings of the host's root domain. Under the `strict` signature policy, correctly signed requests to such a domain are no longer refused. Agents only discover a UCP profile at `/.well-known/ucp` on the root of a domain, so a sales channel that agents should find needs a domain without a path. A domain with a path no longer serves a UCP profile, and its storefront pages and discovery files no longer link one. Until now `/de/.well-known/ucp` served the profile of the host's root domain. `ucp:config:validate` now warns about a UCP sales channel whose domains all have a path.
 
 # 1.4.0

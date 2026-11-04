@@ -412,10 +412,17 @@ export const swSalesChannelDetailOverride = {
             });
 
             for (const entry of activeEntries) {
-                for (const el of entry.elements.filter((el) => el.config?.required && !entry.values[el.name])) {
-                    entry.errors[el.name] = requiredError;
-                    isValid = false;
+                const missingElements = entry.elements.filter((el) => el.config?.required && !entry.values[el.name]);
+                if (missingElements.length === 0) {
+                    continue;
                 }
+
+                // Reassigned instead of adding keys: Vue 2.7 (6.5) does not track keys added to an existing object.
+                entry.errors = {
+                    ...entry.errors,
+                    ...Object.fromEntries(missingElements.map((el) => [el.name, requiredError])),
+                };
+                isValid = false;
             }
 
             return isValid;
