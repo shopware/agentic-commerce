@@ -136,11 +136,10 @@ jobs:
   # The early warning that used to be spread across every gate job: does this plugin still build
   # against the SDK's moving main branch, before that branch becomes a release the plugin pins?
   #
-  # Deliberately the only job that stages an SDK checkout and relabels it as the pinned version,
-  # and deliberately non-blocking. A path repository pointed at main and labelled `0.0.7` tests a
-  # branch wearing a release's version number, which is not what any merchant installs -- and
-  # when main moved to require a newer `core`, that relabelling turned this repository's main red
-  # for five days and would have done the same to every open pull request at once. The warning is
+  # Deliberately the only job that stages an SDK checkout, and deliberately non-blocking: it tests a
+  # branch, which is not what any merchant installs. Main is labelled as a version above every
+  # release, not as the pinned one: labelled `0.0.7`, it broke as soon as main required a newer
+  # `core`, which happens with every SDK release, and turned this repository's main red. The warning is
   # worth having; it is not worth blocking merges on, so the job is continue-on-error.
   # Read it, and open an SDK issue -- do not let it stop a merge.
   sdk-main-compatibility:
@@ -166,10 +165,13 @@ jobs:
           path: shopware
       - run: bash bin/ci-link-shopware.sh ../shopware
         working-directory: agentic-commerce
-      - name: Configure private SDK path repositories
+      - name: Stage SDK main as a version newer than any release
+        # Above every released 0.0.x and inside the bundle's `<0.1.0` range, so SDK releases need no edit here.
         run: |
-          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
-          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.7"}}}'
+          V=0.0.999
+          composer config repositories.ucp-sdk-core "{\"type\":\"path\",\"url\":\"../ucp-php-sdk/packages/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"$V\"}}}"
+          composer config repositories.ucp-sdk-symfony "{\"type\":\"path\",\"url\":\"../ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"$V\"}}}"
+          composer require --no-update "ucp-php-sdk/core:$V" "ucp-php-sdk/symfony-bundle:$V"
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
