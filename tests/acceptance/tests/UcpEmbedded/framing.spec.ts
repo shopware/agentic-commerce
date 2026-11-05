@@ -6,14 +6,12 @@ import { CARTS_PATH, CHECKOUT_SESSIONS_PATH } from '@services/shoppingRoutes';
 const TRUSTED_HOST_ORIGIN = 'http://trusted-host.example';
 const FOREIGN_HOST_ORIGIN = 'http://foreign-host.example';
 const FRAMING_ONLY_HOST_ORIGIN = 'http://framing-only-host.example';
+// The page answers only its own `ucp.embedded` messages, not the Embedded Protocol's JSON-RPC.
+const BRIDGE_PING = { channel: 'ucp.embedded', type: 'ucp.embedded.ping' };
 
 type EmbeddedSurface = 'cart' | 'checkout';
 
 const CREATION_PATH_BY_SURFACE: Record<EmbeddedSurface, string> = { cart: CARTS_PATH, checkout: CHECKOUT_SESSIONS_PATH };
-
-interface FramePostTarget {
-    contentWindow: { postMessage(message: unknown, targetOrigin: string): void }
-}
 
 interface EmbeddedSession {
     url: string
@@ -55,18 +53,29 @@ test.describe('Embedded checkout framing @UcpEmbedded', () => {
     });
 
     test('a host that may frame the page but is no allowed origin receives no message, also after it posts one', async ({ TestDataService, UcpAgent, browser }) => {
-        const { url: checkoutUrl } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout');
+        const { url: checkoutUrl, id: checkoutId } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout');
 
         const framingOnlyHost = await openInEmbeddingHost(browser, FRAMING_ONLY_HOST_ORIGIN, checkoutUrl);
         await expect(framingOnlyHost.page.frameLocator('iframe').getByRole('heading', { name: 'Checkout session' })).toBeVisible();
-        await framingOnlyHost.page.locator('iframe').evaluate((iframe) => {
-            (iframe as unknown as FramePostTarget).contentWindow.postMessage({ channel: 'ucp.embedded', type: 'ucp.embedded.ping' }, '*');
-        });
+        await framingOnlyHost.postFromHost(BRIDGE_PING);
 
         const trustedHost = await openInEmbeddingHost(browser, TRUSTED_HOST_ORIGIN, checkoutUrl);
-        await expect.poll(() => trustedHost.receivedMessages(), 'the messages the embedded checkout posted to the trusted host').not.toEqual([]);
+        await expect.poll(async () => JSON.stringify(await trustedHost.receivedMessages()), 'the messages the embedded checkout posted to the trusted host').toContain(checkoutId);
 
         expect(await framingOnlyHost.receivedMessages()).toEqual([]);
+    });
+
+    test('a sibling frame on the trusted origin cannot make the embedded checkout answer the host', async ({ TestDataService, UcpAgent, browser }) => {
+        const { url: checkoutUrl } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout');
+        const trustedHost = await openInEmbeddingHost(browser, TRUSTED_HOST_ORIGIN, checkoutUrl, { withSiblingFrame: true });
+        await expect(trustedHost.page.frameLocator('iframe[title="Embedded checkout"]').getByRole('heading', { name: 'Checkout session' })).toBeVisible();
+
+        await trustedHost.postFromSiblingFrame(BRIDGE_PING);
+        await trustedHost.postFromHost(BRIDGE_PING);
+
+        const countReceivedPongs = async () => (await trustedHost.receivedMessages()).filter(message => (message as { type?: string }).type === 'ucp.embedded.pong').length;
+        await expect.poll(countReceivedPongs, 'the pong to the host\'s own ping').toBeGreaterThan(0);
+        expect(await countReceivedPongs(), 'the sibling\'s ping, sent first, got no pong').toBe(1);
     });
 
     test('the embedded checkout links to the configured continue URL', async ({ TestDataService, UcpAgent, page }) => {
