@@ -119,6 +119,7 @@ export default defineConfig({
         },
         {
             name: 'UcpContent',
+            use: { ...ownHostResolverRules },
             grep: /@UcpContent/,
             dependencies: ['Signer', 'Setup'],
         },
