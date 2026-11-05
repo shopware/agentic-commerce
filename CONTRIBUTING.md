@@ -166,9 +166,11 @@ Compatibility lanes may need to resolve historical Shopware dependencies with kn
 Composer's security blocking disabled for these disposable CI containers, but preserve visibility
 through the centralized reporting flow:
 
-- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency report. The four
-  `shopware-matrix` lanes (`6.5.x`, `6.6.x`, `6.7.14.x`, and `trunk`) capture the dependencies
-  resolved in each installed Shopware environment.
+- The blocking `plugin-dependencies` job captures the plugin's direct dependency report: it is the
+  one PHP job that resolves the plugin from Packagist the way a merchant's `composer require` does.
+  `php-quality` resolves Shopware from the lane checkout, so its audit would cover a relabelled
+  branch. The four `shopware-matrix` lanes (`6.5.x`, `6.6.x`, `6.7.14.x`, and `trunk`) capture the
+  dependencies resolved in each installed Shopware environment.
 - Those five sources upload normalized JSON as uniquely named `composer-audit-*` artifacts with
   short retention. Composer versions that emit no JSON for a clean audit must still produce an empty
   report.

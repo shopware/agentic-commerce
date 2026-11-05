@@ -21,6 +21,9 @@ parameters:
         # KernelLifecycleManager, ProductBuilder) that aren't on the php-quality job's autoload.
         # They are validated by running against a booted kernel in a lane, not by static analysis.
         - tests/Functional
+        # Stubs and the MCP attribute polyfill. Scanned as source, they would stand in for the
+        # lane's own classes (an EntityWriteResult with no constructor and no constants).
+        - tests/phpstan
     bootstrapFiles:
         - tests/bootstrap.php
     stubFiles:

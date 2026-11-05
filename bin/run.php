@@ -110,6 +110,8 @@ function renderPhpstanConfig(string $pluginDir): string
     }
 
     $coreDir = locateShopwareCore($pluginDir);
+    $vendorDir = loadedVendorDir($pluginDir, $coreDir);
+    $withCoreConfig = includesShopwarePhpstanConfig($vendorDir, $coreDir);
     $tmpDir = $pluginDir.'/var/cache/phpstan';
 
     if (!is_dir($tmpDir) && !mkdir($tmpDir, 0o775, true) && !is_dir($tmpDir)) {
@@ -119,20 +121,36 @@ function renderPhpstanConfig(string $pluginDir): string
 
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
-        '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir),
+        '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir, $withCoreConfig),
         '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir),
-        '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir),
-        '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir),
+        '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir, $withCoreConfig),
+        '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir, $withCoreConfig),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
     ]);
 
     file_put_contents($pluginDir.'/phpstan.neon', $rendered);
 
-    return renderPhpstanAutoload($pluginDir, $coreDir, $tmpDir);
+    return renderPhpstanAutoload($vendorDir, $tmpDir);
+}
+
+// Exactly one tree: the plugin's own when it exists, the Shopware project's otherwise.
+function loadedVendorDir(string $pluginDir, string $coreDir): string
+{
+    return is_file($pluginDir.'/.tools/vendor/autoload.php')
+        ? $pluginDir.'/.tools/vendor'
+        : \dirname($coreDir, 2).'/vendor';
 }
 
 function locateShopwareCore(string $pluginDir): string
 {
+    // PHPStan always loads the plugin's own tree when it exists, so its core is the one analysed.
+    $toolsCoreDir = realpath($pluginDir.'/.tools/vendor/shopware/core');
+    if (false !== $toolsCoreDir) {
+        assertLaneMatchesToolsCore($toolsCoreDir);
+
+        return $toolsCoreDir;
+    }
+
     $envCoreDir = getenv('SHOPWARE_CORE_DIR');
     if (\is_string($envCoreDir) && '' !== $envCoreDir && is_dir($envCoreDir.'/DevOps')) {
         return (string) realpath($envCoreDir);
@@ -149,7 +167,6 @@ function locateShopwareCore(string $pluginDir): string
         $projectsDir.'/shopware-trunk/src/Core',
         $projectsDir.'/shopware-6-6-branch/src/Core',
         $projectsDir.'/shopware-6-5-branch/src/Core',
-        $pluginDir.'/vendor/shopware/core',
         \dirname($pluginDir, 3).'/src/Core',
         \dirname($pluginDir, 4).'/src/Core',
         \dirname($pluginDir, 3).'/vendor/shopware/core',
@@ -165,10 +182,48 @@ function locateShopwareCore(string $pluginDir): string
     exit(1);
 }
 
-function renderShopwarePhpstanIncludes(string $coreDir): string
+function assertLaneMatchesToolsCore(string $toolsCoreDir): void
+{
+    $lanes = [
+        'SHOPWARE_CORE_DIR' => [''],
+        'SHOPWARE_PROJECT_DIR' => ['/src/Core', '/vendor/shopware/core'],
+    ];
+
+    foreach ($lanes as $variable => $suffixes) {
+        $dir = getenv($variable);
+        if (!\is_string($dir) || '' === $dir) {
+            continue;
+        }
+
+        foreach ($suffixes as $suffix) {
+            $laneCoreDir = realpath($dir.$suffix);
+            if (false === $laneCoreDir || !is_file($laneCoreDir.'/Kernel.php') || $laneCoreDir === $toolsCoreDir) {
+                continue;
+            }
+
+            // bin/ci-link-shopware.sh takes a source checkout's root, never a core directory.
+            $recovery = str_ends_with($laneCoreDir, '/src/Core')
+                ? \sprintf('Link the lane first: bin/ci-link-shopware.sh %s && composer update', \dirname($laneCoreDir, 2))
+                : 'An installed shopware/core cannot be linked into .tools; unset the variable or run inside that project.';
+
+            fwrite(\STDERR, \sprintf(
+                "%s points at shopware/core %s, but the plugin's .tools/vendor holds %s.\n"
+                ."Analysing one against the other loads two Shopware versions into one process.\n"
+                ."%s\n",
+                $variable,
+                $laneCoreDir,
+                $toolsCoreDir,
+                $recovery,
+            ));
+            exit(1);
+        }
+    }
+}
+
+function renderShopwarePhpstanIncludes(string $coreDir, bool $withCoreConfig): string
 {
     $phpStanDir = $coreDir.'/DevOps/StaticAnalyze/PHPStan';
-    if (!includesShopwarePhpstanConfig($coreDir)) {
+    if (!$withCoreConfig) {
         return '';
     }
 
@@ -189,9 +244,9 @@ function renderFutureCompatibilityInclude(string $pluginDir): string
     return is_file($rules) ? '    - '.$rules : '';
 }
 
-function renderShopwarePhpstanParameters(string $coreDir): string
+function renderShopwarePhpstanParameters(string $coreDir, bool $withCoreConfig): string
 {
-    if (!includesShopwarePhpstanConfig($coreDir) || !supportsConfigurableCoversRule($coreDir)) {
+    if (!$withCoreConfig || !supportsConfigurableCoversRule($coreDir)) {
         return '';
     }
 
@@ -203,9 +258,9 @@ function renderShopwarePhpstanParameters(string $coreDir): string
     ]);
 }
 
-function renderUnexpectedTestCoversIgnore(string $coreDir): string
+function renderUnexpectedTestCoversIgnore(string $coreDir, bool $withCoreConfig): string
 {
-    if (includesShopwarePhpstanConfig($coreDir) && supportsConfigurableCoversRule($coreDir)) {
+    if ($withCoreConfig && supportsConfigurableCoversRule($coreDir)) {
         return '';
     }
 
@@ -217,9 +272,12 @@ function renderUnexpectedTestCoversIgnore(string $coreDir): string
     ]);
 }
 
-function includesShopwarePhpstanConfig(string $coreDir): bool
+// Core's config includes its own vendor/ by relative path and registers that tree's Symplify rules,
+// so it only works when that vendor/ is the tree PHPStan loads.
+function includesShopwarePhpstanConfig(string $vendorDir, string $coreDir): bool
 {
-    return is_file(\dirname($coreDir, 2).'/vendor/phpstan/phpstan/conf/bleedingEdge.neon');
+    return realpath($vendorDir) === realpath(\dirname($coreDir, 2).'/vendor')
+        && is_file($vendorDir.'/phpstan/phpstan/conf/bleedingEdge.neon');
 }
 
 function supportsConfigurableCoversRule(string $coreDir): bool
@@ -234,30 +292,16 @@ function supportsConfigurableCoversRule(string $coreDir): bool
     return \is_string($contents) && str_contains($contents, 'allowedUnitTestClassNamespaces: list(string)');
 }
 
-function renderPhpstanAutoload(string $pluginDir, string $coreDir, string $tmpDir): string
+function renderPhpstanAutoload(string $vendorDir, string $tmpDir): string
 {
     $autoloadPath = $tmpDir.'/autoload.php';
-    $shopwareProjectDir = \dirname($coreDir, 2);
-    $content = <<<'PHP'
-        <?php
+    $treeAutoload = $vendorDir.'/autoload.php';
 
-        $autoloadCandidates = [
-            '__PLUGIN_DIR__/.tools/vendor/autoload.php',
-            '__PLUGIN_DIR__/vendor/autoload.php',
-            '__SHOPWARE_PROJECT_DIR__/vendor/autoload.php',
-        ];
-
-        foreach ($autoloadCandidates as $candidate) {
-            if (is_file($candidate)) {
-                require_once $candidate;
-            }
-        }
-        PHP;
-
-    $rendered = strtr($content, [
-        '__PLUGIN_DIR__' => $pluginDir,
-        '__SHOPWARE_PROJECT_DIR__' => $shopwareProjectDir,
-    ]);
+    $rendered = \sprintf(
+        "<?php\n\nif (is_file(%s)) {\n    require_once %s;\n}\n",
+        var_export($treeAutoload, true),
+        var_export($treeAutoload, true),
+    );
 
     file_put_contents($autoloadPath, $rendered);
 
