@@ -2,17 +2,21 @@ import crypto from 'node:crypto';
 import { expect, request, test as base } from '@playwright/test';
 import type { APIRequestContext, APIResponse } from '@playwright/test';
 import { UcpAgentKeyring } from '@services/UcpAgentKeyring';
+import { readUcpProtocolVersion } from '@services/pluginSource';
 import { UcpSigner } from '@services/UcpSigner';
 import type { SignatureKnobs, SignedRequest } from '@services/UcpSigner';
-import type { TestAgent, UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
+import type { PublishOptions, TestAgent, UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
 
 const METHODS_CARRYING_IDEMPOTENCY_KEY = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 export interface UcpCallOptions {
     body?: unknown
+    rawBody?: string
     query?: Record<string, string>
     /** A fresh key is generated on POST, PUT, PATCH and DELETE; `false` sends none. */
     idempotencyKey?: string | false
+    /** `false` sends no `UCP-Agent` header, for bindings that carry the profile in the payload. */
+    ucpAgentHeader?: false
     headers?: Record<string, string>
     knobs?: SignatureKnobs
 }
@@ -65,7 +69,7 @@ export class UcpAgent {
     }
 
     get a2a(): JsonRpcClient {
-        return this.jsonRpc('/ucp/a2a');
+        return this.jsonRpc('/ucp/a2a', { 'X-A2A-Extensions': `https://ucp.dev/${readUcpProtocolVersion()}/specification/reference` });
     }
 
     get mcp(): JsonRpcClient {
@@ -84,10 +88,11 @@ export class UcpAgent {
         return this.signer.sign(this.requestParts(method, path, options), this.identity.kid, options.knobs ?? {});
     }
 
-    private jsonRpc(path: string): JsonRpcClient {
+    private jsonRpc(path: string, bindingHeaders: Record<string, string> = {}): JsonRpcClient {
         return {
             call: (method, params = {}, options = {}) => this.send('POST', path, {
                 ...options,
+                headers: { ...bindingHeaders, ...options.headers },
                 body: { jsonrpc: '2.0', id: crypto.randomUUID(), method, params },
             }),
         };
@@ -102,12 +107,13 @@ export class UcpAgent {
 
         // Playwright upper-cases the method it sends, so the signed method has to be upper case already.
         const sentMethod = method.toUpperCase();
-        const headers: Record<string, string> = { 'UCP-Agent': this.identity.agentHeader, ...options.headers };
+        const headers: Record<string, string> = options.ucpAgentHeader === false ? { ...options.headers } : { 'UCP-Agent': this.identity.agentHeader, ...options.headers };
         if (METHODS_CARRYING_IDEMPOTENCY_KEY.includes(sentMethod) && options.idempotencyKey !== false) {
             headers['Idempotency-Key'] = options.idempotencyKey ?? crypto.randomUUID();
         }
 
-        const body = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body), 'utf8');
+        const bodyText = options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
+        const body = bodyText === undefined ? undefined : Buffer.from(bodyText, 'utf8');
 
         return { method: sentMethod, url: url.toString(), headers, body };
     }
@@ -134,6 +140,10 @@ export interface UcpAgentTypes {
     UcpAgentB: UcpAgent
 }
 
+export interface UcpAgentTestTypes {
+    UcpAgentWithProfile: (options: PublishOptions) => Promise<UcpAgent>
+}
+
 async function agentFor(name: string, identity: TestAgent, keyring: UcpAgentKeyring, signer: UcpSigner, use: (agent: UcpAgent) => Promise<void>): Promise<void> {
     await keyring.addPkcs8Pem(identity.kid, identity.privateKeyPem);
     const api = await request.newContext({ ignoreHTTPSErrors: true });
@@ -146,7 +156,23 @@ async function agentFor(name: string, identity: TestAgent, keyring: UcpAgentKeyr
     }
 }
 
-export const test = base.extend<NonNullable<unknown>, UcpAgentTypes & UcpAgentProfileHostTypes>({
+export const test = base.extend<UcpAgentTestTypes, UcpAgentTypes & UcpAgentProfileHostTypes>({
+    UcpAgentWithProfile: async ({ UcpAgentProfileHost, UcpAgentKeyring: keyring, UcpSigner: signer }, use) => {
+        const api = await request.newContext({ ignoreHTTPSErrors: true });
+
+        try {
+            await use(async (options) => {
+                const identity = await UcpAgentProfileHost.publish(options);
+                await keyring.addPkcs8Pem(identity.kid, identity.privateKeyPem);
+
+                return new UcpAgent('Agent with its own profile', identity, api, signer, process.env.APP_URL ?? '');
+            });
+        }
+        finally {
+            await api.dispose();
+        }
+    },
+
     UcpAgentKeyring: [
         async ({}, use) => {
             await use(new UcpAgentKeyring());

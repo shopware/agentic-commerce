@@ -1,5 +1,5 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
-import type { FixtureTypes } from '@fixtures/AcceptanceTest';
+import { searchIds } from '@services/adminSearch';
 import { readFeedTemplates } from '@services/pluginSource';
 import { feedProviders } from './feedProviders';
 
@@ -63,17 +63,3 @@ test.describe('Feed referral tracking @UcpContent', () => {
         expect(await searchIds(TestDataService, 'customer', 'salesChannelTracking.salesChannelId', feed.feedChannel.id)).toEqual(guestCustomers);
     });
 });
-
-async function searchIds(
-    TestDataService: FixtureTypes['TestDataService'],
-    entity: 'order' | 'customer',
-    field: string,
-    value: string,
-): Promise<string[]> {
-    const matchingEntities = await TestDataService.AdminApiClient.post(`./search-ids/${entity}`, {
-        data: { filter: [{ type: 'equals', field, value }] },
-    });
-    expect(matchingEntities.ok(), await matchingEntities.text()).toBeTruthy();
-
-    return ((await matchingEntities.json()) as { data: string[] }).data;
-}
