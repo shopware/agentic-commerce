@@ -98,12 +98,12 @@ deployed HTTP stack:
    our attribute-based tests would otherwise break).
 
 4. **`acceptance`** (`tests/acceptance`, see [its README](tests/acceptance/README.md)) — Playwright
-   against a running shop on every lane, with an RFC 9421 signing agent and a real browser. It is
-   the home for what a booted kernel does not observe: signed requests over HTTP, the outbound
-   signed order webhook on the wire, the embedded checkout framed by another origin, the rendered
-   discovery files and the Administration tab. Prefer a `functional` test when the behaviour fits
-   one. A known spec deviation is a red spec in the non-gating `UcpKnownBlocked` project, never a
-   pinned result.
+   against a running shop on every CI lane (on pull requests trunk only, the others with the
+   `run/acceptance-full` label), with an RFC 9421 signing agent and a real browser. It is the home
+   for what a booted kernel does not observe: signed requests over HTTP, the outbound signed order
+   webhook on the wire, the embedded checkout framed by another origin, the rendered discovery files
+   and the Administration tab. Prefer a `functional` test when the behaviour fits one. A known spec
+   deviation is a red spec in the non-gating `UcpKnownBlocked` project, never a pinned result.
 
 ### Shell scripts and lint tooling
 

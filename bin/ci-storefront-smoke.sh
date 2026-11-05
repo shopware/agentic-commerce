@@ -112,7 +112,7 @@ web php /var/www/html/bin/console theme:compile >/dev/null
 web php /var/www/html/bin/console assets:install >/dev/null
 
 storefront_html="$(curl -fsS "${BASE_URL}/")"
-theme_css_path="$(grep -o -m1 -E 'href="[^"]*/theme/[^"]+/css/[^"]+\.css[^"]*"' <<<"${storefront_html}" | head -n1 | sed -E 's/^href="//; s/"$//')"
+theme_css_path="$(grep -o -m1 -E 'href="[^"]*/theme/[^"]+/css/[^"]+\.css[^"]*"' <<<"${storefront_html}" | head -n1 | sed -E 's/^href="//; s/"$//' || true)"
 if [[ -z "${theme_css_path}" ]]; then
   echo "The storefront homepage links no compiled theme stylesheet." >&2
   exit 1

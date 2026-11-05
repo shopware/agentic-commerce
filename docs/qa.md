@@ -91,6 +91,6 @@ Administration and storefront validation should always prove both halves:
 - the rendered UI shell actually loads afterward
 
 `bin/ci-admin-smoke.sh` checks the administration login shell after the build.
-`bin/ci-storefront-smoke.sh` builds the storefront, compiles the theme, and checks the live homepage
-and cart shell. For local frontend work, still follow up with a real browser pass on the active
-lane.
+`bin/ci-storefront-smoke.sh` builds the storefront, compiles the theme, and checks that the live
+homepage serves its compiled theme stylesheet. For local frontend work, still follow up with a real
+browser pass on the active lane.
