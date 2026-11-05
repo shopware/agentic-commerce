@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { expect, request, test as base } from '@playwright/test';
 import type { APIRequestContext, APIResponse } from '@playwright/test';
 import { UcpAgentKeyring } from '@services/UcpAgentKeyring';
+import { readUcpProtocolVersion } from '@services/pluginSource';
 import { UcpSigner } from '@services/UcpSigner';
 import type { SignatureKnobs, SignedRequest } from '@services/UcpSigner';
 import type { TestAgent, UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
@@ -14,6 +15,8 @@ export interface UcpCallOptions {
     query?: Record<string, string>
     /** A fresh key is generated on POST, PUT, PATCH and DELETE; `false` sends none. */
     idempotencyKey?: string | false
+    /** `false` sends no `UCP-Agent` header, for bindings that carry the profile in the payload. */
+    ucpAgentHeader?: false
     headers?: Record<string, string>
     knobs?: SignatureKnobs
 }
@@ -66,7 +69,7 @@ export class UcpAgent {
     }
 
     get a2a(): JsonRpcClient {
-        return this.jsonRpc('/ucp/a2a');
+        return this.jsonRpc('/ucp/a2a', { 'X-A2A-Extensions': `https://ucp.dev/${readUcpProtocolVersion()}/specification/reference` });
     }
 
     get mcp(): JsonRpcClient {
@@ -85,10 +88,11 @@ export class UcpAgent {
         return this.signer.sign(this.requestParts(method, path, options), this.identity.kid, options.knobs ?? {});
     }
 
-    private jsonRpc(path: string): JsonRpcClient {
+    private jsonRpc(path: string, bindingHeaders: Record<string, string> = {}): JsonRpcClient {
         return {
             call: (method, params = {}, options = {}) => this.send('POST', path, {
                 ...options,
+                headers: { ...bindingHeaders, ...options.headers },
                 body: { jsonrpc: '2.0', id: crypto.randomUUID(), method, params },
             }),
         };
@@ -103,7 +107,7 @@ export class UcpAgent {
 
         // Playwright upper-cases the method it sends, so the signed method has to be upper case already.
         const sentMethod = method.toUpperCase();
-        const headers: Record<string, string> = { 'UCP-Agent': this.identity.agentHeader, ...options.headers };
+        const headers: Record<string, string> = options.ucpAgentHeader === false ? { ...options.headers } : { 'UCP-Agent': this.identity.agentHeader, ...options.headers };
         if (METHODS_CARRYING_IDEMPOTENCY_KEY.includes(sentMethod) && options.idempotencyKey !== false) {
             headers['Idempotency-Key'] = options.idempotencyKey ?? crypto.randomUUID();
         }

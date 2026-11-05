@@ -90,7 +90,9 @@ export class UcpSigner {
         if (url.search !== '') {
             components.push('@query');
         }
-        components.push('ucp-agent');
+        if (headerValue(headers, 'ucp-agent') !== undefined) {
+            components.push('ucp-agent');
+        }
         if (headerValue(headers, 'signature-agent') !== undefined) {
             components.push('signature-agent');
         }
@@ -159,9 +161,6 @@ export class UcpSigner {
     async sign(request: SignableRequest, kid: string, knobs: SignatureKnobs = {}): Promise<SignedRequest> {
         const headers = { ...(request.headers ?? {}) };
 
-        if (headerValue(headers, 'ucp-agent') === undefined) {
-            throw new Error('A UCP request is signed over its UCP-Agent header; this request has none.');
-        }
         if (request.body !== undefined) {
             if (headerValue(headers, 'content-digest') === undefined) {
                 headers['Content-Digest'] = contentDigest(request.body);

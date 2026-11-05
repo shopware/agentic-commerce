@@ -124,11 +124,12 @@ test.describe('Signature base construction @Signer', () => {
         expect(signed.headers.Signature).toMatch(/^sig1=:[A-Za-z0-9+/]+=*:$/);
     });
 
-    test('signing refuses a request without a UCP-Agent header', async () => {
+    test('a request without a UCP-Agent header is signed without the ucp-agent component', async () => {
         const signer = await signerFor();
 
-        await expect(signer.sign({ method: 'GET', url: 'https://shop.example/x' }, 'base-spec'))
-            .rejects.toThrow(/UCP-Agent/);
+        const signed = await signer.sign({ method: 'POST', url: 'https://shop.example/ucp/mcp', body: Buffer.from('{}', 'utf8') }, 'base-spec');
+
+        expect(signed.headers['Signature-Input']).toMatch(/^sig1=\("@method" "@authority" "@path" "content-digest" "content-type"\);/);
     });
 
     test('a body gets a digest and a content type even when the caller sent neither', async () => {
