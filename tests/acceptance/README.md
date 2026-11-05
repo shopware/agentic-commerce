@@ -5,10 +5,8 @@ End-to-end tests for `SwagAgenticCommerce`, built on Shopware's
 Playwright-based package core, `SwagPayPal` and `SwagCommercial` use.
 
 This is a **nested npm project**. It is deliberately not hoisted into the plugin's root
-`package.json`, for three reasons:
+`package.json`, for two reasons:
 
-- the ATS pins `@playwright/test` and `playwright-core` as **exact** peer dependencies (`1.62.1`),
-  while the root declares `^1.55.0`;
 - the ATS requires Node 24, while the root project and three CI jobs ran on Node 22;
 - the root `eslint.config.mjs` loads Shopware's Administration rules from `ADMIN_PATH`, which do not
   apply to Playwright TypeScript.
@@ -49,10 +47,10 @@ drops the check and the wait for the server.
 | When                                                | What runs                                                                                              |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Every pull request                                  | Lint, typecheck and `Signer`, then the gating run on trunk.                                            |
-| A pull request with the `run/acceptance-full` label | The 6.5 and 6.6 lanes as well. Adding the label starts a new run.                                      |
+| A pull request with the `run/acceptance-full` label | The 6.5, 6.6 and 6.7.14.x lanes as well. Adding the label starts a new run.                            |
 | A pull request that changes specs                   | Every changed spec ten times on trunk, without retries, on two workers. `Setup` and `Signer` run once. |
-| Every push to `main` and every manual run           | Trunk, 6.5 and 6.6.                                                                                    |
-| Nightly                                             | Trunk, 6.5 and 6.6, every test three times.                                                            |
+| Every push to `main` and every manual run           | Trunk, 6.5, 6.6 and 6.7.14.x.                                                                          |
+| Nightly                                             | Trunk, 6.5, 6.6 and 6.7.14.x, every test three times.                                                  |
 
 The ten repetitions catch a flaky spec before it lands. Only changed `*.spec.ts` files are repeated;
 specs under `Setup`, `Signer` and `KnownBlocked` are not. A changed spec that selects no test, for
