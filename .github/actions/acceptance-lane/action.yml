@@ -37,7 +37,6 @@ runs:
       env:
         SHOPWARE_REF: ${{ inputs.lane }}
         CI_ADMIN_BOOTSTRAP_MODE: cold
-        CI_ADMIN_BROWSER_VALIDATE: '0'
         CI_ADMIN_KEEP_STACK: '1'
       run: agentic-commerce/bin/ci-admin-smoke.sh "${GITHUB_WORKSPACE}/shopware" auto
     # After the bootstrap: bin/ci-smoke.sh copies the plugin checkout into the shop.
