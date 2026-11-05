@@ -49,10 +49,10 @@
         "openAiSettingsTitle": "OpenAI-Einstellungen",
         "googleSettingsTitle": "Google-Einstellungen",
         "buttonResetTemplate": "Auf Standard zurücksetzen",
-        "resetTemplateSuccess": "Template wurde auf Standard zurückgesetzt. Bitte speichern, um die Änderungen zu übernehmen.",
+        "resetTemplateSuccess": "Template wurde auf Standard zurückgesetzt. Bitte speichere, um die Änderungen zu übernehmen.",
         "errorLoadingTemplate": "Standard-Template konnte nicht geladen werden.",
-        "messageRequiredSettingsMissing": "Eine Pflichteinstellung des Feeds fehlt. Bitte das markierte Feld ausfüllen und erneut speichern.",
-        "messageRequiredSettingsMissingOnGeneralTab": "Eine Pflichteinstellung des Feeds fehlt. Bitte das markierte Feld im Tab „Allgemein“ ausfüllen und erneut speichern.",
+        "messageRequiredSettingsMissing": "Eine Pflichteinstellung des Feeds fehlt. Bitte fülle das markierte Feld aus und speichere dann erneut.",
+        "messageRequiredSettingsMissingOnGeneralTab": "Eine Pflichteinstellung des Feeds fehlt. Bitte fülle das markierte Feld im Tab „Allgemein“ aus und speichere dann erneut.",
         "templates": {
           "template-label": {
             "open-ai": "OpenAI (JSONL)",
