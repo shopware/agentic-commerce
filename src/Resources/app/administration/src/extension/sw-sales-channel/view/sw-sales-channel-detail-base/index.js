@@ -166,7 +166,8 @@ export const swSalesChannelDetailBaseOverride = {
             // Reassigned instead of mutated: Vue 2.7 (6.5) does not track added or deleted keys.
             configEntry.values = { ...configEntry.values, [fieldName]: value };
 
-            if (configEntry.errors?.[fieldName]) {
+            // URL fields report an empty value whenever they mount, e.g. when the General tab opens again.
+            if (value && configEntry.errors?.[fieldName]) {
                 const remainingErrors = { ...configEntry.errors };
                 delete remainingErrors[fieldName];
                 configEntry.errors = remainingErrors;

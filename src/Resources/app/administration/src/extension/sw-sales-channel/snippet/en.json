@@ -51,7 +51,8 @@
         "buttonResetTemplate": "Reset to default",
         "resetTemplateSuccess": "Template has been reset to default. Please save to keep the changes.",
         "errorLoadingTemplate": "Could not load default template.",
-        "messageRequiredSettingsMissing": "A required feed setting is missing. Fill in the marked field on the General tab, then save again.",
+        "messageRequiredSettingsMissing": "A required feed setting is missing. Fill in the marked field, then save again.",
+        "messageRequiredSettingsMissingOnGeneralTab": "A required feed setting is missing. Fill in the marked field on the General tab, then save again.",
         "templates": {
           "template-label": {
             "open-ai": "OpenAI (JSONL)",

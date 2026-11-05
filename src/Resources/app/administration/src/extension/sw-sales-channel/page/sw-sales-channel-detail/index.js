@@ -349,8 +349,12 @@ export const swSalesChannelDetailOverride = {
         async onSave() {
             if (!this.validateAgenticCommerceExportConfig()) {
                 this.isLoading = false;
+                // The create page has no tabs, so only the detail page names the tab holding the field.
+                const messageKey = this.salesChannel?.isNew?.()
+                    ? 'messageRequiredSettingsMissing'
+                    : 'messageRequiredSettingsMissingOnGeneralTab';
                 this.createNotificationError({
-                    message: this.$t('sw-sales-channel.detail.agenticCommerce.messageRequiredSettingsMissing'),
+                    message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
                 });
                 // On the create page this method is reached through `$super`, and core advances its pointer past
                 // it before the call. Leaving the chain early keeps that pointer, so the next Save would start

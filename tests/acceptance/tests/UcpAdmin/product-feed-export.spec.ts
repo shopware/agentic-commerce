@@ -110,8 +110,28 @@ test.describe('Product feed export settings @UcpAdmin', () => {
         expect(writes.map(request => request.url()), 'the refused save wrote nothing').toEqual([]);
     });
 
+    test('the General tab shows the missing return policy URL as marked after saving from another tab', async ({ TestDataService, AdminPage }) => {
+        const { salesChannel } = await TestDataService.createFeedSalesChannelWithExport('open-ai');
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
+        await feed.open(salesChannel.id, 'product-comparison');
+        await feed.saveButton.click();
+
+        await feed.switchToGeneralTab();
+
+        await expect(feed.fieldOf(feed.returnPolicyUrl).locator('.mt-field__error, .sw-field__error')).toBeVisible();
+    });
+
     test('a new feed channel without a return policy URL stays unsaved however often Save is clicked', async ({ AdminPage }) => {
         await expectNewFeedStaysUnsaved(new AgenticCommerceFeedDetail(AdminPage));
+    });
+
+    test('saving a new feed channel without a return policy URL names no tab, as the create page has none', async ({ AdminPage }) => {
+        const feed = new AgenticCommerceFeedDetail(AdminPage);
+        await feed.openNew();
+
+        await feed.saveButton.click();
+
+        await expect(AdminPage.getByText('A required feed setting is missing. Fill in the marked field, then save again.')).toBeVisible();
     });
 
     test('tracking codes entered for a feed are stored in the channel configuration', async ({ TestDataService, AdminPage }) => {

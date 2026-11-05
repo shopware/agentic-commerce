@@ -36,6 +36,22 @@ describe('sw-sales-channel-detail-base onAgenticCommerceExportFieldUpdate', () =
         expect(configEntry.errors).toEqual({});
     });
 
+    it('keeps the required error while the field is still empty', () => {
+        const configEntry = { values: {}, errors: { [RETURN_POLICY_URL]: { code: 'required' } } };
+
+        onFieldUpdate.call({}, configEntry, RETURN_POLICY_URL, '');
+
+        expect(configEntry.errors).toEqual({ [RETURN_POLICY_URL]: { code: 'required' } });
+    });
+
+    it('stores a cleared value so a removed URL is saved as empty', () => {
+        const configEntry = { values: { [RETURN_POLICY_URL]: 'https://shop.example/returns' }, errors: {} };
+
+        onFieldUpdate.call({}, configEntry, RETURN_POLICY_URL, '');
+
+        expect(configEntry.values[RETURN_POLICY_URL]).toBe('');
+    });
+
     // Regression #309: Vue 2.7 on 6.5 does not track keys added to or deleted from an existing object.
     it('replaces the values and errors objects so Vue 2 redraws the field', () => {
         const values = {};
