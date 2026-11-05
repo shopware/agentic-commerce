@@ -104,7 +104,8 @@ export function normalizeHostEntry(entry) {
 export function isValidHostEntry(entry) {
     const host = normalizeHostEntry(entry);
 
-    return host.length <= 253 && HOST_PATTERN.test(host);
+    // One label such as "com" would allow every host under that top-level domain.
+    return host.length <= 253 && host.includes('.') && HOST_PATTERN.test(host);
 }
 
 /**

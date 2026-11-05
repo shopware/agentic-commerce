@@ -93,6 +93,7 @@ describe('agentic-commerce/ucp-form-state', () => {
             expect(isValidHostEntry('platform example')).toBe(false);
             expect(isValidHostEntry('platform.example/path')).toBe(false);
             expect(isValidHostEntry('-platform.example')).toBe(false);
+            expect(isValidHostEntry('com')).toBe(false);
         });
     });
 
