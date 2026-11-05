@@ -220,9 +220,9 @@ one of them for the others:
 
 Signed-request handling, idempotency, replay nonce storage, profile cache storage, OAuth state, and
 retired signing keys are owned by the SDK bundle. The plugin maps those contracts to Shopware sales
-channels and keeps buyer-facing work inside Store API route boundaries. Run
-`bin/validate-ucp-store.sh <base-url> conformance` against a live lane for signed-request
-conformance when transport behavior changes.
+channels and keeps buyer-facing work inside Store API route boundaries. The acceptance suite in
+[`tests/acceptance`](tests/acceptance/README.md) sends signed requests to every transport on each
+lane; run it when transport behavior changes.
 
 ## Native Agentic Discovery
 

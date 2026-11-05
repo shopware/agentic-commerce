@@ -58,7 +58,7 @@ bundle:
 2. Leave `UcpMcpToolContext::failure()` alone — in-band tool errors remain the right shape.
    Optionally add a `Mcp\Exception\ToolCallException` path for protocol-level input errors
    (`-32602`), but keep UCP domain errors in band.
-3. Remove the `test.skip(true, …)` guard in `tests/e2e/ucp/profile.spec.js` →
-   `exposes object payload schemas for MCP write tools` and confirm it passes against trunk.
+3. Confirm that the known-blocker spec for D5 in
+   `tests/acceptance/tests/KnownBlocked/mcp-tools.spec.ts` passes against trunk.
 
 The git history of this branch contains the full v0.6 implementation if you need a reference diff.

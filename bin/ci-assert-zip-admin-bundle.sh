@@ -129,5 +129,12 @@ if [[ "${entry_bytes}" -lt "${MIN_BUNDLE_BYTES}" ]] \
   exit 1
 fi
 
+shipped_test_entries="$(grep -E -e '\.spec\.(js|ts)$' -e "${PLUGIN}/src/Ucp/Test/" -e "${PLUGIN}/tests/" "${zip_index}" || true)"
+if [[ -n "${shipped_test_entries}" ]]; then
+  echo "FAIL: ${zip_file} ships test scaffolding:" >&2
+  echo "${shipped_test_entries}" >&2
+  exit 1
+fi
+
 echo "OK: 6.5/6.6 load js/${TECHNICAL_NAME}.js (${bundle_bytes} bytes);" \
      "6.7 loads ${entry_js_path} (${entry_bytes} bytes); all ${#referenced[@]} referenced assets ship."
