@@ -1,7 +1,7 @@
 import { test as base } from '@playwright/test';
 import type { FixtureTypes } from '@shopware-ag/acceptance-test-suite';
 import { UcpTestDataService } from '@services/UcpTestDataService';
-import { agentProfileHost } from './UcpAgentProfileHost';
+import { agentProfileBaseUrl, agentProfileHost } from './UcpAgentProfileHost';
 import type { UcpConsoleTypes } from './UcpConsole';
 
 export interface UcpTestDataFixtureTypes {
@@ -54,6 +54,7 @@ export const test = base.extend<FixtureTypes & UcpTestDataFixtureTypes, UcpConso
             appUrl: appUrl.replace(/\/+$/, '') + '/',
             baseConfig: SalesChannelBaseConfig,
             agentHost: agentProfileHost(),
+            webContainerBaseUrl: agentProfileBaseUrl().toString(),
             console: UcpConsole,
         });
 

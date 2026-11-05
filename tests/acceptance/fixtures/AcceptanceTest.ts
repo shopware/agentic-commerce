@@ -10,7 +10,7 @@ import type { UcpConsoleTypes } from './UcpConsole';
 import type { UcpTestDataFixtureTypes } from './UcpTestData';
 import type { UcpAgentProfileHostTypes } from './UcpAgentProfileHost';
 import type { UcpAclUsersTypes } from './UcpAclUsers';
-import type { UcpAgentTypes } from './UcpAgent';
+import type { UcpAgentTestTypes, UcpAgentTypes } from './UcpAgent';
 
 export * from '@shopware-ag/acceptance-test-suite';
 
@@ -19,7 +19,8 @@ export type FixtureTypes = Omit<BaseTypes, 'TestDataService'>
   & UcpConsoleTypes
   & UcpAgentProfileHostTypes
   & UcpAclUsersTypes
-  & UcpAgentTypes;
+  & UcpAgentTypes
+  & UcpAgentTestTypes;
 
 export const test = mergeTests(
     ShopwareTestSuite,

@@ -33,6 +33,7 @@ export interface CapabilityEntry {
     spec: string
     schema: string
     extends?: string[]
+    config?: Record<string, unknown>
 }
 
 export type CapabilityMap = Record<string, CapabilityEntry[]>;
@@ -42,6 +43,8 @@ export interface PublishOptions {
     /** Replaces the default set entirely; `{}` publishes an agent that can negotiate nothing. */
     capabilities?: CapabilityMap
     services?: Record<string, unknown[]>
+    /** Published as `webhook_url` in the config of the order capability. */
+    orderWebhookUrl?: string
 }
 
 export interface UcpAgentProfileHost {
@@ -77,7 +80,7 @@ export interface UcpAgentProfileHostTypes {
     UcpAgentProfileHost: UcpAgentProfileHost
 }
 
-function agentProfileBaseUrl(): URL {
+export function agentProfileBaseUrl(): URL {
     return new URL((process.env.UCP_AGENT_PROFILE_BASE_URL ?? DEFAULT_AGENT_PROFILE_BASE_URL).replace(/\/+$/, '') + '/');
 }
 
@@ -113,14 +116,23 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
             fs.mkdirSync(directory, { recursive: true });
             fs.accessSync(directory, fs.constants.W_OK);
 
-            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities, services } = {}) => {
+            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities, services, orderWebhookUrl } = {}) => {
                 const agentKid = kid ?? `acceptance-w${workerInfo.parallelIndex}-${crypto.randomUUID().slice(0, 8)}`;
                 const { publicJwk, privateKeyPem } = generateSigningKey(agentKid);
+                const publishedCapabilities = capabilities ?? specShoppingCapabilities(version);
+                if (orderWebhookUrl !== undefined) {
+                    const orderCapability = publishedCapabilities['dev.ucp.shopping.order'];
+                    if (orderCapability === undefined) {
+                        throw new Error('orderWebhookUrl is published in the dev.ucp.shopping.order capability, which the given capabilities leave out.');
+                    }
+                    publishedCapabilities['dev.ucp.shopping.order'] = orderCapability
+                        .map(entry => ({ ...entry, config: { ...entry.config, webhook_url: orderWebhookUrl } }));
+                }
                 const profile = {
                     ucp: {
                         version,
                         services: services ?? {},
-                        capabilities: capabilities ?? specShoppingCapabilities(version),
+                        capabilities: publishedCapabilities,
                         payment_handlers: {},
                     },
                     keys: [publicJwk],

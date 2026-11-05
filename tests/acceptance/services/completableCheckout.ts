@@ -20,7 +20,7 @@ export async function createCompletableCheckout(
     expect(readyCheckout.ok(), await readyCheckout.text()).toBeTruthy();
     const { id: checkoutId } = (await readyCheckout.json()) as { id: string };
 
-    return { agent, buyer, fulfillment, lineItems, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
+    return { agent, buyer, fulfillment, lineItems, salesChannelId: ucpChannel.salesChannel.id, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
 }
 
 /**
@@ -28,11 +28,13 @@ export async function createCompletableCheckout(
  * (known blocker D2 in {@link knownBlockers}).
  * Breaks once the SDK requires exactly one instrument (known blocker D25 in {@link knownBlockers}).
  */
+export const COMPLETION_WITHOUT_INSTRUMENT = { payment: {} };
+
 export async function placeOrder(
     agent: Awaited<ReturnType<typeof createCompletableCheckout>>['agent'],
     checkoutPath: string,
 ): Promise<{ id: string }> {
-    const completedCheckout = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: { payment: {} } });
+    const completedCheckout = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: COMPLETION_WITHOUT_INSTRUMENT });
     expect(completedCheckout.status(), await completedCheckout.text()).toBe(200);
     const { status, order } = (await completedCheckout.json()) as { status: string, order: { id: string } };
     expect(status).toBe('completed');

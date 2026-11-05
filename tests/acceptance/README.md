@@ -64,20 +64,22 @@ alone repeats nothing.
 Projects are routed by tag, the way core does it. A spec opts into a project by carrying its tag in
 the title.
 
-| Project           | Tag                | Notes                                                                                                                            |
-| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `Signer`          | `@Signer`          | RFC 9421 signer proofs. No browser. Every UCP project depends on it.                                                             |
-| `Setup`           | `@Setup`           | The known-blockers guard, the bootstrap check and the fixture proofs. `@UcpConsole` marks the one spec that needs `bin/console`. |
-| `UcpProtocol`     | `@UcpProtocol`     | UCP transport journeys.                                                                                                          |
-| `UcpContent`      | `@UcpContent`      | Product feed, tracking, discovery files.                                                                                         |
-| `UcpEmbedded`     | `@UcpEmbedded`     | Embedded transport.                                                                                                              |
-| `UcpAdmin`        | `@UcpAdmin`        | Administration UI.                                                                                                               |
-| `UcpAcl`          | `@UcpAcl`          | ACL matrix.                                                                                                                      |
-| `UcpSerial`       | `@UcpSerial`       | Runs with `workers: 1` for specs that cannot be parallelised.                                                                    |
-| `UcpKnownBlocked` | `@UcpKnownBlocked` | **Non-gating.** See below.                                                                                                       |
+| Project           | Tag                | Notes                                                                 |
+| ----------------- | ------------------ | --------------------------------------------------------------------- |
+| `Signer`          | `@Signer`          | RFC 9421 signer proofs. No browser. Every UCP project depends on it.  |
+| `Setup`           | `@Setup`           | The known-blockers guard, the bootstrap check and the fixture proofs. |
+| `UcpProtocol`     | `@UcpProtocol`     | UCP transport journeys.                                               |
+| `UcpContent`      | `@UcpContent`      | Product feed, tracking, discovery files.                              |
+| `UcpEmbedded`     | `@UcpEmbedded`     | Embedded transport.                                                   |
+| `UcpAdmin`        | `@UcpAdmin`        | Administration UI.                                                    |
+| `UcpAcl`          | `@UcpAcl`          | ACL matrix.                                                           |
+| `UcpSerial`       | `@UcpSerial`       | Runs with `workers: 1` for specs that cannot be parallelised.         |
+| `UcpKnownBlocked` | `@UcpKnownBlocked` | **Non-gating.** See below.                                            |
 
 Most projects match no specs yet; their issues add them. A project with no matching spec reports
 zero tests and passes.
+
+`@UcpConsole` marks the specs that need `bin/console`, in `Setup` and `UcpSerial`.
 
 ### `UcpKnownBlocked`
 
@@ -144,7 +146,7 @@ channel.
 `listUcpSalesChannels()`, `createProductFeed()` and `saveFeedSettings()`. `createProductFeed()`
 builds a feed channel with a product export over the given products for the worker channel, from a
 template `readFeedTemplates()` reads out of the shipped Administration modules, with `interval: 0`
-so every request renders the current products. For the Administration journeys it also has:
+so every request renders the current products. It also has:
 
 - `createStorefrontSalesChannelOnOwnHost()`: a channel whose only domain is the root of
   `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp`
@@ -157,6 +159,10 @@ so every request renders the current products. For the Administration journeys i
   from the plugin's shipped template, so the Administration finds nothing to align on load.
 - `attributeOrderToFeedChannel()` and `attributeCustomerToFeedChannel()`: the tracking rows the
   storefront's `referringSalesChannel` tracking would write.
+- `createWebhookCaptureChannel()`: a channel that serves the webhook capture route, with the URL the
+  shop sends webhooks to and the URL a spec reads them from.
+- `getProfileSigningKeys()`: the signing keys of a channel's profile, read through the profile
+  preview.
 - `getSalesChannelReadback()`, `getChannelSystemConfig()`, `setChannelSystemConfig()`,
   `createProductStream()`, `markUcpActivated()` for a channel activated through the UI, and
   `adoptSalesChannel()` for one created through the UI, so the cleanup still covers them.
@@ -202,7 +208,7 @@ worker's `AdminPage` user is shared with every test of the worker.
 the only signing-key management surface, through the lane's `bin/console`. Nothing else passes its
 allow-list. Before the first command it probes the real prefix once. When that probe fails, the key
 cleanup is skipped with a warning naming the sales channels whose keys stay behind, and the
-`@UcpConsole` spec fails.
+`@UcpConsole` specs fail.
 
 **`UcpAgent`** and **`UcpAgentB`** (worker scope) are two external shopping agents, each with its
 own key pair and published profile. They do not extend the ATS `Actor`, which is bound to a browser
@@ -212,6 +218,9 @@ a sales channel. `rest.send(method, path, options)` signs a REST call, and `a2a.
 `UCP-Agent` without a signature, and `tampered(knobs)` signs and then breaks the request. `signs()`
 returns the signed request without sending it. Every `POST`, `PUT`, `PATCH` and `DELETE` gets a
 fresh `Idempotency-Key` unless the call passes one, or `false` for none.
+
+**`UcpAgentWithProfile`** (test scope) creates a further agent whose profile carries what the test
+passes, such as the `webhook_url` of its order capability.
 
 The lane has to run with `SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE=1` for the
 shop to fetch a test agent's profile from `localhost` over plain http.
@@ -263,6 +272,13 @@ Channels on a host of their own need the web server to answer any `Host` (a catc
 `TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The discovery journeys of `UcpAdmin`
 and `UcpProtocol` use such channels, because a domain with a path serves no UCP profile.
 `fetchDiscoveryDocument()` fails with that message when the lane does not serve them.
+
+The order webhook specs read what the shop sent from the plugin's capture route. The route answers
+only outside `prod` and with `SWAG_AGENTIC_COMMERCE_TEST_CAPTURE=1` in the shop's environment. It
+keeps only the last webhook, whichever channel sent it. `npm run test:all` runs the webhook specs of
+`UcpSerial` and `UcpKnownBlocked` at the same time, so one of them can read the other's webhook and
+fail. `npm test` and CI leave `UcpKnownBlocked` out; run it on its own with
+`npm run test:known-blocked`.
 
 `UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
 machine where `docker` is only an alias for `podman`, the default prefix is not found and the

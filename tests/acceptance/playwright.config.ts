@@ -136,7 +136,7 @@ export default defineConfig({
         },
         {
             name: 'UcpSerial',
-            use: { ...browser },
+            use: { ...browserWithOwnHosts },
             grep: /@UcpSerial/,
             dependencies: ['Signer', 'Setup'],
             workers: 1,
