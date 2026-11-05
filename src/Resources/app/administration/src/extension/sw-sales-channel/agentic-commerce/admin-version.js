@@ -81,3 +81,13 @@ export function currentAdminVersion() {
 export function useMtComponents(version = currentAdminVersion()) {
     return isVersionAtLeast(version, 6, 6, 2);
 }
+
+/**
+ * Whether core's url field reports a cleared value to its parent (NEXT-38862, first in 6.6.9.0).
+ *
+ * @param {string} [version]
+ * @returns {boolean}
+ */
+export function urlFieldReportsClearedValue(version = currentAdminVersion()) {
+    return isVersionAtLeast(version, 6, 6, 9);
+}

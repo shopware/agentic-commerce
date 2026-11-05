@@ -350,6 +350,19 @@ export const swSalesChannelDetailOverride = {
         async onSave() {
             if (!this.validateAgenticCommerceExportConfig()) {
                 this.isLoading = false;
+                // The create page has no tabs, so only the detail page names the tab holding the field.
+                const messageKey = this.salesChannel?.isNew?.()
+                    ? 'messageRequiredSettingsMissing'
+                    : 'messageRequiredSettingsMissingOnGeneralTab';
+                this.createNotificationError({
+                    message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
+                });
+                // On the create page this method is reached through `$super`, and core advances its pointer past
+                // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
+                // behind this check. Reset it the way core does when a chain completes.
+                if (this._virtualCallStack) {
+                    this._virtualCallStack.onSave = undefined;
+                }
                 return;
             }
 
@@ -413,10 +426,17 @@ export const swSalesChannelDetailOverride = {
             });
 
             for (const entry of activeEntries) {
-                for (const el of entry.elements.filter((el) => el.config?.required && !entry.values[el.name])) {
-                    entry.errors[el.name] = requiredError;
-                    isValid = false;
+                const missingElements = entry.elements.filter((el) => el.config?.required && !entry.values[el.name]);
+                if (missingElements.length === 0) {
+                    continue;
                 }
+
+                // Reassigned instead of adding keys: Vue 2.7 (6.5) does not track keys added to an existing object.
+                entry.errors = {
+                    ...entry.errors,
+                    ...Object.fromEntries(missingElements.map((el) => [el.name, requiredError])),
+                };
+                isValid = false;
             }
 
             return isValid;

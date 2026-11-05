@@ -161,9 +161,6 @@ describe('sw-sales-channel-detail onSave — 6.7.0–6.7.8.x legacy path', () =>
     });
 });
 
-// NOTE (6.5 backport): validation is non-blocking and runs post-save. There is
-// no pre-save gate — the channel always saves first, then validation highlights
-// any AC config errors without blocking the save.
 describe('sw-sales-channel-detail onSave — post-save validation', () => {
     it('calls validateAgenticCommerceExportConfig after a successful channel save', async () => {
         const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
@@ -171,6 +168,54 @@ describe('sw-sales-channel-detail onSave — post-save validation', () => {
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
         expect(ctx.validateAgenticCommerceExportConfig).toHaveBeenCalled();
+    });
+});
+
+describe('sw-sales-channel-detail onSave — refused save', () => {
+    it('does not save while a required export setting is missing', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.validateAgenticCommerceExportConfig = jest.fn(() => false);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.saveSalesChannel).not.toHaveBeenCalled();
+        expect(ctx.$super).not.toHaveBeenCalled();
+    });
+
+    it('tells the merchant which tab holds the missing setting, since Save also works from other tabs', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.salesChannel.isNew = () => false;
+        ctx.validateAgenticCommerceExportConfig = jest.fn(() => false);
+        ctx.$t = jest.fn((key) => key);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.createNotificationError).toHaveBeenCalledWith({
+            message: 'sw-sales-channel.detail.agenticCommerce.messageRequiredSettingsMissingOnGeneralTab',
+        });
+    });
+
+    it('names no tab while a new channel is created, as the create page has none', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.salesChannel.isNew = () => true;
+        ctx.validateAgenticCommerceExportConfig = jest.fn(() => false);
+        ctx.$t = jest.fn((key) => key);
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx.createNotificationError).toHaveBeenCalledWith({
+            message: 'sw-sales-channel.detail.agenticCommerce.messageRequiredSettingsMissing',
+        });
+    });
+
+    it('resets core\'s $super pointer so the next Save on the create page runs the check again', async () => {
+        const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
+        ctx.validateAgenticCommerceExportConfig = jest.fn(() => false);
+        ctx._virtualCallStack = { onSave: 'sw-sales-channel-detail', createdComponent: 'sw-sales-channel-detail' };
+
+        await swSalesChannelDetailOverride.methods.onSave.call(ctx);
+
+        expect(ctx._virtualCallStack).toEqual({ onSave: undefined, createdComponent: 'sw-sales-channel-detail' });
     });
 });
 
