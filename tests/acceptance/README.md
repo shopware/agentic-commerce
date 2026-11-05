@@ -148,9 +148,10 @@ so every request renders the current products. For the Administration journeys i
 
 - `createStorefrontSalesChannelOnOwnHost()`: a channel whose only domain is the root of
   `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp`
-  serves it. Only a browser resolves that host (`--host-resolver-rules` on the `UcpAdmin` project
-  maps it onto the `APP_URL` host), so read it with `fetchDiscoveryDocument()` from
-  `services/discovery.ts`. The document is publicly cacheable for 60 seconds: read it after the
+  serves it. Only a browser resolves that host (`--host-resolver-rules` on the `UcpAdmin` and
+  `UcpProtocol` projects maps it onto the `APP_URL` host), so read it with
+  `fetchDiscoveryDocument()` from `services/discovery.ts`, or with `fetchDiscoveryResponse()` when
+  the response headers matter. The document is publicly cacheable for 60 seconds: read it after the
   change under test, not before.
 - `createFeedSalesChannelWithExport(provider)`: a product-feed channel with a product export built
   from the plugin's shipped template, so the Administration finds nothing to align on load.
@@ -245,22 +246,23 @@ because they carry no key and truncate the digest and signature values.
 
 ### What the fixtures need from their host
 
-Beyond `APP_URL`, two fixtures touch the Shopware project directly. Each resolves what it needs from
-an environment variable when it is first used, and fails loudly when it cannot:
+Beyond `APP_URL`, two fixtures and `ShopwareLog` from `services/shopwareLog.ts` touch the Shopware
+project directly. Each resolves what it needs from an environment variable when it is first used,
+and fails loudly when it cannot:
 
-| Variable       | Default                                                                                                     | Needed by                                                                          |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there           |
-| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION`, the Administration ACL file and the feed templates |
-| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                                       |
+| Variable       | Default                                                                                                     | Needed by                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SHOPWARE_DIR` | the nearest ancestor of this directory with a `bin/console`                                                 | `UcpAgentProfileHost` writes into its `public/`; `UcpConsole` runs there; `ShopwareLog` reads its `var/log/` |
+| `PLUGIN_DIR`   | the checkout this suite sits in, else the `custom/plugins` directory that holds `shopware/agentic-commerce` | reading `UcpProtocol::VERSION`, the Administration ACL file and the feed templates                           |
+| `UCP_CONSOLE`  | `docker compose exec -T web php bin/console`                                                                | `UcpConsole`                                                                                                 |
 
-A runner that reaches Shopware only over HTTP can run every spec that uses neither fixture. The
-profile host and the console need the project mounted.
+A runner that reaches Shopware only over HTTP can run every spec that uses none of them. The profile
+host, the console and the log reader need the project mounted.
 
 Channels on a host of their own need the web server to answer any `Host` (a catch-all vhost) and
-`TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. Only the `UcpAdmin` discovery journeys
-use such channels; `fetchDiscoveryDocument()` fails with that message when the lane does not serve
-them, so no other project depends on it.
+`TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The discovery journeys of `UcpAdmin`
+and `UcpProtocol` use such channels, because a domain with a path serves no UCP profile.
+`fetchDiscoveryDocument()` fails with that message when the lane does not serve them.
 
 `UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
 machine where `docker` is only an alias for `podman`, the default prefix is not found and the
