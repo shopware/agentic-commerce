@@ -10,6 +10,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
@@ -490,9 +491,10 @@ final class CheckoutCompleterTest extends TestCase
 
         $cmsPageRepository = $this->createMock(EntityRepository::class);
         $cmsPageRepository->method('searchIds')->willReturnCallback(static function (Criteria $criteria, Context $context): IdSearchResult {
+            /** @var list<string> $ids */
+            $ids = $criteria->getIds();
             $found = [];
-            foreach ($criteria->getIds() as $id) {
-                \assert(\is_string($id));
+            foreach ($ids as $id) {
                 $found[$id] = ['primaryKey' => $id, 'data' => ['id' => $id]];
             }
 
@@ -517,6 +519,7 @@ final class CheckoutCompleterTest extends TestCase
         $domain->setUrl('https://shop.example');
 
         $salesChannel = new SalesChannelEntity();
+        $salesChannel->setTypeId(Defaults::SALES_CHANNEL_TYPE_STOREFRONT);
         $salesChannel->setDomains(new SalesChannelDomainCollection([$domain]));
 
         $context->method('getDomainId')->willReturn(self::DOMAIN_ID);

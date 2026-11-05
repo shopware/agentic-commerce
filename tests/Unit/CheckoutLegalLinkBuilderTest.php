@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
@@ -77,7 +79,7 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
         self::assertSame([
             ['type' => 'terms_of_service', 'url' => 'https://shop.test/page/cms/'.self::TOS_PAGE, 'title' => 'Terms of Service'],
             ['type' => 'privacy_policy', 'url' => 'https://shop.test/page/cms/'.self::PRIVACY_PAGE, 'title' => 'Privacy Policy'],
-            ['type' => 'refund_policy', 'url' => 'https://shop.test/page/cms/'.self::REVOCATION_PAGE, 'title' => 'Refund Policy'],
+            ['type' => 'refund_policy', 'url' => 'https://shop.test/page/cms/'.self::REVOCATION_PAGE, 'title' => 'Revocation Policy'],
             ['type' => 'shipping_policy', 'url' => 'https://shop.test/page/cms/'.self::SHIPPING_PAGE, 'title' => 'Shipping Policy'],
         ], $this->toArrays($links));
 
@@ -114,29 +116,23 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
         self::assertSame([], $this->generatedRoutes, 'The router must not be asked when no page is configured.');
     }
 
-    #[Test]
-    public function testNonStringConfigValuesAreSkipped(): void
+    /**
+     * @return iterable<string, array{mixed, mixed, mixed}>
+     */
+    public static function unusableConfigValueProvider(): iterable
     {
-        $this->configure(self::SALES_CHANNEL_ID, [
-            'core.basicInformation.tosPage' => 42,
-            'core.basicInformation.privacyPage' => [self::PRIVACY_PAGE],
-            'core.basicInformation.revocationPage' => true,
-            'core.basicInformation.shippingPaymentInfoPage' => self::SHIPPING_PAGE,
-        ]);
-
-        $links = $this->builder()->build($this->context(self::SALES_CHANNEL_ID, 'https://shop.test'));
-
-        self::assertSame(['shipping_policy'], array_map(static fn (Link $link): string => $link->type, $links));
-        self::assertSame([[self::SHIPPING_PAGE]], $this->searchedPageIds);
+        yield 'non-string values' => [42, [self::PRIVACY_PAGE], true];
+        yield 'strings that are not UUIDs' => ['', 'privacy-policy', self::REVOCATION_PAGE.'0'];
     }
 
+    #[DataProvider('unusableConfigValueProvider')]
     #[Test]
-    public function testStringConfigValuesThatAreNotUuidsAreSkipped(): void
+    public function testUnusableConfigValuesAreSkipped(mixed $tosPage, mixed $privacyPage, mixed $revocationPage): void
     {
         $this->configure(self::SALES_CHANNEL_ID, [
-            'core.basicInformation.tosPage' => '',
-            'core.basicInformation.privacyPage' => 'privacy-policy',
-            'core.basicInformation.revocationPage' => self::REVOCATION_PAGE.'0',
+            'core.basicInformation.tosPage' => $tosPage,
+            'core.basicInformation.privacyPage' => $privacyPage,
+            'core.basicInformation.revocationPage' => $revocationPage,
             'core.basicInformation.shippingPaymentInfoPage' => self::SHIPPING_PAGE,
         ]);
 
@@ -261,6 +257,18 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
     }
 
     #[Test]
+    public function testAHeadlessSalesChannelYieldsNoLinksAndNoQuery(): void
+    {
+        $this->configure(self::SALES_CHANNEL_ID, ['core.basicInformation.tosPage' => self::TOS_PAGE]);
+
+        $links = $this->builder()->build($this->context(self::SALES_CHANNEL_ID, 'https://shop.test', Defaults::SALES_CHANNEL_TYPE_API));
+
+        self::assertSame([], $links);
+        self::assertSame([], $this->searchedPageIds);
+        self::assertSame([], $this->generatedRoutes);
+    }
+
+    #[Test]
     public function testAUrlThatDoesNotValidateIsDropped(): void
     {
         $this->configure(self::SALES_CHANNEL_ID, ['core.basicInformation.tosPage' => self::TOS_PAGE]);
@@ -326,7 +334,7 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
         );
     }
 
-    private function context(string $salesChannelId, ?string $domainUrl): SalesChannelContext
+    private function context(string $salesChannelId, ?string $domainUrl, string $typeId = Defaults::SALES_CHANNEL_TYPE_STOREFRONT): SalesChannelContext
     {
         $domainId = md5($salesChannelId);
         $domains = new SalesChannelDomainCollection();
@@ -340,6 +348,7 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
 
         $salesChannel = new SalesChannelEntity();
         $salesChannel->setId($salesChannelId);
+        $salesChannel->setTypeId($typeId);
         $salesChannel->setDomains($domains);
 
         $context = $this->createMock(SalesChannelContext::class);

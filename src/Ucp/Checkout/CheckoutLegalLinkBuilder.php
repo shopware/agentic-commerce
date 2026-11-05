@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Content\Cms\CmsPageCollection;
+use Shopware\Core\Defaults;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Log\Package;
@@ -20,7 +21,8 @@ use Ucp\Sdk\Model\Common\Link;
 /**
  * Builds the UCP legal links from the CMS pages configured under Settings > Basic information.
  * Uses the full CMS page route (6.6.10+) when available, otherwise the CMS widget route, generated
- * as bare path info so path-prefixed domains keep a single prefix. Without a storefront there are no links.
+ * as bare path info so path-prefixed domains keep a single prefix. Without a storefront, or on a channel the
+ * storefront does not serve (headless), there are no links.
  *
  * @internal
  */
@@ -30,7 +32,7 @@ final class CheckoutLegalLinkBuilder
     private const LEGAL_PAGES = [
         'terms_of_service' => ['core.basicInformation.tosPage', 'Terms of Service'],
         'privacy_policy' => ['core.basicInformation.privacyPage', 'Privacy Policy'],
-        'refund_policy' => ['core.basicInformation.revocationPage', 'Refund Policy'],
+        'refund_policy' => ['core.basicInformation.revocationPage', 'Revocation Policy'],
         'shipping_policy' => ['core.basicInformation.shippingPaymentInfoPage', 'Shipping Policy'],
     ];
 
@@ -50,7 +52,8 @@ final class CheckoutLegalLinkBuilder
      */
     public function build(SalesChannelContext $context): array
     {
-        if (!class_exists(StorefrontRouter::class)) {
+        if (!class_exists(StorefrontRouter::class)
+            || Defaults::SALES_CHANNEL_TYPE_STOREFRONT !== $context->getSalesChannel()->getTypeId()) {
             return [];
         }
 
