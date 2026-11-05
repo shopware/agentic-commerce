@@ -24,6 +24,7 @@ export const swSalesChannelDetailOverride = {
 
     provide() {
         return {
+            swSalesChannelShouldRenderAgenticCommerceTab: () => this.shouldRenderAgenticCommerceTab,
             swSalesChannelDetailGetAgenticCommerceExportConfig: () => this.agenticCommerceExportConfig,
             // The UCP form state is owned by the page (not the tab view) so edits
             // survive tab switches and persist through the page's global Save —

@@ -238,6 +238,8 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../../Ucp/Test',
             __DIR__.'/../../Ucp/Command/SeedSmokeCatalogCommand.php',
             __DIR__.'/../../TestData',
+            // Registered below under core's service id only.
+            __DIR__.'/../../Content/ProductExport/AgenticProductExportDefinition.php',
         ]);
 
     // DAL repositories are bound by service id, not type — named args required.

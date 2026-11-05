@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'node:path';
 import process from 'node:process';
+import { EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS } from './services/embeddedHost';
 
 dotenv.config({ quiet: true });
 
@@ -51,11 +52,20 @@ const browser = {
 
 // Channels on a host of their own (UcpTestDataService.createStorefrontSalesChannelOnOwnHost) are
 // reached through the APP_URL host, so their /.well-known/ucp resolves them. Only the browser sees this.
-const browserWithOwnHosts = {
-    ...browser,
+const ownHostResolverRules = {
     launchOptions: {
         args: signerOnly ? [] : [`--host-resolver-rules=MAP *.ucp-acceptance.test ${new URL(appUrl).hostname}`],
     },
+};
+
+const browserEmbeddingPrivateShop = {
+    ...browser,
+    launchOptions: EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS,
+};
+
+const browserWithOwnHosts = {
+    ...browser,
+    ...ownHostResolverRules,
 };
 
 export default defineConfig({
@@ -103,6 +113,7 @@ export default defineConfig({
         },
         {
             name: 'UcpProtocol',
+            use: { ...ownHostResolverRules },
             grep: /@UcpProtocol/,
             dependencies: ['Signer', 'Setup'],
         },
@@ -113,7 +124,7 @@ export default defineConfig({
         },
         {
             name: 'UcpEmbedded',
-            use: { ...browser },
+            use: { ...browserEmbeddingPrivateShop },
             grep: /@UcpEmbedded/,
             dependencies: ['Signer', 'Setup'],
         },
@@ -131,7 +142,7 @@ export default defineConfig({
         },
         {
             name: 'UcpSerial',
-            use: { ...browser },
+            use: { ...browserWithOwnHosts },
             grep: /@UcpSerial/,
             dependencies: ['Signer', 'Setup'],
             workers: 1,
@@ -139,7 +150,7 @@ export default defineConfig({
         {
             // Non-gating: excluded from `npm test` via --grep-invert, run by `npm run test:known-blocked`.
             name: 'UcpKnownBlocked',
-            use: { ...browser },
+            use: { ...browserWithOwnHosts },
             grep: /@UcpKnownBlocked/,
             dependencies: ['Signer', 'Setup'],
         },
