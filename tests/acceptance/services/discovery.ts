@@ -67,6 +67,14 @@ export async function fetchStorefrontLinkHeader(browser: Browser, baseUrl: strin
     });
 }
 
+export async function fetchChannelFileText(browser: Browser, baseUrl: string, fileName: string): Promise<string> {
+    return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/${fileName}`, async (fileResponse) => {
+        expect(fileResponse.ok(), `${await fileResponse.text()}\nIf the host is not served: ${OWN_HOST_REQUIREMENT}`).toBeTruthy();
+
+        return fileResponse.text();
+    });
+}
+
 async function readDiscoveryResponse<T>(browser: Browser, baseUrl: string, toResult: (response: Response) => T | Promise<T>): Promise<T> {
     return readPageResponse(browser, `${baseUrl.replace(/\/+$/, '')}/.well-known/ucp`, toResult);
 }
