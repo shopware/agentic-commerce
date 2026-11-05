@@ -154,7 +154,7 @@ test.describe('Agentic Commerce tab configuration @UcpAdmin', () => {
     });
 
     test.fixme('leaving the tab with unsaved changes asks before discarding them', () => {
-        // Neither the plugin nor core guards the sales channel ucpSalesChannelDetail page with a leave
+        // Neither the plugin nor core guards the sales channel detail page with a leave
         // confirmation on any supported lane; this records the missing behaviour until it exists.
     });
 });
