@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'node:path';
 import process from 'node:process';
+import { EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS } from './services/embeddedHost';
 
 dotenv.config({ quiet: true });
 
@@ -55,6 +56,11 @@ const ownHostResolverRules = {
     launchOptions: {
         args: signerOnly ? [] : [`--host-resolver-rules=MAP *.ucp-acceptance.test ${new URL(appUrl).hostname}`],
     },
+};
+
+const browserEmbeddingPrivateShop = {
+    ...browser,
+    launchOptions: EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS,
 };
 
 const browserWithOwnHosts = {
@@ -118,7 +124,7 @@ export default defineConfig({
         },
         {
             name: 'UcpEmbedded',
-            use: { ...browser },
+            use: { ...browserEmbeddingPrivateShop },
             grep: /@UcpEmbedded/,
             dependencies: ['Signer', 'Setup'],
         },

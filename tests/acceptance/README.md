@@ -280,6 +280,13 @@ keeps only the last webhook, whichever channel sent it. `npm run test:all` runs 
 fail. `npm test` and CI leave `UcpKnownBlocked` out; run it on its own with
 `npm run test:known-blocked`.
 
+The `UcpEmbedded` specs frame the shop in a host page that `openInEmbeddingHost()` from
+`services/embeddedHost.ts` serves with `page.route()`, on an origin no server has to answer. The
+project switches off Chromium's local network access checks with
+`EMBEDDING_PRIVATE_SHOP_LAUNCH_OPTIONS`, because a host served that way counts as public and the
+`APP_URL` host of a lane is private. A spec in another project that calls `openInEmbeddingHost()`
+sets the same launch options with `test.use()`.
+
 `UCP_CONSOLE` is executed directly, not through a shell, so it cannot see shell aliases. On a
 machine where `docker` is only an alias for `podman`, the default prefix is not found and the
 signing keys of created channels are left behind. Set `UCP_CONSOLE` to a command that reaches the
