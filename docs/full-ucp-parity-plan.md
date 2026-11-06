@@ -135,14 +135,10 @@ Import demo data before implementation validation:
 `--domain` is the lane-specific storefront subdomain override and prevents all three local shops
 from competing for `music.localhost`.
 
-Use `bin/validate-ucp-store.sh <base-url>` for basic profile validation. Use
-`bin/validate-ucp-store.sh <base-url> <profile-url> extended` to also exercise A2A
-`catalog.search`/`cart.create`, embedded cart headers and bridge markup, and trunk MCP `tools/list`
-when `UCP_STORE_API_ACCESS_KEY` is provided. Use
-`bin/validate-ucp-store.sh <base-url> <profile-url> conformance` with `UCP_CONFORMANCE_DIR` when the
-official UCP conformance suite is checked out.
+The acceptance suite in [`tests/acceptance`](../tests/acceptance/README.md) validates the profile
+and every transport on each lane.
 
-The validation script also asserts the default shipped optional capability decision:
+The default shipped optional capability decision:
 
 - `payment_handlers` is an empty object in the UCP profile.
 - `/.well-known/oauth-authorization-server` returns `501` until `identity_linking` is enabled for
@@ -151,13 +147,6 @@ The validation script also asserts the default shipped optional capability decis
   Shopware customer context token.
 - `/ucp/v1/tokenize` returns `501`.
 
-Validated local profile matrix:
-
-- 6.5: `bin/validate-ucp-store.sh http://music-65.localhost:8102` returns REST/A2A/embedded.
-- 6.6: `bin/validate-ucp-store.sh http://music-66.localhost:8101` returns REST/A2A/embedded.
-- 6.7/trunk: `bin/validate-ucp-store.sh http://music-trunk.localhost:8100` returns
-  REST/MCP/A2A/embedded when the Store API MCP core branch is present.
-
 For trunk MCP validation, initialize `/ucp/mcp`, then call `tools/list`. The plugin resolves the
 current sales-channel access key internally before delegating to `/store-api/_mcp`. The expected UCP
 tool names cover the shopping operation matrix: `search_catalog`, `lookup_catalog`, cart
@@ -165,17 +154,7 @@ create/get/update/cancel, discount apply, checkout create/get/update/complete/ca
 
 ## Admin QA
 
-Run the reusable browser validator for each supported lane/build mode:
-
-- 6.5 webpack: `BASE_URL=http://sw65.localhost:8088 npm run qa:admin -- --lane 6.5-webpack`
-- 6.6 webpack: `BASE_URL=http://sw66.localhost:8088 npm run qa:admin -- --lane 6.6-webpack`
-- 6.6 vite: `BASE_URL=http://sw66.localhost:8088 npm run qa:admin -- --lane 6.6-vite`
-- 6.7/trunk vite: `BASE_URL=http://trunk.localhost:8088 npm run qa:admin -- --lane trunk-vite`
-
-The CI admin matrix runs this validator with `CI_ADMIN_BROWSER_VALIDATE=1`. It logs in, opens the
-UCP overview/detail screens, validates authenticated admin API save/profile/key operations, checks
-lane-aware profile-preview transports, fails on UCP console errors, writes screenshots, and restores
-the original sales-channel config.
+The `UcpAdmin` acceptance project validates the Agentic Commerce tab on every lane.
 
 Required browser assertions:
 
@@ -185,19 +164,6 @@ Required browser assertions:
   `/ucp/mcp`.
 - Profile preview: effective transports match the runtime matrix.
 - Sales-channel shortcut: opens the UCP detail page for the selected sales channel.
-
-Store screenshots under `var/qa/admin-screenshots/{lane}/{build-mode}/` for CI and under
-`var/qa-screenshots/` for ad-hoc local captures.
-
-Current local screenshot artifacts are stored in `var/qa-screenshots/`:
-
-- `admin-ucp-trunk.png` and `admin-ucp-trunk-security.png`
-- `admin-ucp-66.png` and `admin-ucp-66-security.png`
-- `admin-ucp-65.png` and `admin-ucp-65-security.png`
-
-The top screenshots verify the lane transport summary. The security screenshots verify the split
-allowlist UX: remote profile hosts, agent/webhook hosts, embedded allowed origins, and embedded
-frame ancestors.
 
 ## Remaining Runtime Gaps
 
@@ -243,12 +209,10 @@ model, this one covers the Shopware support matrix.
 
 ## QA-Only Surfaces
 
-Smoke-only runtime surfaces must stay out of the normal shipped contract:
+Test-only runtime surfaces must stay out of the normal shipped contract:
 
 - Test webhook capture is available only when `SWAG_AGENTIC_COMMERCE_TEST_CAPTURE=1` and the app is
   not running in `prod`.
-- The smoke catalog seeder is hidden and available only when `SWAG_AGENTIC_COMMERCE_SMOKE_SEED=1`
-  and the app is not running in `prod`.
-- `bin/ci-smoke.sh` sets both flags explicitly for local/CI QA.
+- `bin/ci-smoke.sh` sets the flag explicitly for local/CI QA.
 - Package exports exclude tests, CI smoke scripts, local QA screenshots, and repository-only tooling
   via `.gitattributes`.

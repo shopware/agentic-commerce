@@ -6,7 +6,7 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-for dependency in curl jq rsync; do
+for dependency in jq rsync; do
   if ! command -v "${dependency}" >/dev/null 2>&1; then
     echo "Required dependency '${dependency}' is not available." >&2
     exit 1
@@ -106,16 +106,6 @@ if [[ -f "${SHOPWARE_DIR}/compose.override.yaml" ]]; then
   compose_files+=("${SHOPWARE_DIR}/compose.override.yaml")
 fi
 
-BASE_URL="${BASE_URL:-$(detect_base_url)}"
-WEBHOOK_CAPTURE_URL="${WEBHOOK_CAPTURE_URL:-${BASE_URL}/_action/swag-agentic-commerce/test/webhooks}"
-if [[ -z "${WEBHOOK_CAPTURE_TARGET_URL:-}" ]]; then
-  if [[ -z "${CI:-}" && "${BASE_URL}" != "http://localhost:8000" && "${BASE_URL}" != "https://localhost:8000" ]]; then
-    WEBHOOK_CAPTURE_TARGET_URL="$(printf '%s' "${BASE_URL}" | sed -E 's#^(https?://[^/:]+)(:[0-9]+)?#\1:8000#')/_action/swag-agentic-commerce/test/webhooks"
-  else
-    WEBHOOK_CAPTURE_TARGET_URL="${WEBHOOK_CAPTURE_URL}"
-  fi
-fi
-
 smoke_override_file="$(mktemp "${TMPDIR:-/tmp}/swag-agentic-commerce-ci-smoke.XXXXXX")"
 mv "${smoke_override_file}" "${smoke_override_file}.yaml"
 smoke_override_file="${smoke_override_file}.yaml"
@@ -125,7 +115,6 @@ services:
   web:
     environment:
       SWAG_AGENTIC_COMMERCE_TEST_CAPTURE: "1"
-      SWAG_AGENTIC_COMMERCE_SMOKE_SEED: "1"
       SWAG_AGENTIC_COMMERCE_UCP_PROFILE_FETCHING_DEVELOPMENT_MODE: "1"
       MCP_SERVER: "1"
 EOF
@@ -181,35 +170,6 @@ write_composer_security_audit() {
 }
 
 trap cleanup EXIT
-
-# HTTP/assertion/JSON-RPC helpers (assert_jq, assert_contains, fetch_required_url,
-# curl_required, ucp_status, ucp_expect_status, ucp_jsonrpc, next_idempotency_key) come
-# from the shared smoke library so they stay in sync with bin/validate-ucp-store.sh.
-# shellcheck source=bin/lib/ucp-http.sh
-source "${PLUGIN_ROOT}/bin/lib/ucp-http.sh"
-
-idempotency_run_prefix="swag-agentic-commerce-smoke-$(date +%s)-$$"
-smoke_email="${idempotency_run_prefix}@example.com"
-UCP_IDEMPOTENCY_PREFIX="${idempotency_run_prefix}"
-
-wait_for_capture() {
-  local attempt
-
-  for attempt in $(seq 1 15); do
-    local response
-    response="$(curl -sS "${WEBHOOK_CAPTURE_URL}")"
-
-    if printf '%s' "${response}" | jq -e '.data != null' >/dev/null; then
-      printf '%s' "${response}"
-      return 0
-    fi
-
-    sleep 1
-  done
-
-  echo "Timed out waiting for webhook capture." >&2
-  exit 1
-}
 
 rm -rf "${SHOPWARE_DIR}/custom/plugins/SwagAgenticCommerce" "${SHOPWARE_DIR}/custom/ucp-php-sdk"
 mkdir -p "${SHOPWARE_DIR}/custom/plugins"
@@ -441,111 +401,13 @@ foreach ([
 echo "UCP SDK storage schema is available on Shopware database.\n";
 PHP
 
-sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://localhost:%' ORDER BY sales_channel_id LIMIT 1;")"
-if [[ -z "${sales_channel_id}" ]]; then
-  sales_channel_id="$(db_query "SELECT LOWER(HEX(sales_channel_id)) FROM sales_channel_domain WHERE url LIKE 'http://%' ORDER BY sales_channel_id LIMIT 1;")"
-fi
-
-if [[ -z "${sales_channel_id}" ]]; then
-  echo "Unable to resolve a storefront sales channel domain for smoke testing." >&2
-  exit 1
-fi
-
-echo "Configuring UCP smoke sales channel ${sales_channel_id}."
-ensure_sales_channel_domain_url() {
-  local domain_url="$1"
-
-  db_query "INSERT INTO sales_channel_domain (id, sales_channel_id, language_id, currency_id, snippet_set_id, url, created_at, updated_at) SELECT UNHEX(REPLACE(UUID(), '-', '')), sales_channel_id, language_id, currency_id, snippet_set_id, '${domain_url}', NOW(3), NOW(3) FROM sales_channel_domain WHERE sales_channel_id = UNHEX('${sales_channel_id}') AND NOT EXISTS (SELECT 1 FROM sales_channel_domain existing WHERE existing.url = '${domain_url}') LIMIT 1;"
-}
-
-ensure_sales_channel_domain_url "${BASE_URL}"
-webhook_capture_target_base_url="${WEBHOOK_CAPTURE_TARGET_URL%/_action/swag-agentic-commerce/test/webhooks}"
-if [[ "${webhook_capture_target_base_url}" != "${BASE_URL}" ]]; then
-  ensure_sales_channel_domain_url "${webhook_capture_target_base_url}"
-fi
-web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.active true --json --salesChannelId="${sales_channel_id}"
-# The smoke runner still exercises unsigned requests directly via curl, so it opts the lane into log-only verification.
-web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.signaturePolicy log --salesChannelId="${sales_channel_id}"
-web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.webhookUrlOverride "${WEBHOOK_CAPTURE_TARGET_URL}" --salesChannelId="${sales_channel_id}"
-web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.continueUrlTemplate "${BASE_URL}/checkout/confirm?checkoutId={checkoutId}" --salesChannelId="${sales_channel_id}"
-
-store_api_mcp_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo class_exists("Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController") ? "1" : "0";')"
-core_agentic_files_available="$(web php -r 'require "/var/www/html/vendor/autoload.php"; echo (class_exists("Swag\\AgenticCommerce\\AgenticFiles\\CoreSalesChannelFileFeature") && Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature::isAvailableByClass()) ? "1" : "0";')"
-
-enabled_transports='["rest","a2a","embedded"]'
-expected_transports_json='["a2a","embedded","rest"]'
-if [[ "${store_api_mcp_available}" == "1" ]]; then
-  enabled_transports='["rest","a2a","embedded","mcp"]'
-  expected_transports_json='["a2a","embedded","mcp","rest"]'
-fi
-
-web php /var/www/html/bin/console system:config:set SwagAgenticCommerce.config.enabledTransports "${enabled_transports}" --json --salesChannelId="${sales_channel_id}"
-config_json="$(jq -cn \
-  --argjson transports "${enabled_transports}" \
-  --arg continueUrlTemplate "${BASE_URL}/checkout/confirm?checkoutId={checkoutId}" \
-  --arg webhookUrlOverride "${WEBHOOK_CAPTURE_TARGET_URL}" \
-  '{
-    active: true,
-    ucpVersion: "2026-04-08",
-    profileUriStrategy: "domain",
-    customProfileUri: null,
-    enabledCapabilities: ["catalog", "cart", "discount", "checkout", "order"],
-    enabledTransports: $transports,
-    continueUrlTemplate: $continueUrlTemplate,
-    platformAllowlist: [],
-    remoteProfileAllowlist: [],
-    agentAllowlist: [],
-    embeddedAllowedOrigins: [],
-    embeddedFrameAncestors: [],
-    discoveryBudget: 10,
-    webhookUrlOverride: $webhookUrlOverride,
-    signaturePolicy: "log",
-    idempotencyRequired: true
-  }')"
-db_query "INSERT INTO swag_agentic_commerce_ucp_config (sales_channel_id, config_json, created_at, updated_at) VALUES (UNHEX('${sales_channel_id}'), '${config_json}', NOW(3), NOW(3)) ON DUPLICATE KEY UPDATE config_json = VALUES(config_json), updated_at = NOW(3);"
-echo "Generating UCP smoke signing key."
-web php /var/www/html/bin/console ucp:signing-keys:generate --kid="ci-smoke-$(date +%s)" >/dev/null
-
-if [[ "$(db_query 'SELECT COUNT(*) FROM product;')" == "0" ]]; then
-  echo "Seeding UCP smoke catalog."
-  web php /var/www/html/bin/console swag-agentic-commerce:seed-smoke-catalog --sales-channel-id="${sales_channel_id}" >/dev/null
-fi
-
-echo "Refreshing DAL indexes for UCP smoke."
+echo "Refreshing DAL indexes."
 web php /var/www/html/bin/console dal:refresh:index >/dev/null
 
 if [[ "${BOOTSTRAP_ONLY}" == "1" ]]; then
   echo "Bootstrap completed for ${SHOPWARE_DIR}."
   exit 0
 fi
-
-product_row="$(db_query "SELECT LOWER(HEX(product.id)), pt.name FROM product INNER JOIN product_translation pt ON pt.product_id = product.id WHERE product.active = 1 AND pt.name IS NOT NULL ORDER BY product.created_at ASC LIMIT 1;")"
-product_id="${product_row%%$'\t'*}"
-product_name="${product_row#*$'\t'}"
-
-if [[ -z "${product_id}" || -z "${product_name}" ]]; then
-  echo "Unable to resolve an active product for smoke testing." >&2
-  exit 1
-fi
-
-ucp_agent_header="UCP-Agent: shopware-agentic-commerce-ci; profile=\"${BASE_URL}/.well-known/ucp\""
-
-# Smoke check stages live in named modules so a failing banner names the area. Catalog and cart
-# capability coverage lives in the functional suite; the checkout stage resolves the seeded
-# product itself and stays here only to drive the on-the-wire signed order webhook.
-# shellcheck source=bin/lib/smoke/discovery.sh
-source "${PLUGIN_ROOT}/bin/lib/smoke/discovery.sh"
-# shellcheck source=bin/lib/smoke/identity.sh
-source "${PLUGIN_ROOT}/bin/lib/smoke/identity.sh"
-# shellcheck source=bin/lib/smoke/checkout.sh
-source "${PLUGIN_ROOT}/bin/lib/smoke/checkout.sh"
-# shellcheck source=bin/lib/smoke/signature.sh
-source "${PLUGIN_ROOT}/bin/lib/smoke/signature.sh"
-
-smoke_discovery
-smoke_identity
-smoke_checkout
-smoke_signature
 
 # Optionally run the integration and functional suites inside the already-booted stack. These
 # tests boot a real Shopware test kernel (SHOPWARE_PROJECT_DIR unset + APP_ENV=test) and drive UCP

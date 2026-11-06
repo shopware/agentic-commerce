@@ -111,17 +111,19 @@ storefront_sh 'cd /var/www/html && composer build:js:storefront'
 web php /var/www/html/bin/console theme:compile >/dev/null
 web php /var/www/html/bin/console assets:install >/dev/null
 
-if [[ ! -d "${PLUGIN_ROOT}/node_modules/@playwright/test" ]]; then
-  echo "Playwright dependencies are missing. Run 'npm install' in ${PLUGIN_ROOT} before storefront browser validation." >&2
+storefront_html="$(curl -fsS "${BASE_URL}/")"
+theme_css_path="$(grep -o -m1 -E 'href="[^"]*/theme/[^"]+/css/[^"]+\.css[^"]*"' <<<"${storefront_html}" | head -n1 | sed -E 's/^href="//; s/"$//' || true)"
+if [[ -z "${theme_css_path}" ]]; then
+  echo "The storefront homepage links no compiled theme stylesheet." >&2
+  exit 1
+fi
+theme_css_url="${theme_css_path}"
+if [[ "${theme_css_path}" == /* ]]; then
+  theme_css_url="${BASE_URL}${theme_css_path}"
+fi
+if ! curl -fsS -o /dev/null "${theme_css_url}"; then
+  echo "The compiled theme stylesheet ${theme_css_url} is not served." >&2
   exit 1
 fi
 
-(
-  cd "${PLUGIN_ROOT}"
-  BASE_URL="${BASE_URL}" \
-    SHOPWARE_REF="${branch_name}" \
-    PLAYWRIGHT_OUTPUT_DIR="${PLUGIN_ROOT}/var/playwright-results/${branch_name}/storefront" \
-    npm run test:e2e:storefront -- --reporter=list
-)
-
-echo "Storefront build and UI smoke passed for ${SHOPWARE_DIR} (${branch_name:-unknown})."
+echo "Storefront build and theme smoke passed for ${SHOPWARE_DIR} (${branch_name:-unknown})."

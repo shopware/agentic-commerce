@@ -111,7 +111,6 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
-use Swag\AgenticCommerce\Ucp\Command\SeedSmokeCatalogCommand;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
@@ -237,7 +236,6 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../../Resources',
             // Test-only helpers (issue #53): registered explicitly below, and only outside prod.
             __DIR__.'/../../Ucp/Test',
-            __DIR__.'/../../Ucp/Command/SeedSmokeCatalogCommand.php',
             __DIR__.'/../../TestData',
             // Registered below under core's service id only.
             __DIR__.'/../../Content/ProductExport/AgenticProductExportDefinition.php',
@@ -410,8 +408,8 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments');
 
     // ── Test-only helpers (issue #53) ─────────────────────────────────────────
-    // Registered only outside prod so the webhook-capture endpoint, its capture/write store, and
-    // the smoke-catalog seeder never enter the production service graph. The matching test route
+    // Registered only outside prod so the webhook-capture endpoint and its capture/write store
+    // never enter the production service graph. The matching test route
     // is gated the same way in routes.php. Their feature flags + runtime guards remain as
     // defense-in-depth.
     if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
@@ -425,12 +423,6 @@ return static function (ContainerConfigurator $container): void {
                 ->arg('$testCaptureEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_TEST_CAPTURE'))
                 ->tag('controller.service_arguments');
         }
-
-        $services->set(SeedSmokeCatalogCommand::class)
-            ->arg('$productRepository', service('product.repository'))
-            ->arg('$taxRepository', service('tax.repository'))
-            ->arg('$appEnv', param('kernel.environment'))
-            ->arg('$smokeCatalogSeedEnabled', env('bool:default:defaults_bool_false:SWAG_AGENTIC_COMMERCE_SMOKE_SEED'));
 
         $services->set(TestDataEnvironment::class)
             ->arg('$activePlugins', param('kernel.active_plugins'))

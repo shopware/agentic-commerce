@@ -168,16 +168,16 @@ behind `legacy_routes.catalog_product_get`.
 Our routes are imported wholesale from the SDK bundle (`src/Resources/config/routes.php:34-39`), so
 the new route arrives automatically. What does **not** update automatically:
 
-**Files.** `bin/lib/smoke/discovery.sh` and `bin/validate-ucp-store.sh` assert on the discovery
-shape and route behaviour; `src/Resources/config/services.php:159-174` must decide the
-`legacy_routes` flag; `tests/e2e/ucp/*` fixtures; `docs/manual-testing.md`.
+**Files.** The `UcpProtocol` acceptance project asserts on the discovery shape and route behaviour
+(`discovery.spec.ts`, `rest-journey.spec.ts`); `src/Resources/config/services.php:159-174` must
+decide the `legacy_routes` flag; `docs/manual-testing.md`.
 
 **Recommendation.** Keep the legacy GET route **on** for one plugin minor. We have shipped it to
 merchants even though it was never conformant, so removing it in the same release that adds POST is
 a needless break. Announce the removal in the CHANGELOG at the same time.
 
-**Acceptance.** Smoke scripts exercise POST. A merchant upgrading gets both routes in the first
-release and a deprecation notice.
+**Acceptance.** The acceptance suite exercises POST. A merchant upgrading gets both routes in the
+first release and a deprecation notice.
 
 **Effort.** S · **Depends on.** SDK `T7`
 
@@ -208,13 +208,13 @@ source is the PHP property, which the SDK kept. No e2e fixture asserts on `signi
 stays `$signingKeys`, so PHP-side code is unaffected — but anything reading the _JSON_ is not.
 
 **Files.** `src/Resources/app/administration/` — anything consuming the `profile-preview` or
-`platform-profiles` payload from `UcpAdminController` (`:105`, `:130`);
-`tests/e2e/fixtures/shopware.js`, `tests/e2e/fixtures/ucp-protocols.js`,
-`tests/e2e/ucp/profile.spec.js`;
+`platform-profiles` payload from `UcpAdminController` (`:105`, `:130`); the acceptance specs that
+read the profile (`tests/acceptance/tests/UcpProtocol/discovery.spec.ts`,
+`tests/acceptance/tests/UcpSerial/signing-keys.spec.ts`);
 `src/Resources/app/administration/src/core/service/api/ucp-admin.api.service.spec.js`;
 `docs/manual-testing.md` if it shows profile output.
 
-**Acceptance.** The admin profile preview renders keys from a `keys[]` payload; e2e profile
+**Acceptance.** The admin profile preview renders keys from a `keys[]` payload; acceptance profile
 assertions pass against the new shape.
 
 **Effort.** S · **Depends on.** SDK `T16`

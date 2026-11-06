@@ -73,8 +73,6 @@ export default tseslint.config(
             'src/Resources/public/**',
             'tests/jest/administration/.jestcache/**',
             'tests/jest/administration/coverage/**',
-            'var/playwright-report/**',
-            'var/playwright-results/**',
         ],
     },
     eslint.configs.recommended,
@@ -82,9 +80,7 @@ export default tseslint.config(
         files: [
             'src/Resources/app/administration/src/**/*.js',
             'tests/jest/administration/**/*.js',
-            'tests/e2e/**/*.js',
             'bin/**/*.mjs',
-            'playwright.config.js',
         ],
         plugins: {
             jest: jestPlugin,
