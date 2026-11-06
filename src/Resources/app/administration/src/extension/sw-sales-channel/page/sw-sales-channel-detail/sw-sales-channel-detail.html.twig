@@ -2,9 +2,9 @@
 <sw-button-process
     v-tooltip.bottom="tooltipSave"
     class="sw-sales-channel-detail__save-action"
-    :is-loading="isLoading"
+    :is-loading="isLoading || isSavingUcp"
     :process-success="isSaveSuccessful"
-    :disabled="!allowSaving || isLoading || productComparison.invalidFileName"
+    :disabled="!allowSaving || isLoading || isSavingUcp || productComparison.invalidFileName"
     variant="primary"
     data-analytics-id="sw_sales_channel.detail.sales_channel_save"
     :data-analytics-sales-channel-type-id="salesChannel?.typeId ?? ''"
@@ -31,6 +31,24 @@
 {% block sw_sales_channel_detail_content_tab_product_export_insights %}{% endblock %}
 {% block sw_sales_channel_detail_content_tab_agentic_commerce_integration %}{% endblock %}
 
+{% block sw_sales_channel_detail_content_view %}
+<template v-if="!isAgenticCommerce || shouldRenderAgenticCommerceContent">
+    {% parent %}
+</template>
+<div
+    v-else
+    class="sw-sales-channel-detail__content-denied"
+    :class="{ 'sw-sales-channel-detail__content-denied--legacy': !usesMeteorComponents }"
+>
+    <mt-banner v-if="usesMeteorComponents" variant="attention">
+        {{ $t('sw-sales-channel.detail.contentDenied') }}
+    </mt-banner>
+    <sw-alert v-else variant="info">
+        {{ $t('sw-sales-channel.detail.contentDenied') }}
+    </sw-alert>
+</div>
+{% endblock %}
+
 {% block sw_sales_channel_detail_content_tab_product_comparison %}
 <sw-tabs-item
     v-if="isAgenticCommerce && !isLoading"
@@ -41,7 +59,7 @@
 </sw-tabs-item>
 
 <sw-tabs-item
-    v-if="isAgenticCommerce && !isLoading && Boolean(salesChannel?.id)"
+    v-if="isAgenticCommerce && canViewUcpInsights && !isLoading && Boolean(salesChannel?.id)"
     :route="{ name: agenticCommerceStatisticsRoute, params: { id: $route.params.id } }"
     :title="$t('sw-sales-channel.detail.productExport.tabInsights')"
 >

@@ -412,7 +412,7 @@ final class RecordingAgenticFilesCoreBridge implements AgenticFilesCoreBridgeInt
      */
     public array $enabledSalesChannelIds = [];
 
-    public function enableForSalesChannel(string $salesChannelId): void
+    public function initializeForSalesChannel(string $salesChannelId): void
     {
         $this->enabledSalesChannelIds[] = $salesChannelId;
     }

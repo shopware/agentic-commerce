@@ -1,5 +1,6 @@
 import template from './sw-sales-channel-detail-base.html.twig';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import { urlFieldReportsClearedValue } from '../../agentic-commerce/admin-version';
 
 const { Component, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -137,6 +138,10 @@ export const swSalesChannelDetailBaseOverride = {
                 bind.config.componentName = 'sw-text-editor';
             }
 
+            if (bind.type === 'url' && !urlFieldReportsClearedValue()) {
+                bind.config.componentName = 'sw-agentic-commerce-url-field';
+            }
+
             return bind;
         },
 
@@ -158,10 +163,14 @@ export const swSalesChannelDetailBaseOverride = {
 
         onAgenticCommerceExportFieldUpdate(configEntry, fieldName, value) {
             if (value instanceof Event) return;
-            configEntry.values[fieldName] = value;
+            // Reassigned instead of mutated: Vue 2.7 (6.5) does not track added or deleted keys.
+            configEntry.values = { ...configEntry.values, [fieldName]: value };
 
-            if (configEntry.errors?.[fieldName]) {
-                delete configEntry.errors[fieldName];
+            // URL fields report an empty value whenever they mount, e.g. when the General tab opens again.
+            if (value && configEntry.errors?.[fieldName]) {
+                const remainingErrors = { ...configEntry.errors };
+                delete remainingErrors[fieldName];
+                configEntry.errors = remainingErrors;
             }
         },
 

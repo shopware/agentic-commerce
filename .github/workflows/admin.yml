@@ -51,7 +51,8 @@ jobs:
         with:
           name: admin-jest-coverage
           path: agentic-commerce/tests/jest/administration/coverage
-          if-no-files-found: warn
+          # ci.yml's coverage job reads the cobertura report from here.
+          if-no-files-found: error
           retention-days: 7
 
   admin-matrix:

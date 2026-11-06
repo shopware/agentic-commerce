@@ -1,6 +1,8 @@
 import template from './sw-sales-channel-detail.html.twig';
 import './sw-sales-channel-detail.scss';
 import { coreShipsAgenticCommerce } from '../../../../core-feature';
+import { mergeAgenticFileDrafts } from '../../agentic-file-persistence';
+import { useMtComponents } from '../../agentic-commerce/admin-version';
 import {
     defaultForm as ucpDefaultForm,
     normalizeConfig as ucpNormalizeConfig,
@@ -8,6 +10,7 @@ import {
 } from '../../agentic-commerce/ucp-form-state';
 import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
 import { isKnownSalesChannelType, isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
+import { currentAdminVersion, isVersionAtLeast } from '../../agentic-commerce/admin-version';
 
 const { Component, Context, Defaults } = Shopware;
 const objectHelper = Shopware.Utils.object;
@@ -20,7 +23,7 @@ const ShopwareError = Shopware.Classes.ShopwareError;
 export const swSalesChannelDetailOverride = {
     template,
 
-    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl'],
+    inject: ['systemConfigApiService', 'ucpAdminApiService', 'acl', 'repositoryFactory'],
 
     provide() {
         return {
@@ -37,6 +40,7 @@ export const swSalesChannelDetailOverride = {
         return {
             agenticCommerceExportConfig: [],
             previousTemplateName: null,
+            isSavingUcp: false,
             ucpState: {
                 loaded: false,
                 isLoading: false,
@@ -48,10 +52,30 @@ export const swSalesChannelDetailOverride = {
                 // Bumped by every UCP write; a load started before the write must not apply.
                 generation: 0,
             },
+            pendingAgenticFilesReconciliation: null,
+            pendingAgenticFilesReload: null,
         };
     },
 
     watch: {
+        salesChannel(salesChannel) {
+            const pendingReconciliation = this.pendingAgenticFilesReconciliation;
+            if (!pendingReconciliation) {
+                return;
+            }
+
+            if (this.$route.params.id?.toLowerCase() !== pendingReconciliation.salesChannelId) {
+                this.pendingAgenticFilesReconciliation = null;
+                return;
+            }
+
+            if (salesChannel?.id !== pendingReconciliation.salesChannelId) {
+                return;
+            }
+
+            salesChannel.salesChannelFiles = pendingReconciliation.salesChannelFiles;
+            this.pendingAgenticFilesReconciliation = null;
+        },
         'productComparison.templateOptions'(options) {
             if (options?.length) {
                 this.detectCurrentTemplate();
@@ -82,11 +106,48 @@ export const swSalesChannelDetailOverride = {
                 : 'sw.sales.channel.detail.agenticCommerceStatistics';
         },
 
+        canViewUcpInsights() {
+            return this.acl.can('ucp.viewer');
+        },
+
+        salesChannelDetailTabs() {
+            const tabs = this.$super('salesChannelDetailTabs');
+            if (!Array.isArray(tabs) || !this.isAgenticCommerce || this.canViewUcpInsights) {
+                return tabs;
+            }
+
+            return tabs.filter((tab) => tab.name !== 'sw.sales.channel.detail.productExportInsights');
+        },
+
         shouldRenderAgenticCommerceTab() {
             const typeId = this.salesChannel?.typeId ?? this.$route.params.typeId;
 
             return this.acl.can('ucp.viewer')
                 && (isTransactionalSalesChannelType(typeId) || this.ucpState.transactional);
+        },
+
+        isUcpConfigRoute() {
+            return this.$route.name === 'sw.sales.channel.detail.agenticCommerce';
+        },
+
+        usesMeteorComponents() {
+            return useMtComponents();
+        },
+
+        shouldRenderAgenticCommerceContent() {
+            return (!this.isAgenticCommerce
+                    || this.$route.name !== 'sw.sales.channel.detail.productExportInsights'
+                    || this.canViewUcpInsights)
+                && (this.$route.name !== 'sw.sales.channel.detail.agenticCommerce' || this.shouldRenderAgenticCommerceTab);
+        },
+
+        allowSaving() {
+            if (this.isUcpConfigRoute) {
+                return this.acl.can('sales_channel.editor')
+                    || (this.acl.can('ucp.editor') && this.ucpState.loaded);
+            }
+
+            return this.$super('allowSaving');
         },
 
         // Widened to include AC channels so they reuse the product-export blocks.
@@ -268,16 +329,17 @@ export const swSalesChannelDetailOverride = {
         // the page before this write, which replaces `ucpState.form` with the stored,
         // not yet updated config.
         async saveUcpState(salesChannelId, form) {
-            if (!form || !salesChannelId) {
+            if (!form || !salesChannelId || !this.acl.can('ucp.editor')) {
                 return true;
             }
+
+            const isActivatingUcp = form.active && !this.ucpState.savedForm?.active;
 
             try {
                 await this.ucpAdminApiService.saveConfig(salesChannelId, ucpBuildConfigPayload(form));
                 this.ucpState.generation += 1;
                 this.ucpState.form = ucpNormalizeConfig(form);
                 this.ucpState.savedForm = ucpNormalizeConfig(form);
-                return true;
             } catch (error) {
                 // Keep the draft so the user can fix and retry: a reload already in flight
                 // from the legacy onSave would otherwise replace it with the stored config.
@@ -285,6 +347,52 @@ export const swSalesChannelDetailOverride = {
                 this.ucpState.form = ucpNormalizeConfig(form);
                 this.createNotificationError({ message: extractApiErrorMessage(error) });
                 return false;
+            }
+
+            if (isActivatingUcp) {
+                try {
+                    await this.reloadAgenticFiles(salesChannelId);
+                } catch {
+                    this.pendingAgenticFilesReload = salesChannelId;
+                }
+            }
+
+            return true;
+        },
+
+        async reloadAgenticFiles(salesChannelId) {
+            const hasCoreAgenticFiles = Boolean(
+                Shopware?.Component?.getComponentRegistry?.().has('sw-sales-channel-detail-agentic-files'),
+            );
+            if (!hasCoreAgenticFiles) {
+                return;
+            }
+
+            const salesChannel = await this.salesChannelRepository.get(
+                salesChannelId,
+                Context.api,
+                this.getLoadSalesChannelCriteria(),
+            );
+
+            if (this.salesChannel?.id === salesChannelId) {
+                if (this.salesChannel.salesChannelFiles?.length) {
+                    mergeAgenticFileDrafts(
+                        this.salesChannel.salesChannelFiles,
+                        salesChannel.salesChannelFiles,
+                        this.repositoryFactory.create('sales_channel_file'),
+                    );
+                }
+
+                this.salesChannel.salesChannelFiles = salesChannel.salesChannelFiles;
+                this.pendingAgenticFilesReload = null;
+                return;
+            }
+
+            if (this.$route.params.id?.toLowerCase() === salesChannelId) {
+                this.pendingAgenticFilesReconciliation = {
+                    salesChannelId,
+                    salesChannelFiles: salesChannel.salesChannelFiles,
+                };
             }
         },
 
@@ -348,13 +456,85 @@ export const swSalesChannelDetailOverride = {
         },
 
         async onSave() {
-            if (!this.validateAgenticCommerceExportConfig()) {
-                this.isLoading = false;
+            if (!this.allowSaving || this.isLoading || this.isSavingUcp) {
+                return;
+            }
+
+            if (this.pendingAgenticFilesReload
+                && this.pendingAgenticFilesReload === this.salesChannel?.id
+                && this.acl.can('sales_channel.editor')) {
+                this.isLoading = true;
+                this.isSaveSuccessful = false;
+                try {
+                    await this.reloadAgenticFiles(this.salesChannel.id);
+                } catch {
+                    this.createNotificationError({ message: this.$t('sw-sales-channel.detail.messageAPIError') });
+                    return;
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+
+            if (this.isUcpConfigRoute && !this.acl.can('sales_channel.editor')) {
+                if (!this.acl.can('ucp.editor') || !this.ucpState.loaded) {
+                    return;
+                }
+
+                const salesChannelId = this.salesChannel?.id;
+                const form = ucpNormalizeConfig(this.ucpState.form);
+                const hasUcpChanges = this.hasUcpChanges(form);
+                this.isSavingUcp = true;
+                this.isLoading = true;
+                this.isSaveSuccessful = false;
+
+                try {
+                    if (hasUcpChanges && !await this.saveUcpState(salesChannelId, form)) {
+                        return;
+                    }
+
+                    this.isSaveSuccessful = true;
+                    if (salesChannelId && hasUcpChanges) {
+                        this.refreshUcpPreview(salesChannelId);
+                    }
+                } finally {
+                    this.isSavingUcp = false;
+                    this.isLoading = false;
+                }
+
+                return;
+            }
+
+            if (!this.isAgenticCommerce) {
+                const salesChannelId = this.salesChannel?.id;
+                const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
+                const hasUcpChanges = this.acl.can('ucp.editor') && this.hasUcpChanges(form);
+
+                // Keep core validation and Storefront theme assignment in the save chain.
+                // The parent owns the reload; unchanged UCP settings must not delay it.
+                this.isSaveSuccessful = false;
+                await this.$super('onSave');
+
+                if (this.isSaveSuccessful && hasUcpChanges) {
+                    this.isSavingUcp = true;
+                    this.isSaveSuccessful = false;
+                    try {
+                        this.isSaveSuccessful = await this.saveUcpState(salesChannelId, form);
+
+                        if (this.isSaveSuccessful) {
+                            this.refreshUcpPreview(salesChannelId);
+                        }
+                    } finally {
+                        this.isSavingUcp = false;
+                    }
+                }
+
                 return;
             }
 
             // 6.7.9.0+ provides saveSalesChannel(); earlier versions inline the save in onSave().
             const isLegacyOnSave = typeof this.saveSalesChannel !== 'function';
+            const coreHandlesExportConfig = isVersionAtLeast(currentAdminVersion(), 6, 7, 10);
+            const pluginHandlesExportConfig = isLegacyOnSave || !coreHandlesExportConfig;
 
             // Snapshot before saving: legacy onSave triggers loadEntityData() which nulls
             // salesChannel and resets agenticCommerceExportConfig mid-flight.
@@ -362,45 +542,83 @@ export const swSalesChannelDetailOverride = {
             const typeIdAtSave = this.salesChannel?.typeId;
             const exportConfigAtSave = this.agenticCommerceExportConfig;
             const providerAtSave = this.productExport?.provider;
-            const ucpFormAtSave = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
+            const form = this.ucpState.loaded ? ucpNormalizeConfig(this.ucpState.form) : null;
+            const ucpFormAtSave = this.hasUcpChanges(form) ? form : null;
 
-            let saveSuccessful;
-            if (isLegacyOnSave) {
+            if (!this.validateAgenticCommerceExportConfig()) {
+                this.isSaveSuccessful = false;
+                this.isLoading = false;
+                // The create page has no tabs, so only the detail page names the tab holding the field.
+                const messageKey = this.salesChannel?.isNew?.()
+                    ? 'messageRequiredSettingsMissing'
+                    : 'messageRequiredSettingsMissingOnGeneralTab';
+                this.createNotificationError({
+                    message: this.$t(`sw-sales-channel.detail.agenticCommerce.${messageKey}`),
+                });
+                // On the create page this method is reached through `$super`, and core advances its pointer past
+                // it before the call. Leaving the chain early keeps that pointer, so the next Save would start
+                // behind this check. Reset it the way core does when a chain completes.
+                if (this._virtualCallStack) {
+                    this._virtualCallStack.onSave = undefined;
+                }
+                return;
+            }
+
+            this.isSavingUcp = pluginHandlesExportConfig;
+            try {
+                // Core owns validation and persistence on versions that support feed settings.
+                this.isSaveSuccessful = false;
                 await this.$super('onSave');
-                saveSuccessful = this.isSaveSuccessful;
-            } else {
-                saveSuccessful = await this.saveSalesChannel();
+                if (!this.isSaveSuccessful) {
+                    return;
+                }
+
+                if (pluginHandlesExportConfig) {
+                    const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
+                        channelIdAtSave,
+                        exportConfigAtSave,
+                        providerAtSave,
+                    );
+                    if (!configSaveSuccessful) {
+                        this.isSaveSuccessful = false;
+                        return;
+                    }
+
+                    // WHY: A core reload can read old settings before the write and finish afterwards.
+                    if (!isLegacyOnSave
+                        && (!this.$route?.params?.id || this.$route.params.id.toLowerCase() === channelIdAtSave)
+                        && (!this.salesChannel || this.salesChannel.id === channelIdAtSave)) {
+                        this.agenticCommerceExportConfig = exportConfigAtSave;
+                    }
+                }
+
+                const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
+
+                if (!ucpSaveSuccessful) {
+                    this.isSaveSuccessful = false;
+                    return;
+                }
+
+                // Older core reloads the page before the UCP write; load what is stored now.
+                if (pluginHandlesExportConfig && ucpFormAtSave) {
+                    this.loadUcpState(channelIdAtSave, typeIdAtSave);
+                }
+            } finally {
+                this.isSavingUcp = false;
             }
+        },
 
-            if (!saveSuccessful) {
-                return;
-            }
+        /** @private */
+        hasUcpChanges(form) {
+            return Boolean(form)
+                && JSON.stringify(ucpNormalizeConfig(form)) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm));
+        },
 
-            const configSaveSuccessful = await this.saveAgenticCommerceExportConfig(
-                channelIdAtSave,
-                exportConfigAtSave,
-                providerAtSave,
-            );
-
-            if (!configSaveSuccessful) {
-                return;
-            }
-
-            const ucpSaveSuccessful = await this.saveUcpState(channelIdAtSave, ucpFormAtSave);
-
-            if (!ucpSaveSuccessful) {
-                return;
-            }
-
-            if (!isLegacyOnSave) {
-                this.loadEntityData();
-                return;
-            }
-
-            // The legacy onSave reloaded the page before the UCP write; load what is stored now.
-            if (ucpFormAtSave) {
-                this.loadUcpState(channelIdAtSave, typeIdAtSave);
-            }
+        /** @private */
+        refreshUcpPreview(salesChannelId) {
+            return this.ucpAdminApiService.getProfilePreview(salesChannelId).then((response) => {
+                this.ucpState.preview = response.data.data || null;
+            }).catch(() => {});
         },
 
         validateAgenticCommerceExportConfig() {
@@ -413,10 +631,17 @@ export const swSalesChannelDetailOverride = {
             });
 
             for (const entry of activeEntries) {
-                for (const el of entry.elements.filter((el) => el.config?.required && !entry.values[el.name])) {
-                    entry.errors[el.name] = requiredError;
-                    isValid = false;
+                const missingElements = entry.elements.filter((el) => el.config?.required && !entry.values[el.name]);
+                if (missingElements.length === 0) {
+                    continue;
                 }
+
+                // Reassigned instead of adding keys: Vue 2.7 (6.5) does not track keys added to an existing object.
+                entry.errors = {
+                    ...entry.errors,
+                    ...Object.fromEntries(missingElements.map((el) => [el.name, requiredError])),
+                };
+                isValid = false;
             }
 
             return isValid;
@@ -550,6 +775,7 @@ export const swSalesChannelDetailOverride = {
 
                 return true;
             } catch {
+                this.isSaveSuccessful = false;
                 this.createNotificationError({
                     message: this.$t('sw-sales-channel.detail.messageSaveError', {
                         name: this.salesChannel?.name || this.placeholder(this.salesChannel ?? {}, 'name'),
