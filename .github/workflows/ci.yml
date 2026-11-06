@@ -121,8 +121,34 @@ jobs:
       shopware_66_ref: ${{ inputs.shopware_66_ref }}
       shopware_trunk_ref: ${{ inputs.shopware_trunk_ref }}
 
+  acceptance-scope:
+    runs-on: ubuntu-latest
+    outputs:
+      is_lane_sensitive: ${{ steps.scope.outputs.is_lane_sensitive }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - id: scope
+        env:
+          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          is_lane_sensitive=false
+          if [ "${IS_PULL_REQUEST}" = true ]; then
+            lane_sensitive_paths="$(git diff --name-only HEAD^1 HEAD -- \
+              src/Resources/app/administration src/Ucp src/Resources/views)"
+            if [ -n "${lane_sensitive_paths}" ]; then
+              is_lane_sensitive=true
+            fi
+          fi
+          echo "is_lane_sensitive=${is_lane_sensitive}" >> "${GITHUB_OUTPUT}"
+
   acceptance-full:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run/acceptance-full')
+    needs: acceptance-scope
+    if: >-
+      github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'run/acceptance-full')
+      || needs.acceptance-scope.outputs.is_lane_sensitive == 'true'
     uses: ./.github/workflows/acceptance.yml
     with:
       lanes: '["6.5.x", "6.6.x", "6.7.14.x"]'
@@ -222,6 +248,7 @@ jobs:
       - storefront
       - zip-artifact
       - acceptance
+      - acceptance-scope
       - acceptance-full
       - acceptance-report
       - coverage
@@ -230,5 +257,4 @@ jobs:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
-          # acceptance-full may be skipped only on a pull request without the label.
-          allowed-skips: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'run/acceptance-full') && '["acceptance-full"]' || '[]' }}
+          allowed-skips: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'run/acceptance-full') && needs.acceptance-scope.outputs.is_lane_sensitive != 'true' && '["acceptance-full"]' || '[]' }}

@@ -98,11 +98,12 @@ deployed HTTP stack:
    our attribute-based tests would otherwise break).
 
 4. **`acceptance`** (`tests/acceptance`, see [its README](tests/acceptance/README.md)) — Playwright
-   against a running shop on every CI lane (on pull requests trunk only, the others with the
-   `run/acceptance-full` label), with an RFC 9421 signing agent and a real browser. It is the home
-   for what a booted kernel does not observe: signed requests over HTTP, the outbound signed order
-   webhook on the wire, the embedded checkout framed by another origin, the rendered discovery files
-   and the Administration tab. Prefer a `functional` test when the behaviour fits one. A known spec
+   against a running shop on every CI lane (on pull requests trunk only; the others with the
+   `run/acceptance-full` label or when the pull request changes the Administration, `src/Ucp` or the
+   templates), with an RFC 9421 signing agent and a real browser. It is the home for what a booted
+   kernel does not observe: signed requests over HTTP, the outbound signed order webhook on the
+   wire, the embedded checkout framed by another origin, the rendered discovery files and the
+   Administration tab. Prefer a `functional` test when the behaviour fits one. A known spec
    deviation is a red spec in the non-gating `UcpKnownBlocked` project, never a pinned result.
 
 ### Shell scripts and lint tooling
@@ -209,8 +210,8 @@ The script handles the important differences:
 - `6.6.x` can run both paths; the script toggles `ADMIN_VITE` in `var/config_js_features.json` and
   restores it afterward.
 - `trunk` rejects webpack and uses Vite.
-- Every build must be followed by an admin shell/browser check. A successful JavaScript build alone
-  is not enough.
+- A successful JavaScript build alone is not enough: the `UcpAdmin` acceptance project checks the
+  Administration tab in a browser on every lane.
 
 ## Administration Compatibility Rules
 
@@ -226,7 +227,8 @@ The script handles the important differences:
 - Treat `src/Resources/public/` and `public/bundles/swagagenticcommerce/` as generated admin output.
   The lane sync helper ignores these paths and the admin smoke script cleans them before each build
   to avoid webpack/Vite cross-lane pollution.
-- Browser validation is mandatory on each lane after admin UI changes.
+- Admin UI changes run the `UcpAdmin` acceptance project on 6.5, 6.6 and 6.7.14.x. CI starts those
+  lanes on its own for a pull request that changes the Administration.
 
 ## Runtime Compatibility Rules
 

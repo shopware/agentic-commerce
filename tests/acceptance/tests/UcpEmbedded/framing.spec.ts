@@ -78,6 +78,18 @@ test.describe('Embedded checkout framing @UcpEmbedded', () => {
         expect(await countReceivedPongs(), 'the sibling\'s ping, sent first, got no pong').toBe(1);
     });
 
+    test('a trusted host that frames the page without a referrer receives no message until its first ping', async ({ TestDataService, UcpAgent, browser }) => {
+        const { url: checkoutUrl } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout');
+        const trustedHost = await openInEmbeddingHost(browser, TRUSTED_HOST_ORIGIN, checkoutUrl, { referrerPolicy: 'no-referrer' });
+        await expect(trustedHost.page.frameLocator('iframe').getByRole('heading', { name: 'Checkout session' })).toBeVisible();
+        expect(await trustedHost.receivedMessages(), 'without a referrer the page does not know its parent yet').toEqual([]);
+
+        await trustedHost.postFromHost(BRIDGE_PING);
+
+        const receivedTypes = async () => (await trustedHost.receivedMessages()).map(message => (message as { type?: string }).type);
+        await expect.poll(receivedTypes, 'the messages after the host\'s ping').toEqual(['ucp.embedded.ready', 'ucp.embedded.state', 'ucp.embedded.pong']);
+    });
+
     test('the embedded checkout links to the configured continue URL', async ({ TestDataService, UcpAgent, page }) => {
         const { url: checkoutUrl, id: checkoutId } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout', { continueUrlTemplate: 'https://shop.example/continue/{checkoutId}' });
 
