@@ -2,13 +2,13 @@
 /**
  * Default UCP config form state — the Exposure-tab surface only.
  *
- * Signature policy, signing keys and the advanced host/delivery settings are no
- * longer edited in the admin (they are managed via console commands:
- * `ucp:config:*` / `ucp:signing-keys:*`). Those fields still live in the persisted
- * `UcpConfig`; the admin save merges this Exposure-only payload over the stored
- * config server-side, so console-set values are preserved (see
- * UcpConfigService::saveConfig). The profile is served from a configured
- * sales-channel domain, so the UI exposes a domain selector.
+ * Signature policy, signing keys and the remaining host/delivery settings are
+ * managed via console commands (`ucp:config:*` / `ucp:signing-keys:*`). Those
+ * fields still live in the persisted `UcpConfig`; the admin save merges this
+ * Exposure-only payload over the stored config server-side, so console-set
+ * values are preserved (see UcpConfigService::saveConfig). The platform
+ * allowlist is here because SaaS merchants cannot run console commands, and
+ * without it only agents on the shop's own host are accepted.
  */
 export function defaultForm() {
     return {
@@ -16,13 +16,18 @@ export function defaultForm() {
         profileDomain: null,
         enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
         enabledTransports: ['rest'],
+        platformAllowlist: [],
     };
 }
 
 const ARRAY_FIELDS = [
     'enabledCapabilities',
     'enabledTransports',
+    'platformAllowlist',
 ];
+
+// Same shape UcpConfig::normalizeHost() accepts for names and IPv4 addresses.
+const HOST_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 const NULLABLE_STRING_FIELDS = [
     'profileDomain',
@@ -71,6 +76,43 @@ export function buildConfigPayload(form) {
     });
 
     return payload;
+}
+
+/**
+ * Reduce an allowlist entry to a bare lower-case host. Merchants often paste the
+ * platform's profile URL, so a URL is cut down to its host name.
+ *
+ * @param {unknown} entry
+ */
+export function normalizeHostEntry(entry) {
+    const value = String(entry ?? '').trim().toLowerCase();
+
+    if (!value.includes('://')) {
+        return value.replace(/\.$/, '');
+    }
+
+    try {
+        return new URL(value).hostname.replace(/\.$/, '');
+    } catch {
+        return value;
+    }
+}
+
+/**
+ * @param {unknown} entry
+ */
+export function isValidHostEntry(entry) {
+    const host = normalizeHostEntry(entry);
+
+    // One label such as "com" would allow every host under that top-level domain.
+    return host.length <= 253 && host.includes('.') && HOST_PATTERN.test(host);
+}
+
+/**
+ * @param {Array} values
+ */
+export function normalizeHostList(values) {
+    return [...new Set(values.map(normalizeHostEntry).filter(Boolean))];
 }
 
 /**

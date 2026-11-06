@@ -19,6 +19,7 @@ export class UcpSalesChannelDetail {
     readonly unsavedBanner: Locator;
     readonly readOnlyBanner: Locator;
     readonly exposeSwitch: Locator;
+    readonly platformAllowlist: Locator;
     readonly preview: Locator;
     readonly saveButton: Locator;
 
@@ -27,6 +28,7 @@ export class UcpSalesChannelDetail {
         this.unsavedBanner = page.getByTestId('ac-ucp__unsaved-banner');
         this.readOnlyBanner = page.getByTestId('ac-ucp__read-only-banner');
         this.exposeSwitch = this.checkboxInput('ac-ucp__expose-switch');
+        this.platformAllowlist = page.getByTestId('ac-ucp__platform-allowlist');
         this.preview = page.getByTestId('ac-ucp__preview');
         this.saveButton = page.locator('.sw-sales-channel-detail__save-action');
     }
@@ -37,6 +39,18 @@ export class UcpSalesChannelDetail {
 
     transport(value: string): Locator {
         return this.checkboxInput(`ac-ucp__transport--${value}`);
+    }
+
+    /** Adds one entry to the platform allowlist the way a merchant does: type it, confirm with Enter. */
+    async addPlatformHost(entry: string): Promise<void> {
+        const input = this.platformAllowlist.locator('input');
+        await input.fill(entry);
+        await input.press('Enter');
+    }
+
+    /** The hosts the platform allowlist shows as tags. */
+    async platformHosts(): Promise<string[]> {
+        return this.platformAllowlist.locator('.sw-select-selection-list__item-holder').allInnerTexts();
     }
 
     /** The transports the tab offers, read from their hooks. */

@@ -134,6 +134,33 @@ test.describe('Agentic Commerce tab configuration @UcpAdmin', () => {
         expect((await TestDataService.getUcpConfig(salesChannel.id)).enabledCapabilities).not.toContain('order');
     });
 
+    test('a pasted profile URL is stored as the platform host', async ({ TestDataService, AdminPage }) => {
+        const { salesChannel } = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(salesChannel.id, { platformAllowlist: [] });
+        const detail = new UcpSalesChannelDetail(AdminPage);
+        await detail.openAgenticCommerceTab(salesChannel.id);
+
+        await test.step('the merchant pastes a profile URL and the field keeps its host', async () => {
+            expect(await detail.platformHosts()).toEqual([]);
+            await detail.addPlatformHost('https://Platform.Example/.well-known/ucp');
+            await expect.poll(() => detail.platformHosts()).toEqual(['platform.example']);
+            await expect(detail.unsavedBanner).toBeVisible();
+        });
+
+        await test.step('an entry that is not a host is refused', async () => {
+            await detail.addPlatformHost('not a host');
+            await expect.poll(() => detail.platformHosts()).toEqual(['platform.example']);
+        });
+
+        await test.step('the host is stored and shown again after a reload', async () => {
+            await detail.saveUcpConfig(salesChannel.id);
+            expect((await TestDataService.getUcpConfig(salesChannel.id)).platformAllowlist).toEqual(['platform.example']);
+
+            await detail.reload(salesChannel.id);
+            await expect.poll(() => detail.platformHosts()).toEqual(['platform.example']);
+        });
+    });
+
     test.fixme('leaving the tab with unsaved changes asks before discarding them', () => {
         // Neither the plugin nor core guards the sales channel detail page with a leave
         // confirmation on any supported lane; this records the missing behaviour until it exists.
