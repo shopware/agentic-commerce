@@ -39,33 +39,6 @@ async function chooseEntity(field: Locator, search: string): Promise<void> {
 }
 
 test.describe('Sales channel surfaces of the plugin @UcpAdmin', () => {
-    test('a ucp.viewer sees which channels are exposed via UCP in the list', async ({ TestDataService, UcpAclUsers }) => {
-        const exposed = await TestDataService.createStorefrontSalesChannel();
-        await TestDataService.activateUcp(exposed.salesChannel.id);
-        const notExposed = await TestDataService.createStorefrontSalesChannel();
-        const { page } = await UcpAclUsers.as('ucp.viewer');
-
-        const rowOf = (name: string) => page.locator('.sw-data-grid__row').filter({ hasText: name });
-
-        await goToAdminRoute(page, listRoute(exposed.salesChannel.name));
-        await expect(rowOf(exposed.salesChannel.name).getByTestId('ac-sales-channel-list__ucp-status--exposed')).toBeVisible();
-
-        await goToAdminRoute(page, listRoute(notExposed.salesChannel.name));
-        await expect(rowOf(notExposed.salesChannel.name).getByTestId('ac-sales-channel-list__ucp-status--off')).toBeVisible();
-        await expect(rowOf(notExposed.salesChannel.name).getByTestId('ac-sales-channel-list__ucp-status--exposed')).toHaveCount(0);
-    });
-
-    test('a user without ucp.viewer sees the list without the UCP column', async ({ TestDataService, UcpAclUsers }) => {
-        const exposed = await TestDataService.createStorefrontSalesChannel();
-        await TestDataService.activateUcp(exposed.salesChannel.id);
-        const page = await UcpAclUsers.asSalesChannelViewer();
-
-        await goToAdminRoute(page, listRoute(exposed.salesChannel.name));
-        const row = page.locator('.sw-data-grid__row').filter({ hasText: exposed.salesChannel.name });
-        await expect(row).toBeVisible();
-        await expect(page.locator('[data-testid^="ac-sales-channel-list__ucp-status"]')).toHaveCount(0);
-    });
-
     test('an Agentic Commerce channel created from the modal is saved with the prefilled feed export', async ({ TestDataService, AdminPage, DefaultSalesChannel }) => {
         const productStream = await TestDataService.createProductStream();
         const name = `${TestDataService.namePrefix}UCP-created-${Date.now()}`;

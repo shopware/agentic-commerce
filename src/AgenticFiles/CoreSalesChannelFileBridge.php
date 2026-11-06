@@ -35,14 +35,14 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
     ) {
     }
 
-    public function enableForSalesChannel(string $salesChannelId): void
+    public function initializeForSalesChannel(string $salesChannelId): void
     {
         if (!$this->feature->isDatabaseReady($this->connection) || !Uuid::isValid($salesChannelId)) {
             return;
         }
 
         foreach (self::FILE_NAMES as $fileName) {
-            $this->enableFile($salesChannelId, $fileName);
+            $this->createMissingFile($salesChannelId, $fileName);
         }
     }
 
@@ -53,7 +53,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         }
 
         foreach ($this->loadActiveUcpSalesChannelIds() as $salesChannelId) {
-            $this->enableForSalesChannel($salesChannelId);
+            $this->initializeForSalesChannel($salesChannelId);
         }
     }
 
@@ -62,7 +62,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
         (new self($connection, new CoreSalesChannelFileFeature()))->syncActiveUcpSalesChannels();
     }
 
-    private function enableFile(string $salesChannelId, string $fileName): void
+    private function createMissingFile(string $salesChannelId, string $fileName): void
     {
         $timestamp = (new \DateTime())->format(Defaults::STORAGE_DATE_TIME_FORMAT);
         $criteria = [
@@ -71,12 +71,12 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
             'file_name' => $fileName,
         ];
 
-        $updated = $this->connection->update('sales_channel_file', [
-            'enabled' => true,
-            'updated_at' => $timestamp,
-        ], $criteria);
+        $exists = $this->connection->fetchOne(
+            'SELECT 1 FROM sales_channel_file WHERE sales_channel_id = :sales_channel_id AND file_family = :file_family AND file_name = :file_name',
+            $criteria,
+        );
 
-        if ($updated > 0) {
+        if (false !== $exists) {
             return;
         }
 
@@ -89,10 +89,7 @@ final class CoreSalesChannelFileBridge implements AgenticFilesCoreBridgeInterfac
                 'created_at' => $timestamp,
             ]);
         } catch (UniqueConstraintViolationException) {
-            $this->connection->update('sales_channel_file', [
-                'enabled' => true,
-                'updated_at' => $timestamp,
-            ], $criteria);
+            // Another request initialized this file; preserve its configuration.
         }
     }
 

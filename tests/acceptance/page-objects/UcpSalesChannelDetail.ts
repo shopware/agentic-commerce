@@ -17,6 +17,7 @@ const ucpApiPath = (salesChannelId: string, suffix = '') => `/api/_admin/ucp/sal
 export class UcpSalesChannelDetail {
     readonly agenticCommerceTab: Locator;
     readonly unsavedBanner: Locator;
+    readonly readOnlyBanner: Locator;
     readonly exposeSwitch: Locator;
     readonly preview: Locator;
     readonly saveButton: Locator;
@@ -24,6 +25,7 @@ export class UcpSalesChannelDetail {
     constructor(public readonly page: Page) {
         this.agenticCommerceTab = page.getByTestId('ac-ucp');
         this.unsavedBanner = page.getByTestId('ac-ucp__unsaved-banner');
+        this.readOnlyBanner = page.getByTestId('ac-ucp__read-only-banner');
         this.exposeSwitch = this.checkboxInput('ac-ucp__expose-switch');
         this.preview = page.getByTestId('ac-ucp__preview');
         this.saveButton = page.locator('.sw-sales-channel-detail__save-action');
@@ -57,8 +59,8 @@ export class UcpSalesChannelDetail {
     }
 
     /**
-     * Opens the Agentic Commerce tab and waits for the three requests the page loads the UCP state
-     * with, plus the preview request the loaded form triggers. Returns the `meta` the Admin API sent.
+     * Opens the Agentic Commerce tab and waits for the requests that load its saved UCP state.
+     * Returns the `meta` the Admin API sent.
      */
     async openAgenticCommerceTab(salesChannelId: string): Promise<UcpAdminMeta> {
         return this.loadAgenticCommerceTab(salesChannelId, () => goToAdminRoute(this.page, `/sw/sales/channel/detail/${salesChannelId}/agentic-commerce`));
@@ -69,23 +71,28 @@ export class UcpSalesChannelDetail {
     }
 
     /**
-     * Clicks the page's Save, waits for the UCP config write, the last request of the save chain,
-     * and then for the page to show the stored config again: the Administration loads it once more
-     * after the write, and until then the tab may be unmounted.
+     * Saves pending sales channel settings and waits for the UCP write and refreshed saved preview.
      */
     async saveUcpConfig(salesChannelId: string): Promise<void> {
         let writtenAt = Number.POSITIVE_INFINITY;
-        const storedConfigLoaded = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/config'))
+        const savedPreviewLoaded = this.page.waitForResponse(response => isRequest(response, 'GET', ucpApiPath(salesChannelId, '/profile-preview'))
           && response.request().timing().startTime > writtenAt);
-        const configWrite = this.page.waitForResponse(response => isRequest(response, 'PUT', ucpApiPath(salesChannelId, '/config')));
+        const configWrite = this.page.waitForResponse((response) => {
+            if (!isRequest(response, 'PUT', ucpApiPath(salesChannelId, '/config'))) {
+                return false;
+            }
+
+            // The preview can finish before Playwright's click promise resolves.
+            const timing = response.request().timing();
+            writtenAt = timing.startTime + Math.max(timing.responseStart, 0);
+
+            return true;
+        });
 
         await this.saveButton.click();
         const response = await configWrite;
         expect(response.ok(), await response.text()).toBeTruthy();
-        const timing = response.request().timing();
-        writtenAt = timing.startTime + Math.max(timing.responseStart, 0);
-
-        await storedConfigLoaded;
+        await savedPreviewLoaded;
         await this.waitUntilSettled();
     }
 
@@ -110,13 +117,12 @@ export class UcpSalesChannelDetail {
         const salesChannel = loaded('GET', ucpApiPath(salesChannelId));
         const config = loaded('GET', ucpApiPath(salesChannelId, '/config'));
         const savedPreview = loaded('GET', ucpApiPath(salesChannelId, '/profile-preview'));
-        const loadedFormPreview = loaded('POST', ucpApiPath(salesChannelId, '/profile-preview'));
 
         await navigate();
 
         const salesChannelResponse = await salesChannel;
         expect(salesChannelResponse.ok(), await salesChannelResponse.text()).toBeTruthy();
-        await Promise.all([config, savedPreview, loadedFormPreview]);
+        await Promise.all([config, savedPreview]);
         await this.waitUntilSettled();
 
         return ((await salesChannelResponse.json()) as { meta: UcpAdminMeta }).meta;

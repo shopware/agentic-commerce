@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 const HOOKS = [
     'data-testid="ac-ucp"',
     'data-testid="ac-ucp__unsaved-banner"',
+    'data-testid="ac-ucp__read-only-banner"',
     'data-testid="ac-ucp__expose-switch"',
     ':data-testid="`ac-ucp__capability--${capability.value}`"',
     ':data-testid="`ac-ucp__transport--${transport.value}`"',

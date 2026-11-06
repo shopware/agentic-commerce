@@ -48,3 +48,42 @@ describe("sw-sales-channel-detail agenticCommerceStatisticsRoute", () => {
     );
   });
 });
+
+describe("sw-sales-channel-detail Insights ACL", () => {
+  const insight = { name: "sw.sales.channel.detail.productExportInsights" };
+  const base = { name: "sw.sales.channel.detail.base" };
+  const tabs = [base, insight];
+
+  it("hides core Insights for Agentic Commerce without ucp.viewer", () => {
+    const computed = loadComputed(true);
+    const actual = computed.salesChannelDetailTabs.call({
+      $super: () => tabs,
+      isAgenticCommerce: true,
+      canViewUcpInsights: false,
+    });
+
+    expect(actual).toEqual([base]);
+  });
+
+  it("preserves core Insights for Agentic Commerce with ucp.viewer", () => {
+    const computed = loadComputed(true);
+    const actual = computed.salesChannelDetailTabs.call({
+      $super: () => tabs,
+      isAgenticCommerce: true,
+      canViewUcpInsights: true,
+    });
+
+    expect(actual).toEqual(tabs);
+  });
+
+  it("leaves product-comparison Insights unchanged", () => {
+    const computed = loadComputed(true);
+    const actual = computed.salesChannelDetailTabs.call({
+      $super: () => tabs,
+      isAgenticCommerce: false,
+      canViewUcpInsights: false,
+    });
+
+    expect(actual).toBe(tabs);
+  });
+});
