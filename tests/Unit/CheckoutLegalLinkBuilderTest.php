@@ -77,10 +77,10 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
         $links = $this->builder()->build($this->context(self::SALES_CHANNEL_ID, 'https://shop.test/'));
 
         self::assertSame([
-            ['type' => 'terms_of_service', 'url' => 'https://shop.test/page/cms/'.self::TOS_PAGE, 'title' => 'Terms of Service'],
-            ['type' => 'privacy_policy', 'url' => 'https://shop.test/page/cms/'.self::PRIVACY_PAGE, 'title' => 'Privacy Policy'],
-            ['type' => 'refund_policy', 'url' => 'https://shop.test/page/cms/'.self::REVOCATION_PAGE, 'title' => 'Revocation Policy'],
-            ['type' => 'shipping_policy', 'url' => 'https://shop.test/page/cms/'.self::SHIPPING_PAGE, 'title' => 'Shipping Policy'],
+            ['type' => 'terms_of_service', 'url' => 'https://shop.test/page/cms/'.self::TOS_PAGE],
+            ['type' => 'privacy_policy', 'url' => 'https://shop.test/page/cms/'.self::PRIVACY_PAGE],
+            ['type' => 'refund_policy', 'url' => 'https://shop.test/page/cms/'.self::REVOCATION_PAGE],
+            ['type' => 'shipping_policy', 'url' => 'https://shop.test/page/cms/'.self::SHIPPING_PAGE],
         ], $this->toArrays($links));
 
         $types = array_map(static fn (Link $link): string => $link->type, $links);
@@ -249,10 +249,10 @@ final class CheckoutLegalLinkBuilderTest extends TestCase
         $otherLinks = $builder->build($this->context(self::OTHER_SALES_CHANNEL_ID, 'https://other.test'));
 
         self::assertSame([
-            ['type' => 'terms_of_service', 'url' => 'https://shop.test/page/cms/'.self::TOS_PAGE, 'title' => 'Terms of Service'],
+            ['type' => 'terms_of_service', 'url' => 'https://shop.test/page/cms/'.self::TOS_PAGE],
         ], $this->toArrays($links));
         self::assertSame([
-            ['type' => 'privacy_policy', 'url' => 'https://other.test/page/cms/'.self::PRIVACY_PAGE, 'title' => 'Privacy Policy'],
+            ['type' => 'privacy_policy', 'url' => 'https://other.test/page/cms/'.self::PRIVACY_PAGE],
         ], $this->toArrays($otherLinks));
     }
 

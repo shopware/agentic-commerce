@@ -114,9 +114,9 @@ final class UcpCheckoutFlowTest extends TestCase
             ? '/page/cms/'
             : '/widgets/cms/';
         $expectedLegalLinks = [
-            ['type' => 'terms_of_service', 'url' => $this->ucpDomain.$cmsPath.$tosPage, 'title' => 'Terms of Service'],
-            ['type' => 'privacy_policy', 'url' => $this->ucpDomain.$cmsPath.$privacyPage, 'title' => 'Privacy Policy'],
-            ['type' => 'refund_policy', 'url' => $this->ucpDomain.$cmsPath.$refundPage, 'title' => 'Revocation Policy'],
+            ['type' => 'terms_of_service', 'url' => $this->ucpDomain.$cmsPath.$tosPage],
+            ['type' => 'privacy_policy', 'url' => $this->ucpDomain.$cmsPath.$privacyPage],
+            ['type' => 'refund_policy', 'url' => $this->ucpDomain.$cmsPath.$refundPage],
         ];
 
         $create = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions', ['line_items' => [$lineItem(1)], 'buyer' => $buyer, 'fulfillment' => $fulfillment]);

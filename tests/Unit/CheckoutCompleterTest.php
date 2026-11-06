@@ -473,8 +473,8 @@ final class CheckoutCompleterTest extends TestCase
     private function legalLinks(): array
     {
         return [
-            new Link('terms_of_service', 'https://shop.example/page/cms/'.self::TOS_PAGE_ID, 'Terms of Service'),
-            new Link('privacy_policy', 'https://shop.example/page/cms/'.self::PRIVACY_PAGE_ID, 'Privacy Policy'),
+            new Link('terms_of_service', 'https://shop.example/page/cms/'.self::TOS_PAGE_ID),
+            new Link('privacy_policy', 'https://shop.example/page/cms/'.self::PRIVACY_PAGE_ID),
         ];
     }
 

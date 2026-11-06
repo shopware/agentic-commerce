@@ -22,7 +22,8 @@ use Ucp\Sdk\Model\Common\Link;
  * Builds the UCP legal links from the CMS pages configured under Settings > Basic information.
  * Uses the full CMS page route (6.6.10+) when available, otherwise the CMS widget route, generated
  * as bare path info so path-prefixed domains keep a single prefix. Without a storefront, or on a channel the
- * storefront does not serve (headless), there are no links.
+ * storefront does not serve (headless), there are no links. The links carry no title, so the platform labels
+ * them by type in the buyer's language.
  *
  * @internal
  */
@@ -30,10 +31,10 @@ use Ucp\Sdk\Model\Common\Link;
 final class CheckoutLegalLinkBuilder
 {
     private const LEGAL_PAGES = [
-        'terms_of_service' => ['core.basicInformation.tosPage', 'Terms of Service'],
-        'privacy_policy' => ['core.basicInformation.privacyPage', 'Privacy Policy'],
-        'refund_policy' => ['core.basicInformation.revocationPage', 'Revocation Policy'],
-        'shipping_policy' => ['core.basicInformation.shippingPaymentInfoPage', 'Shipping Policy'],
+        'terms_of_service' => 'core.basicInformation.tosPage',
+        'privacy_policy' => 'core.basicInformation.privacyPage',
+        'refund_policy' => 'core.basicInformation.revocationPage',
+        'shipping_policy' => 'core.basicInformation.shippingPaymentInfoPage',
     ];
 
     /**
@@ -87,7 +88,7 @@ final class CheckoutLegalLinkBuilder
                 continue;
             }
 
-            $links[] = new Link($type, $url, self::LEGAL_PAGES[$type][1]);
+            $links[] = new Link($type, $url);
         }
 
         return $links;
@@ -113,7 +114,7 @@ final class CheckoutLegalLinkBuilder
     private function configuredPageIds(string $salesChannelId): array
     {
         $pageIds = [];
-        foreach (self::LEGAL_PAGES as $type => [$configKey]) {
+        foreach (self::LEGAL_PAGES as $type => $configKey) {
             $pageId = $this->systemConfigService->get($configKey, $salesChannelId);
             if (\is_string($pageId) && Uuid::isValid($pageId)) {
                 $pageIds[$type] = $pageId;
