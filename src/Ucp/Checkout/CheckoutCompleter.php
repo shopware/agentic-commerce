@@ -38,6 +38,7 @@ final class CheckoutCompleter
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
         private readonly AbstractCompletionPaymentApplier $completionPaymentApplier,
+        private readonly CheckoutLegalLinkBuilder $legalLinkBuilder,
     ) {
     }
 
@@ -56,7 +57,7 @@ final class CheckoutCompleter
 
         $orderId = $this->completionStore->completedOrderId($checkoutId);
         if (null !== $orderId) {
-            return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelId, $requestContext);
+            return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelContext, $requestContext);
         }
 
         $lock = $this->lockFactory->createLock(
@@ -71,7 +72,7 @@ final class CheckoutCompleter
         try {
             $orderId = $this->completionStore->completedOrderId($checkoutId);
             if (null !== $orderId) {
-                return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelId, $requestContext);
+                return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelContext, $requestContext);
             }
 
             $buyer = $this->sessionManager->buyer($metadata);
@@ -129,6 +130,7 @@ final class CheckoutCompleter
                 $customerContext->getCurrency()->getIsoCode(),
                 $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
                 orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
+                legalLinks: $this->legalLinkBuilder->build($customerContext),
             );
         } finally {
             $lock->release();
@@ -138,7 +140,7 @@ final class CheckoutCompleter
     private function replayCompletedOrder(
         string $orderId,
         string $checkoutId,
-        string $salesChannelId,
+        SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
     ): Checkout {
         $order = $this->orderGateway->getOrder($orderId, $requestContext);
@@ -147,8 +149,9 @@ final class CheckoutCompleter
             $order,
             $checkoutId,
             $order->getCurrency()?->getIsoCode() ?? 'EUR',
-            $this->continueUrlBuilder->build($checkoutId, $salesChannelId),
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
             orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
+            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
         );
     }
 }
