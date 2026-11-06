@@ -155,13 +155,14 @@ describe('sw-sales-channel-detail onSave — 6.7.9.0+ parent save path', () => {
         expect(ctx.loadEntityData).not.toHaveBeenCalled();
     });
 
-    it('leaves provider validation to core on the modern save path', async () => {
+    it('validates required settings on the modern save path', async () => {
         const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
 
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
         expect(ctx.$super).toHaveBeenCalledWith('onSave');
-        expect(ctx.validateAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.validateAgenticCommerceExportConfig).toHaveBeenCalled();
+        expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
     });
 
     it('does not write UCP settings when the parent save fails', async () => {
@@ -202,13 +203,13 @@ describe('feed settings compatibility by Administration version', () => {
         expect(ctx.agenticCommerceExportConfig[0].errors.returnPolicyUrl).toBeDefined();
     });
 
-    it('leaves feed validation and persistence to core from 6.7.10', async () => {
+    it('validates required settings before core save from 6.7.10', async () => {
         Shopware.Context.app.config.version = '6.7.10.0';
         const ctx = buildContext({ saveSalesChannel: jest.fn(() => Promise.resolve(true)) });
 
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
-        expect(ctx.validateAgenticCommerceExportConfig).not.toHaveBeenCalled();
+        expect(ctx.validateAgenticCommerceExportConfig).toHaveBeenCalled();
         expect(ctx.saveAgenticCommerceExportConfig).not.toHaveBeenCalled();
     });
 
@@ -441,7 +442,7 @@ describe('sw-sales-channel-detail onSave — export configuration validation', (
         await swSalesChannelDetailOverride.methods.onSave.call(ctx);
 
         expect(ctx.validateAgenticCommerceExportConfig.mock.invocationCallOrder[0])
-            .toBeLessThan(ctx.saveSalesChannel.mock.invocationCallOrder[0]);
+            .toBeLessThan(ctx.$super.mock.invocationCallOrder[0]);
     });
 });
 

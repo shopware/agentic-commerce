@@ -479,7 +479,7 @@ export const swSalesChannelDetailOverride = {
             const ucpFormAtSave = form
                 && JSON.stringify(form) !== JSON.stringify(ucpNormalizeConfig(this.ucpState.savedForm)) ? form : null;
 
-            if (pluginHandlesExportConfig && !this.validateAgenticCommerceExportConfig()) {
+            if (!this.validateAgenticCommerceExportConfig()) {
                 this.isSaveSuccessful = false;
                 this.isLoading = false;
                 // The create page has no tabs, so only the detail page names the tab holding the field.
