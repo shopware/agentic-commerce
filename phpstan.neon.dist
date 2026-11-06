@@ -32,8 +32,7 @@ parameters:
         - tests/phpstan/EntityWriteResult.php
 __SHOPWARE_PHPSTAN_PARAMETERS__
     ignoreErrors:
-        # addFlags() is deprecated in trunk (v6.8.0 return-type-change only); cross-version code must keep using it.
-        # Only that call is ignored, so any other deprecated call in this directory still fails the job.
+        # addFlags() is @deprecated (return type change) on 6.7.9 to 6.7.13 only; cross-version code must keep using it.
         -
             identifier: method.deprecated
             message: '#^Call to deprecated method addFlags\(\) of class #'
