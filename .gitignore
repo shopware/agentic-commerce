@@ -1,5 +1,7 @@
 /vendor/
 /.tools/
+/vendor-bin/*/vendor/
+/vendor-bin/*/composer.lock
 /var/
 /composer.lock
 /phpstan.neon

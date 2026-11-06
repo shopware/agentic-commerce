@@ -24,6 +24,8 @@ use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
+use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\Adjustment;
 
@@ -360,6 +362,102 @@ final class ShopwareDataMapperTest extends TestCase
         );
 
         self::assertSame('https://shop.example/continue', $checkout->toArray()['order']['permalink_url']);
+    }
+
+    #[Test]
+    public function testCheckoutListsTheContinueLinkBeforeTheLegalLinks(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $this->cartWithoutPromotion(),
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+            continueUrl: 'https://shop.example/continue',
+            legalLinks: $this->legalLinks(),
+        );
+
+        self::assertSame([
+            ['type' => 'continue', 'url' => 'https://shop.example/continue', 'title' => 'Continue checkout'],
+            ...$this->legalLinkArrays(),
+        ], $checkout->toArray()['links']);
+    }
+
+    #[Test]
+    public function testCheckoutWithoutAContinueUrlStillCarriesTheLegalLinks(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $this->cartWithoutPromotion(),
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+            legalLinks: $this->legalLinks(),
+        );
+
+        self::assertSame($this->legalLinkArrays(), $checkout->toArray()['links']);
+        self::assertArrayNotHasKey('continue_url', $checkout->toArray());
+    }
+
+    #[Test]
+    public function testCheckoutWithoutContinueUrlOrLegalLinksHasNoLinks(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $this->cartWithoutPromotion(),
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+        );
+
+        self::assertSame([], $checkout->links);
+    }
+
+    #[Test]
+    public function testCompletedCheckoutListsTheOrderLinkBeforeTheLegalLinks(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            legalLinks: $this->legalLinks(),
+        );
+
+        self::assertSame([
+            ['type' => 'order', 'url' => 'https://shop.example/continue', 'title' => 'Order details'],
+            ...$this->legalLinkArrays(),
+        ], $checkout->toArray()['links']);
+    }
+
+    #[Test]
+    public function testCompletedCheckoutWithoutAContinueUrlStillCarriesTheLegalLinks(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            null,
+            orderPermalinkUrl: 'https://shop.example/ucp/v1/orders/1',
+            legalLinks: $this->legalLinks(),
+        );
+
+        self::assertSame($this->legalLinkArrays(), $checkout->toArray()['links']);
+    }
+
+    /**
+     * @return list<Link>
+     */
+    private function legalLinks(): array
+    {
+        return [
+            new Link('terms_of_service', 'https://shop.example/page/cms/1', 'Terms of Service'),
+            new Link('privacy_policy', 'https://shop.example/page/cms/2', 'Privacy Policy'),
+            new Link('refund_policy', 'https://shop.example/page/cms/3', 'Refund Policy'),
+            new Link('shipping_policy', 'https://shop.example/page/cms/4', 'Shipping Policy'),
+        ];
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function legalLinkArrays(): array
+    {
+        return array_map(static fn (Link $link): array => $link->toArray(), $this->legalLinks());
     }
 
     private function order(): OrderEntity

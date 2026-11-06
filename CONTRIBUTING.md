@@ -166,9 +166,11 @@ Compatibility lanes may need to resolve historical Shopware dependencies with kn
 Composer's security blocking disabled for these disposable CI containers, but preserve visibility
 through the centralized reporting flow:
 
-- The `php-quality` PHP 8.2 lane captures the plugin lock's direct dependency report. The four
-  `shopware-matrix` lanes (`6.5.x`, `6.6.x`, `6.7.14.x`, and `trunk`) capture the dependencies
-  resolved in each installed Shopware environment.
+- The blocking `plugin-dependencies` job captures the plugin's direct dependency report: it is the
+  one PHP job that resolves the plugin from Packagist the way a merchant's `composer require` does.
+  `php-quality` resolves Shopware from the lane checkout, so its audit would cover a relabelled
+  branch. The four `shopware-matrix` lanes (`6.5.x`, `6.6.x`, `6.7.14.x`, and `trunk`) capture the
+  dependencies resolved in each installed Shopware environment.
 - Those five sources upload normalized JSON as uniquely named `composer-audit-*` artifacts with
   short retention. Composer versions that emit no JSON for a clean audit must still produce an empty
   report.
@@ -185,6 +187,23 @@ Do not reuse a complete installed Shopware tree across these jobs. Lanes use dif
 versions and administration build modes, and the tests mutate dependencies, assets, databases, and
 caches. Composer's download cache can be optimized separately without coupling otherwise isolated
 compatibility jobs.
+
+### Coverage floor
+
+The `coverage` job in `ci.yml` fails when the PHP unit or Admin Jest line coverage drops more than
+0.3 percentage points below its floor in `.github/coverage-floor.json`, or when a pull request's
+changed lines are covered less than `patchFailUnder` percent. The tables, including uncovered line
+numbers per changed file, are on the run's Summary page. Check a suite locally:
+
+```bash
+npm run test:admin
+python3 bin/ci-coverage-floor.py check .github/coverage-floor.json \
+  php=coverage/php/clover.xml admin=tests/jest/administration/coverage/cobertura-coverage.xml
+```
+
+Generate the PHP report with PCOV through the `Unit coverage` command in `php.yml`. Floors only move
+up: a weekly bot pull request raises them. Lower a floor only deliberately, with the reason in the
+pull request.
 
 ## Administration Build Matrix
 

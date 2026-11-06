@@ -1,15 +1,31 @@
 /**
- * Hide the core "Agentic files" top-level tab on the sales-channel detail.
+ * Hide the core "Agentic files" tab only when the Agentic Commerce tab replaces it.
  *
  * The plugin surfaces the Agentic files management UI inside its own
  * "Agentic Commerce" tab (embedding the core sw-sales-channel-detail-agentic-files
  * component), so the standalone core tab would be a duplicate. The core tab item
- * is a bare <sw-tabs-item> (no Twig block) gated on isHeadless || isStorefront,
- * so it cannot be removed via a block override — we hide it by its route instead.
+ * is a bare <sw-tabs-item> (no Twig block) gated on isHeadless || isStorefront.
+ * The :has() guard keeps it available when the Agentic Commerce tab is hidden by
+ * its channel-type or ACL checks.
  */
 .sw-sales-channel-detail {
-    .sw-tabs-item[href$="/agentic-files"],
-    a.sw-tabs-item[href$="/agentic-files"] {
-        display: none !important;
+    &:has(.sw-tabs-item[href$="/agentic-commerce"]) {
+        .sw-tabs-item[href$="/agentic-files"],
+        a.sw-tabs-item[href$="/agentic-files"] {
+            display: none !important;
+        }
+    }
+}
+
+.sw-sales-channel-detail__content-denied {
+    width: 100%;
+    max-width: 960px;
+    margin-left: auto;
+    margin-right: auto;
+
+    @media (max-width: 1360px) {
+        &--legacy {
+            max-width: 770px;
+        }
     }
 }

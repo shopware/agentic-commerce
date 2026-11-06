@@ -3,10 +3,12 @@
 /CONTRIBUTING.md export-ignore
 /tests export-ignore
 /var export-ignore
+/vendor-bin export-ignore
 /.php-cs-fixer.dist.php export-ignore
 /phpstan.neon.dist export-ignore
 /phpunit.xml.dist export-ignore
 /rector.php export-ignore
 /package.json export-ignore
 /bin/ci-*.sh export-ignore
+/bin/ci-*.py export-ignore
 /docs/manual-testing.md export-ignore
