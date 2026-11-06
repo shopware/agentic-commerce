@@ -68,12 +68,18 @@ test.describe('REST shopping journey @UcpProtocol', () => {
         const { orderId, checkoutTotal } = await test.step('the checkout completes with a shipping address', async () => {
             const checkoutLineItems = ((await (await agent.rest.send('GET', `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`)).json()) as { line_items: { id: string, item: { id: string }, quantity: number }[] }).line_items;
             const fulfillment = { methods: [{ type: 'shipping', line_item_ids: checkoutLineItems.map(lineItem => lineItem.id), destinations: [{ street_address: '1 Test Street', address_locality: 'London', postal_code: 'SW1A 1AA', address_country: 'GB' }] }] };
-            const addressedCheckout = await agent.rest.send('PUT', `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`, { body: { line_items: checkoutLineItems.map(lineItem => ({ item: lineItem.item, quantity: lineItem.quantity })), buyer, fulfillment } });
+            const addressedCheckout = await agent.rest.send('PUT', `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`, { body: { line_items: checkoutLineItems.map(lineItem => ({ item: lineItem.item, quantity: 3 })), buyer, fulfillment } });
             expect(addressedCheckout.status(), await addressedCheckout.text()).toBe(200);
-            expect(((await addressedCheckout.json()) as { status: string }).status).toBe('ready_for_complete');
+            const { status: addressedCheckoutStatus, line_items: addressedCheckoutLineItems } = (await addressedCheckout.json()) as { status: string, line_items: { quantity: number }[] };
+            expect(addressedCheckoutStatus).toBe('ready_for_complete');
+            expect(addressedCheckoutLineItems.map(lineItem => lineItem.quantity), 'the update sets the quantity on the checkout').toEqual([3]);
 
             const placedOrder = await placeOrder(agent, `${CHECKOUT_SESSIONS_PATH}/${checkoutId}`);
             expect(await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email)).toEqual([placedOrder.id]);
+
+            const orderRead = await agent.rest.send('GET', `/ucp/v1/orders/${placedOrder.id}`);
+            expect(orderRead.status(), await orderRead.text()).toBe(200);
+            expect(((await orderRead.json()) as { id: string }).id, 'the agent reads the order it placed').toBe(placedOrder.id);
 
             return { orderId: placedOrder.id, checkoutTotal: await grandTotal(addressedCheckout) };
         });
