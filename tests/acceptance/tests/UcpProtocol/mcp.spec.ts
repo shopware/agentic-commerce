@@ -65,7 +65,8 @@ test.describe('MCP transport without Store API MCP @UcpProtocol', () => {
 
         const { ucp } = await fetchDiscoveryDocument(browser, mcpEnabledChannel.url);
 
-        const mcpServices = Object.values(ucp.services).flat().filter(service => service.transport === 'mcp');
-        expect(mcpServices).toEqual([]);
+        const advertisedTransports = Object.values(ucp.services).flat().map(service => service.transport);
+        expect(advertisedTransports).toContain('rest');
+        expect(advertisedTransports).not.toContain('mcp');
     });
 });

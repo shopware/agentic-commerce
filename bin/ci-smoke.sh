@@ -24,9 +24,6 @@ SKIP_PLUGIN="${CI_SMOKE_SKIP_PLUGIN:-0}"
 # honest one -- a job that blocks merges must not test a branch wearing a release's version.
 UCP_SDK_SOURCE="${UCP_SDK_SOURCE:-packagist}"
 
-# Shared container/lane helpers: web, web_is_running, web_root_mount_type, db_query,
-# db_table_exists, lane_detect_compose_cmd, detect_base_url, detect_shopware_lane.
-# (web_container_id stays defined per-script where its flags differ.)
 # shellcheck source=bin/lib/lane.sh
 source "${PLUGIN_ROOT}/bin/lib/lane.sh"
 
