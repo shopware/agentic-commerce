@@ -24,7 +24,8 @@ local lane tooling.
 
 The MCP transport is offered when core's `StoreApiMcpServerController` exists (first in
 `v6.7.12.0`), and on 6.7.12 and 6.7.13 only with the `MCP_SERVER` feature flag active.
-`/.well-known/ucp` advertises it on exactly those lines, which `bin/ci-smoke.sh` asserts.
+`/.well-known/ucp` advertises it on exactly those lines, which the `UcpProtocol` acceptance project
+(`mcp.spec.ts`) asserts.
 
 The UCP MCP tools belong to the `ucp` toolset, not to core's `discovery` group, whose tools are
 listed on every Store API session. What the first `tools/list` of a fresh session contains:

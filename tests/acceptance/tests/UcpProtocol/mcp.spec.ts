@@ -56,3 +56,16 @@ test.describe('MCP transport @UcpProtocol', () => {
         expect(unsignedRefusal.status(), await unsignedRefusal.text()).toBe(401);
     });
 });
+
+test.describe('MCP transport without Store API MCP @UcpProtocol', () => {
+    test('the profile does not advertise MCP although it is enabled', async ({ InstanceMeta, TestDataService, browser }) => {
+        test.skip(!satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP exists from 6.7.12.0');
+        const mcpEnabledChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(mcpEnabledChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'] });
+
+        const { ucp } = await fetchDiscoveryDocument(browser, mcpEnabledChannel.url);
+
+        const mcpServices = Object.values(ucp.services).flat().filter(service => service.transport === 'mcp');
+        expect(mcpServices).toEqual([]);
+    });
+});

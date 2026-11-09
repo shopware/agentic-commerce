@@ -1,7 +1,7 @@
 name: PHP
 
-# PHP quality, the Shopware lanes (smoke incl. the strict signature stage, integration and
-# functional suites, UCP e2e), the MySQL 8.4 install and the advisory checks.
+# PHP quality, the Shopware lanes (smoke, integration and functional suites), the MySQL 8.4
+# install and the advisory checks.
 
 on:
   workflow_call:

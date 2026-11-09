@@ -58,7 +58,7 @@ bundle:
 2. Leave `UcpMcpToolContext::failure()` alone — in-band tool errors remain the right shape.
    Optionally add a `Mcp\Exception\ToolCallException` path for protocol-level input errors
    (`-32602`), but keep UCP domain errors in band.
-3. Confirm that the known-blocker spec for D5 in
-   `tests/acceptance/tests/KnownBlocked/mcp-tools.spec.ts` passes against trunk.
+3. Add an acceptance spec that `tools/list` declares object `payload` schemas for the four write
+   tools and that a missing `payload` is refused with `-32602`. No spec checks this yet.
 
 The git history of this branch contains the full v0.6 implementation if you need a reference diff.

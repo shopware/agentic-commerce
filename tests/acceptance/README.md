@@ -44,14 +44,14 @@ drops the check and the wait for the server.
 
 `.github/workflows/acceptance.yml` runs the suite; `ci.yml` and `nightly.yml` call it.
 
-| When                                                                       | What runs                                                                                              |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Every pull request                                                         | Lint, typecheck and `Signer`, then the gating run on trunk.                                            |
-| A pull request with the `run/acceptance-full` label                        | The 6.5, 6.6 and 6.7.14.x lanes as well. Adding the label starts a new run.                            |
-| A pull request that changes the Administration, `src/Ucp` or the templates | The 6.5, 6.6 and 6.7.14.x lanes as well, without the label.                                            |
-| A pull request that changes specs                                          | Every changed spec ten times on trunk, without retries, on two workers. `Setup` and `Signer` run once. |
-| Every push to `main` and every manual run                                  | Trunk, 6.5, 6.6 and 6.7.14.x.                                                                          |
-| Nightly                                                                    | Trunk, 6.5, 6.6 and 6.7.14.x, every test three times.                                                  |
+| When                                                 | What runs                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Every pull request                                   | Lint, typecheck and `Signer`, then the gating run on trunk.                                            |
+| A pull request with the `run/acceptance-full` label  | The 6.5, 6.6 and 6.7.14.x lanes as well. Adding the label starts a new run.                            |
+| A pull request that changes `src` or `composer.json` | The 6.5, 6.6 and 6.7.14.x lanes as well, without the label.                                            |
+| A pull request that changes specs                    | Every changed spec ten times on trunk, without retries, on two workers. `Setup` and `Signer` run once. |
+| Every push to `main` and every manual run            | Trunk, 6.5, 6.6 and 6.7.14.x.                                                                          |
+| Nightly                                              | Trunk, 6.5, 6.6 and 6.7.14.x, every test three times.                                                  |
 
 The ten repetitions catch a flaky spec before it lands. Only changed `*.spec.ts` files are repeated;
 specs under `Setup`, `Signer` and `KnownBlocked` are not. A changed spec that selects no test, for

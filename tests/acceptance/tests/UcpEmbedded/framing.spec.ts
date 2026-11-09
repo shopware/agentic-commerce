@@ -90,6 +90,17 @@ test.describe('Embedded checkout framing @UcpEmbedded', () => {
         await expect.poll(receivedTypes, 'the messages after the host\'s ping').toEqual(['ucp.embedded.ready', 'ucp.embedded.state', 'ucp.embedded.pong']);
     });
 
+    test('a refresh from the trusted host makes the embedded checkout send its state again', async ({ TestDataService, UcpAgent, browser }) => {
+        const { url: checkoutUrl, id: checkoutId } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout');
+        const trustedHost = await openInEmbeddingHost(browser, TRUSTED_HOST_ORIGIN, checkoutUrl);
+        const receivedStates = async () => (await trustedHost.receivedMessages()).filter(message => (message as { type?: string }).type === 'ucp.embedded.state') as { id?: string }[];
+        await expect.poll(async () => (await receivedStates()).length, 'the state sent on load').toBe(1);
+
+        await trustedHost.postFromHost({ channel: 'ucp.embedded', type: 'ucp.embedded.refresh' });
+
+        await expect.poll(async () => (await receivedStates()).map(state => state.id), 'the state sent again after the refresh').toEqual([checkoutId, checkoutId]);
+    });
+
     test('the embedded checkout links to the configured continue URL', async ({ TestDataService, UcpAgent, page }) => {
         const { url: checkoutUrl, id: checkoutId } = await createEmbeddedSession(TestDataService, UcpAgent, 'checkout', { continueUrlTemplate: 'https://shop.example/continue/{checkoutId}' });
 

@@ -135,8 +135,7 @@ jobs:
         run: |
           is_lane_sensitive=false
           if [ "${IS_PULL_REQUEST}" = true ]; then
-            lane_sensitive_paths="$(git diff --name-only HEAD^1 HEAD -- \
-              src/Resources/app/administration src/Ucp src/Resources/views)"
+            lane_sensitive_paths="$(git diff --name-only HEAD^1 HEAD -- src composer.json)"
             if [ -n "${lane_sensitive_paths}" ]; then
               is_lane_sensitive=true
             fi

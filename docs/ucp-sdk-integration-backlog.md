@@ -514,8 +514,8 @@ in the lane, not because of the bump.
 schema, so `create_cart` with an _object_ `payload` is refused with `-32602 Expected string`. The
 four write tools still take a JSON-string `payload`, the workaround from the `mcp/sdk` 0.5 days
 recorded in `docs/mcp-sdk-upgrade.md`. Trunk has been at 0.7 since July, so the documented "how to
-upgrade later" -- typed object payloads via `#[Schema]` -- is possible now and is what the skipped
-e2e test `exposes object payload schemas for MCP write tools` waits for. It changes the argument
+upgrade later" -- typed object payloads via `#[Schema]` -- is possible now and has no acceptance
+spec yet; the e2e test that waited for it was removed with the old harness. It changes the argument
 shape agents send, so it is its own PR with a CHANGELOG entry, not a rider on the bump.
 
 **Effort.** S for the check (done) · M for the typed payloads · **Depends on.** shopware#19963
