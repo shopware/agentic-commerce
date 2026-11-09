@@ -237,4 +237,11 @@ export const knownBlockers: KnownBlocker[] = [
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/281',
         reviewBy: '2026-12-31',
     },
+    {
+        key: 'D38',
+        description: 'The plugin grants the preflight of an embedded allowed origin, but the SDK refuses that origin\'s GET to the embedded page with 403, because it checks the Origin against the agent allowlist, which falls back to the shop\'s own host when empty.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/343',
+        reviewBy: '2026-12-31',
+    },
 ];
