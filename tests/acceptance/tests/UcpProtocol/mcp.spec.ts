@@ -1,6 +1,6 @@
 import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
-import { fetchDiscoveryDocument } from '@services/discovery';
+import { advertisedTransports, fetchDiscoveryDocument } from '@services/discovery';
 import { openMcpSession, STORE_API_MCP_MISSING } from '@services/mcpSession';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- typescript-eslint does not see the {@link} reference below
 import type { knownBlockers } from '../../known-blockers';
@@ -60,13 +60,11 @@ test.describe('MCP transport @UcpProtocol', () => {
 test.describe('MCP transport without Store API MCP @UcpProtocol', () => {
     test('the profile does not advertise MCP although it is enabled', async ({ InstanceMeta, TestDataService, browser }) => {
         test.skip(!satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP exists from 6.7.12.0');
-        const mcpEnabledChannel = await TestDataService.createStorefrontSalesChannel();
+        const mcpEnabledChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
         await TestDataService.activateUcp(mcpEnabledChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'] });
 
         const { ucp } = await fetchDiscoveryDocument(browser, mcpEnabledChannel.url);
 
-        const advertisedTransports = Object.values(ucp.services).flat().map(service => service.transport);
-        expect(advertisedTransports).toContain('rest');
-        expect(advertisedTransports).not.toContain('mcp');
+        expect(advertisedTransports(ucp)).toEqual(['rest']);
     });
 });
