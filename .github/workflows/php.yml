@@ -1,7 +1,7 @@
 name: PHP
 
-# PHP quality, the Shopware lanes (smoke incl. the strict signature stage, integration and
-# functional suites, UCP e2e), the MySQL 8.4 install and the advisory checks.
+# PHP quality, the Shopware lanes (smoke, integration and functional suites), the MySQL 8.4
+# install and the advisory checks.
 
 on:
   workflow_call:
@@ -288,13 +288,6 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || matrix.lane == '6.7.14.x' && env.SHOPWARE_6714_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: agentic-commerce/package-lock.json
-      - run: npm ci --no-audit --no-fund
-        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
@@ -306,8 +299,6 @@ jobs:
           # to the phpunit major), covering lane-specific behavior everywhere the smoke runs.
           CI_SMOKE_RUN_PHPUNIT: '1'
           CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
-          # The e2e step below runs against this stack.
-          CI_SMOKE_KEEP_STACK: '1'
       - name: Upload Composer advisory report
         if: always()
         uses: actions/upload-artifact@v6
@@ -316,11 +307,6 @@ jobs:
           path: composer-audit.json
           if-no-files-found: ignore
           retention-days: 7
-      - run: npm run test:e2e:ucp -- --reporter=list
-        working-directory: agentic-commerce
-        env:
-          BASE_URL: http://localhost:8000
-          SHOPWARE_REF: ${{ matrix.lane }}
 
   # Non-blocking through continue-on-error (see CONTRIBUTING.md, Composer advisory reporting).
   composer-security-report:

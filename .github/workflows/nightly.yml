@@ -30,7 +30,7 @@ jobs:
   acceptance:
     uses: ./.github/workflows/acceptance.yml
     with:
-      lanes: '["6.5.x", "6.6.x", "trunk"]'
+      lanes: '["6.5.x", "6.6.x", "6.7.14.x", "trunk"]'
       repeat_each: 3
       fail_on_flaky: true
 

@@ -69,11 +69,11 @@ done
 
 # The Jest specs are deleted by a pack.before_hooks step, not an excludes path, so a shopware-cli
 # change to hooks would ship them silently. Assert the result rather than the configuration.
-leaked="$(printf '%s\n' "${listing}" | grep -E "^${PLUGIN}/(.*\.spec\.js$|src/Ucp/Test/)" || true)"
+test_scaffolding_paths="$(printf '%s\n' "${listing}" | grep -E "^${PLUGIN}/(.*\.spec\.(js|ts)$|src/Ucp/Test/|tests/)" || true)"
 
-if [[ -n "${leaked}" ]]; then
-  echo "FAIL: the archive ships test scaffolding ($(printf '%s\n' "${leaked}" | wc -l | tr -d ' ') entries)." >&2
-  printf '%s\n' "${leaked}" | sed 's/^/      /' >&2
+if [[ -n "${test_scaffolding_paths}" ]]; then
+  echo "FAIL: the archive ships test scaffolding ($(printf '%s\n' "${test_scaffolding_paths}" | wc -l | tr -d ' ') entries)." >&2
+  printf '%s\n' "${test_scaffolding_paths}" | sed 's/^/      /' >&2
   echo "      Check zip.pack in .shopware-extension.yml (excludes.paths and before_hooks)." >&2
   status=1
 else

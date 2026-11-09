@@ -5,10 +5,8 @@ End-to-end tests for `SwagAgenticCommerce`, built on Shopware's
 Playwright-based package core, `SwagPayPal` and `SwagCommercial` use.
 
 This is a **nested npm project**. It is deliberately not hoisted into the plugin's root
-`package.json`, for three reasons:
+`package.json`, for two reasons:
 
-- the ATS pins `@playwright/test` and `playwright-core` as **exact** peer dependencies (`1.62.1`),
-  while the root declares `^1.55.0`;
 - the ATS requires Node 24, while the root project and three CI jobs ran on Node 22;
 - the root `eslint.config.mjs` loads Shopware's Administration rules from `ADMIN_PATH`, which do not
   apply to Playwright TypeScript.
@@ -46,13 +44,14 @@ drops the check and the wait for the server.
 
 `.github/workflows/acceptance.yml` runs the suite; `ci.yml` and `nightly.yml` call it.
 
-| When                                                | What runs                                                                                              |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Every pull request                                  | Lint, typecheck and `Signer`, then the gating run on trunk.                                            |
-| A pull request with the `run/acceptance-full` label | The 6.5 and 6.6 lanes as well. Adding the label starts a new run.                                      |
-| A pull request that changes specs                   | Every changed spec ten times on trunk, without retries, on two workers. `Setup` and `Signer` run once. |
-| Every push to `main` and every manual run           | Trunk, 6.5 and 6.6.                                                                                    |
-| Nightly                                             | Trunk, 6.5 and 6.6, every test three times.                                                            |
+| When                                                 | What runs                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Every pull request                                   | Lint, typecheck and `Signer`, then the gating run on trunk.                                            |
+| A pull request with the `run/acceptance-full` label  | The 6.5, 6.6 and 6.7.14.x lanes as well. Adding the label starts a new run.                            |
+| A pull request that changes `src` or `composer.json` | The 6.5, 6.6 and 6.7.14.x lanes as well, without the label.                                            |
+| A pull request that changes specs                    | Every changed spec ten times on trunk, without retries, on two workers. `Setup` and `Signer` run once. |
+| Every push to `main` and every manual run            | Trunk, 6.5, 6.6 and 6.7.14.x.                                                                          |
+| Nightly                                              | Trunk, 6.5, 6.6 and 6.7.14.x, every test three times.                                                  |
 
 The ten repetitions catch a flaky spec before it lands. Only changed `*.spec.ts` files are repeated;
 specs under `Setup`, `Signer` and `KnownBlocked` are not. A changed spec that selects no test, for
@@ -150,11 +149,10 @@ so every request renders the current products. It also has:
 
 - `createStorefrontSalesChannelOnOwnHost()`: a channel whose only domain is the root of
   `c<id>.ucp-acceptance.test` on the `APP_URL` scheme and port, so its real `/.well-known/ucp`
-  serves it. Only a browser resolves that host (`--host-resolver-rules` on the `UcpAdmin` and
-  `UcpProtocol` projects maps it onto the `APP_URL` host), so read it with
-  `fetchDiscoveryDocument()` from `services/discovery.ts`, or with `fetchDiscoveryResponse()` when
-  the response headers matter. The document is publicly cacheable for 60 seconds: read it after the
-  change under test, not before.
+  serves it. Only a browser resolves that host (`--host-resolver-rules` on every project that uses
+  such channels maps it onto the `APP_URL` host), so read it with `fetchDiscoveryDocument()` from
+  `services/discovery.ts`, or with `fetchDiscoveryResponse()` when the response headers matter. The
+  document is publicly cacheable for 60 seconds: read it after the change under test, not before.
 - `createFeedSalesChannelWithExport(provider)`: a product-feed channel with a product export built
   from the plugin's shipped template, so the Administration finds nothing to align on load.
 - `attributeOrderToFeedChannel()` and `attributeCustomerToFeedChannel()`: the tracking rows the
@@ -278,9 +276,9 @@ A runner that reaches Shopware only over HTTP can run every spec that uses none 
 host, the console and the log reader need the project mounted.
 
 Channels on a host of their own need the web server to answer any `Host` (a catch-all vhost) and
-`TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The discovery journeys of `UcpAdmin`
-and `UcpProtocol` use such channels, because a domain with a path serves no UCP profile.
-`fetchDiscoveryDocument()` fails with that message when the lane does not serve them.
+`TRUSTED_HOSTS`, when set, to admit `*.ucp-acceptance.test`. The discovery journeys of `UcpAdmin`,
+`UcpContent` and `UcpProtocol` use such channels, because a domain with a path serves no UCP
+profile. `fetchDiscoveryDocument()` fails with that message when the lane does not serve them.
 
 The order webhook specs read what the shop sent from the plugin's capture route. The route answers
 only outside `prod` and with `SWAG_AGENTIC_COMMERCE_TEST_CAPTURE=1` in the shop's environment. It

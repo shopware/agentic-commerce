@@ -14,11 +14,11 @@ bin/ci-storefront-smoke.sh /path/to/shopware-checkout
 local SDK checkout instead, set `UCP_SDK_SOURCE=path` (and `SDK_ROOT`, which defaults to a sibling
 `../ucp-php-sdk`); it is then staged into the shop and relabelled as the pinned version.
 
-## Prefer functional tests over shell smoke
+## Prefer functional tests over acceptance specs
 
-Cover behavior at the lowest layer that can express it, and reach for a PHP test before a shell
-smoke check. The `functional` suite (`tests/Functional`, `composer test:functional`) boots a real
-Shopware test kernel and drives UCP runtime routes end-to-end through a real Symfony browser
+Cover behavior at the lowest layer that can express it, and reach for a PHP test before an
+acceptance spec. The `functional` suite (`tests/Functional`, `composer test:functional`) boots a
+real Shopware test kernel and drives UCP runtime routes end-to-end through a real Symfony browser
 (against `APP_URL`, as Shopware's own functional tests do), so it is the preferred home for route,
 request-context, and capability behavior — it is readable and debuggable without a deployed HTTP
 stack. It covers the request-context guards and the **catalog/cart/checkout capability flows**,
@@ -34,24 +34,11 @@ phpunit major (6.5→9.x, 6.6→10.x, trunk→11.x), so a single pinned phpunit 
 plugin on the platform autoloader; ci-smoke installs Shopware's dev deps so that binary is present.
 The unit/mock suites stay on the plugin's pinned `.tools` phpunit (fast, lane-independent).
 
-Shell smoke (`bin/ci-smoke.sh`) is reserved for what the functional suite is the wrong layer for —
-genuine deployed-stack / on-the-wire concerns. After the capability flows moved to the functional
-suite, what stays in smoke and why:
-
-- the **outbound signed order webhook** — actually delivered to an external endpoint with
-  `signature`/`signature-input`/`content-digest` headers (on-the-wire);
-- **tokenize 501** — the payment endpoint needs a _signed_ request;
-- **profile/discovery** — lane-aware MCP transport detection + storefront-rendered `/llms.txt` and
-  `/agents.md`;
-- **admin/storefront** builds + UI shells (`bin/ci-admin-smoke.sh`, `bin/ci-storefront-smoke.sh`) —
-  closer to a browser-e2e concern;
-- **signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
-
-The former `catalog` and `cart` smoke stages have been removed — that capability coverage now lives
-entirely in the functional suite. The `checkout` stage resolves the seeded product itself (one
-`catalog.lookup` as data setup) and stays in smoke only to drive the signed order webhook. Almost
-any smoke assertion can become a functional test — when one can, move it and drop the redundant
-smoke check once the functional suite gates in CI. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the
+Behaviour a booted kernel does not observe, such as signed requests over HTTP, the outbound signed
+order webhook, the embedded checkout in a browser, the rendered discovery files and the
+Administration tab, belongs in the Playwright acceptance suite in
+[`tests/acceptance`](../tests/acceptance/README.md). The `bin/` scripts only provision lanes and
+gate the Administration and Storefront builds. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the
 full layering rationale.
 
 Manual human test steps are documented in [docs/manual-testing.md](manual-testing.md).
@@ -104,6 +91,6 @@ Administration and storefront validation should always prove both halves:
 - the rendered UI shell actually loads afterward
 
 `bin/ci-admin-smoke.sh` checks the administration login shell after the build.
-`bin/ci-storefront-smoke.sh` builds the storefront, compiles the theme, and checks the live homepage
-and cart shell. For local frontend work, still follow up with a real browser pass on the active
-lane.
+`bin/ci-storefront-smoke.sh` builds the storefront, compiles the theme, and checks that the live
+homepage serves its compiled theme stylesheet. For local frontend work, still follow up with a real
+browser pass on the active lane.

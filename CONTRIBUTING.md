@@ -48,9 +48,9 @@ For PHP changes, run the smallest relevant test suite first. Broaden to static a
 tests, or lane smoke checks when the touched code affects shared runtime behavior, persistence,
 routes, or administration assets.
 
-### Test layering: prefer functional over smoke
+### Test layering
 
-Cover behavior at the lowest layer that can express it, and prefer a PHP test over a shell smoke
+Cover behavior at the lowest layer that can express it, and prefer a PHP test over an acceptance
 check whenever the behavior fits one — PHP tests are readable, debuggable, and run without a
 deployed HTTP stack:
 
@@ -76,15 +76,15 @@ deployed HTTP stack:
    (`CI_SMOKE_RUN_PHPUNIT=1`).
 
    The flow tests share `UcpFlowTestBehaviour`, which reproduces the SDK request-context handshake
-   offline: it sets the sales-channel config the smoke sets (`active`, `signaturePolicy=log`,
-   `continueUrlTemplate`), seeds a product with the core `ProductBuilder` fixture, and hands the
-   merchant's own capability-bearing `PlatformProfile` (built via `ProfileBuilderInterface` with
-   `enabledCapabilities`) to a test `AgentProfileFetcherInterface`. The stub (not the SDK profile
-   cache) is required: the real fetcher runs an SSRF URL-safety check that rejects the lane's
-   `*.localhost` host. The override is wired the way core overrides services for tests — a
-   `test`-environment-only service swap (`TestAgentProfileFetcherCompilerPass` replaces the SDK's
-   `HttpAgentProfileFetcher` with `Ucp\Test\StaticAgentProfileFetcher`), so the test just calls
-   `setProfile()` on it; no kernel reboot is needed.
+   offline: it sets the sales-channel config a UCP-active channel needs (`active`,
+   `signaturePolicy=log`, `continueUrlTemplate`), seeds a product with the core `ProductBuilder`
+   fixture, and hands the merchant's own capability-bearing `PlatformProfile` (built via
+   `ProfileBuilderInterface` with `enabledCapabilities`) to a test `AgentProfileFetcherInterface`.
+   The stub (not the SDK profile cache) is required: the real fetcher runs an SSRF URL-safety check
+   that rejects the lane's `*.localhost` host. The override is wired the way core overrides services
+   for tests — a `test`-environment-only service swap (`TestAgentProfileFetcherCompilerPass`
+   replaces the SDK's `HttpAgentProfileFetcher` with `Ucp\Test\StaticAgentProfileFetcher`), so the
+   test just calls `setProfile()` on it; no kernel reboot is needed.
 
    **Runs on the lane's own phpunit, not the plugin's.** The suite uses Shopware core's test base
    classes (`IntegrationTestBehaviour`), which are coupled to the lane's phpunit major — 6.5 pins
@@ -97,68 +97,30 @@ deployed HTTP stack:
    lane-independent) — do not remove that pin (the PHP-8.1 lane runs against 6.5/phpunit-9, where
    our attribute-based tests would otherwise break).
 
-**Shell smoke is the last resort, not the default.** Almost any smoke assertion can be expressed as
-a Symfony-browser functional test, so default to that: add a check to `bin/lib/smoke/*` only when it
-genuinely needs the deployed stack (real on-the-wire delivery, a live external endpoint, a per-lane
-JS build). Anything provable through a booted kernel belongs in the `functional` suite. When you
-migrate a smoke assertion into a functional test, remove the now-redundant smoke check once the
-functional suite gates in CI, so coverage moves rather than duplicates.
+4. **`acceptance`** (`tests/acceptance`, see [its README](tests/acceptance/README.md)) — Playwright
+   against a running shop on every CI lane (on pull requests trunk only; the others with the
+   `run/acceptance-full` label or when the pull request changes `src` or `composer.json`), with an
+   RFC 9421 signing agent and a real browser. It is the home for what a booted kernel does not
+   observe: signed requests over HTTP, the outbound signed order webhook on the wire, the embedded
+   checkout framed by another origin, the rendered discovery files and the Administration tab.
+   Prefer a `functional` test when the behaviour fits one. A known spec deviation is a red spec in
+   the non-gating `UcpKnownBlocked` project, never a pinned result.
 
-#### What still lives in shell smoke today, and why
+### Shell scripts and lint tooling
 
-These are the checks not yet migrated because they exercise genuine deployed-stack / on-the-wire
-behavior that a booted kernel does not observe directly. They are not "impossible as functional
-tests" in principle — an e2e/browser harness could cover most of them — but the booted-kernel suite
-is the wrong layer for them today:
+The `bin/` scripts provision lanes and gate builds; they assert no plugin behaviour. They share
+`bin/lib/lane.sh`, the container helpers (`web`, `db_query`, …) that operate on the sourcing
+script's `compose` array and `container_runtime`.
 
-- **Outbound signed order webhook** (`smoke/checkout.sh`) — asserts the webhook is actually
-  _delivered_ to an external capture endpoint with `signature`, `signature-input`, and
-  `content-digest` headers. A booted-kernel test can at most assert the webhook was _dispatched_;
-  the signed HTTP on the wire is e2e.
-- **Tokenize 501** (`smoke/identity.sh`) — the payment endpoint requires a _signed_ request; the
-  smoke only reaches it because it fetches a real profile with signing keys over HTTP.
-- **Profile / discovery** (`smoke/discovery.sh`) — lane-aware MCP transport detection (depends on
-  the live Store-API MCP endpoint) and the storefront-rendered `/llms.txt` + `/agents.md` fallbacks
-  (real `Content-Type` and rendering).
-- **Admin & storefront** (`bin/ci-admin-smoke.sh`, `bin/ci-storefront-smoke.sh`) — per-lane JS
-  builds (webpack/Vite) and the rendered admin/storefront shells. (These are closer to a
-  Playwright/browser-e2e concern than a bash one; treat the bash check as a pragmatic
-  build-plus-shell gate, not the ideal long-term home.)
-- **Signed-request conformance** (`bin/validate-ucp-store.sh … conformance`).
-
-**No capability duplication:** the catalog and cart smoke stages have been removed — their
-capability coverage lives entirely in the `functional` suite now. The `checkout` stage stays in
-smoke solely to drive the signed order webhook; it resolves the seeded product's title and price
-itself (a single `catalog.lookup` as data setup, not a catalog assertion), so it no longer depends
-on a `catalog → cart → checkout` stage chain.
-
-### Shell smoke and lint tooling
-
-The `bin/` smoke scripts share helpers from `bin/lib/`:
-
-- `bin/lib/ucp-http.sh` — curl wrappers (`curl_required`, `ucp_status`, `ucp_expect_status`,
-  `ucp_jsonrpc`), assertions, and `next_idempotency_key`. `ucp_http_init` builds the `UCP-Agent`
-  header and the wrappers auto-inject it, so a runtime request can never silently omit it (the SDK
-  rejects a missing header with `422`).
-- `bin/lib/lane.sh` — container helpers (`web`, `db_query`, …) operating on the sourcing script's
-  `compose` array and `container_runtime`.
-- `bin/lib/smoke/*.sh` — `bin/ci-smoke.sh` is a thin orchestrator that, after bootstrap, sources and
-  runs named stage modules (`discovery`, `identity`, `checkout`, `signature`). Each prints a
-  `>>> smoke: <stage>` banner, so a failure names the area. Stages share the orchestrator's shell
-  scope (they are sourced, not subprocesses); add a new check by adding a `smoke_<stage>` module and
-  calling it from the orchestrator. Before adding a smoke check, confirm it cannot be a `functional`
-  test (see _Test layering_ above) — smoke is for deployed-stack concerns only. With
-  `CI_SMOKE_RUN_PHPUNIT=1` (set on every `shopware-matrix` lane) the orchestrator installs
-  Shopware's dev deps and runs the integration and functional suites on the lane's own phpunit after
-  the HTTP smoke.
+- `bin/ci-smoke.sh` installs Shopware and the plugin and checks the SDK storage schema. With
+  `CI_SMOKE_RUN_PHPUNIT=1` (set on every `shopware-matrix` lane) it installs Shopware's dev deps and
+  runs the integration and functional suites on the lane's own phpunit.
+- `bin/ci-admin-smoke.sh` and `bin/ci-storefront-smoke.sh` build the Administration and the
+  Storefront per lane and check that the built shell is served.
 
 Lint every shell script with `shellcheck -x bin/*.sh bin/lib/*.sh` (the CI `shell-lint` job;
 `.shellcheckrc` disables `SC2016` for jq filters). `-x` follows the `# shellcheck source=`
 directives so the sourced modules are validated in context.
-
-Signed / strict-signature request verification is **not** covered by the smoke (it sends unsigned
-requests under log policy); use the conformance suite,
-`bin/validate-ucp-store.sh <url> '' conformance`.
 
 ### Composer advisory reporting
 
@@ -248,8 +210,8 @@ The script handles the important differences:
 - `6.6.x` can run both paths; the script toggles `ADMIN_VITE` in `var/config_js_features.json` and
   restores it afterward.
 - `trunk` rejects webpack and uses Vite.
-- Every build must be followed by an admin shell/browser check. A successful JavaScript build alone
-  is not enough.
+- A successful JavaScript build alone is not enough: the `UcpAdmin` acceptance project checks the
+  Administration tab in a browser on every lane.
 
 ## Administration Compatibility Rules
 
@@ -265,7 +227,8 @@ The script handles the important differences:
 - Treat `src/Resources/public/` and `public/bundles/swagagenticcommerce/` as generated admin output.
   The lane sync helper ignores these paths and the admin smoke script cleans them before each build
   to avoid webpack/Vite cross-lane pollution.
-- Browser validation is mandatory on each lane after admin UI changes.
+- Admin UI changes run the `UcpAdmin` acceptance project on 6.5, 6.6 and 6.7.14.x. CI starts those
+  lanes on its own for a pull request that changes the Administration.
 
 ## Runtime Compatibility Rules
 
