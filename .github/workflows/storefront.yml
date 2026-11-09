@@ -43,27 +43,6 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: agentic-commerce/package-lock.json
-      - run: npm ci --no-audit --no-fund
-        working-directory: agentic-commerce
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('agentic-commerce/package-lock.json') }}
-      - name: Install Playwright browser + system deps (cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
-        working-directory: agentic-commerce
-      - name: Install Playwright system deps (cached browser)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-storefront-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-storefront-smoke.sh "$GITHUB_WORKSPACE/shopware"
