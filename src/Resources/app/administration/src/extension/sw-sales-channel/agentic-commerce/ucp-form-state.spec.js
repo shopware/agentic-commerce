@@ -22,6 +22,7 @@ describe('agentic-commerce/ucp-form-state', () => {
             expect(form.enabledTransports).toEqual(['rest']);
             expect(form.active).toBe(false);
             expect(form.platformAllowlist).toEqual([]);
+            expect(form.platformPolicy).toBe('all');
             // Security/Advanced fields are managed via console commands, not the form.
             expect('signaturePolicy' in form).toBe(false);
             expect('agentAllowlist' in form).toBe(false);
@@ -50,6 +51,16 @@ describe('agentic-commerce/ucp-form-state', () => {
             expect(normalizeConfig({ active: true }).platformAllowlist).toEqual([]);
         });
 
+        it('keeps a stored "listed" platform policy', () => {
+            expect(normalizeConfig({ platformPolicy: 'listed' }).platformPolicy).toBe('listed');
+        });
+
+        it('falls back to "all" for a missing or unknown platform policy', () => {
+            expect(normalizeConfig({ active: true }).platformPolicy).toBe('all');
+            expect(normalizeConfig({ platformPolicy: null }).platformPolicy).toBe('all');
+            expect(normalizeConfig({ platformPolicy: 'everyone' }).platformPolicy).toBe('all');
+        });
+
         it('coerces empty nullable strings to null', () => {
             expect(normalizeConfig({ profileDomain: '' }).profileDomain).toBeNull();
         });
@@ -68,6 +79,10 @@ describe('agentic-commerce/ucp-form-state', () => {
             const payload = buildConfigPayload(form);
             payload.platformAllowlist.push('other.example');
             expect(form.platformAllowlist).toEqual(['platform.example']);
+        });
+
+        it('sends the platform policy so the server stores it', () => {
+            expect(buildConfigPayload({ ...defaultForm(), platformPolicy: 'listed' }).platformPolicy).toBe('listed');
         });
     });
 

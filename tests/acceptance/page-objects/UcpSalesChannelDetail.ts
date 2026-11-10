@@ -19,6 +19,7 @@ export class UcpSalesChannelDetail {
     readonly unsavedBanner: Locator;
     readonly readOnlyBanner: Locator;
     readonly exposeSwitch: Locator;
+    readonly platformPolicySelect: Locator;
     readonly platformAllowlist: Locator;
     readonly preview: Locator;
     readonly saveButton: Locator;
@@ -28,6 +29,7 @@ export class UcpSalesChannelDetail {
         this.unsavedBanner = page.getByTestId('ac-ucp__unsaved-banner');
         this.readOnlyBanner = page.getByTestId('ac-ucp__read-only-banner');
         this.exposeSwitch = this.checkboxInput('ac-ucp__expose-switch');
+        this.platformPolicySelect = page.getByTestId('ac-ucp__platform-policy');
         this.platformAllowlist = page.getByTestId('ac-ucp__platform-allowlist');
         this.preview = page.getByTestId('ac-ucp__preview');
         this.saveButton = page.locator('.sw-sales-channel-detail__save-action');
@@ -39,6 +41,26 @@ export class UcpSalesChannelDetail {
 
     transport(value: string): Locator {
         return this.checkboxInput(`ac-ucp__transport--${value}`);
+    }
+
+    /**
+     * The label of the selected platform policy. Before 6.6.2 `sw-single-select` shows it as text, Meteor
+     * before 6.7 as a selection label, and Meteor from 6.7 as the value of its input.
+     */
+    async platformPolicy(): Promise<string> {
+        await expect(this.platformPolicySelect).toBeVisible();
+        const shownAsText = this.platformPolicySelect.locator('.sw-single-select__selection-text, .mt-select-selection-list__item-holder');
+        if (await shownAsText.count() > 0) {
+            return (await shownAsText.first().innerText()).trim();
+        }
+
+        return this.platformPolicySelect.locator('.mt-select-selection-list__input').inputValue();
+    }
+
+    async selectPlatformPolicy(label: string): Promise<void> {
+        await this.platformPolicySelect.locator('.sw-select__selection, .mt-select__selection').click();
+        // The result list renders in a popover outside the field.
+        await this.page.locator('.sw-select-result, .mt-select-result').filter({ hasText: label }).first().click();
     }
 
     /** Adds one entry to the platform allowlist the way a merchant does: type it, confirm with Enter. */

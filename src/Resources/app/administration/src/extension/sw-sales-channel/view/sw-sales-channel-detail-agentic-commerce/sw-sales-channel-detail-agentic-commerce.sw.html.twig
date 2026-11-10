@@ -51,6 +51,21 @@
 
             <div
                 class="sw-sales-channel-detail-agentic-commerce__section"
+                data-testid="ac-ucp__platform-policy"
+            >
+                <sw-single-select
+                    :label="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyLabel')"
+                    :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyHelpText')"
+                    :options="platformPolicyOptions"
+                    :disabled="!canEditConfig || !isActive"
+                    :value="form.platformPolicy"
+                    @change="(value) => setValue('platformPolicy', value)"
+                    @update:value="(value) => setValue('platformPolicy', value)"
+                />
+            </div>
+
+            <div
+                class="sw-sales-channel-detail-agentic-commerce__section"
                 data-testid="ac-ucp__platform-allowlist"
             >
                 <sw-multi-tag-select
@@ -68,7 +83,7 @@
                     </template>
                 </sw-multi-tag-select>
                 <p class="sw-sales-channel-detail-agentic-commerce__hint">
-                    {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHint') }}
+                    {{ platformAllowlistHint }}
                 </p>
             </div>
 

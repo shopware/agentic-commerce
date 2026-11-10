@@ -25,6 +25,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Ucp\Sdk\Enum\PlatformPolicy;
 
 /**
  * Configures a sales channel for UCP in one step.
@@ -173,6 +174,17 @@ final class UcpSetupCommand extends Command
         return $this->hasErrors($findings) ? self::FAILURE : self::SUCCESS;
     }
 
+    private function platformAllowlistSummary(UcpConfig $config): string
+    {
+        if ([] !== $config->platformAllowlist) {
+            return implode(', ', $config->platformAllowlist);
+        }
+
+        return PlatformPolicy::All->value === $config->platformPolicy
+            ? '(none: every platform with a valid profile is accepted)'
+            : '(none: no platform can talk to this channel yet)';
+    }
+
     /**
      * @param list<string> $agentHosts
      * @param list<string> $domainHosts
@@ -289,7 +301,8 @@ final class UcpSetupCommand extends Command
             ['Profile URL' => $profileUrlSummary],
             ['Signature policy' => $config->signaturePolicy],
             ['Idempotency required' => $config->idempotencyRequired ? 'yes' : 'no'],
-            ['Platform allowlist' => [] === $config->platformAllowlist ? '(none: no platform can talk to this channel yet)' : implode(', ', $config->platformAllowlist)],
+            ['Platform policy' => $config->platformPolicy],
+            ['Platform allowlist' => $this->platformAllowlistSummary($config)],
             ['Agent allowlist' => [] === $config->agentAllowlist ? '(none)' : implode(', ', $config->agentAllowlist)],
             ['Capabilities' => implode(', ', $config->enabledCapabilities)],
             ['Transports' => implode(', ', $config->enabledTransports)],

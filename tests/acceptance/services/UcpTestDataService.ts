@@ -45,6 +45,7 @@ export interface UcpConfigPayload {
     enabledCapabilities: string[]
     enabledTransports: string[]
     continueUrlTemplate: string | null
+    platformPolicy: 'all' | 'listed'
     platformAllowlist: string[]
     remoteProfileAllowlist: string[]
     agentAllowlist: string[]
@@ -532,6 +533,8 @@ export class UcpTestDataService extends TestDataService {
             active: true,
             enabledCapabilities: ALL_UCP_CAPABILITIES,
             enabledTransports: ['rest'],
+            // A new channel defaults to `all`; the suite states its gate, so refusals stay about the lists.
+            platformPolicy: 'listed',
             platformAllowlist: [this.agentHost],
             remoteProfileAllowlist: [this.agentHost],
             agentAllowlist: [this.agentHost],

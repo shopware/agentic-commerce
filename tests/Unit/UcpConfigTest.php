@@ -11,6 +11,7 @@ use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
+use Ucp\Sdk\Enum\PlatformPolicy;
 use Ucp\Sdk\Enum\Transport;
 
 /** @internal */
@@ -241,6 +242,45 @@ final class UcpConfigTest extends TestCase
 
         self::assertSame(['legacy.example'], $legacyConfig->allowedProfileHosts);
         self::assertSame(['legacy.example'], $legacyConfig->allowedAgentDomains);
+    }
+
+    #[Test]
+    public function testAStoredConfigWithoutAPlatformPolicyKeepsTheListedGate(): void
+    {
+        $config = UcpConfig::fromArray(['active' => true]);
+
+        self::assertSame('listed', $config->platformPolicy);
+        self::assertSame('listed', $config->toArray()['platformPolicy']);
+        self::assertSame(PlatformPolicy::Listed, $config->toRuntimeConfiguration('https://merchant.example')->platformPolicy);
+    }
+
+    #[Test]
+    public function testAllPlatformsLeavesTheAgentDomainUngatedUnlessAnAgentAllowlistIsSet(): void
+    {
+        $open = UcpConfig::fromArray([
+            'platformPolicy' => 'all',
+            'platformAllowlist' => ['preapproved.example'],
+        ])->toRuntimeConfiguration('https://merchant.example');
+
+        self::assertSame(PlatformPolicy::All, $open->platformPolicy);
+        self::assertSame(['preapproved.example'], $open->allowedProfileHosts);
+        self::assertSame([], $open->allowedAgentDomains);
+
+        $gated = UcpConfig::fromArray([
+            'platformPolicy' => 'all',
+            'agentAllowlist' => ['agent.example'],
+        ])->toRuntimeConfiguration('https://merchant.example');
+
+        self::assertSame(['agent.example'], $gated->allowedAgentDomains);
+    }
+
+    #[Test]
+    public function testItRejectsAnUnknownPlatformPolicy(): void
+    {
+        $this->expectException(UcpConfigException::class);
+        $this->expectExceptionMessage('$.platformPolicy');
+
+        UcpConfig::fromArray(['platformPolicy' => 'everyone']);
     }
 
     /**

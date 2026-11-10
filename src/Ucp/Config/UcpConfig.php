@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Config;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
+use Ucp\Sdk\Enum\PlatformPolicy;
 use Ucp\Sdk\Enum\SignaturePolicy;
 use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
@@ -24,6 +25,7 @@ final class UcpConfig
         'enabledCapabilities',
         'enabledTransports',
         'continueUrlTemplate',
+        'platformPolicy',
         'platformAllowlist',
         'remoteProfileAllowlist',
         'agentAllowlist',
@@ -87,6 +89,7 @@ final class UcpConfig
         public readonly ?string $webhookUrlOverride = null,
         public readonly string $signaturePolicy = 'strict',
         public readonly bool $idempotencyRequired = true,
+        public readonly string $platformPolicy = PlatformPolicy::Listed->value,
     ) {
     }
 
@@ -127,6 +130,7 @@ final class UcpConfig
             $webhookUrlOverride,
             self::signaturePolicyValue($payload['signaturePolicy'] ?? 'strict'),
             self::boolValue($payload['idempotencyRequired'] ?? null, true, '$.idempotencyRequired'),
+            self::platformPolicyValue($payload['platformPolicy'] ?? null),
         );
     }
 
@@ -157,6 +161,7 @@ final class UcpConfig
             'enabledCapabilities' => $this->enabledCapabilities,
             'enabledTransports' => $this->enabledTransports,
             'continueUrlTemplate' => $this->continueUrlTemplate,
+            'platformPolicy' => $this->platformPolicy,
             'platformAllowlist' => $this->platformAllowlist,
             'remoteProfileAllowlist' => $this->remoteProfileAllowlist,
             'agentAllowlist' => $this->agentAllowlist,
@@ -256,7 +261,10 @@ final class UcpConfig
         $host = parse_url($baseUri, \PHP_URL_HOST);
         $fallbackHosts = [] !== $this->platformAllowlist ? $this->platformAllowlist : (false !== $host && null !== $host ? [(string) $host] : []);
         $allowedProfileHosts = [] !== $this->remoteProfileAllowlist ? $this->remoteProfileAllowlist : $fallbackHosts;
-        $allowedAgentDomains = [] !== $this->agentAllowlist ? $this->agentAllowlist : $fallbackHosts;
+        $platformPolicy = PlatformPolicy::from($this->platformPolicy);
+        // The SDK checks the agent domain under either policy. Under `all` only an explicit
+        // agent allowlist may gate, or the fallback would refuse every unlisted platform again.
+        $allowedAgentDomains = [] !== $this->agentAllowlist || PlatformPolicy::All === $platformPolicy ? $this->agentAllowlist : $fallbackHosts;
 
         return new RuntimeConfiguration(
             self::ucpVersion(),
@@ -271,6 +279,7 @@ final class UcpConfig
             $tenantIdentifier,
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
             $profileFetchingDevelopmentMode,
+            $platformPolicy,
         );
     }
 
@@ -358,6 +367,20 @@ final class UcpConfig
     public static function ucpVersion(): string
     {
         return UcpProtocol::VERSION;
+    }
+
+    /** A stored config without the key predates the setting and keeps the gate it had. */
+    private static function platformPolicyValue(mixed $value): string
+    {
+        if (null === $value || '' === $value) {
+            return PlatformPolicy::Listed->value;
+        }
+
+        if (!\is_string($value) || null === PlatformPolicy::tryFrom($value)) {
+            throw self::invalid('$.platformPolicy', 'must be "all" or "listed"');
+        }
+
+        return $value;
     }
 
     private static function signaturePolicyValue(mixed $value): string

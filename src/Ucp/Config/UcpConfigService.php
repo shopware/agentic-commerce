@@ -11,6 +11,7 @@ use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Symfony\Component\Messenger\EventListener\StopWorkerOnRestartSignalListener;
+use Ucp\Sdk\Enum\PlatformPolicy;
 
 /** @internal */
 #[Package('framework')]
@@ -67,13 +68,18 @@ final class UcpConfigService
         }
 
         $legacyPayload = $this->legacyPayload($salesChannelId);
+        $hasLegacyValues = $this->hasLegacyValues($legacyPayload);
+        if (!$hasLegacyValues) {
+            // Nothing stored anywhere: a sales channel configured from now on accepts every platform.
+            $legacyPayload['platformPolicy'] = PlatformPolicy::All->value;
+        }
         $config = UcpConfig::fromArray($legacyPayload, $this->allowHttpLocalWebhookOverride);
 
         if ($config->active && !$this->isEligible($salesChannelId)) {
             return $config->disabled();
         }
 
-        if ($this->hasLegacyValues($legacyPayload)) {
+        if ($hasLegacyValues) {
             // Compatibility bridge for legacy SystemConfig-backed setups,
             // including warm local installations that existed before the
             // sales-channel scoped config table was populated. Keep this until a

@@ -6,9 +6,9 @@
  * managed via console commands (`ucp:config:*` / `ucp:signing-keys:*`). Those
  * fields still live in the persisted `UcpConfig`; the admin save merges this
  * Exposure-only payload over the stored config server-side, so console-set
- * values are preserved (see UcpConfigService::saveConfig). The platform
- * allowlist is here because SaaS merchants cannot run console commands, and
- * without it only agents on the shop's own host are accepted.
+ * values are preserved (see UcpConfigService::saveConfig). The platform policy
+ * and allowlist are here because SaaS merchants cannot run console commands:
+ * `all` accepts every platform with a valid profile, `listed` only the allowlist.
  */
 export function defaultForm() {
     return {
@@ -16,9 +16,12 @@ export function defaultForm() {
         profileDomain: null,
         enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
         enabledTransports: ['rest'],
+        platformPolicy: 'all',
         platformAllowlist: [],
     };
 }
+
+export const PLATFORM_POLICIES = ['all', 'listed'];
 
 const ARRAY_FIELDS = [
     'enabledCapabilities',
@@ -58,6 +61,10 @@ export function normalizeConfig(config = {}) {
     NULLABLE_STRING_FIELDS.forEach((field) => {
         merged[field] = config[field] || null;
     });
+
+    if (!PLATFORM_POLICIES.includes(merged.platformPolicy)) {
+        merged.platformPolicy = fallback.platformPolicy;
+    }
 
     return merged;
 }

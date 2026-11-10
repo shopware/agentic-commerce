@@ -162,6 +162,28 @@ test.describe('Agentic Commerce tab configuration @UcpAdmin', () => {
         });
     });
 
+    test('the merchant switches a sales channel to listed platforms only', async ({ TestDataService, AdminPage }) => {
+        const { salesChannel } = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(salesChannel.id, { platformPolicy: 'all', platformAllowlist: [] });
+        const detail = new UcpSalesChannelDetail(AdminPage);
+        await detail.openAgenticCommerceTab(salesChannel.id);
+
+        await test.step('the merchant chooses listed platforms only', async () => {
+            await expect.poll(() => detail.platformPolicy()).toBe('All platforms');
+            await detail.selectPlatformPolicy('Listed platforms only');
+            await expect.poll(() => detail.platformPolicy()).toBe('Listed platforms only');
+            await expect(detail.unsavedBanner).toBeVisible();
+        });
+
+        await test.step('the policy is stored and shown again after a reload', async () => {
+            await detail.saveUcpConfig(salesChannel.id);
+            expect((await TestDataService.getUcpConfig(salesChannel.id)).platformPolicy).toBe('listed');
+
+            await detail.reload(salesChannel.id);
+            await expect.poll(() => detail.platformPolicy()).toBe('Listed platforms only');
+        });
+    });
+
     test('the tab links the UCP documentation and shows core\'s Agentic files from 6.7.12.0', async ({ InstanceMeta, TestDataService, AdminPage }) => {
         const { salesChannel } = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(salesChannel.id);

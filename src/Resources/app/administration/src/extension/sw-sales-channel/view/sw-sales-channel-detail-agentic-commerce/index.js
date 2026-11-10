@@ -8,6 +8,7 @@ import {
     buildConfigPayload,
     isValidHostEntry,
     normalizeHostList,
+    PLATFORM_POLICIES,
 } from '../../agentic-commerce/ucp-form-state';
 import {
     buildSubTabItems,
@@ -20,6 +21,17 @@ import { isPreviewDirty } from '../../agentic-commerce/ucp-profile-preview';
 import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 
 const { Mixin, Defaults } = Shopware;
+
+const PLATFORM_POLICY_SNIPPETS = {
+    all: {
+        label: 'sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyAll',
+        hint: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHintAll',
+    },
+    listed: {
+        label: 'sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyListed',
+        hint: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHintListed',
+    },
+};
 
 /**
  * Consolidated "Agentic Commerce" tab. Renders an always-visible unsaved-changes
@@ -144,6 +156,14 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         // to the form, so an unpinned config stays unpinned on save.
         selectedProfileDomain() {
             return this.form?.profileDomain || this.profileDomainOptions[0]?.value || '';
+        },
+        platformPolicyOptions() {
+            return PLATFORM_POLICIES.map((value) => ({ value, label: this.$t(PLATFORM_POLICY_SNIPPETS[value].label) }));
+        },
+        platformAllowlistHint() {
+            const policy = PLATFORM_POLICY_SNIPPETS[this.form?.platformPolicy] ?? PLATFORM_POLICY_SNIPPETS.all;
+
+            return this.$t(policy.hint);
         },
         previewJson() {
             return this.preview ? JSON.stringify(this.preview, null, 2) : '';

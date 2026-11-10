@@ -199,6 +199,46 @@ final class UcpConfigServiceTest extends TestCase
         static::assertSame(['agent.example'], $stored->agentAllowlist);
     }
 
+    public function testASalesChannelWithoutAnyStoredConfigAcceptsAllPlatforms(): void
+    {
+        $service = new UcpConfigService(new InMemoryUcpConfigRepository(), $this->createMock(LegacyConfigStoreInterface::class));
+
+        static::assertSame('all', $service->getConfig('sales-channel-a')->platformPolicy);
+    }
+
+    public function testActivatingASalesChannelForTheFirstTimeStoresAllPlatforms(): void
+    {
+        $repository = new InMemoryUcpConfigRepository();
+        $service = new UcpConfigService($repository, $this->createMock(LegacyConfigStoreInterface::class));
+
+        $service->saveConfig(['active' => true], 'sales-channel-a');
+
+        static::assertSame('all', $repository->find('sales-channel-a')?->platformPolicy);
+    }
+
+    public function testAConfigStoredBeforeThePlatformPolicyExistedStaysListedAfterASave(): void
+    {
+        $repository = new InMemoryUcpConfigRepository([
+            'sales-channel-a' => UcpConfig::fromArray(['active' => true]),
+        ]);
+        $service = new UcpConfigService($repository, $this->createMock(LegacyConfigStoreInterface::class));
+
+        $service->saveConfig(['enabledTransports' => ['rest', 'a2a']], 'sales-channel-a');
+
+        static::assertSame('listed', $repository->find('sales-channel-a')?->platformPolicy);
+    }
+
+    public function testALegacySystemConfigSetupStaysListed(): void
+    {
+        $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
+        $legacyStore->method('get')->willReturnCallback(
+            static fn (string $key): ?bool => 'SwagAgenticCommerce.config.active' === $key ? true : null,
+        );
+        $service = new UcpConfigService(new InMemoryUcpConfigRepository(), $legacyStore);
+
+        static::assertSame('listed', $service->getConfig('sales-channel-a')->platformPolicy);
+    }
+
     public function testSaveConfigAcceptsLocalHttpWebhookOverridesWhenExplicitlyAllowed(): void
     {
         $repository = new InMemoryUcpConfigRepository();

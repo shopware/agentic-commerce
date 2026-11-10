@@ -105,10 +105,11 @@ like `https://shop.example/de` serves no UCP profile.
    Paste the printed `curl`. Expect `200` with `"status": "success"` in the `ucp` envelope. Without
    an argument the command lists every operation; `--id` fills in product and resource ids.
 
-4. **Change and re-check.** Exposure (active, profile domain, capabilities, transports, allowed
-   agent platforms) lives in the Administration under the sales channel; the other allowlists and
-   the policy in `ucp:config:set`; `bin/console ucp:config:validate --sales-channel=Storefront`
-   re-runs the readiness checks any time.
+4. **Change and re-check.** Exposure (active, profile domain, capabilities, transports, who may buy
+   and the allowed agent platforms) lives in the Administration under the sales channel; the other
+   allowlists and the signature policy in `ucp:config:set`;
+   `bin/console ucp:config:validate --sales-channel=Storefront` re-runs the readiness checks any
+   time.
 
 What the shortcut in step 2 does and does not prove, and what to do when you need a real second
 profile (strict signatures, the conformance agent, a staging platform), is in the SDK's
@@ -139,9 +140,10 @@ Current responsibilities:
 ### Console commands
 
 UCP is administered from the CLI for everything except the per-channel Exposure settings (active,
-profile domain, capabilities, transports), which live in the Administration. Every command takes
-`--sales-channel` (id **or** name; omit it to pick interactively). Run `bin/console ucp:channels`
-first to see channel ids and which channels currently expose UCP.
+profile domain, capabilities, transports, who may buy and the allowed agent platforms), which live
+in the Administration. Every command takes `--sales-channel` (id **or** name; omit it to pick
+interactively). Run `bin/console ucp:channels` first to see channel ids and which channels currently
+expose UCP.
 
 | Command                                                                        | Purpose                                                                                                                                                       |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -156,9 +158,17 @@ first to see channel ids and which channels currently expose UCP.
 
 - `--signature-policy=strict|log|off`
 - `--idempotency=true|false`
+- `--platform-policy=all|listed` — `all` accepts every agent platform with a valid profile, and the
+  platform allowlist then holds the pre-approved platforms. `listed` accepts only the platforms on
+  the allowlist, and with an empty list only agents on the shop's own host. A sales channel set up
+  for UCP from now on starts with `all`; one that already had UCP settings stays on `listed`. This
+  is the _Who may buy through UCP_ setting in the Administration. Under `all`, a platform that is
+  not listed gets no order webhooks yet, because webhook targets are still checked against the
+  allowlists.
 - `--agent-allowlist`, `--remote-profile-allowlist`, `--platform-allowlist` — bare hosts, no scheme
   (repeatable). The platform allowlist is also the _Allowed agent platforms_ field in the
-  Administration. The agent and remote-profile allowlists take precedence over it when set.
+  Administration. The agent and remote-profile allowlists take precedence over it when set, and an
+  agent allowlist still gates under `--platform-policy=all`.
 - `--embedded-allowed-origins`, `--embedded-frame-ancestors` — origins, scheme + host (repeatable)
 - `--webhook-url-override` — absolute https URL whose host is in an allowlist (pass an empty value
   to clear)
@@ -299,10 +309,10 @@ often the container output or `php_errors.log` — and, when that directory is w
 and the command that fixes it:
 
 ```
-[SwagAgenticCommerce] The extension is inactive: ucp-php-sdk/core 0.0.7 is required but not
+[SwagAgenticCommerce] The extension is inactive: ucp-php-sdk/core 0.0.9 is required but not
 installed. Shopware installs this itself when the plugin is installed or updated; if that did
 not happen -- an offline shop, or an interrupted update -- run `composer require
-ucp-php-sdk/core:0.0.7 ucp-php-sdk/symfony-bundle:0.0.7` in the shop root and clear the cache.
+ucp-php-sdk/core:0.0.9 ucp-php-sdk/symfony-bundle:0.0.9` in the shop root and clear the cache.
 The extension registers no services, routes or feeds until then.
 ```
 
@@ -332,7 +342,7 @@ The extension refuses that install instead, naming what is missing:
 
 ```
 This shop runs with shopware.deployment.cluster_setup enabled, where Shopware never runs composer
-for a plugin, so nothing will install this extension's requirements: ucp-php-sdk/core 0.0.7 is
+for a plugin, so nothing will install this extension's requirements: ucp-php-sdk/core 0.0.9 is
 required but not installed. Add them to the project's composer.json and deploy, then install the
 extension.
 ```
