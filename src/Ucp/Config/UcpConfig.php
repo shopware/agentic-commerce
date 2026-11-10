@@ -89,7 +89,7 @@ final class UcpConfig
         public readonly ?string $webhookUrlOverride = null,
         public readonly string $signaturePolicy = 'strict',
         public readonly bool $idempotencyRequired = true,
-        public readonly string $platformPolicy = PlatformPolicy::Listed->value,
+        public readonly string $platformPolicy = 'listed',
     ) {
     }
 
