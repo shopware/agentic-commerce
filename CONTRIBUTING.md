@@ -153,16 +153,19 @@ compatibility jobs.
 ### Coverage floor
 
 The `coverage` job in `ci.yml` turns red when the PHP unit or Admin Jest line coverage drops more
-than 0.3 percentage points below its floor in `.github/coverage-floor.json`, or when a pull request's
-changed lines are covered less than `patchFailUnder` percent. The job is advisory and does not block
-`validation-gate`. The tables, including uncovered line numbers per changed file, are on the run's
-Summary page. Check a suite locally:
+than 0.3 percentage points below its floor in `.github/coverage-floor.json`, or when a pull
+request's changed lines are covered less than `patchFailUnder` percent. The job is advisory and does
+not block `validation-gate`. The tables, including uncovered line numbers per changed file, are on
+the run's Summary page. Check a suite locally:
 
 ```bash
 npm run test:admin
 python3 bin/ci-coverage-floor.py check .github/coverage-floor.json \
   php=coverage/php/clover.xml admin=tests/jest/administration/coverage/cobertura-coverage.xml
 ```
+
+The PHP figure leaves out what `<source>` in `phpunit.xml.dist` excludes: migrations, data-only
+entities and the service and route configuration in `src/Resources/config`.
 
 Generate the PHP report with PCOV through the `Unit coverage` command in `php.yml`. Floors only move
 up: a weekly bot pull request raises them. Lower a floor only deliberately, with the reason in the
