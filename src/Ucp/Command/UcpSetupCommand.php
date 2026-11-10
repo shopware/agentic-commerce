@@ -196,6 +196,9 @@ final class UcpSetupCommand extends Command
         $payload = [
             'active' => true,
             'idempotencyRequired' => true,
+            // Written so that a channel without stored settings does not start on `all`: this
+            // command writes the lists that decide who may talk to the channel.
+            'platformPolicy' => PlatformPolicy::Listed->value,
         ];
 
         if ($dev) {

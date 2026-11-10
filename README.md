@@ -80,8 +80,10 @@ like `https://shop.example/de` serves no UCP profile.
    key if the channel has none, runs the readiness checks and prints the profile URL. `--dev`
    accepts unsigned requests (policy `log`) and puts the channel's own domain hosts and `localhost`
    on the allowlists, so the shop can act as its own agent. Without `--dev` the policy is `strict`
-   and nothing is allowed until you name a platform host. `--dry-run` shows the resulting config
-   without writing it.
+   and nothing is allowed until you name a platform host. `ucp:setup` always sets
+   `--platform-policy=listed`; to accept every platform, switch to _All platforms_ in the
+   Administration or run `ucp:config:set --platform-policy=all`, and clear the agent allowlist.
+   `--dry-run` shows the resulting config without writing it.
 
 2. **Locally only: turn on the SDK's development mode.** Every UCP request names the _calling
    agent's_ profile URL, and the SDK's URL-safety rules refuse everything a laptop can offer

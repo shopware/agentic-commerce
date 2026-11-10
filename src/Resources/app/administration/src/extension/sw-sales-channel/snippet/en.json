@@ -44,7 +44,7 @@
           "platformAllowlistHelpText": "Enter the host of the platform's profile URL. Subdomains count too: platform.example also covers api.platform.example.",
           "platformAllowlistPlaceholder": "e.g. platform.example",
           "platformAllowlistInvalid": "Enter a host name such as platform.example, or paste the platform's profile URL.",
-          "platformAllowlistHintAll": "Every platform with a valid profile can use this sales channel. Platforms listed here never have to wait and receive order updates.",
+          "platformAllowlistHintAll": "Every platform with a valid profile can use this sales channel. Platforms listed here never have to wait and receive order updates. If your developer set an agent allowlist for this channel, it still applies.",
           "platformAllowlistHintListed": "Only the listed platforms can use this sales channel. Without entries, only agents whose profile is hosted on this shop's own domain are accepted. If your developer set other allowlists for this channel, those take precedence.",
           "capabilitiesLabel": "Capabilities exposed to agents",
           "capabilityCatalogLabel": "Browse catalog",

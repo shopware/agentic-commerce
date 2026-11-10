@@ -388,6 +388,8 @@ foreach ([
     'ucp_platform_profile_cache',
     'ucp_negotiation_sessions',
     'ucp_signature_nonces',
+    'ucp_discovery_windows',
+    'ucp_discovery_backoff',
 ] as $table) {
     if (!$connection->createSchemaManager()->tablesExist([$table])) {
         fwrite(STDERR, sprintf("UCP SDK storage table %s was not created.\n", $table));
