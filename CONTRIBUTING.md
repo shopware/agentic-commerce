@@ -152,10 +152,11 @@ compatibility jobs.
 
 ### Coverage floor
 
-The `coverage` job in `ci.yml` fails when the PHP unit or Admin Jest line coverage drops more than
-0.3 percentage points below its floor in `.github/coverage-floor.json`, or when a pull request's
-changed lines are covered less than `patchFailUnder` percent. The tables, including uncovered line
-numbers per changed file, are on the run's Summary page. Check a suite locally:
+The `coverage` job in `ci.yml` turns red when the PHP unit or Admin Jest line coverage drops more
+than 0.3 percentage points below its floor in `.github/coverage-floor.json`, or when a pull request's
+changed lines are covered less than `patchFailUnder` percent. The job is advisory and does not block
+`validation-gate`. The tables, including uncovered line numbers per changed file, are on the run's
+Summary page. Check a suite locally:
 
 ```bash
 npm run test:admin
