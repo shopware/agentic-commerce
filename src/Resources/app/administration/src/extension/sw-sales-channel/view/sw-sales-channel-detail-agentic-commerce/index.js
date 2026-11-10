@@ -25,10 +25,12 @@ const { Mixin, Defaults } = Shopware;
 const PLATFORM_POLICY_SNIPPETS = {
     all: {
         label: 'sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyAll',
+        listLabel: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistLabelAll',
         hint: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHintAll',
     },
     listed: {
         label: 'sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyListed',
+        listLabel: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistLabel',
         hint: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHintListed',
     },
 };
@@ -160,6 +162,12 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         platformPolicyOptions() {
             return PLATFORM_POLICIES.map((value) => ({ value, label: this.$t(PLATFORM_POLICY_SNIPPETS[value].label) }));
         },
+        platformAllowlistLabel() {
+            const policy = PLATFORM_POLICY_SNIPPETS[this.form?.platformPolicy] ?? PLATFORM_POLICY_SNIPPETS.all;
+
+            return this.$t(policy.listLabel);
+        },
+
         platformAllowlistHint() {
             const policy = PLATFORM_POLICY_SNIPPETS[this.form?.platformPolicy] ?? PLATFORM_POLICY_SNIPPETS.all;
 

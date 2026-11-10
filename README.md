@@ -167,8 +167,9 @@ expose UCP.
   allowlists.
 - `--agent-allowlist`, `--remote-profile-allowlist`, `--platform-allowlist` — bare hosts, no scheme
   (repeatable). The platform allowlist is also the _Allowed agent platforms_ field in the
-  Administration. The agent and remote-profile allowlists take precedence over it when set, and an
-  agent allowlist still gates under `--platform-policy=all`.
+  Administration, named _Pre-approved agent platforms_ under _All platforms_. The agent and
+  remote-profile allowlists take precedence over it when set, and an agent allowlist still gates
+  under `--platform-policy=all`.
 - `--embedded-allowed-origins`, `--embedded-frame-ancestors` — origins, scheme + host (repeatable)
 - `--webhook-url-override` — absolute https URL whose host is in an allowlist (pass an empty value
   to clear)
