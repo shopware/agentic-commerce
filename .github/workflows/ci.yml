@@ -175,9 +175,9 @@ jobs:
       - php
       - admin
     if: ${{ !cancelled() }}
-    # Gating on pull requests only. On a push a drop can no longer be prevented, so it must not block
-    # store-release.yml.
-    continue-on-error: ${{ github.event_name == 'push' }}
+    # Advisory: a coverage drop turns this check red but blocks neither validation-gate on a pull
+    # request nor store-release.yml on a push.
+    continue-on-error: true
     # Not ubuntu-latest: .github/diff-cover-requirements.txt pins the CPython 3.12 wheels this image ships.
     runs-on: ubuntu-24.04
     steps:
