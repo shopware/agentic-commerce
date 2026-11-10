@@ -57,7 +57,7 @@ release is installed restores the normal label.
 ## The SDK version pin
 
 The plugin requires `ucp-php-sdk/symfony-bundle` at the exact version it was tested against —
-currently `0.0.7`, though `composer.json` is the authority and this page is not. Not a caret, not a
+currently `0.0.9`, though `composer.json` is the authority and this page is not. Not a caret, not a
 tilde, and not a `>=a <b` window. A caret on a `0.0.x` version already means that exact patch
 (`^0.0.2` is `>=0.0.2 <0.0.3`, which is why the plugin's original constraint never picked up
 `0.0.3`), `~0.0.6` expands to the open `>=0.0.6 <0.1.0`, and even `>=0.0.6 <0.0.7` still admits a

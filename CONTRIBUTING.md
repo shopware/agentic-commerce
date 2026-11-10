@@ -452,7 +452,7 @@ See [docs/releasing.md](docs/releasing.md) for the full flow. Two recurring pitf
 subsections there — read them before the change, not after CI is green:
 
 - **SDK version pin.** `ucp-php-sdk/symfony-bundle` is required at the exact version it was tested
-  against, currently `0.0.7` — **not** a caret (a caret on `0.0.x` already means that exact patch;
+  against, currently `0.0.9` — **not** a caret (a caret on `0.0.x` already means that exact patch;
   the plugin's original `^0.0.2` never resolved `0.0.3`), **not** a tilde (`~0.0.6` is the open
   `>=0.0.6 <0.1.0` range) and **not** a `>=a <b` window, which still admits a four-component
   `0.0.6.1`. Read the pin out of `composer.json` rather than from here. The SDK serves one UCP
