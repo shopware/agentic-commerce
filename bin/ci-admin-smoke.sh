@@ -250,22 +250,4 @@ if ! grep -q 'Log in to Shopware' <<<"${admin_html}" && ! grep -q 'Administratio
   exit 1
 fi
 
-if [[ "${CI_ADMIN_BROWSER_VALIDATE:-0}" == "1" ]]; then
-  if [[ "${branch_name}" == "6.6.x" && "${resolved_mode}" == "vite" ]]; then
-    echo "Skipping browser validation for 6.6.x Vite compile-only mode. The 6.6 ADMIN_VITE feature is non-toggleable in this lane; browser/admin validation runs on webpack." >&2
-  elif [[ ! -d "${PLUGIN_ROOT}/node_modules/@playwright/test" ]]; then
-    echo "Playwright dependencies are missing. Run 'npm install' in ${PLUGIN_ROOT} before enabling CI_ADMIN_BROWSER_VALIDATE=1." >&2
-    exit 1
-  else
-    (
-      cd "${PLUGIN_ROOT}"
-      BASE_URL="${BASE_URL}" \
-        SHOPWARE_REF="${branch_name}" \
-        ADMIN_BUILD_MODE="${resolved_mode}" \
-        PLAYWRIGHT_OUTPUT_DIR="${PLUGIN_ROOT}/var/playwright-results/${branch_name}/${resolved_mode}/admin" \
-        npm run test:e2e:admin -- --reporter=list
-    )
-  fi
-fi
-
 echo "Administration build and login-shell smoke passed for ${SHOPWARE_DIR} (${branch_name:-unknown}, ${resolved_mode})."

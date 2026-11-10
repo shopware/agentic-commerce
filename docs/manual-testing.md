@@ -3,36 +3,26 @@
 This document describes how a human tester validates `SwagAgenticCommerce` across the supported
 Shopware lanes.
 
-Automated coverage (PHPUnit unit/integration/kernel suites, `bin/ci-smoke.sh`, e2e Playwright) runs
-in CI; this document covers only what automation cannot. Behavior is covered at the lowest layer
-that can express it — route, request-context, and the **catalog/cart/checkout capability flows**
-(including completing a checkout into a real order and reading it back) live in the `functional`
-suite (`composer test:functional`, see [CONTRIBUTING.md](../CONTRIBUTING.md)). Shell smoke is
-reserved for deployed-stack / on-the-wire concerns that a booted kernel cannot observe: the outbound
-**signed order webhook** delivery, **tokenize** (needs a signed request), lane-aware MCP detection +
-storefront-rendered `/llms.txt` and `/agents.md`, the admin/storefront builds + UI shells, and
-signed-request conformance. The REST happy-path, profile/transport advertising, OAuth/tokenization
-`501` stubs, signed-webhook header capture, admin module rendering, and storefront shell rendering
-are all exercised automatically and need no manual repro — see the pointers throughout this guide.
+Automated coverage runs in CI: the PHPUnit unit, integration and functional suites, and the
+Playwright acceptance suite in [`tests/acceptance`](../tests/acceptance/README.md). The acceptance
+suite drives the product feed, the discovery files, the UCP transports with signed requests, the
+embedded checkout in a real browser and the Administration tab on every lane. This document covers
+only what that automation cannot.
 
 Before testing, also read [docs/shopware-version-differences.md](shopware-version-differences.md).
 That file is the memory for lane-specific traps.
 
 ## Scope
 
-This guide is intentionally limited to scenarios that automation cannot (or does not) cover. The
-core manual scenarios are:
+This guide is intentionally limited to scenarios that automation cannot (or does not yet) cover:
 
-- real-browser cross-origin iframe enforcement of the embedded cart
-- real MCP client connectivity against `/ucp/mcp`
-- real external third-party platform-profile host (SSRF allowlist)
-- admin ACL/UX behavior across `ucp.viewer`, `ucp.editor`, `ucp.key_rotator`
-- real payment-tokenization handler end to end
-- true concurrent checkout completion (the checkout lock)
-- signed / strict-signature request verification via the conformance suite
+- a real third-party MCP client against `/ucp/mcp`
+- exploratory use of the Administration with `ucp.viewer`, `ucp.editor` and `ucp.key_rotator`, and
+  saving across the sales channel tabs
+- a real payment-tokenization handler end to end
 
-The build/runtime scaffolding (sync, install, administration and storefront build + browser
-validation) also stays manual and is described below.
+The build/runtime scaffolding (sync, install, administration and storefront builds) also stays
+manual and is described below.
 
 Still not covered as bundled shipped features: payment tokenization, fulfillment, loyalty, and full
 agentic discovery/export. OAuth identity linking is implemented but opt-in per sales channel.
@@ -162,10 +152,9 @@ because Shopware installs the UCP SDK with Composer during the install. See
 3. Bootstrap or update the plugin installation.
 4. Run repo-local QA in the plugin repo.
 5. Build the administration.
-6. Validate the administration UI in browser (including ACL/UX, below).
+6. Review the administration UI in the browser (including ACL/UX, below).
 7. Build the storefront.
-8. Validate the storefront UI in browser.
-9. Walk the manual-only scenarios that automation cannot cover (below).
+8. Walk the manual-only scenarios that automation cannot cover (below).
 
 ## Repo-Local QA
 
@@ -182,53 +171,12 @@ Expected result: all commands pass. `composer test:functional` boots a real test
 UCP routes through a real Symfony browser; like core's functional tests it assumes a booted kernel,
 so run it against a configured lane (not the fast-path bootstrap used by plain `composer ci`).
 
-## Automated REST / Profile / Webhook Coverage
-
-The UCP REST happy path is exercised automatically by `bin/ci-smoke.sh` in the `shopware-matrix` CI
-jobs on every lane, so it needs no manual repro. That script covers, per lane:
-
-- `GET /.well-known/ucp` profile with lane-aware transports (REST/A2A/embedded everywhere, MCP only
-  when the Store API MCP endpoint exists) and the enabled shopping capabilities
-- the "MCP supported &hArr; MCP advertised" invariant (server-side `StoreApiMcpServerController`
-  class check)
-- fallback `/llms.txt` and `/agents.md` when core agentic files are absent
-- `tokenize` &rarr; `501` (the payment endpoint needs a _signed_ request over real HTTP)
-- checkout create/get/update/complete &rarr; a real Shopware order, and secured order read (the
-  checkout stage resolves the seeded product itself, then drives the webhook)
-- signed outbound webhook capture (`signature`, `signature-input`, and `content-digest` headers
-  present)
-
-The OAuth-metadata `501`, the missing-`UCP-Agent` `422` guard, and the catalog/cart capability flows
-are **no longer** in shell smoke — they are covered by the `functional` PHPUnit suite
-(`UcpRequestContextGuardTest`, `UcpCatalogFlowTest`, `UcpCartFlowTest`), which also gates on every
-`shopware-matrix` lane.
-
-You can still run the smoke runner locally if you want a fast confidence pass:
-
-```bash
-bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_65_ROOT"
-bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_66_ROOT"
-bin/ci-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_TRUNK_ROOT"
-```
-
-These resolve the SDK from Packagist at the versions `composer.json` pins, which is what a merchant
-installs. To smoke a local SDK checkout instead, prefix with
-`UCP_SDK_SOURCE=path SDK_ROOT=/path/to/ucp-php-sdk`.
-
-> **Runtime header note:** every `/ucp/...` runtime request must carry a `UCP-Agent` header
-> (ucp-php-sdk request-time validation) or it returns `422` before reaching the capability. Any
-> manual curl below that hits a runtime endpoint therefore includes
-> `-H 'UCP-Agent: <label>; profile="<base>/.well-known/ucp"'`.
-
-> **Known blocker:** the trunk Store API MCP endpoint ships with
-> [shopware/shopware#17228](https://github.com/shopware/shopware/pull/17228). Until that PR is
-> merged, `trunk` does not expose the endpoint, so the MCP transport is absent from
-> `/.well-known/ucp` and MCP-specific checks skip automatically.
+The acceptance suite runs against a lane as described in
+[its README](../tests/acceptance/README.md#running-it).
 
 ## Administration Build Validation
 
-Use lane-local builds or the smoke script. Build success is necessary but not sufficient — browser
-validation is required on every lane.
+Use lane-local builds or the build gate script:
 
 ### 6.5.x
 
@@ -256,46 +204,8 @@ Expected result:
 - `SwagAgenticCommerce` administration assets exist under `public`
 - `/admin` still renders after the build
 
-The CI admin matrix runs Playwright automatically when `CI_ADMIN_BROWSER_VALIDATE=1` is set,
-covering UCP module render, overview, detail, the authenticated admin API
-list/detail/config/preview, and the signing-key lifecycle. The Playwright suite is the
-release-confidence check for those flows; the manual browser steps below are for exploratory UX
-review and for the ACL/UX matrix that CI cannot run (CI runs as a privileged user only).
-
-Install the local browser QA dependency before running it manually:
-
-```bash
-npm ci --no-audit --no-fund
-npx playwright install chromium
-```
-
-Then run the same Playwright tests that CI uses against local always-on lanes:
-
-```bash
-BASE_URL=http://sw65.localhost:8088 SHOPWARE_REF=6.5.x ADMIN_BUILD_MODE=webpack npm run test:e2e:admin
-BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=webpack npm run test:e2e:admin
-BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk ADMIN_BUILD_MODE=vite npm run test:e2e:admin
-```
-
-6.6 Vite is still build-validated separately. Browser validation should run against the active 6.6
-administration runtime after that build:
-
-```bash
-BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x ADMIN_BUILD_MODE=vite npm run test:e2e:admin
-```
-
-`npm run test:e2e:local:all` intentionally uses one current 6.6 runtime. Do not treat it as proof
-for both 6.6 build modes unless the 6.6 admin was rebuilt between the webpack and Vite checks.
-
-Typical local runtime once the lane is already running and built:
-
-- admin Playwright project: about 60-120 seconds per lane
-- storefront Playwright project: about 15-45 seconds per lane
-- UCP API Playwright project: about 5-20 seconds per lane
-- all local browser/API E2E across 6.5, 6.6, and trunk: about 4-8 minutes
-
-Cold CI jobs remain slower because they also install Composer/NPM dependencies, build assets,
-compile themes, and bootstrap Shopware.
+The Agentic Commerce tab itself is covered by the `UcpAdmin` acceptance project. The browser review
+below is exploratory.
 
 ## Administration Browser Validation
 
@@ -316,13 +226,13 @@ If needed, reset inside the lane:
 bin/console user:change-password admin --password 'shopware'
 ```
 
-The module render, overview, detail, save, signing-key actions, and profile preview are asserted by
-the Playwright admin suite. Use the manual open for exploratory UX review:
+Use the manual open for exploratory UX review:
 
-- settings page shows the UCP entry in the expected settings group for the lane
-- direct route opens: `#/sw/settings/ucp/index`
-- overview renders real sales channels and the native sales-channel shortcut
-- profile preview renders the lane-aware transports
+- the Agentic Commerce tab renders on a storefront sales channel with the lane-aware transports
+- Storefront and Headless channels show the UCP tab to users with `ucp.viewer`
+- users with `ucp.viewer` but without `ucp.editor` see a read-only banner and disabled controls
+- users with `ucp.editor` can save UCP configuration without `sales_channel.editor`
+- Agentic Commerce Insights remain hidden without `ucp.viewer`, including direct navigation
 - browser console has no UCP runtime error
 - a Product Comparison and an Agentic Commerce channel show no UCP card, and saving their feed
   settings still succeeds
@@ -331,10 +241,12 @@ the Playwright admin suite. Use the manual open for exploratory UX review:
   is accepted
 - `ucp:channels` lists no feed channel, and
   `ucp:config:set --sales-channel <feed-channel-id> --active 1` exits non-zero
+- signing keys are managed with `ucp:signing-keys:{generate,list,show-public,retire,delete}` through
+  `bin/console`; there is no Administration signing-key interface
 
 ## Storefront Build Validation
 
-Use the storefront smoke script:
+Use the storefront build gate script:
 
 ```bash
 bin/ci-storefront-smoke.sh "$AGENTIC_COMMERCE_SHOPWARE_65_ROOT"
@@ -346,34 +258,7 @@ Expected result:
 
 - storefront JavaScript builds
 - active theme compiles
-- built storefront assets exist under `public/theme`
-- Playwright verifies homepage and `/checkout/cart` render after the build
-
-## Storefront Browser Validation
-
-Open:
-
-- `http://sw65.localhost:8088/`
-- `http://sw66.localhost:8088/`
-- `http://trunk.localhost:8088/`
-
-Verify:
-
-- homepage renders without white screen or asset errors
-- header, navigation, and cart shell are visible
-- `/checkout/cart` renders
-- after a storefront build, the live page still loads and stays interactive
-
-Or run the browser check directly against the local lane:
-
-```bash
-BASE_URL=http://sw65.localhost:8088 SHOPWARE_REF=6.5.x npm run test:e2e:storefront
-BASE_URL=http://sw66.localhost:8088 SHOPWARE_REF=6.6.x npm run test:e2e:storefront
-BASE_URL=http://trunk.localhost:8088 SHOPWARE_REF=trunk npm run test:e2e:storefront
-```
-
-If demo data exists, open a product detail page and verify add-to-cart. If the database is empty,
-validate the storefront shell and seed catalog data before commerce flow testing.
+- the homepage answers `200` and links a compiled theme stylesheet that is served
 
 ## Test Data
 
@@ -411,55 +296,14 @@ command created.
 
 ## Manual-Only Scenarios
 
-These seven scenarios are the core of this guide. CI cannot prove them — it asserts headers, runs
-JSON-RPC over curl, completes a checkout once, or runs as a single privileged user. A human must
-drive each one.
+The acceptance suite cannot prove these. A human must drive each one. Create products with
+[Test Data](#test-data) first if the lane database is empty.
 
-Seed a catalog first if the lane database is empty, either the single smoke product below or the
-full set from [Test Data](#test-data):
+### 1. Real MCP client
 
-```bash
-bin/console swag-agentic-commerce:seed-smoke-catalog --sales-channel-id=<sales-channel-id>
-bin/console sales-channel:list
-```
-
-### 1. Real-browser cross-origin iframe enforcement
-
-CI asserts only that the embedded cart response carries
-`content-security-policy: frame-ancestors ...` and omits `x-frame-options`. It does not run a real
-browser, so it cannot prove the browser actually enforces the policy.
-
-Steps:
-
-- Configure `embeddedAllowedOrigins`/`embeddedFrameAncestors` for the sales channel to include an
-  allowlisted parent origin.
-- Build a small parent HTML page served from that **allowlisted** origin that embeds the embedded
-  cart surface in an `<iframe>`. Open it in a real browser. Expected: the iframe renders, and the
-  postMessage bridge round-trips (parent receives bridge messages, child accepts parent messages).
-- Serve the same parent page from a **non-allowlisted** origin and open it. Expected: the browser
-  blocks the frame via the `frame-ancestors` CSP directive and logs a CSP violation in the console;
-  no bridge messages flow.
-- Check the token-hygiene headers and the CTA on the embedded response. The embedded URL contains
-  the cart/checkout context token, so it must not reach shared caches, search indexes, or a
-  third-party `Referer`:
-
-  ```bash
-  curl -sD- -o/dev/null "$BASE/ucp/embedded/checkout/$TOKEN" \
-    | grep -iE 'cache-control|referrer-policy|x-robots-tag'
-  curl -s "$BASE/ucp/embedded/checkout/$TOKEN" | grep -o 'rel="[^"]*"'
-  ```
-
-  Expected: `cache-control: no-store, private`, `referrer-policy: no-referrer`,
-  `x-robots-tag: noindex, nofollow`, and the continue-checkout CTA carrying
-  `rel="noopener noreferrer"`. The same request with no `Origin` header must still return `200` —
-  browsers omit `Origin` on iframe navigations, so a `403` here would break the feature in every
-  browser.
-
-### 2. Real MCP client
-
-CI initializes MCP via curl/JSON-RPC and skips the client-transport checks. A real MCP client must
-be exercised by hand (trunk only, and only once the Store API MCP endpoint from
-shopware/shopware#17228 is present so `/.well-known/ucp` advertises the `mcp` transport).
+The `UcpProtocol` acceptance project drives `/ucp/mcp` with its own JSON-RPC client. A third-party
+MCP client must be exercised by hand, on a lane whose `/.well-known/ucp` advertises the `mcp`
+transport.
 
 Steps:
 
@@ -468,47 +312,35 @@ Steps:
 - Invoke catalog, cart, checkout, and order tools through the client. Expected: the client lists the
   UCP shopping tools and each tool call returns a valid result over the real transport.
 
-### 3. Real external third-party platform-profile host (SSRF guard)
+### 2. Admin ACL / UX
 
-CI uses the localhost self-profile development shortcut only, so it cannot prove the remote-profile
-allowlist guards against a real external host.
+The `UcpAcl` acceptance project verifies these role-specific behaviors. Use manual accounts with the
+same role assignments when exploring the UI:
 
-Steps:
+- `ucp.viewer` and `ucp.key_rotator`: configuration controls and Save are disabled, and the
+  read-only banner is shown.
+- `ucp.editor` without `sales_channel.editor`: Save on the UCP tab persists only UCP configuration.
+- Users without a UCP role do not see the UCP tab or list column, and cannot read or write UCP
+  configuration.
+- Agentic Commerce Insights require `ucp.viewer`; product-comparison Insights keep their core
+  permission behavior.
 
-- Set `remoteProfileAllowlist` for the sales channel to a real external host that serves a UCP
-  profile.
-- Send a runtime request whose `UCP-Agent` profile is hosted on the **allowlisted** host:
+Verify that Save applies pending changes across sales channel tabs:
 
-  ```bash
-  curl -s -X POST http://sw65.localhost:8088/ucp/v1/catalog/search \
-    -H 'Content-Type: application/json' \
-    -H 'Idempotency-Key: manual-ssrf-allow-1' \
-    -H 'UCP-Agent: external-agent; profile="https://allowlisted.example/.well-known/ucp"' \
-    -d '{"query":"music","limit":3}' | jq .
-  ```
+- Use a user with `ucp.editor` and `sales_channel.editor`.
+- Change a UCP setting, an Agentic Files setting, and a Base, domain, or export setting.
+- Click Save on the UCP tab.
+- Use a fresh admin session or API read to confirm that all three changes persisted.
+- Repeat with Save on the Base tab and confirm the same result.
+- Enter an invalid sales channel setting.
+- Verify that Save on the UCP tab respects the same validation as the other tabs.
+- Activate UCP and verify that existing disabled files and custom content are preserved.
+- Change a file setting and save again to check that no duplicate is created.
 
-  Expected: the request is accepted and the profile is fetched.
+### 3. Real payment-tokenization handler
 
-- Repeat with a `UCP-Agent` profile hosted on a **non-allowlisted** host. Expected: the request is
-  rejected by the SSRF guard (no outbound fetch to the disallowed host).
-
-### 4. Admin ACL / UX
-
-CI runs the admin suite as a privileged user only. Verify the role matrix by logging in as users
-that hold exactly one of the UCP ACL roles.
-
-- `ucp.viewer`: save and signing-key actions are disabled; a read-only banner is shown.
-- `ucp.key_rotator`: can create, retire, and delete signing keys, but cannot save config.
-- `ucp.editor`: can save config.
-
-Also visually verify the signing-key management UX: the algorithm select, the `kid` input, and the
-retire/delete confirmation dialogs.
-
-### 5. Real payment-tokenization handler
-
-CI only checks the `501` stub. The acceptance suite expects at least one payment handler in the
-profile and stays red until one exists (known blocker D2). To prove the real path, install a real
-tokenizing payment handler (see
+The acceptance suite expects at least one payment handler in the profile and stays red until one
+exists (known blocker D2). To prove the real path, install a real tokenizing payment handler (see
 [docs/payment-tokenization-handler.md](payment-tokenization-handler.md) for the implementer
 checklist) and enable `payment_tokenization` for the sales channel.
 
@@ -527,48 +359,6 @@ Steps:
   ```
 
 - Complete a checkout that uses the token. Expected: a paid Shopware order is created.
-
-### 6. True concurrent checkout completion (the lock)
-
-CI completes a checkout once (single-shot). True concurrency is inherently flaky to automate, so
-verify the checkout lock by hand. Create and prepare a checkout session, then fire two `/complete`
-requests for the **same** checkout concurrently:
-
-```bash
-CHECKOUT_ID=<checkout-id>
-AGENT='UCP-Agent: manual-tester; profile="http://sw65.localhost:8088/.well-known/ucp"'
-for n in 1 2; do
-  curl -s -X POST "http://sw65.localhost:8088/ucp/v1/checkout-sessions/${CHECKOUT_ID}/complete" \
-    -H 'Content-Type: application/json' \
-    -H "Idempotency-Key: manual-concurrent-complete-${n}" \
-    -H "${AGENT}" \
-    -d "$(jq -cn --arg id "${CHECKOUT_ID}" '{id: $id, payment: {}}')" &
-done
-wait
-```
-
-Expected result:
-
-- exactly one Shopware order is created (no duplicate)
-- neither request returns a framework `500`
-- the second request returns the same completed result as the first
-
-### 7. Signed / strict-signature request verification
-
-The smoke runner sends **unsigned** requests, so it opts the lane into log-only verification and
-does not assert signed-request acceptance/rejection. Use the UCP conformance suite for signed
-positive/negative coverage — it signs its requests with the simulation secret:
-
-```bash
-bin/validate-ucp-store.sh http://sw65.localhost:8088 '' conformance
-bin/validate-ucp-store.sh http://sw66.localhost:8088 '' conformance
-bin/validate-ucp-store.sh http://trunk.localhost:8088 '' conformance
-```
-
-> **Important nuance:** flipping `signaturePolicy=strict` and sending a request with **no**
-> signature does _not_ get rejected on the runtime path — the SDK rejects _malformed_ signatures,
-> not _absent_ ones. Strict-rejection of an unsigned request is therefore **not** a valid manual
-> check. Use the conformance suite (which actually signs requests) for signed coverage.
 
 ## Failure Report Checklist
 
@@ -589,19 +379,10 @@ A lane passes manual validation when all are true:
 
 - plugin installs through Composer and activates
 - admin build for the lane succeeds
-- UCP administration module renders in browser (exploratory)
-- storefront build for the lane succeeds and the storefront UI renders
-- real-browser cross-origin iframe enforcement behaves correctly: embed renders
-  - bridge works on an allowlisted origin, browser blocks the frame with a CSP violation on a
-    non-allowlisted origin (scenario 1)
-- a real MCP client lists and invokes tools over `/ucp/mcp` on trunk when the endpoint is present
-  (scenario 2)
-- the remote-profile allowlist accepts an allowlisted external profile host and rejects a
-  non-allowlisted one (scenario 3)
-- admin ACL/UX matrix is correct for `ucp.viewer`, `ucp.editor`, and `ucp.key_rotator`, and the
-  signing-key UX renders (scenario 4)
+- the Agentic Commerce tab renders in the browser (exploratory)
+- storefront build for the lane succeeds
+- a real MCP client lists and invokes tools over `/ucp/mcp` where the endpoint is present
+  (scenario 1)
+- admin ACL/UX matrix is correct for `ucp.viewer`, `ucp.editor`, and `ucp.key_rotator` (scenario 2)
 - with a real tokenizing handler installed, the profile advertises it, `tokenize` returns a token,
-  and a paid order completes (scenario 5)
-- concurrent `/complete` requests produce exactly one order with no duplicate and no `500`
-  (scenario 6)
-- the conformance suite passes for signed positive/negative coverage (scenario 7)
+  and a paid order completes (scenario 3)

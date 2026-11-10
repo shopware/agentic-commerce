@@ -41,6 +41,12 @@ export class AgenticCommerceFeedDetail {
         await this.expectLoaded();
     }
 
+    /** Switches to the General tab in place; reopening the route would rebuild the page and drop its field errors. */
+    async switchToGeneralTab(): Promise<void> {
+        await this.page.locator('.sw-sales-channel-detail-__tabs').getByText('General', { exact: true }).click();
+        await expect(this.returnPolicyUrl).toBeVisible();
+    }
+
     /** 6.5 renders the template select as a native `<select>`, later lanes as a Meteor select. */
     async chooseTemplate(templateName: 'open_ai' | 'google'): Promise<void> {
         await expect(this.templateSelect).toBeVisible();

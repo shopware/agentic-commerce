@@ -1,7 +1,7 @@
 name: PHP
 
-# PHP quality, the Shopware lanes (smoke incl. the strict signature stage, integration and
-# functional suites, UCP e2e), the MySQL 8.4 install and the advisory checks.
+# PHP quality, the Shopware lanes (smoke, integration and functional suites), the MySQL 8.4
+# install and the advisory checks.
 
 on:
   workflow_call:
@@ -30,6 +30,7 @@ env:
   SHOPWARE_TRUNK_REF: ${{ inputs.shopware_trunk_ref || vars.SHOPWARE_TRUNK_REF || 'trunk' }}
   SHOPWARE_6714_REF: ${{ vars.SHOPWARE_6714_REF || '6.7.14.x' }}
   PHPSTAN_SHOPWARE_VERSION: '0.2.4'
+  PHPSTAN_DEPRECATION_RULES_VERSION: '2.0.5'
 
 permissions:
   contents: read
@@ -44,8 +45,10 @@ jobs:
         include:
           - lane: 'php-8.1'
             php-version: '8.1'
+          # The reference lane: the only one whose unit coverage feeds the coverage floor.
           - lane: 'php-8.2'
             php-version: '8.2'
+            coverage: pcov
           # Future-compatibility rules inspect the upcoming core API annotations, which are
           # available only on trunk.
           - lane: 'trunk'
@@ -76,7 +79,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          coverage: none
+          coverage: ${{ matrix.coverage || 'none' }}
       - uses: actions/checkout@v6
         with:
           repository: shopware/shopware
@@ -99,6 +102,22 @@ jobs:
         working-directory: agentic-commerce
         env:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+      # The scope is <source> in phpunit.xml.dist. Uncovered files count, so new code that no test
+      # loads lowers the figure.
+      - name: Unit coverage
+        if: matrix.coverage
+        run: php bin/run.php phpunit --testsuite unit --coverage-clover coverage/php/clover.xml
+        working-directory: agentic-commerce
+        env:
+          SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
+      - name: Upload unit coverage
+        if: matrix.coverage
+        uses: actions/upload-artifact@v6
+        with:
+          name: php-unit-coverage
+          path: agentic-commerce/coverage/php/clover.xml
+          if-no-files-found: error
+          retention-days: 7
 
   # What Shopware trunk will require of this plugin, against the SDK release the plugin pins.
   #
@@ -126,7 +145,11 @@ jobs:
         working-directory: agentic-commerce
       - name: Install opt-in future compatibility rules
         # Do not enable phpstan-shopware's default rules.neon via its extension installer.
-        run: composer require --dev "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}" --no-interaction --no-plugins
+        # The deprecation rules fail the job on calls core already deprecated for the next major.
+        run: >-
+          composer require --dev --no-interaction --no-plugins
+          "shopwarelabs/phpstan-shopware:${PHPSTAN_SHOPWARE_VERSION}"
+          "phpstan/phpstan-deprecation-rules:${PHPSTAN_DEPRECATION_RULES_VERSION}"
         working-directory: agentic-commerce
       - run: php bin/run.php phpstan analyse --memory-limit=1G -c phpstan.neon
         working-directory: agentic-commerce
@@ -136,11 +159,10 @@ jobs:
   # The early warning that used to be spread across every gate job: does this plugin still build
   # against the SDK's moving main branch, before that branch becomes a release the plugin pins?
   #
-  # Deliberately the only job that stages an SDK checkout and relabels it as the pinned version,
-  # and deliberately non-blocking. A path repository pointed at main and labelled `0.0.7` tests a
-  # branch wearing a release's version number, which is not what any merchant installs -- and
-  # when main moved to require a newer `core`, that relabelling turned this repository's main red
-  # for five days and would have done the same to every open pull request at once. The warning is
+  # Deliberately the only job that stages an SDK checkout, and deliberately non-blocking: it tests a
+  # branch, which is not what any merchant installs. Main is labelled as a version above every
+  # release, not as the pinned one: labelled `0.0.7`, it broke as soon as main required a newer
+  # `core`, which happens with every SDK release, and turned this repository's main red. The warning is
   # worth having; it is not worth blocking merges on, so the job is continue-on-error.
   # Read it, and open an SDK issue -- do not let it stop a merge.
   sdk-main-compatibility:
@@ -166,10 +188,13 @@ jobs:
           path: shopware
       - run: bash bin/ci-link-shopware.sh ../shopware
         working-directory: agentic-commerce
-      - name: Configure private SDK path repositories
+      - name: Stage SDK main as a version newer than any release
+        # Above every released 0.0.x and inside the bundle's `<0.1.0` range, so SDK releases need no edit here.
         run: |
-          composer config repositories.ucp-sdk-core '{"type":"path","url":"../ucp-php-sdk/packages/core","options":{"symlink":false,"versions":{"ucp-php-sdk/core":"0.0.7"}}}'
-          composer config repositories.ucp-sdk-symfony '{"type":"path","url":"../ucp-php-sdk/packages/symfony-bundle","options":{"symlink":false,"versions":{"ucp-php-sdk/symfony-bundle":"0.0.7"}}}'
+          V=0.0.999
+          composer config repositories.ucp-sdk-core "{\"type\":\"path\",\"url\":\"../ucp-php-sdk/packages/core\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/core\":\"$V\"}}}"
+          composer config repositories.ucp-sdk-symfony "{\"type\":\"path\",\"url\":\"../ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":false,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"$V\"}}}"
+          composer require --no-update "ucp-php-sdk/core:$V" "ucp-php-sdk/symfony-bundle:$V"
         working-directory: agentic-commerce
       - run: composer install --no-interaction --prefer-dist
         working-directory: agentic-commerce
@@ -263,13 +288,6 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || matrix.lane == '6.7.14.x' && env.SHOPWARE_6714_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: agentic-commerce/package-lock.json
-      - run: npm ci --no-audit --no-fund
-        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
@@ -281,8 +299,6 @@ jobs:
           # to the phpunit major), covering lane-specific behavior everywhere the smoke runs.
           CI_SMOKE_RUN_PHPUNIT: '1'
           CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
-          # The e2e step below runs against this stack.
-          CI_SMOKE_KEEP_STACK: '1'
       - name: Upload Composer advisory report
         if: always()
         uses: actions/upload-artifact@v6
@@ -291,11 +307,6 @@ jobs:
           path: composer-audit.json
           if-no-files-found: ignore
           retention-days: 7
-      - run: npm run test:e2e:ucp -- --reporter=list
-        working-directory: agentic-commerce
-        env:
-          BASE_URL: http://localhost:8000
-          SHOPWARE_REF: ${{ matrix.lane }}
 
   # Non-blocking through continue-on-error (see CONTRIBUTING.md, Composer advisory reporting).
   composer-security-report:

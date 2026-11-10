@@ -17,13 +17,15 @@ local lane tooling.
 | Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths       | Vite assets                                                  |
 | Discovery support                          | unavailable                          | unavailable                              | available only when the trunk bridge exists                  |
 | MCP transport                              | never                                | never                                    | from 6.7.12, see [MCP Tool Visibility](#mcp-tool-visibility) |
+| URL field reports a cleared value          | no                                   | from `6.6.9.0`                           | yes                                                          |
 | Local PHP runtime                          | `8.2`                                | `8.3`                                    | `8.4`                                                        |
 
 ## MCP Tool Visibility
 
 The MCP transport is offered when core's `StoreApiMcpServerController` exists (first in
 `v6.7.12.0`), and on 6.7.12 and 6.7.13 only with the `MCP_SERVER` feature flag active.
-`/.well-known/ucp` advertises it on exactly those lines, which `bin/ci-smoke.sh` asserts.
+`/.well-known/ucp` advertises it on exactly those lines, which the `UcpProtocol` acceptance project
+(`mcp.spec.ts`) asserts.
 
 The UCP MCP tools belong to the `ucp` toolset, not to core's `discovery` group, whose tools are
 listed on every Store API session. What the first `tools/list` of a fresh session contains:
@@ -68,8 +70,8 @@ listed on every Store API session. What the first `tools/list` of a fresh sessio
   `src/Resources/app/administration/src/*` is already correct.
 - `6.5` does not expose the newer `commerce` settings group in the same way as `trunk`. UCP must
   fall back to `shop`.
-- Browser validation is mandatory. A green webpack build alone does not prove the module is correct
-  on `6.5`.
+- A green webpack build alone does not prove the module is correct on `6.5`. The `UcpAdmin`
+  acceptance project checks it in a browser.
 - The local storefront dependency install can fail on arm64 because Puppeteer tries to download
   Chromium during `npm install`.
 - For `6.5` storefront dependency installation, set:
@@ -84,8 +86,9 @@ listed on every Store API session. What the first `tools/list` of a fresh sessio
   - `vite`
 - UCP settings placement still needs the `shop` fallback unless the lane exposes the `commerce`
   group.
-- Browser validation must be done after both build modes at least once, because a module can build
-  in one mode and break in the other.
+- A module can build in one mode and break in the other. The 6.6 acceptance lane builds with the
+  lane's default tool only, so a change that depends on the build mode needs a browser check in the
+  other mode too.
 
 ### trunk
 
@@ -93,8 +96,7 @@ listed on every Store API session. What the first `tools/list` of a fresh sessio
 - UCP belongs under the `commerce` settings group.
 - Meteor `mt-card` layout behavior is common here, so spacing fixes must target both `sw-card` and
   `mt-card`.
-- Browser validation on `trunk` is still required, but it is usually the most truthful lane for
-  current UX work.
+- `trunk` is usually the most truthful lane for current UX work.
 
 ## Sales Channel Page Differences
 

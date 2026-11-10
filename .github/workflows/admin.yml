@@ -51,7 +51,8 @@ jobs:
         with:
           name: admin-jest-coverage
           path: agentic-commerce/tests/jest/administration/coverage
-          if-no-files-found: warn
+          # ci.yml's coverage job reads the cobertura report from here.
+          if-no-files-found: error
           retention-days: 7
 
   admin-matrix:
@@ -79,29 +80,12 @@ jobs:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - run: npm ci --no-audit --no-fund
-        working-directory: agentic-commerce
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('agentic-commerce/package-lock.json') }}
-      - name: Install Playwright browser + system deps (cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
-        working-directory: agentic-commerce
-      - name: Install Playwright system deps (cached browser)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-        working-directory: agentic-commerce
       - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-admin-smoke.sh agentic-commerce/bin/ci-write-compose.sh
       - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
       - run: agentic-commerce/bin/ci-admin-smoke.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.mode }}"
         env:
           SHOPWARE_REF: ${{ matrix.lane }}
           CI_ADMIN_BOOTSTRAP_MODE: cold
-          CI_ADMIN_BROWSER_VALIDATE: 1
           CI_ADMIN_KEEP_STACK: 0
 
   admin-check:

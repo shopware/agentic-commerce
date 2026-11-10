@@ -122,7 +122,7 @@ function renderPhpstanConfig(string $pluginDir): string
     $rendered = strtr($template, [
         '__SHOPWARE_CORE_DIR__' => $coreDir,
         '__SHOPWARE_PHPSTAN_INCLUDES__' => renderShopwarePhpstanIncludes($coreDir, $withCoreConfig),
-        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir),
+        '__FUTURE_COMPATIBILITY_INCLUDE__' => renderFutureCompatibilityInclude($pluginDir, $vendorDir),
         '__SHOPWARE_PHPSTAN_PARAMETERS__' => renderShopwarePhpstanParameters($coreDir, $withCoreConfig),
         '__SHOPWARE_UNEXPECTED_TEST_COVERS_IGNORE__' => renderUnexpectedTestCoversIgnore($coreDir, $withCoreConfig),
         '__PHPSTAN_TMP_DIR__' => $tmpDir,
@@ -237,11 +237,19 @@ function renderShopwarePhpstanIncludes(string $coreDir, bool $withCoreConfig): s
     ]);
 }
 
-function renderFutureCompatibilityInclude(string $pluginDir): string
+function renderFutureCompatibilityInclude(string $pluginDir, string $vendorDir): string
 {
-    $rules = $pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon';
+    $includes = [$pluginDir.'/.tools/vendor/shopwarelabs/phpstan-shopware/future-compatibility.neon'];
+    // Only from the plugin's own tree, which never runs phpstan/extension-installer. A Shopware dev
+    // install registers these itself, and a second registration makes PHPStan refuse to start.
+    if ($vendorDir === $pluginDir.'/.tools/vendor') {
+        $includes[] = $vendorDir.'/phpstan/phpstan-deprecation-rules/rules.neon';
+    }
 
-    return is_file($rules) ? '    - '.$rules : '';
+    return implode("\n", array_map(
+        static fn (string $rules): string => '    - '.$rules,
+        array_filter($includes, 'is_file'),
+    ));
 }
 
 function renderShopwarePhpstanParameters(string $coreDir, bool $withCoreConfig): string

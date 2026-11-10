@@ -116,7 +116,10 @@ final class ShopwareOrderGatewayTest extends TestCase
         )));
     }
 
-    public static function majorFeatureFlagProvider(): \Generator
+    /**
+     * @return iterable<string, array{list<string>}>
+     */
+    public static function majorFeatureFlagProvider(): iterable
     {
         yield 'the current major' => [[]];
         yield 'the next major, whose deprecations throw' => [['v6.8.0.0']];

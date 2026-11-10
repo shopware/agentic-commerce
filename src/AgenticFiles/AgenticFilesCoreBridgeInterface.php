@@ -10,7 +10,7 @@ use Shopware\Core\Framework\Log\Package;
 #[Package('discovery')]
 interface AgenticFilesCoreBridgeInterface
 {
-    public function enableForSalesChannel(string $salesChannelId): void;
+    public function initializeForSalesChannel(string $salesChannelId): void;
 
     public function syncActiveUcpSalesChannels(): void;
 }

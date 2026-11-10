@@ -3,6 +3,7 @@ import {
     isVersionAtLeast,
     currentAdminVersion,
     useMtComponents,
+    urlFieldReportsClearedValue,
 } from './admin-version';
 
 describe('agentic-commerce/admin-version', () => {
@@ -62,6 +63,19 @@ describe('agentic-commerce/admin-version', () => {
 
         it('falls back to legacy when the version is unknown', () => {
             expect(useMtComponents('')).toBe(false);
+        });
+    });
+
+    describe('urlFieldReportsClearedValue', () => {
+        it.each([
+            ['6.6.9.0', true],
+            ['6.6.10.1', true],
+            ['6.7.9999999.9999999', true],
+            ['6.6.8.2', false],
+            ['6.5.8.19', false],
+            ['', false],
+        ])('%s → %p, since core reports a cleared url field from 6.6.9.0', (version, expected) => {
+            expect(urlFieldReportsClearedValue(version)).toBe(expected);
         });
     });
 

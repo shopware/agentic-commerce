@@ -1,10 +1,11 @@
 import { satisfies } from 'compare-versions';
 import { expect, test } from '@fixtures/AcceptanceTest';
+import { fetchChannelFileText } from '@services/discovery';
 import { CORE_SERVES_NO_UPPERCASE_AGENTS_MD, FALLBACK_DROPS_FILES_WITHOUT_UCP } from './knownBlockerRanges';
 
 const DISCOVERY_FILE_CONTENT_TYPES = {
-    'llms.txt': 'text/plain',
-    'agents.md': 'text/markdown',
+    'llms.txt': 'text/plain; charset=utf-8',
+    'agents.md': 'text/markdown; charset=utf-8',
     '.well-known/ai-catalog.json': 'application/json',
 };
 
@@ -34,6 +35,19 @@ test.describe('Agentic discovery files @UcpContent', () => {
         }
     });
 
+    test('a UCP-active channel on its own host links its UCP profile and agent instructions and describes its localization', async ({ TestDataService, browser }) => {
+        const ownHostUcpChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
+        await TestDataService.activateUcp(ownHostUcpChannel.salesChannel.id);
+
+        const llmsTxt = await fetchChannelFileText(browser, ownHostUcpChannel.url, 'llms.txt');
+        expect(llmsTxt).toContain(`- [UCP profile](${UCP_PROFILE_PATH})`);
+        expect(llmsTxt).toContain('- [Agent instructions](/AGENTS.md)');
+        expect(llmsTxt).toMatch(/^## Localization\n+- Current language: /m);
+
+        const agentsMd = await fetchChannelFileText(browser, ownHostUcpChannel.url, 'agents.md');
+        expect(agentsMd).toContain('## Agentic commerce via UCP');
+    });
+
     test('/AGENTS.md serves the same document as /agents.md', async ({ InstanceMeta, TestDataService, request }) => {
         test.skip(satisfies(InstanceMeta.version, CORE_SERVES_NO_UPPERCASE_AGENTS_MD), 'known blocker D10, asserted in tests/KnownBlocked/discovery-files.spec.ts');
         const ucpChannel = await TestDataService.createStorefrontSalesChannel();
@@ -43,7 +57,7 @@ test.describe('Agentic discovery files @UcpContent', () => {
         const lowerCaseFileResponse = await request.get(`${ucpChannel.url}agents.md`);
 
         expect(upperCaseFileResponse.status(), await upperCaseFileResponse.text()).toBe(200);
-        expect(upperCaseFileResponse.headers()['content-type']).toContain('text/markdown');
+        expect(upperCaseFileResponse.headers()['content-type']).toContain(DISCOVERY_FILE_CONTENT_TYPES['agents.md']);
         expect(await upperCaseFileResponse.text()).toBe(await lowerCaseFileResponse.text());
     });
 

@@ -16,6 +16,7 @@ use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
 use Shopware\Core\Checkout\Cart\Price\Struct\CartPrice;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
+use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Promotion\Cart\PromotionCartAddedInformationError;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -27,6 +28,7 @@ use Ucp\Sdk\Enum\UcpProtocolVersion;
 use Ucp\Sdk\Enum\UcpResponseStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Internal\Validation\GeneratedSchemaValidator;
+use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Protocol\UcpEnvelope;
 use Ucp\Sdk\Model\Protocol\UcpOperationPayload;
 use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
@@ -79,6 +81,7 @@ final class UcpResponseSchemaTest extends TestCase
         yield 'checkout.get' => ['checkout.get.response'];
         yield 'checkout.update' => ['checkout.update.response'];
         yield 'checkout.create' => ['checkout.create.response'];
+        yield 'checkout.cancel' => ['checkout.cancel.response'];
     }
 
     #[DataProvider('checkoutOperationProvider')]
@@ -94,6 +97,57 @@ final class UcpResponseSchemaTest extends TestCase
         );
 
         $this->assertValidates($schema, $checkout, UcpCapability::Checkout);
+    }
+
+    #[DataProvider('checkoutOperationProvider')]
+    #[Test]
+    public function testACheckoutCarryingLegalLinksValidatesAgainstItsResponseSchema(string $schema): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $this->cartWithoutPromotion(),
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+            null,
+            'https://example.com/checkout/cart-token',
+            legalLinks: $this->legalLinks(),
+        );
+
+        self::assertCount(5, $checkout->links);
+        $this->assertValidates($schema, $checkout, UcpCapability::Checkout);
+    }
+
+    #[Test]
+    public function testACompletedCheckoutCarryingLegalLinksValidatesAgainstTheCompleteResponseSchema(): void
+    {
+        $order = new OrderEntity();
+        $order->setId('99999999999999999999999999999999');
+        $order->setPrice(new CartPrice(10.0, 10.0, 10.0, new CalculatedTaxCollection(), new TaxRuleCollection(), CartPrice::TAX_STATE_GROSS));
+        $order->setShippingCosts(new CalculatedPrice(0.0, 0.0, new CalculatedTaxCollection(), new TaxRuleCollection()));
+
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $order,
+            'cart-token',
+            'EUR',
+            'https://example.com/checkout/cart-token',
+            orderPermalinkUrl: 'https://example.com/ucp/v1/orders/99999999999999999999999999999999',
+            legalLinks: $this->legalLinks(),
+        );
+
+        self::assertCount(5, $checkout->links);
+        $this->assertValidates('checkout.complete.response', $checkout, UcpCapability::Checkout);
+    }
+
+    /**
+     * @return list<Link>
+     */
+    private function legalLinks(): array
+    {
+        return [
+            new Link('terms_of_service', 'https://example.com/page/cms/0190a1b2c3d4e5f60718293a4b5c6d7e', 'Terms of Service'),
+            new Link('privacy_policy', 'https://example.com/page/cms/0190a1b2c3d4e5f60718293a4b5c6d7f', 'Privacy Policy'),
+            new Link('refund_policy', 'https://example.com/page/cms/0190a1b2c3d4e5f60718293a4b5c6d80', 'Refund Policy'),
+            new Link('shipping_policy', 'https://example.com/page/cms/0190a1b2c3d4e5f60718293a4b5c6d81', 'Shipping Policy'),
+        ];
     }
 
     #[Test]
