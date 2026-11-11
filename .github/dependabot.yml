@@ -1,7 +1,8 @@
 version: 2
 updates:
-  # Workflows and the composite actions in .github/actions/*. All references are major tags, so
-  # every update here is a major. One group keeps upload/download-artifact pairs in lockstep.
+  # Workflows and the composite actions in .github/actions/*. One group keeps
+  # upload/download-artifact pairs in lockstep. The shared workflow in version-bump-notify.yml is
+  # called at @main, which no update reaches.
   # store-release.yml and coverage-floor.yml are not exercised by PR CI: verify them after merge.
   - package-ecosystem: "github-actions"
     directories:
@@ -28,7 +29,7 @@ updates:
       default-days: 7
     groups:
       # Families that must move together across majors. No update-types, and listed before the
-      # catch-all, so they win under both first-match and pattern specificity.
+      # catch-all, so the first match puts them here.
       lint:
         patterns: ["eslint", "@eslint/*", "eslint-plugin-*", "typescript-eslint", "@typescript-eslint/*", "globals"]
       jest:
@@ -69,6 +70,8 @@ updates:
         patterns: ["*"]
 
   # No composer.lock: only constraints move, so in practice only majors of dev tools.
+  # Not covered on purpose: vendor-bin/roave-backward-compatibility-check (advisory bc-check only)
+  # and .github/diff-cover-requirements.txt (hash-pinned by hand).
   - package-ecosystem: "composer"
     directory: "/"
     schedule:
