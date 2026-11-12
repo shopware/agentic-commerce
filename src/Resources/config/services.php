@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Doctrine\DBAL\Connection;
 use GuzzleHttp\Client;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartDeleteRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartItemAddRoute;
@@ -153,6 +154,7 @@ use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
+use Swag\AgenticCommerce\Ucp\Storage\SdkStorageConnectionFactory;
 use Swag\AgenticCommerce\Ucp\Test\Api\TestWebhookController;
 use Swag\AgenticCommerce\Ucp\Test\WebhookCaptureStore;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -230,6 +232,12 @@ return static function (ContainerConfigurator $container): void {
         ->autowire()
         ->autoconfigure()
         ->private();
+
+    // Replaces the SDK's DSN-only storage connection, which ignores DATABASE_SSL_*; see SdkStorageConnectionFactory.
+    $services->set('ucp_sdk.connection', Connection::class)
+        ->factory([SdkStorageConnectionFactory::class, 'create'])
+        ->args([service(Connection::class)])
+        ->tag('kernel.reset', ['method' => 'close']);
 
     $services->load('Swag\\AgenticCommerce\\', __DIR__.'/../../*')
         ->exclude([
