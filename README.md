@@ -164,9 +164,7 @@ expose UCP.
   platform allowlist then holds the pre-approved platforms. `listed` accepts only the platforms on
   the allowlist, and with an empty list only agents on the shop's own host. A sales channel set up
   for UCP from now on starts with `all`; one that already had UCP settings stays on `listed`. This
-  is the _Who may buy through UCP_ setting in the Administration. Under `all`, a platform that is
-  not listed gets no order webhooks yet, because webhook targets are still checked against the
-  allowlists.
+  is the _Who may buy through UCP_ setting in the Administration.
 - `--agent-allowlist`, `--remote-profile-allowlist`, `--platform-allowlist` — bare hosts, no scheme
   (repeatable). The platform allowlist is also the _Allowed agent platforms_ field in the
   Administration, named _Pre-approved agent platforms_ under _All platforms_. The agent and
@@ -206,9 +204,10 @@ from the UCP profile instead of returning dead links. MCP is only advertised whe
 has the required Store API MCP infrastructure; REST, A2A, and embedded routes stay on the shared SDK
 capability layer.
 
-Every UCP sales channel has its own tenant configuration. The default setup is intentionally closed:
-profile exposure must be enabled for the channel, remote platform/profile hosts must be allowlisted
-where configured, and embedded pages require both `embeddedAllowedOrigins` and
+Every UCP sales channel has its own tenant configuration. Profile exposure must be enabled for the
+channel. A channel switched on in the Administration then accepts every agent platform with a valid
+profile; `--platform-policy=listed`, which `ucp:setup` sets, accepts only the allowlisted platform
+hosts. Embedded pages stay closed in both cases: they require both `embeddedAllowedOrigins` and
 `embeddedFrameAncestors`. Until both are configured, every embedded request returns a controlled
 `403` UCP response.
 
