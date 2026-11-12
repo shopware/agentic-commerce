@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Mcp\Schema\Result\CallToolResult;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
@@ -23,7 +24,7 @@ final class UcpCheckoutGetTool
     ) {
     }
 
-    public function __invoke(string $id): string
+    public function __invoke(string $id): CallToolResult|string
     {
         try {
             return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(

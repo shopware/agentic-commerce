@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Capability\Attribute\Schema;
+use Mcp\Schema\Result\CallToolResult;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
@@ -37,7 +38,7 @@ final class UcpCheckoutCompleteTool
      * @param UcpMcpNestedJsonObject $payload
      */
     #[Schema(properties: ['payload' => ['type' => 'object', 'default' => new \stdClass()]])]
-    public function __invoke(string $id, array $payload = [], bool $dryRun = true): string
+    public function __invoke(string $id, array $payload = [], bool $dryRun = true): CallToolResult|string
     {
         try {
             $requestPayload = $this->completionPayment->apply($payload);
@@ -74,7 +75,7 @@ final class UcpCheckoutCompleteTool
      *
      * @param UcpMcpNestedJsonObject $requestPayload
      */
-    private function preview(string $id, array $requestPayload, RequestContext $context): string
+    private function preview(string $id, array $requestPayload, RequestContext $context): CallToolResult
     {
         $this->protocolValidator->validateRequest('checkout.complete', $requestPayload, $context);
 
