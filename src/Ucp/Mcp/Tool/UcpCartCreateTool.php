@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Capability\Attribute\Schema;
+use Mcp\Schema\Result\CallToolResult;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
@@ -33,7 +34,7 @@ final class UcpCartCreateTool
      * @param UcpMcpNestedJsonObject $payload
      */
     #[Schema(properties: ['payload' => ['type' => 'object', 'default' => new \stdClass()]])]
-    public function __invoke(array $payload = [], bool $dryRun = true): string
+    public function __invoke(array $payload = [], bool $dryRun = true): CallToolResult|string
     {
         try {
             $requestPayload = $payload;

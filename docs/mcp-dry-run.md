@@ -24,14 +24,30 @@ Read-only already, so no `dryRun`: `cart-get`, `catalog-lookup`, `catalog-search
 
 ## Response shape
 
-A rolled-back dry run returns the real operation result, flagged:
+A tool answers the way the MCP binding of UCP defines it: `structuredContent` is the UCP response
+itself, exactly as REST returns it, and the first text block is that response as JSON. The dry-run
+flag is not part of the UCP response, so it goes into the result's `_meta` as `shopware/dryRun` and
+into a second text block, which is what most clients show the model. A rolled-back dry run returns
+the real operation result, flagged:
 
 ```json
-{ "success": true, "dryRun": true, "data": { "…": "the operation result" } }
+{
+  "content": [
+    { "type": "text", "text": "{\"ucp\":{…},\"id\":\"…\",\"status\":\"…\"}" },
+    { "type": "text", "text": "{\"_meta\":{\"dryRun\":true}}" }
+  ],
+  "structuredContent": { "ucp": { "…": "…" }, "id": "…", "status": "…" },
+  "_meta": { "shopware/dryRun": true }
+}
 ```
 
-A commit returns the same envelope with `"dryRun": false`. The flag is always present on a mutating
-tool so an agent can never be in doubt about whether it committed. Read-only tools omit it entirely.
+A commit returns the same result with `false`. The flag is always present on a mutating tool so an
+agent can never be in doubt about whether it committed. Read-only tools omit it, the second text
+block and `_meta` entirely.
+
+The tools build this result themselves, so Shopware and the MCP SDK pass it on unchanged on
+every MCP protocol revision. A failure is still the `{"success": false, "error": {…}}` envelope,
+which Shopware renders.
 
 ## Why `checkout-complete` is different
 
@@ -50,17 +66,18 @@ preview to `UcpMcpToolContext::executeMutating()` as a callback rather than bran
 call, so it is still the one entry point every mutating tool goes through — see
 [Idempotency](#idempotency):
 
+`structuredContent` and the first text block are the current checkout. The result's `_meta` and the
+second text block carry the preview:
+
 ```json
 {
-  "success": true,
-  "dryRun": true,
-  "preview": {
+  "shopware/dryRun": true,
+  "shopware/preview": {
     "operation": "checkout.complete",
     "committed": false,
     "wouldSucceed": false,
     "blockers": ["Checkout is incomplete: finish it with update_checkout before completing."]
-  },
-  "data": { "…": "the current checkout" }
+  }
 }
 ```
 

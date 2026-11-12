@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
+use Mcp\Schema\Content\TextContent;
+use Mcp\Schema\Result\CallToolResult;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -134,7 +136,7 @@ final class UcpMcpToolContextTest extends TestCase
             },
         );
 
-        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['ok' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertUcpResult(['ok' => true], ['dryRun' => false], $result);
     }
 
     #[Test]
@@ -165,7 +167,7 @@ final class UcpMcpToolContextTest extends TestCase
             static fn (): array => ['cancelled' => true],
         );
 
-        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['cancelled' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertUcpResult(['cancelled' => true], ['dryRun' => false], $result);
     }
 
     #[Test]
@@ -203,7 +205,7 @@ final class UcpMcpToolContextTest extends TestCase
         );
 
         self::assertFalse($executed);
-        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['stored' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertUcpResult(['stored' => true], ['dryRun' => false], $result);
     }
 
     #[Test]
@@ -552,10 +554,7 @@ final class UcpMcpToolContextTest extends TestCase
         );
 
         self::assertTrue($executed, 'A dry run must still run the operation, otherwise it validates nothing.');
-        self::assertSame(
-            ['success' => true, 'dryRun' => true, 'data' => ['id' => 'cart-id']],
-            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
-        );
+        self::assertUcpResult(['id' => 'cart-id'], ['dryRun' => true], $result);
     }
 
     #[Test]
@@ -573,10 +572,7 @@ final class UcpMcpToolContextTest extends TestCase
             idempotencyService: $idempotencyService,
         )->executeMutating('cart.cancel', ['id' => 'cart-id'], static fn (): array => ['cancelled' => true], true);
 
-        self::assertSame(
-            ['success' => true, 'dryRun' => true, 'data' => ['cancelled' => true]],
-            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
-        );
+        self::assertUcpResult(['cancelled' => true], ['dryRun' => true], $result);
     }
 
     #[Test]
@@ -612,7 +608,7 @@ final class UcpMcpToolContextTest extends TestCase
                 self::fail('A dry run must not execute the operation.');
             },
             true,
-            static function (): string {
+            static function (): CallToolResult {
                 self::fail('A preview must fail the same validation a commit would.');
             },
         );
@@ -625,6 +621,7 @@ final class UcpMcpToolContextTest extends TestCase
         $connection->expects(self::never())->method('beginTransaction');
 
         $requestContext = $this->requestContext(idempotencyRequired: false);
+        $preview = new CallToolResult([new TextContent('{"id":"checkout-id"}')]);
 
         $result = $this->toolContext($requestContext, connection: $connection)->executeMutating(
             'checkout.complete',
@@ -633,14 +630,14 @@ final class UcpMcpToolContextTest extends TestCase
                 self::fail('A previewed operation must never run: its webhook cannot be rolled back.');
             },
             true,
-            static function (RequestContext $context) use ($requestContext): string {
+            static function (RequestContext $context) use ($requestContext, $preview): CallToolResult {
                 self::assertSame($requestContext, $context, 'The preview must receive the checked context.');
 
-                return '{"success":true,"dryRun":true,"preview":{}}';
+                return $preview;
             },
         );
 
-        self::assertSame('{"success":true,"dryRun":true,"preview":{}}', $result);
+        self::assertSame($preview, $result);
     }
 
     #[Test]
@@ -651,6 +648,8 @@ final class UcpMcpToolContextTest extends TestCase
         $idempotencyService->expects(self::never())->method('complete');
         $idempotencyService->expects(self::never())->method('abort');
 
+        $preview = new CallToolResult([new TextContent('{"previewed":true}')]);
+
         $result = $this->toolContext(
             $this->requestContext(idempotencyRequired: true, idempotencyKey: 'idem-key'),
             idempotencyService: $idempotencyService,
@@ -659,10 +658,10 @@ final class UcpMcpToolContextTest extends TestCase
             ['id' => 'checkout-id'],
             static fn (): array => ['completed' => true],
             true,
-            static fn (): string => '{"previewed":true}',
+            static fn (): CallToolResult => $preview,
         );
 
-        self::assertSame('{"previewed":true}', $result);
+        self::assertSame($preview, $result);
     }
 
     #[Test]
@@ -707,7 +706,28 @@ final class UcpMcpToolContextTest extends TestCase
     {
         $result = $this->toolContext($this->requestContext())->success(['products' => []]);
 
-        self::assertSame(['success' => true, 'data' => ['products' => []]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertUcpResult(['products' => []], [], $result);
+    }
+
+    #[Test]
+    public function testSuccessReturnsTheUcpResponseUnwrapped(): void
+    {
+        // The UCP MCP binding: structuredContent is the UCP response itself, and the text
+        // compatibility block is that response serialized. No {"success": …} wrapper and no
+        // tool metadata may sit next to the UCP keys.
+        $response = [
+            'ucp' => ['version' => '2026-08-25', 'status' => 'success'],
+            'id' => 'checkout-id',
+            'status' => 'incomplete',
+        ];
+
+        $result = $this->toolContext($this->requestContext())->success($response, false);
+
+        self::assertFalse($result->isError);
+        self::assertSame($response, $result->structuredContent);
+        self::assertInstanceOf(TextContent::class, $result->content[0]);
+        self::assertSame(json_encode($response, \JSON_THROW_ON_ERROR), $result->content[0]->text);
+        self::assertSame(['shopware/dryRun' => false], $result->meta);
     }
 
     #[Test]
@@ -722,8 +742,7 @@ final class UcpMcpToolContextTest extends TestCase
             ['Checkout is incomplete.'],
         );
 
-        self::assertSame([
-            'success' => true,
+        self::assertUcpResult(['id' => 'checkout-id', 'status' => 'incomplete'], [
             'dryRun' => true,
             'preview' => [
                 'operation' => 'checkout.complete',
@@ -731,8 +750,7 @@ final class UcpMcpToolContextTest extends TestCase
                 'wouldSucceed' => false,
                 'blockers' => ['Checkout is incomplete.'],
             ],
-            'data' => ['id' => 'checkout-id', 'status' => 'incomplete'],
-        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        ], $result);
     }
 
     #[Test]
@@ -743,11 +761,46 @@ final class UcpMcpToolContextTest extends TestCase
             ['id' => 'checkout-id', 'status' => 'ready_for_complete'],
         );
 
-        $payload = json_decode($result, true, flags: \JSON_THROW_ON_ERROR);
+        $preview = $result->meta['shopware/preview'] ?? null;
 
-        self::assertTrue($payload['preview']['wouldSucceed']);
-        self::assertSame([], $payload['preview']['blockers']);
-        self::assertFalse($payload['preview']['committed']);
+        self::assertIsArray($preview);
+        self::assertTrue($preview['wouldSucceed']);
+        self::assertSame([], $preview['blockers']);
+        self::assertFalse($preview['committed']);
+    }
+
+    /**
+     * Asserts the UCP MCP binding: the UCP response as `structuredContent` and as the first text
+     * block, and the tool's metadata only in the result's `_meta` and a second text block.
+     *
+     * @param array<string, mixed> $response
+     * @param array<string, mixed> $meta
+     */
+    private static function assertUcpResult(array $response, array $meta, CallToolResult $result): void
+    {
+        self::assertFalse($result->isError);
+        self::assertSame($response, $result->structuredContent);
+
+        $texts = array_map(static function (mixed $content): mixed {
+            self::assertInstanceOf(TextContent::class, $content);
+
+            return json_decode((string) $content->text, true, flags: \JSON_THROW_ON_ERROR);
+        }, $result->content);
+
+        if ([] === $meta) {
+            self::assertSame([$response], $texts);
+            self::assertNull($result->meta);
+
+            return;
+        }
+
+        self::assertSame([$response, ['_meta' => $meta]], $texts);
+
+        $resultMeta = [];
+        foreach ($meta as $key => $value) {
+            $resultMeta['shopware/'.$key] = $value;
+        }
+        self::assertSame($resultMeta, $result->meta);
     }
 
     private function toolContext(

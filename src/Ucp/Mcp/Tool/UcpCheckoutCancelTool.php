@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Mcp\Schema\Result\CallToolResult;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
@@ -24,7 +25,7 @@ final class UcpCheckoutCancelTool
     ) {
     }
 
-    public function __invoke(string $id, bool $dryRun = true): string
+    public function __invoke(string $id, bool $dryRun = true): CallToolResult|string
     {
         try {
             return $this->toolContext->executeMutating(

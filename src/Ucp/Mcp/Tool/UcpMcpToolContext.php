@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Doctrine\DBAL\Connection;
+use Mcp\Schema\Content\TextContent;
+use Mcp\Schema\Result\CallToolResult;
 use Psr\Log\LoggerInterface;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
@@ -29,11 +31,26 @@ use Ucp\Sdk\Service\IdempotencyServiceInterface;
  * @phpstan-type UcpMcpJsonObject array<string, UcpMcpJsonValue>
  * @phpstan-type UcpMcpOperationResult UcpMcpJsonObject|UcpOperationResponse
  *
+ * A successful call is answered as the MCP binding of UCP defines it: `structuredContent` is the
+ * UCP response, exactly as REST returns it, and the first text block is that response as JSON for
+ * clients that do not read `structuredContent`. The tool's own metadata, `dryRun` and `preview`,
+ * is not part of the UCP response; it goes into the result's `_meta` and a second text block, so
+ * the model still learns whether anything was committed.
+ *
+ * The tools return the `CallToolResult` themselves, so Shopware and the MCP SDK pass it on unchanged
+ * on every protocol revision, instead of reading a `{"success": …}` envelope and rendering it in
+ * their own format. A failure is still that envelope and is rendered by Shopware.
+ *
  * @internal
  */
 #[Package('checkout')]
 final class UcpMcpToolContext
 {
+    /**
+     * The prefix of the tool's metadata in the result's `_meta`, the one Shopware's own MCP tools use.
+     */
+    private const META_PREFIX = 'shopware/';
+
     public function __construct(
         private readonly SymfonyRequestContextFactory $requestContextFactory,
         private readonly IdempotencyServiceInterface $idempotencyService,
@@ -73,9 +90,9 @@ final class UcpMcpToolContext
      *
      * @param UcpMcpJsonObject                                $fingerprintInput
      * @param callable(RequestContext): UcpMcpOperationResult $execute
-     * @param (callable(RequestContext): string)|null         $preview          renders a read-only preview for a tool whose effects a rollback does not undo
+     * @param (callable(RequestContext): CallToolResult)|null $preview          renders a read-only preview for a tool whose effects a rollback does not undo
      */
-    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false, ?callable $preview = null): string
+    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false, ?callable $preview = null): CallToolResult
     {
         $context = $this->requestContext();
 
@@ -142,10 +159,9 @@ final class UcpMcpToolContext
      * @param UcpMcpOperationResult $data
      * @param list<string>          $blockers
      */
-    public function preview(string $operation, array|UcpOperationResponse $data, array $blockers = []): string
+    public function preview(string $operation, array|UcpOperationResponse $data, array $blockers = []): CallToolResult
     {
-        return json_encode([
-            'success' => true,
+        return $this->result($this->normalizeData($data), [
             'dryRun' => true,
             'preview' => [
                 'operation' => $operation,
@@ -153,8 +169,7 @@ final class UcpMcpToolContext
                 'wouldSucceed' => [] === $blockers,
                 'blockers' => $blockers,
             ],
-            'data' => $this->normalizeData($data),
-        ], \JSON_THROW_ON_ERROR);
+        ]);
     }
 
     /**
@@ -169,7 +184,7 @@ final class UcpMcpToolContext
      *
      * @param callable(RequestContext): UcpMcpOperationResult $execute
      */
-    private function previewMutation(callable $execute, RequestContext $context): string
+    private function previewMutation(callable $execute, RequestContext $context): CallToolResult
     {
         $this->connection->beginTransaction();
 
@@ -366,17 +381,31 @@ final class UcpMcpToolContext
      * @param UcpMcpOperationResult $data
      * @param bool|null             $dryRun whether the caller mutated state; null for read-only tools, which never do
      */
-    public function success(array|UcpOperationResponse $data, ?bool $dryRun = null): string
+    public function success(array|UcpOperationResponse $data, ?bool $dryRun = null): CallToolResult
     {
-        $payload = ['success' => true];
+        return $this->result($this->normalizeData($data), null === $dryRun ? [] : ['dryRun' => $dryRun]);
+    }
 
-        if (null !== $dryRun) {
-            $payload['dryRun'] = $dryRun;
+    /**
+     * @param array<string, mixed> $response the UCP response
+     * @param array<string, mixed> $meta     the tool's metadata, which is not part of the UCP response
+     */
+    private function result(array $response, array $meta): CallToolResult
+    {
+        $content = [new TextContent(json_encode($response, \JSON_THROW_ON_ERROR))];
+        $resultMeta = null;
+
+        if ([] !== $meta) {
+            // Many clients show the model the text blocks only, not `_meta`.
+            $content[] = new TextContent(json_encode(['_meta' => $meta], \JSON_THROW_ON_ERROR));
+
+            $resultMeta = [];
+            foreach ($meta as $key => $value) {
+                $resultMeta[self::META_PREFIX.$key] = $value;
+            }
         }
 
-        $payload['data'] = $this->normalizeData($data);
-
-        return json_encode($payload, \JSON_THROW_ON_ERROR);
+        return new CallToolResult($content, structuredContent: $response, meta: $resultMeta);
     }
 
     /**
