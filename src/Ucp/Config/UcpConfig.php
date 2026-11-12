@@ -262,6 +262,10 @@ final class UcpConfig
         $fallbackHosts = [] !== $this->platformAllowlist ? $this->platformAllowlist : (false !== $host && null !== $host ? [(string) $host] : []);
         $allowedProfileHosts = [] !== $this->remoteProfileAllowlist ? $this->remoteProfileAllowlist : $fallbackHosts;
         $platformPolicy = PlatformPolicy::from($this->platformPolicy);
+        if (PlatformPolicy::All === $platformPolicy && [] !== $this->remoteProfileAllowlist) {
+            // The list gates nothing under `all`, so both lists name pre-approved platforms.
+            $allowedProfileHosts = array_values(array_unique([...$this->remoteProfileAllowlist, ...$this->platformAllowlist]));
+        }
         // The SDK checks the agent domain under either policy. Under `all` only an explicit
         // agent allowlist may gate, or the fallback would refuse every unlisted platform again.
         $allowedAgentDomains = [] !== $this->agentAllowlist || PlatformPolicy::All === $platformPolicy ? $this->agentAllowlist : $fallbackHosts;

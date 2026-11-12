@@ -291,6 +291,18 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
+    public function testAllPlatformsPreApprovesThePlatformListNextToARemoteProfileAllowlist(): void
+    {
+        $lists = ['remoteProfileAllowlist' => ['agent.example'], 'platformAllowlist' => ['platform.example', 'agent.example']];
+
+        $all = UcpConfig::fromArray([...$lists, 'platformPolicy' => 'all'])->toRuntimeConfiguration('https://merchant.example');
+        self::assertSame(['agent.example', 'platform.example'], $all->allowedProfileHosts);
+
+        $listed = UcpConfig::fromArray([...$lists, 'platformPolicy' => 'listed'])->toRuntimeConfiguration('https://merchant.example');
+        self::assertSame(['agent.example'], $listed->allowedProfileHosts);
+    }
+
+    #[Test]
     public function testItRejectsAnUnknownPlatformPolicy(): void
     {
         $this->expectException(UcpConfigException::class);
