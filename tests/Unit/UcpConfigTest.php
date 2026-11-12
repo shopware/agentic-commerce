@@ -275,6 +275,22 @@ final class UcpConfigTest extends TestCase
     }
 
     #[Test]
+    public function testAddingTheFirstPlatformIsRefusedWhileTheWebhookHostIsNotListedAndNamesThatHost(): void
+    {
+        $webhookWithEmptyLists = UcpConfig::fromArray(['webhookUrlOverride' => 'https://hooks.merchant.example/ucp']);
+        self::assertSame('https://hooks.merchant.example/ucp', $webhookWithEmptyLists->webhookUrlOverride);
+
+        try {
+            UcpConfig::fromArray([...$webhookWithEmptyLists->toArray(), 'platformAllowlist' => ['platform.example']]);
+            self::fail('The webhook host is not on the list the merchant just started.');
+        } catch (UcpConfigException $exception) {
+            self::assertSame(UcpConfigException::WEBHOOK_HOST_NOT_LISTED, $exception->getErrorCode());
+            self::assertSame('hooks.merchant.example', $exception->getParameters()['host']);
+            self::assertStringContainsString('"hooks.merchant.example" must be listed in agentAllowlist or platformAllowlist', $exception->getMessage());
+        }
+    }
+
+    #[Test]
     public function testItRejectsAnUnknownPlatformPolicy(): void
     {
         $this->expectException(UcpConfigException::class);
@@ -544,7 +560,7 @@ final class UcpConfigTest extends TestCase
                 'agentAllowlist' => ['agent.example'],
                 'webhookUrlOverride' => 'https://evil.example/webhook',
             ],
-            'exception' => UcpConfigException::invalidValue('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist'),
+            'exception' => UcpConfigException::webhookHostNotListed('evil.example'),
         ];
 
         yield 'webhook override must use https' => [

@@ -735,8 +735,9 @@ final class UcpConfig
         }
 
         $allowedHosts = [] !== $agentAllowlist ? $agentAllowlist : $platformAllowlist;
-        if ([] !== $allowedHosts && !\in_array(self::normalizeHost($host, '$.webhookUrlOverride'), $allowedHosts, true)) {
-            throw self::invalid('$.webhookUrlOverride', 'host must be listed in agentAllowlist or platformAllowlist');
+        $host = self::normalizeHost($host, '$.webhookUrlOverride');
+        if ([] !== $allowedHosts && !\in_array($host, $allowedHosts, true)) {
+            throw UcpConfigException::webhookHostNotListed($host);
         }
     }
 

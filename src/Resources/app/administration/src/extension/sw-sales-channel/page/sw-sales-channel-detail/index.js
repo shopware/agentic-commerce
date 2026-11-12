@@ -8,7 +8,7 @@ import {
     normalizeConfig as ucpNormalizeConfig,
     buildConfigPayload as ucpBuildConfigPayload,
 } from '../../agentic-commerce/ucp-form-state';
-import { extractApiErrorMessage } from '../../agentic-commerce/error-message.util';
+import { extractApiErrorMessage, ucpSaveErrorMessage } from '../../agentic-commerce/error-message.util';
 import { isKnownSalesChannelType, isTransactionalSalesChannelType } from '../../agentic-commerce/sales-channel-type.util';
 import { currentAdminVersion, isVersionAtLeast } from '../../agentic-commerce/admin-version';
 
@@ -345,7 +345,7 @@ export const swSalesChannelDetailOverride = {
                 // from the legacy onSave would otherwise replace it with the stored config.
                 this.ucpState.generation += 1;
                 this.ucpState.form = ucpNormalizeConfig(form);
-                this.createNotificationError({ message: extractApiErrorMessage(error) });
+                this.createNotificationError({ message: ucpSaveErrorMessage(error, (key, values) => this.$t(key, values)) });
                 return false;
             }
 
