@@ -13,7 +13,9 @@ use Shopware\Core\Checkout\Cart\LineItem\LineItem;
 use Shopware\Core\Checkout\Cart\LineItem\LineItemCollection;
 use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
 use Shopware\Core\Checkout\Cart\Price\Struct\CartPrice;
+use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartOrderRoute;
+use Shopware\Core\Checkout\Cart\SalesChannel\CartResponse;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
 use Shopware\Core\Checkout\Customer\CustomerEntity;
@@ -54,11 +56,14 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutGuestAddressPayloadResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutLegalLinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -66,7 +71,10 @@ use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Lock\Store\InMemoryStore;
 use Symfony\Component\Routing\RouterInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
@@ -76,6 +84,7 @@ use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\RequestContext;
+use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
 /** @internal */
 #[CoversClass(ShopwareCheckoutAdapter::class)]
@@ -141,7 +150,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $orderRoute->expects(static::once())
             ->method('load')
             ->willReturnCallback(static function (
-                \Symfony\Component\HttpFoundation\Request $_request,
+                Request $_request,
                 SalesChannelContext $context,
                 Criteria $criteria,
             ) use ($salesChannelContext, $orderId, $order): OrderRouteResponse {
@@ -160,7 +169,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
                 ));
             });
 
-        $sessionStore = new CheckoutSessionStore($persister);
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
         $contextResolver = new SalesChannelContextResolver($this->domainResolver($salesChannelId), $contextService, $persister);
         $mapper = new ShopwareDataMapper();
 
@@ -169,12 +178,12 @@ final class ShopwareCheckoutAdapterTest extends TestCase
 
         $adapter = new ShopwareCheckoutAdapter(
             $this->uninitialized(ShopwareCartGateway::class),
-            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $sessionStore, new RequestStack()),
+            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $checkoutSessionStore, new RequestStack()),
             $mapper,
-            $sessionStore,
-            new CheckoutSessionManager($sessionStore),
+            $checkoutSessionStore,
+            new CheckoutSessionManager($checkoutSessionStore),
             $completionStore,
-            new CheckoutGuestAddressPayloadResolver($sessionStore),
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
             $this->continueUrlBuilder(),
             $this->uninitialized(CheckoutCompleter::class),
             $contextResolver,
@@ -216,7 +225,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $order = $this->order($orderId);
         $orderRoute = $this->createMock(AbstractOrderRoute::class);
         $orderRoute->method('load')->willReturnCallback(static function (
-            \Symfony\Component\HttpFoundation\Request $_request,
+            Request $_request,
             SalesChannelContext $_context,
             Criteria $criteria,
         ) use ($order): OrderRouteResponse {
@@ -225,7 +234,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             return new OrderRouteResponse(new EntitySearchResult('order', 1, $orders, null, $criteria, Context::createDefaultContext()));
         });
 
-        $sessionStore = new CheckoutSessionStore($persister);
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
         $contextResolver = new SalesChannelContextResolver(
             $this->domainResolver(self::SALES_CHANNEL_ID),
             new StaticSalesChannelContextService($salesChannelContext),
@@ -237,12 +246,12 @@ final class ShopwareCheckoutAdapterTest extends TestCase
 
         $adapter = new ShopwareCheckoutAdapter(
             $this->uninitialized(ShopwareCartGateway::class),
-            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $sessionStore, new RequestStack()),
+            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $checkoutSessionStore, new RequestStack()),
             new ShopwareDataMapper(),
-            $sessionStore,
-            new CheckoutSessionManager($sessionStore),
+            $checkoutSessionStore,
+            new CheckoutSessionManager($checkoutSessionStore),
             $completionStore,
-            new CheckoutGuestAddressPayloadResolver($sessionStore),
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
             $this->continueUrlBuilder(self::CONTINUE_URL_TEMPLATE),
             $this->uninitialized(CheckoutCompleter::class),
             $contextResolver,
@@ -260,6 +269,203 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             ['type' => 'order', 'url' => 'https://shop.example/checkout/'.$checkoutId, 'title' => 'Order details'],
             ...$this->legalLinkArrays(),
         ], $checkout['links']);
+    }
+
+    #[Test]
+    public function testCompletingDuringAConcurrentCompletionReplaysTheOrder(): void
+    {
+        $checkoutId = 'checkout-context-token';
+        $orderId = '99999999999999999999999999999999';
+
+        $checkout = $this->adapterRacingACompletion($checkoutId, $orderId)
+            ->completeCheckout($checkoutId, new RequestContext('shop.example'));
+
+        self::assertSame(CheckoutStatus::Completed, $checkout->status);
+        self::assertSame($orderId, $checkout->order?->id);
+    }
+
+    #[Test]
+    public function testReadingDuringAConcurrentCompletionReturnsTheOrder(): void
+    {
+        $checkoutId = 'checkout-context-token';
+        $orderId = '99999999999999999999999999999999';
+
+        $checkout = $this->adapterRacingACompletion($checkoutId, $orderId)
+            ->getCheckout($checkoutId, new RequestContext('shop.example'));
+
+        self::assertSame(CheckoutStatus::Completed, $checkout->status);
+        self::assertSame($orderId, $checkout->order?->id);
+    }
+
+    #[Test]
+    public function testCompletingWhileAConcurrentCompletionPlacesTheOrderReplaysItWithoutAContextTokenHeader(): void
+    {
+        $checkoutId = 'checkout-context-token';
+        $rotatedContextToken = 'rotated-shopware-context-token';
+        $orderId = '99999999999999999999999999999999';
+
+        $cartLoadRoute = new class($this->cart()) extends AbstractCartLoadRoute {
+            public bool $cartLoaded = false;
+
+            public function __construct(private readonly Cart $cart)
+            {
+            }
+
+            public function getDecorated(): AbstractCartLoadRoute
+            {
+                throw new \BadMethodCallException('Decoration is not supported in tests.');
+            }
+
+            public function load(Request $request, SalesChannelContext $context, ?Cart $cart = null): CartResponse
+            {
+                $this->cartLoaded = true;
+
+                return new CartResponse($this->cart);
+            }
+        };
+
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $salesChannelContext->method('getCustomer')->willReturn(new CustomerEntity());
+
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturnCallback(static function (string $token) use ($cartLoadRoute, $checkoutId, $rotatedContextToken, $orderId): array {
+            if ($token !== $checkoutId || !$cartLoadRoute->cartLoaded) {
+                return [];
+            }
+
+            return ['swagAgenticCommerce' => ['ucpCheckout' => [
+                'status' => CheckoutStatus::Completed->value,
+                'orderId' => $orderId,
+                'shopwareContextToken' => $rotatedContextToken,
+            ]]];
+        });
+
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->with($checkoutId)->willReturnCallback(static fn (): ?string => $cartLoadRoute->cartLoaded ? $orderId : null);
+        $completionStore->expects(static::never())->method('complete');
+
+        $order = $this->order($orderId);
+        $orderRoute = $this->createMock(AbstractOrderRoute::class);
+        $orderRoute->method('load')->willReturnCallback(static fn (
+            Request $_request,
+            SalesChannelContext $_context,
+            Criteria $criteria,
+        ): OrderRouteResponse => new OrderRouteResponse(new EntitySearchResult('order', 1, new OrderCollection([$order]), null, $criteria, Context::createDefaultContext())));
+
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
+        $contextResolver = new SalesChannelContextResolver(
+            $this->domainResolver(self::SALES_CHANNEL_ID),
+            new StaticSalesChannelContextService($salesChannelContext),
+            $persister,
+        );
+        $orderGateway = new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $checkoutSessionStore, new RequestStack());
+        $checkoutSessionManager = new CheckoutSessionManager($checkoutSessionStore);
+        $continueUrlBuilder = $this->continueUrlBuilder(self::CONTINUE_URL_TEMPLATE);
+
+        $adapter = new ShopwareCheckoutAdapter(
+            new ShopwareCartGateway(
+                $contextResolver,
+                $cartLoadRoute,
+                new RecordingCartItemAddRoute(),
+                new RecordingCartItemUpdateRoute(),
+                new RecordingCartItemRemoveRoute(),
+                new RecordingCartDeleteRoute(),
+                new ShopwareDataMapper(),
+                new ShopwareVersionDetector(versionOverride: '6.6.0.0'),
+                new CartSessionStore($persister),
+                $this->createMock(AbstractProductListRoute::class),
+            ),
+            $orderGateway,
+            new ShopwareDataMapper(),
+            $checkoutSessionStore,
+            $checkoutSessionManager,
+            $completionStore,
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
+            $continueUrlBuilder,
+            new CheckoutCompleter(
+                $orderGateway,
+                new ShopwareDataMapper(),
+                $this->createMock(GuestCustomerContextProvisionerInterface::class),
+                $this->uninitialized(UcpConfigService::class),
+                $checkoutSessionManager,
+                $completionStore,
+                new LockFactory(new InMemoryStore()),
+                $continueUrlBuilder,
+                $this->uninitialized(CheckoutWebhookUrlGuard::class),
+                $this->createMock(OrderWebhookPublisherInterface::class),
+                new OrderPermalinkBuilder(),
+                new UnappliedCompletionPayment(),
+                $this->legalLinkBuilder(),
+            ),
+            $contextResolver,
+            new ContextTokenGenerator(),
+            new OrderPermalinkBuilder(),
+            $this->legalLinkBuilder(),
+        );
+
+        $checkout = $adapter->completeCheckout($checkoutId, new RequestContext('shop.example'));
+
+        self::assertSame(CheckoutStatus::Completed, $checkout->status);
+        self::assertSame($orderId, $checkout->order?->id);
+    }
+
+    private function adapterRacingACompletion(string $checkoutId, string $orderId): ShopwareCheckoutAdapter
+    {
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $salesChannelContext->method('getCustomer')->willReturn(new CustomerEntity());
+
+        $storageReads = 0;
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturnCallback(static function () use (&$storageReads, $orderId): array {
+            $sessionStateDuringGuestRegistration = [];
+            $sessionStateAfterCompletion = [
+                'status' => CheckoutStatus::Completed->value,
+                'orderId' => $orderId,
+                'shopwareContextToken' => 'rotated-shopware-context-token',
+            ];
+
+            return ['swagAgenticCommerce' => ['ucpCheckout' => 1 === ++$storageReads ? $sessionStateDuringGuestRegistration : $sessionStateAfterCompletion]];
+        });
+
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->with($checkoutId)->willReturnCallback(static function () use (&$storageReads, $orderId): string {
+            ++$storageReads;
+
+            return $orderId;
+        });
+
+        $order = $this->order($orderId);
+        $orderRoute = $this->createMock(AbstractOrderRoute::class);
+        $orderRoute->method('load')->willReturnCallback(static fn (
+            Request $_request,
+            SalesChannelContext $_context,
+            Criteria $criteria,
+        ): OrderRouteResponse => new OrderRouteResponse(new EntitySearchResult('order', 1, new OrderCollection([$order]), null, $criteria, Context::createDefaultContext())));
+
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
+        $contextResolver = new SalesChannelContextResolver(
+            $this->domainResolver(self::SALES_CHANNEL_ID),
+            new StaticSalesChannelContextService($salesChannelContext),
+            $persister,
+        );
+
+        return new ShopwareCheckoutAdapter(
+            $this->uninitialized(ShopwareCartGateway::class),
+            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $orderRoute, $checkoutSessionStore, new RequestStack()),
+            new ShopwareDataMapper(),
+            $checkoutSessionStore,
+            new CheckoutSessionManager($checkoutSessionStore),
+            $completionStore,
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
+            $this->continueUrlBuilder(self::CONTINUE_URL_TEMPLATE),
+            $this->uninitialized(CheckoutCompleter::class),
+            $contextResolver,
+            new ContextTokenGenerator(),
+            new OrderPermalinkBuilder(),
+            $this->legalLinkBuilder(),
+        );
     }
 
     #[Test]
@@ -356,7 +562,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             'swagAgenticCommerce' => ['ucpCheckout' => ['status' => CheckoutStatus::Incomplete->value]],
         ]);
 
-        $sessionStore = new CheckoutSessionStore($persister);
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
         $contextResolver = new SalesChannelContextResolver(
             $this->domainResolver(self::SALES_CHANNEL_ID),
             new StaticSalesChannelContextService($salesChannelContext),
@@ -383,10 +589,10 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $cartGateway,
             $this->createMock(OrderGatewayInterface::class),
             new ShopwareDataMapper(),
-            $sessionStore,
-            new CheckoutSessionManager($sessionStore),
+            $checkoutSessionStore,
+            new CheckoutSessionManager($checkoutSessionStore),
             $completionStore,
-            new CheckoutGuestAddressPayloadResolver($sessionStore),
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
             $this->continueUrlBuilder(self::CONTINUE_URL_TEMPLATE),
             $this->uninitialized(CheckoutCompleter::class),
             $contextResolver,
@@ -518,7 +724,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
                 ],
             ]);
 
-        $sessionStore = new CheckoutSessionStore($persister);
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
         $contextResolver = new SalesChannelContextResolver($this->domainResolver($salesChannelId), $contextService, $persister);
 
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
@@ -526,12 +732,12 @@ final class ShopwareCheckoutAdapterTest extends TestCase
 
         $adapter = new ShopwareCheckoutAdapter(
             $this->uninitialized(ShopwareCartGateway::class),
-            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $this->createMock(AbstractOrderRoute::class), $sessionStore, new RequestStack()),
+            new ShopwareOrderGateway($contextResolver, $this->createMock(AbstractCartOrderRoute::class), $this->createMock(AbstractOrderRoute::class), $checkoutSessionStore, new RequestStack()),
             new ShopwareDataMapper(),
-            $sessionStore,
-            new CheckoutSessionManager($sessionStore),
+            $checkoutSessionStore,
+            new CheckoutSessionManager($checkoutSessionStore),
             $completionStore,
-            new CheckoutGuestAddressPayloadResolver($sessionStore),
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
             $this->continueUrlBuilder(),
             $this->uninitialized(CheckoutCompleter::class),
             $contextResolver,

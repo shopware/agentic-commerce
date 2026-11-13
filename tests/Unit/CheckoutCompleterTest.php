@@ -66,83 +66,66 @@ final class CheckoutCompleterTest extends TestCase
     private const PRIVACY_PAGE_ID = '00000000000000000000000000000005';
 
     #[Test]
-    public function testAlreadyCompletedBeforeLockAcquireReplays(): void
+    public function testAlreadyCompletedBeforeLockAcquireLeavesTheReplayToTheCaller(): void
     {
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
         $completionStore->method('completedOrderId')->willReturn(self::ORDER_ID);
         $completionStore->expects(static::never())->method('complete');
 
-        $currency = new CurrencyEntity();
-        $currency->setIsoCode('EUR');
+        $lockFactory = new LockFactory(new InMemoryStore());
 
-        $order = new OrderEntity();
-        $order->setId(self::ORDER_ID);
-        $order->setCurrency($currency);
+        $result = $this->completerThatPlacesNoOrder($completionStore, $lockFactory)
+            ->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'));
 
+        static::assertNull($result);
+        static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'The lock must not be taken for a completed checkout');
+    }
+
+    #[Test]
+    public function testCompletedWhileWaitingForTheLockLeavesTheReplayToTheCaller(): void
+    {
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturnOnConsecutiveCalls(null, self::ORDER_ID);
+        $completionStore->expects(static::never())->method('complete');
+
+        $lockFactory = new LockFactory(new InMemoryStore());
+
+        $result = $this->completerThatPlacesNoOrder($completionStore, $lockFactory)
+            ->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'));
+
+        static::assertNull($result);
+        static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'The lock must be released');
+    }
+
+    private function completerThatPlacesNoOrder(CheckoutCompletionStoreInterface $completionStore, LockFactory $lockFactory): CheckoutCompleter
+    {
         $orderGateway = $this->createMock(OrderGatewayInterface::class);
-        $orderGateway->expects(static::once())->method('getOrder')->with(self::ORDER_ID)->willReturn($order);
         $orderGateway->expects(static::never())->method('placeOrder');
+        $orderGateway->expects(static::never())->method('getOrder');
 
-        $expectedCheckout = $this->uninitialized(Checkout::class);
-
-        $mapper = new class($expectedCheckout) implements ShopwareDataMapperInterface {
-            /** @var list<Link>|null */
-            public ?array $legalLinks = null;
-
-            public function __construct(private readonly Checkout $checkout)
-            {
-            }
-
-            public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = []): Checkout
-            {
-                $this->legalLinks = $legalLinks;
-
-                return $this->checkout;
-            }
-
-            public function toOrderView(OrderEntity $order, ?string $permalinkUrl = null, ?string $checkoutId = null): OrderView
-            {
-                throw new \BadMethodCallException('Not called in this test.');
-            }
-        };
-
-        $continueUrlBuilder = new class implements CheckoutContinueUrlBuilderInterface {
-            public function build(string $checkoutId, string $salesChannelId): string
-            {
-                return 'https://example.com/continue';
-            }
-        };
-
-        $salesChannelContext = $this->createMock(SalesChannelContext::class);
-        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
-        $this->withLegalLinkDomain($salesChannelContext);
-
-        $store = new InMemoryStore();
-        $lockFactory = new LockFactory($store);
-
-        $completer = new CheckoutCompleter(
+        return new CheckoutCompleter(
             $orderGateway,
-            $mapper,
+            $this->uninitialized(ShopwareDataMapper::class),
             $this->nullProvisioner(),
             $this->uninitialized(UcpConfigService::class),
             $this->nullSessionManager(),
             $completionStore,
             $lockFactory,
-            $continueUrlBuilder,
+            $this->uninitialized(CheckoutContinueUrlBuilder::class),
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
             new UnappliedCompletionPayment(),
             $this->legalLinkBuilder(),
         );
+    }
 
-        $result = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $salesChannelContext, new RequestContext('shop.example'));
+    private function salesChannelContext(): SalesChannelContext
+    {
+        $salesChannelContext = $this->createMock(SalesChannelContext::class);
+        $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
 
-        static::assertSame($expectedCheckout, $result);
-        static::assertEquals($this->legalLinks(), $mapper->legalLinks);
-
-        // Lock was never acquired so it remains acquirable
-        static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false));
+        return $salesChannelContext;
     }
 
     #[Test]
@@ -189,9 +172,16 @@ final class CheckoutCompleterTest extends TestCase
     #[Test]
     public function testAcquiredLockPlacesOrderAndCompletesStore(): void
     {
+        $saveCount = 0;
+        $saveCountAtCompletionRow = null;
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
         $completionStore->method('completedOrderId')->willReturn(null);
-        $completionStore->expects(static::once())->method('complete')->with(self::CHECKOUT_ID, self::ORDER_ID);
+        $completionStore->expects(static::once())
+            ->method('complete')
+            ->with(self::CHECKOUT_ID, self::ORDER_ID)
+            ->willReturnCallback(static function () use (&$saveCount, &$saveCountAtCompletionRow): void {
+                $saveCountAtCompletionRow = $saveCount;
+            });
 
         $currency = new CurrencyEntity();
         $currency->setIsoCode('EUR');
@@ -208,9 +198,8 @@ final class CheckoutCompleterTest extends TestCase
         $orderGateway->expects(static::once())->method('placeOrder')->willReturn($order);
         $orderGateway->expects(static::never())->method('getOrder');
 
-        $saveCalled = 0;
-        $sessionManager = new class($saveCalled) implements CheckoutSessionManagerInterface {
-            public function __construct(private int &$saveCalled)
+        $sessionManager = new class($saveCount) implements CheckoutSessionManagerInterface {
+            public function __construct(private int &$saveCount)
             {
             }
 
@@ -235,7 +224,7 @@ final class CheckoutCompleterTest extends TestCase
 
             public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null): void
             {
-                ++$this->saveCalled;
+                ++$this->saveCount;
             }
         };
 
@@ -311,7 +300,8 @@ final class CheckoutCompleterTest extends TestCase
 
         static::assertSame($expectedCheckout, $result);
         static::assertEquals($this->legalLinks(), $mapper->legalLinks);
-        static::assertSame(1, $saveCalled, 'sessionManager->saveForCheckoutId() must be called exactly once');
+        static::assertSame(1, $saveCount, 'sessionManager->saveForCheckoutId() must be called exactly once');
+        static::assertSame(1, $saveCountAtCompletionRow, 'The session must carry the rotated context token before the completion row exists');
 
         // Lock released via finally — a new acquire must succeed
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after successful completion');

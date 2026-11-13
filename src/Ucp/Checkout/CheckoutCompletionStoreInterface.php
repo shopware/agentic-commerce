@@ -12,6 +12,9 @@ interface CheckoutCompletionStoreInterface
 {
     public function complete(string $checkoutId, string $orderId): void;
 
+    /**
+     * @phpstan-impure a concurrent completion can write the row between two calls
+     */
     public function completedOrderId(string $checkoutId): ?string;
 
     public function completedCheckoutId(string $orderId): ?string;

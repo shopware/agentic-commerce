@@ -44,6 +44,8 @@ final class CheckoutCompleter
 
     /**
      * @param array<string, mixed> $metadata
+     *
+     * @return Checkout|null null when another request has completed this checkout; the caller replays it from the session
      */
     public function complete(
         string $checkoutId,
@@ -52,12 +54,11 @@ final class CheckoutCompleter
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
         ?PaymentInstrument $paymentInstrument = null,
-    ): Checkout {
+    ): ?Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
 
-        $orderId = $this->completionStore->completedOrderId($checkoutId);
-        if (null !== $orderId) {
-            return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelContext, $requestContext);
+        if (null !== $this->completionStore->completedOrderId($checkoutId)) {
+            return null;
         }
 
         $lock = $this->lockFactory->createLock(
@@ -70,9 +71,8 @@ final class CheckoutCompleter
         }
 
         try {
-            $orderId = $this->completionStore->completedOrderId($checkoutId);
-            if (null !== $orderId) {
-                return $this->replayCompletedOrder($orderId, $checkoutId, $salesChannelContext, $requestContext);
+            if (null !== $this->completionStore->completedOrderId($checkoutId)) {
+                return null;
             }
 
             $buyer = $this->sessionManager->buyer($metadata);
@@ -103,8 +103,8 @@ final class CheckoutCompleter
 
             $order = $this->orderGateway->placeOrder($cart, $customerContext);
 
-            $this->completionStore->complete($checkoutId, $order->getId());
-
+            // Saved before the completion row: a reader that finds the row loads the session afterwards
+            // and needs its rotated context token.
             $this->sessionManager->saveForCheckoutId(
                 $checkoutId,
                 $customerContext,
@@ -113,6 +113,8 @@ final class CheckoutCompleter
                 orderId: $order->getId(),
                 orderDeepLinkCode: $order->getDeepLinkCode(),
             );
+
+            $this->completionStore->complete($checkoutId, $order->getId());
 
             if (null !== $config->webhookUrlOverride) {
                 $this->orderWebhookPublisher->publish(
@@ -135,23 +137,5 @@ final class CheckoutCompleter
         } finally {
             $lock->release();
         }
-    }
-
-    private function replayCompletedOrder(
-        string $orderId,
-        string $checkoutId,
-        SalesChannelContext $salesChannelContext,
-        RequestContext $requestContext,
-    ): Checkout {
-        $order = $this->orderGateway->getOrder($orderId, $requestContext);
-
-        return $this->mapper->toCompletedCheckout(
-            $order,
-            $checkoutId,
-            $order->getCurrency()?->getIsoCode() ?? 'EUR',
-            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
-            orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
-        );
     }
 }
