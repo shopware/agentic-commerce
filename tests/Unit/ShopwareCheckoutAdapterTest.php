@@ -303,15 +303,34 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $checkoutId = 'checkout-context-token';
         $rotatedContextToken = 'rotated-shopware-context-token';
         $orderId = '99999999999999999999999999999999';
-        $concurrentCompletionLanded = false;
+
+        $cartLoadRoute = new class($this->cart()) extends AbstractCartLoadRoute {
+            public bool $cartLoaded = false;
+
+            public function __construct(private readonly Cart $cart)
+            {
+            }
+
+            public function getDecorated(): AbstractCartLoadRoute
+            {
+                throw new \BadMethodCallException('Decoration is not supported in tests.');
+            }
+
+            public function load(Request $request, SalesChannelContext $context, ?Cart $cart = null): CartResponse
+            {
+                $this->cartLoaded = true;
+
+                return new CartResponse($this->cart);
+            }
+        };
 
         $salesChannelContext = $this->createMock(SalesChannelContext::class);
         $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
         $salesChannelContext->method('getCustomer')->willReturn(new CustomerEntity());
 
         $persister = $this->createMock(SalesChannelContextPersister::class);
-        $persister->method('load')->willReturnCallback(static function (string $token) use (&$concurrentCompletionLanded, $checkoutId, $rotatedContextToken, $orderId): array {
-            if ($token !== $checkoutId || !$concurrentCompletionLanded) {
+        $persister->method('load')->willReturnCallback(static function (string $token) use ($cartLoadRoute, $checkoutId, $rotatedContextToken, $orderId): array {
+            if ($token !== $checkoutId || !$cartLoadRoute->cartLoaded) {
                 return [];
             }
 
@@ -323,28 +342,8 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         });
 
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
-        $completionStore->method('completedOrderId')->with($checkoutId)->willReturnCallback(static function () use (&$concurrentCompletionLanded, $orderId): ?string {
-            return $concurrentCompletionLanded ? $orderId : null;
-        });
+        $completionStore->method('completedOrderId')->with($checkoutId)->willReturnCallback(static fn (): ?string => $cartLoadRoute->cartLoaded ? $orderId : null);
         $completionStore->expects(static::never())->method('complete');
-
-        $cartLoadRoute = new class($this->cart(), $concurrentCompletionLanded) extends AbstractCartLoadRoute {
-            public function __construct(private readonly Cart $cart, private bool &$concurrentCompletionLanded)
-            {
-            }
-
-            public function getDecorated(): AbstractCartLoadRoute
-            {
-                throw new \BadMethodCallException('Decoration is not supported in tests.');
-            }
-
-            public function load(Request $request, SalesChannelContext $context, ?Cart $cart = null): CartResponse
-            {
-                $this->concurrentCompletionLanded = true;
-
-                return new CartResponse($this->cart);
-            }
-        };
 
         $order = $this->order($orderId);
         $orderRoute = $this->createMock(AbstractOrderRoute::class);
