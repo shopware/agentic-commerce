@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
 use Shopware\Core\Checkout\Cart\Cart;
-use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
@@ -116,19 +115,14 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     public function getCheckout(string $id, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
-
-        $completedOrderId = $this->completedOrderId($id, $metadata);
+        [$completedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
         if (null !== $completedOrderId) {
-            $resolvedContext = $this->completedCheckoutContext($metadata, $context);
-            $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
-
-            return $this->completedCheckout($order, $id, $resolvedContext, $context);
+            return $this->completedCheckout($completedOrderId, $id, $sessionMetadata, $context);
         }
 
-        $contextToken = $this->sessionStore->contextToken($metadata, $id);
+        $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
-        $buyer = $this->sessionStore->buyer($metadata);
+        $buyer = $this->sessionStore->buyer($sessionMetadata);
 
         return $this->mapper->toCheckout(
             $cart,
@@ -143,9 +137,9 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     public function updateCheckout(CheckoutUpdateRequest $request, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $metadata = $this->sessionStore->load($request->id, $resolution->salesChannelId);
+        $sessionMetadata = $this->sessionStore->load($request->id, $resolution->salesChannelId);
 
-        if (($metadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id)) {
+        if (($sessionMetadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id)) {
             throw new ValidationException('Completed checkout sessions cannot be updated.');
         }
 
@@ -157,10 +151,10 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $context,
         );
 
-        $buyer = $request->buyer ?? $this->sessionStore->buyer($metadata);
+        $buyer = $request->buyer ?? $this->sessionStore->buyer($sessionMetadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
 
-        $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, $metadata, $request->payment);
+        $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, $sessionMetadata, $request->payment);
 
         $this->sessionManager->save(
             $salesChannelContext,
@@ -221,46 +215,49 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     private function completeCheckoutInternal(string $id, RequestContext $context, ?PaymentInstrument $instrument): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
-
-        $completedOrderId = $this->completedOrderId($id, $metadata);
+        [$completedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
         if (null !== $completedOrderId) {
-            $resolvedContext = $this->completedCheckoutContext($metadata, $context);
-            $order = $this->orderGateway->getOrderForSalesChannelContext($completedOrderId, $resolvedContext, $metadata);
-
-            return $this->completedCheckout($order, $id, $resolvedContext, $context);
+            return $this->completedCheckout($completedOrderId, $id, $sessionMetadata, $context);
         }
 
-        $contextToken = $this->sessionStore->contextToken($metadata, $id);
+        $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        return $this->checkoutCompleter->complete($id, $metadata, $cart, $salesChannelContext, $context, $instrument);
+        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $instrument)
+            ?? $this->getCheckout($id, $context);
     }
 
     /**
-     * @param array<string, mixed> $metadata
+     * @return array{0: string|null, 1: array<string, mixed>} the completed order id, if any, and the session metadata
      */
-    private function completedOrderId(string $checkoutId, array $metadata): ?string
+    private function loadSession(string $id, string $salesChannelId): array
     {
-        $orderId = $this->completionStore->completedOrderId($checkoutId);
-        if (null !== $orderId) {
-            return $orderId;
-        }
+        // Read before the metadata: CheckoutCompleter::complete() saves the metadata with the rotated context token first.
+        $completedOrderId = $this->completionStore->completedOrderId($id);
+        $sessionMetadata = $this->sessionStore->load($id, $salesChannelId);
 
-        if (($metadata['status'] ?? null) !== 'completed') {
+        return [$completedOrderId ?? $this->legacyCompletedOrderId($sessionMetadata), $sessionMetadata];
+    }
+
+    /**
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function legacyCompletedOrderId(array $sessionMetadata): ?string
+    {
+        if (($sessionMetadata['status'] ?? null) !== 'completed') {
             return null;
         }
 
-        $legacyOrderId = $metadata['orderId'] ?? null;
+        $legacyCompletedOrderId = $sessionMetadata['orderId'] ?? null;
 
-        return \is_string($legacyOrderId) && '' !== $legacyOrderId ? $legacyOrderId : null;
+        return \is_string($legacyCompletedOrderId) && '' !== $legacyCompletedOrderId ? $legacyCompletedOrderId : null;
     }
 
     public function cancelCheckout(string $id, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $metadata = $this->sessionStore->load($id, $resolution->salesChannelId);
-        $buyer = $this->sessionStore->buyer($metadata);
+        $sessionMetadata = $this->sessionStore->load($id, $resolution->salesChannelId);
+        $buyer = $this->sessionStore->buyer($sessionMetadata);
 
         [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($id, $context);
         $cart = $this->cartGateway->cancelCart($id, $context);
@@ -291,11 +288,11 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     }
 
     /**
-     * @param array<string, mixed> $metadata
+     * @param array<string, mixed> $sessionMetadata
      */
-    private function completedCheckoutContext(array $metadata, RequestContext $context): SalesChannelContext
+    private function completedCheckoutContext(array $sessionMetadata, RequestContext $context): SalesChannelContext
     {
-        $contextToken = $this->sessionStore->storedContextToken($metadata);
+        $contextToken = $this->sessionStore->storedContextToken($sessionMetadata);
         if (null === $contextToken) {
             throw new ValidationException('Completed checkout session is missing its Shopware context token.');
         }
@@ -316,12 +313,14 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         );
     }
 
-    private function completedCheckout(
-        OrderEntity $order,
-        string $checkoutId,
-        SalesChannelContext $salesChannelContext,
-        RequestContext $context,
-    ): Checkout {
+    /**
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function completedCheckout(string $orderId, string $checkoutId, array $sessionMetadata, RequestContext $context): Checkout
+    {
+        $salesChannelContext = $this->completedCheckoutContext($sessionMetadata, $context);
+        $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
+
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
