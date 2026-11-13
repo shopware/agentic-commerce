@@ -11,6 +11,7 @@ use Swag\AgenticCommerce\System\SalesChannel\AbstractSalesChannelTypeResolver;
 use Swag\AgenticCommerce\System\SalesChannel\SalesChannelTypeClassification;
 use Swag\AgenticCommerce\Ucp\Admin\SigningKey\UcpSigningKeyService;
 use Symfony\Component\Messenger\EventListener\StopWorkerOnRestartSignalListener;
+use Ucp\Sdk\Enum\PlatformPolicy;
 
 /** @internal */
 #[Package('framework')]
@@ -67,13 +68,18 @@ final class UcpConfigService
         }
 
         $legacyPayload = $this->legacyPayload($salesChannelId);
+        $hasLegacyValues = $this->hasLegacyValues($legacyPayload);
+        if (!$hasLegacyValues) {
+            // Nothing stored anywhere: a sales channel configured from now on accepts every platform.
+            $legacyPayload['platformPolicy'] = PlatformPolicy::All->value;
+        }
         $config = UcpConfig::fromArray($legacyPayload, $this->allowHttpLocalWebhookOverride);
 
         if ($config->active && !$this->isEligible($salesChannelId)) {
             return $config->disabled();
         }
 
-        if ($this->hasLegacyValues($legacyPayload)) {
+        if ($hasLegacyValues) {
             // Compatibility bridge for legacy SystemConfig-backed setups,
             // including warm local installations that existed before the
             // sales-channel scoped config table was populated. Keep this until a
@@ -122,8 +128,8 @@ final class UcpConfigService
      * Persist a (possibly partial) config payload. The incoming keys are merged
      * over the currently stored config, so callers that only own a subset of the
      * fields do not reset the rest: the admin UI saves the Exposure subset
-     * (active / profileDomain / capabilities / transports) while signature
-     * policy, signing keys and the advanced host/delivery settings are managed
+     * (active / profileDomain / capabilities / transports / platform allowlist)
+     * while signature policy, signing keys and the other host/delivery settings are managed
      * via console commands (ucp:config:* / ucp:signing-keys:*). Whichever writes last
      * preserves the other's fields.
      *

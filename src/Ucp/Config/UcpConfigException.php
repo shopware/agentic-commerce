@@ -14,6 +14,7 @@ final class UcpConfigException extends HttpException
 {
     public const INVALID_CONFIG = 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_INVALID';
     public const INVALID_JSON = 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_INVALID_JSON';
+    public const WEBHOOK_HOST_NOT_LISTED = 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_WEBHOOK_HOST_NOT_LISTED';
     public const SALES_CHANNEL_TYPE_NOT_SUPPORTED = 'SWAG_AGENTIC_COMMERCE__UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED';
 
     public static function invalidValue(string $path, string $message): self
@@ -23,6 +24,16 @@ final class UcpConfigException extends HttpException
             self::INVALID_CONFIG,
             \sprintf('Invalid UCP config at %s: %s.', $path, $message),
             ['path' => $path],
+        );
+    }
+
+    public static function webhookHostNotListed(string $host): self
+    {
+        return new self(
+            Response::HTTP_BAD_REQUEST,
+            self::WEBHOOK_HOST_NOT_LISTED,
+            'Invalid UCP config at $.webhookUrlOverride: host "{{ host }}" must be listed in agentAllowlist or platformAllowlist.',
+            ['path' => '$.webhookUrlOverride', 'host' => $host],
         );
     }
 

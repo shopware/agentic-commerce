@@ -94,6 +94,54 @@
                     </p>
                 </div>
 
+                {% block sw_sales_channel_detail_agentic_commerce_ucp_platform_policy %}
+                <div
+                    class="sw-sales-channel-detail-agentic-commerce__section"
+                    data-testid="ac-ucp__platform-policy"
+                >
+                    <p class="sw-sales-channel-detail-agentic-commerce__section-label">
+                        {{ $t('sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyLabel') }}
+                        <mt-icon
+                            v-tooltip="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyHelpText')"
+                            class="sw-sales-channel-detail-agentic-commerce__label-help"
+                            name="solid-question-circle-s"
+                            size="14px"
+                        />
+                    </p>
+                    <mt-select
+                        :options="platformPolicyOptions"
+                        :disabled="!canEditConfig || !isActive"
+                        :model-value="form.platformPolicy"
+                        hide-clearable-button
+                        @update:model-value="(value) => setValue('platformPolicy', value)"
+                    />
+                </div>
+                {% endblock %}
+
+                {% block sw_sales_channel_detail_agentic_commerce_ucp_platform_allowlist %}
+                <div
+                    class="sw-sales-channel-detail-agentic-commerce__section"
+                    data-testid="ac-ucp__platform-allowlist"
+                >
+                    <sw-multi-tag-select
+                        :label="platformAllowlistLabel"
+                        :help-text="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHelpText')"
+                        :placeholder="$t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistPlaceholder')"
+                        :validate="isValidPlatformHost"
+                        :disabled="!canEditConfig || !isActive"
+                        :value="form.platformAllowlist"
+                        @update:value="setPlatformAllowlist"
+                    >
+                        <template #message-enter-valid-data>
+                            <span>{{ $t('sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistInvalid') }}</span>
+                        </template>
+                    </sw-multi-tag-select>
+                    <p class="sw-sales-channel-detail-agentic-commerce__hint">
+                        {{ platformAllowlistHint }}
+                    </p>
+                </div>
+                {% endblock %}
+
                 <div class="sw-sales-channel-detail-agentic-commerce__section">
                     <div class="sw-sales-channel-detail-agentic-commerce__option-grid">
                         <div class="sw-sales-channel-detail-agentic-commerce__option-column">

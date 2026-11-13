@@ -135,6 +135,55 @@ test.describe('Agentic Commerce tab configuration @UcpAdmin', () => {
         expect((await TestDataService.getUcpConfig(salesChannel.id)).enabledCapabilities).not.toContain('order');
     });
 
+    test('a pasted profile URL is stored as the platform host', async ({ TestDataService, AdminPage }) => {
+        const { salesChannel } = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(salesChannel.id, { platformAllowlist: [] });
+        const detail = new UcpSalesChannelDetail(AdminPage);
+        await detail.openAgenticCommerceTab(salesChannel.id);
+
+        await test.step('the merchant pastes a profile URL and the field keeps its host', async () => {
+            expect(await detail.platformHosts()).toEqual([]);
+            await detail.addPlatformHost('https://Platform.Example/.well-known/ucp');
+            await expect.poll(() => detail.platformHosts()).toEqual(['platform.example']);
+            await expect(detail.unsavedBanner).toBeVisible();
+        });
+
+        await test.step('an entry that is not a host is refused', async () => {
+            await detail.addPlatformHost('not a host');
+            await expect.poll(() => detail.platformHosts()).toEqual(['platform.example']);
+        });
+
+        await test.step('the host is stored and shown again after a reload', async () => {
+            await detail.saveUcpConfig(salesChannel.id);
+            expect((await TestDataService.getUcpConfig(salesChannel.id)).platformAllowlist).toEqual(['platform.example']);
+
+            await detail.reload(salesChannel.id);
+            await expect.poll(() => detail.platformHosts()).toEqual(['platform.example']);
+        });
+    });
+
+    test('the merchant switches a sales channel to listed platforms only', async ({ TestDataService, AdminPage }) => {
+        const { salesChannel } = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(salesChannel.id, { platformPolicy: 'all', platformAllowlist: [] });
+        const detail = new UcpSalesChannelDetail(AdminPage);
+        await detail.openAgenticCommerceTab(salesChannel.id);
+
+        await test.step('the merchant chooses listed platforms only', async () => {
+            await expect.poll(() => detail.platformPolicy()).toBe('All platforms');
+            await detail.selectPlatformPolicy('Listed platforms only');
+            await expect.poll(() => detail.platformPolicy()).toBe('Listed platforms only');
+            await expect(detail.unsavedBanner).toBeVisible();
+        });
+
+        await test.step('the policy is stored and shown again after a reload', async () => {
+            await detail.saveUcpConfig(salesChannel.id);
+            expect((await TestDataService.getUcpConfig(salesChannel.id)).platformPolicy).toBe('listed');
+
+            await detail.reload(salesChannel.id);
+            await expect.poll(() => detail.platformPolicy()).toBe('Listed platforms only');
+        });
+    });
+
     test('the tab links the UCP documentation and shows core\'s Agentic files from 6.7.12.0', async ({ InstanceMeta, TestDataService, AdminPage }) => {
         const { salesChannel } = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(salesChannel.id);

@@ -66,4 +66,21 @@ test.describe('UCP 2026-08-25 error codes @UcpKnownBlocked @UcpBlockedByD15', ()
         expect(refusal.status(), await refusal.text()).toBe(403);
         expect(await messageCodes(refusal)).toContain('profile_not_trusted');
     });
+
+    test('listed platforms only refuses a signed request from a platform outside the allowlist as profile_not_trusted', async ({ TestDataService, UcpAgentWithProfile }) => {
+        const listedOnlyChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(listedOnlyChannel.salesChannel.id, {
+            signaturePolicy: 'strict',
+            platformPolicy: 'listed',
+            platformAllowlist: ['another-platform.ucp-acceptance.test'],
+            remoteProfileAllowlist: [],
+            agentAllowlist: [],
+        });
+        const unlistedAgent = (await UcpAgentWithProfile({})).at(listedOnlyChannel.url);
+
+        const refusal = await unlistedAgent.rest.send('POST', CATALOG_SEARCH_PATH, catalogSearchRequest);
+
+        expect(refusal.status(), await refusal.text()).toBe(403);
+        expect(await messageCodes(refusal)).toContain('profile_not_trusted');
+    });
 });

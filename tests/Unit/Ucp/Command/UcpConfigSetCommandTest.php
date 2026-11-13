@@ -68,6 +68,48 @@ class UcpConfigSetCommandTest extends TestCase
         static::assertStringContainsString('off', $tester->getDisplay());
     }
 
+    public function testItRejectsAnUnknownPlatformPolicyWithoutPersisting(): void
+    {
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->expects(static::never())->method('save');
+
+        $tester = new CommandTester($this->command($configRepository));
+        $status = $tester->execute([
+            '--sales-channel' => 'Storefront',
+            '--platform-policy' => 'everyone',
+        ], ['interactive' => false]);
+
+        static::assertSame(Command::INVALID, $status);
+        static::assertStringContainsString('Invalid --platform-policy value "everyone"', $tester->getDisplay());
+        static::assertStringContainsString('listed', $tester->getDisplay());
+    }
+
+    public function testItPersistsThePlatformPolicy(): void
+    {
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->method('find')->with(self::STORE_ID)->willReturn(null);
+        $configRepository->expects(static::once())
+            ->method('save')
+            ->with(
+                self::STORE_ID,
+                static::callback(static function (mixed $config): bool {
+                    static::assertInstanceOf(UcpConfig::class, $config);
+                    static::assertSame('listed', $config->platformPolicy);
+
+                    return true;
+                }),
+            );
+
+        $tester = new CommandTester($this->command($configRepository));
+        $status = $tester->execute([
+            '--sales-channel' => 'Storefront',
+            '--platform-policy' => 'Listed',
+        ], ['interactive' => false]);
+
+        static::assertSame(Command::SUCCESS, $status);
+        static::assertStringContainsString('"platformPolicy": "listed"', $tester->getDisplay());
+    }
+
     public function testItRejectsInvalidIdempotencyWithoutPersisting(): void
     {
         $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);

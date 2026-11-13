@@ -30,6 +30,11 @@ final class UcpConfigSetCommand extends Command
     /**
      * @var list<string>
      */
+    private const PLATFORM_POLICIES = ['all', 'listed'];
+
+    /**
+     * @var list<string>
+     */
     private const BOOLEAN_LITERALS = ['true', '1', 'yes', 'false', '0', 'no'];
 
     /**
@@ -64,6 +69,7 @@ final class UcpConfigSetCommand extends Command
             ->addOption('sales-channel', null, InputOption::VALUE_REQUIRED, 'Sales channel id or name (required; omit to pick interactively).')
             ->addOption('signature-policy', null, InputOption::VALUE_REQUIRED, 'Inbound signature policy: strict, log or off. Example: --signature-policy=strict')
             ->addOption('idempotency', null, InputOption::VALUE_REQUIRED, 'Require idempotency keys on write requests: true or false. Example: --idempotency=true')
+            ->addOption('platform-policy', null, InputOption::VALUE_REQUIRED, 'Which agent platforms may use the sales channel: all (every platform with a valid profile) or listed (only the platform allowlist). Example: --platform-policy=listed')
             ->addOption('agent-allowlist', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Host allowed to act as a UCP agent — bare host, no scheme (repeatable). Omit to leave unchanged. Example: --agent-allowlist=agent.example.com')
             ->addOption('remote-profile-allowlist', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Host the SDK may fetch remote agent profiles from — bare host (repeatable). Omit to leave unchanged. Example: --remote-profile-allowlist=profiles.example.com')
             ->addOption('platform-allowlist', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Platform host allowed to integrate — bare host (repeatable). Omit to leave unchanged. Example: --platform-allowlist=chatgpt.com')
@@ -85,6 +91,9 @@ final class UcpConfigSetCommand extends Command
 
               # Relax signature checking to log-only while testing an integration
               <info>bin/console ucp:config:set --sales-channel="Storefront" --signature-policy=log</info>
+
+              # Accept only the platforms on the platform allowlist
+              <info>bin/console ucp:config:set --sales-channel=Storefront --platform-policy=listed --platform-allowlist=platform.example</info>
 
               # Allow one agent host and require idempotency on writes
               <info>bin/console ucp:config:set --sales-channel=Storefront --agent-allowlist=agent.example.com --idempotency=true</info>
@@ -151,7 +160,12 @@ final class UcpConfigSetCommand extends Command
 
         $signaturePolicy = $input->getOption('signature-policy');
         if (\is_string($signaturePolicy)) {
-            $payload['signaturePolicy'] = $this->signaturePolicyValue($signaturePolicy);
+            $payload['signaturePolicy'] = $this->enumOptionValue('signature-policy', $signaturePolicy, self::SIGNATURE_POLICIES);
+        }
+
+        $platformPolicy = $input->getOption('platform-policy');
+        if (\is_string($platformPolicy)) {
+            $payload['platformPolicy'] = $this->enumOptionValue('platform-policy', $platformPolicy, self::PLATFORM_POLICIES);
         }
 
         $idempotency = $input->getOption('idempotency');
@@ -176,14 +190,17 @@ final class UcpConfigSetCommand extends Command
         return $payload;
     }
 
-    private function signaturePolicyValue(string $value): string
+    /**
+     * @param list<string> $allowed
+     */
+    private function enumOptionValue(string $option, string $value, array $allowed): string
     {
         $normalized = strtolower(trim($value));
-        if (\in_array($normalized, self::SIGNATURE_POLICIES, true)) {
+        if (\in_array($normalized, $allowed, true)) {
             return $normalized;
         }
 
-        throw new \InvalidArgumentException(\sprintf('Invalid --signature-policy value "%s"; expected one of: %s.', $value, implode(', ', self::SIGNATURE_POLICIES)));
+        throw new \InvalidArgumentException(\sprintf('Invalid --%s value "%s"; expected one of: %s.', $option, $value, implode(', ', $allowed)));
     }
 
     private function booleanOptionValue(string $option, string $value): bool

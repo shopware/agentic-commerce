@@ -59,7 +59,7 @@ final class UcpMcpProxyController
     {
         $salesChannel = $this->resolveSalesChannel($request);
         if (null === $salesChannel) {
-            return $this->errorResponse('UCP MCP is not available for this host.', Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('UCP MCP is not available for this host.', Response::HTTP_NOT_FOUND);
         }
 
         $config = $this->configService->getConfig($salesChannel['salesChannelId']);
@@ -67,7 +67,7 @@ final class UcpMcpProxyController
             !$config->active
             || !\in_array(Transport::Mcp, $config->runtimeTransports($this->versionDetector->supportsStoreApiMcp()), true)
         ) {
-            return $this->errorResponse('UCP MCP is not available for this host.', Response::HTTP_FORBIDDEN);
+            return $this->errorResponse('UCP MCP is not available for this host.', Response::HTTP_NOT_FOUND);
         }
 
         if ($request->isMethod(Request::METHOD_OPTIONS)) {

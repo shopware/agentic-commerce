@@ -307,8 +307,8 @@ if [[ "${SKIP_PLUGIN}" == "1" ]]; then
     && { composer remove --no-update --no-interaction shopware/agentic-commerce ucp-php-sdk/core ucp-php-sdk/symfony-bundle >/dev/null 2>&1 || true; }'
 else
   if [[ "${UCP_SDK_SOURCE}" == "path" ]]; then
-    sdk_repositories="composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.7\"}}}' \
-      && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.7\"}}}'"
+    sdk_repositories="composer config repositories.ucp-sdk-core '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/core\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/core\":\"0.0.9\"}}}' \
+      && composer config repositories.ucp-sdk-symfony '{\"type\":\"path\",\"url\":\"custom/ucp-php-sdk/packages/symfony-bundle\",\"options\":{\"symlink\":true,\"versions\":{\"ucp-php-sdk/symfony-bundle\":\"0.0.9\"}}}'"
   else
     # No path repositories: the exact versions composer.json pins come from Packagist, which is
     # the pair a merchant installs. Unset first, so a warm shop from an earlier path-mode run
@@ -388,6 +388,8 @@ foreach ([
     'ucp_platform_profile_cache',
     'ucp_negotiation_sessions',
     'ucp_signature_nonces',
+    'ucp_discovery_windows',
+    'ucp_discovery_backoff',
 ] as $table) {
     if (!$connection->createSchemaManager()->tablesExist([$table])) {
         fwrite(STDERR, sprintf("UCP SDK storage table %s was not created.\n", $table));

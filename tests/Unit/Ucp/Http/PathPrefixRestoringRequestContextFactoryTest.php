@@ -45,6 +45,23 @@ class PathPrefixRestoringRequestContextFactoryTest extends TestCase
         ));
     }
 
+    public function testItRestoresThePrefixWhenTheQueryIsNotInSymfonysOrder(): void
+    {
+        $searchRequestWithStrippedPrefix = Request::create('https://shop.example/ucp/v1/catalog/search?b=1&a=2', Request::METHOD_POST);
+        $searchRequestWithStrippedPrefix->attributes->set(RequestTransformer::ORIGINAL_REQUEST_URI, '/de/ucp/v1/catalog/search?b=1&a=2');
+
+        $innerFactory = $this->createMock(HttpRequestContextFactoryInterface::class);
+        $innerFactory->expects(static::once())->method('create')->with(static::equalTo(new HttpRequest(
+            'POST',
+            'https://shop.example/de/ucp/v1/catalog/search?b=1&a=2',
+        )))->willReturn(new RequestContext('shop.example'));
+
+        $this->factory($innerFactory, $searchRequestWithStrippedPrefix)->create(new HttpRequest(
+            'POST',
+            'https://shop.example/ucp/v1/catalog/search?b=1&a=2',
+        ));
+    }
+
     public function testItKeepsTheUriOfARequestNotOnTheStack(): void
     {
         $unrelatedRequest = Request::create('https://shop.example/checkout');

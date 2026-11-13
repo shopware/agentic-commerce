@@ -167,6 +167,8 @@ describe('ordinary sales-channel saves', () => {
             profileDomain: null,
             enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
             enabledTransports: ['rest'],
+            platformPolicy: 'all',
+            platformAllowlist: [],
         };
         ctx.$super.mockImplementation(async () => {
             ctx.salesChannel = null;
@@ -267,6 +269,8 @@ describe('ordinary sales-channel saves', () => {
             profileDomain: null,
             enabledCapabilities: ['catalog', 'cart', 'discount', 'checkout', 'order'],
             enabledTransports: ['rest'],
+            platformPolicy: 'all',
+            platformAllowlist: [],
         };
         let resolveConfig;
         const pendingConfig = new Promise((resolve) => { resolveConfig = resolve; });
