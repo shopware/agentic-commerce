@@ -32,7 +32,7 @@ jobs:
     outputs:
       complete: ${{ steps.download.outputs.complete }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # The newest completed push runs of ci.yml on main, by run id. Any of them that did not
       # succeed, or carries no measurement, breaks the streak and nothing is raised.
@@ -75,7 +75,7 @@ jobs:
 
           echo "complete=${complete}" >>"${GITHUB_OUTPUT}"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: steps.download.outputs.complete == 'true'
         with:
           name: coverage-measurements
@@ -93,9 +93,9 @@ jobs:
     env:
       BRANCH: bot/raise-coverage-floor
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: coverage-measurements
           path: ${{ runner.temp }}/measurements

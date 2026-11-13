@@ -49,8 +49,8 @@ jobs:
       run:
         working-directory: tests/acceptance
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -67,7 +67,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       changed: ${{ steps.plan.outputs.changed }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # On pull_request the merge ref's first parent is the base branch.
           fetch-depth: 2
@@ -106,7 +106,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.acceptance-plan.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - uses: ./agentic-commerce/.github/actions/acceptance-lane
@@ -132,7 +132,7 @@ jobs:
         # FAIL_ON_FLAKY stays unquoted, so an empty value passes no argument.
         run: npx playwright test --grep-invert @UcpKnownBlocked --shard="${SHARD}" --repeat-each="${REPEAT_EACH}" ${FAIL_ON_FLAKY} --reporter=blob,list
       - if: ${{ !cancelled() && steps.suite.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: acceptance-blob-${{ matrix.lane }}-${{ matrix.shard }}
           path: acceptance-blob
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - uses: ./agentic-commerce/.github/actions/acceptance-lane
@@ -179,7 +179,7 @@ jobs:
       # The failures' traces hold every Admin API response the ATS asserts without its body; the shop
       # log holds the server-side errors. Both carry tokens of this throwaway shop, like the lane blobs.
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: acceptance-tests-changed-failure
           path: |

@@ -45,7 +45,7 @@ jobs:
     outputs:
       version: ${{ steps.metadata.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -153,7 +153,7 @@ jobs:
       contents: write
     steps:
       - name: Download the install-tested archive
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: SwagAgenticCommerce-archive
           path: ${{ github.workspace }}
@@ -199,7 +199,7 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
       version: ${{ steps.tag.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -250,12 +250,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Download the install-tested archive
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: SwagAgenticCommerce-archive
           path: ${{ runner.temp }}/archive
