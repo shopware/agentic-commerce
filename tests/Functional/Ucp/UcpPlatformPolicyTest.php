@@ -29,8 +29,13 @@ final class UcpPlatformPolicyTest extends TestCase
 
         $response = $this->catalogSearchAs(self::UNLISTED_PROFILE);
 
-        // Not the exact status and code: the SDK answers 401 where UCP names 403 profile_not_trusted.
-        self::assertTrue($response->isClientError(), (string) $response->getContent());
+        // UCP names 403 for this refusal. The SDK answers 401 until
+        // https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/219 is fixed.
+        self::assertContains(
+            $response->getStatusCode(),
+            [Response::HTTP_UNAUTHORIZED, Response::HTTP_FORBIDDEN],
+            (string) $response->getContent(),
+        );
     }
 
     #[Test]
