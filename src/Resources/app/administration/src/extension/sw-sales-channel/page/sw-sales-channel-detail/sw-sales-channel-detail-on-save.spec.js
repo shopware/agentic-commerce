@@ -497,7 +497,7 @@ describe('sw-sales-channel-detail onSave — refused save', () => {
 });
 
 describe('sw-sales-channel-detail onSave — UCP config', () => {
-    const UCP_FORM = { active: true, profileDomain: null, enabledCapabilities: ['cart', 'catalog'], enabledTransports: ['rest'] };
+    const UCP_FORM = { active: true, profileDomain: null, enabledCapabilities: ['cart', 'catalog'], enabledTransports: ['rest'], platformPolicy: 'listed', platformAllowlist: ['platform.example'] };
 
     it('allows UCP editors to save on the UCP route without sales_channel.editor', () => {
         expect(swSalesChannelDetailOverride.computed.allowSaving.call({

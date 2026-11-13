@@ -5,7 +5,7 @@
  * text shown in the merchant's error notification.
  */
 
-import { extractApiErrorMessage } from './error-message.util';
+import { extractApiErrorMessage, ucpSaveErrorMessage } from './error-message.util';
 
 function apiError({ errors, status = 400, statusText = 'Bad Request', message = 'Request failed with status code 400' } = {}) {
     return { message, response: { status, statusText, data: errors === undefined ? {} : { errors } } };
@@ -52,5 +52,28 @@ describe('agentic-commerce/error-message.util', () => {
 
     it('returns a generic message when the error carries nothing readable', () => {
         expect(extractApiErrorMessage(undefined)).toBe('Unknown UCP administration error.');
+    });
+});
+
+describe('agentic-commerce/error-message.util ucpSaveErrorMessage', () => {
+    it('tells the merchant to list the webhook host when adding a platform is refused because of it', () => {
+        const refusedSave = apiError({
+            errors: [{
+                code: 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_WEBHOOK_HOST_NOT_LISTED',
+                detail: 'Invalid UCP config at $.webhookUrlOverride: host "hooks.merchant.example" must be listed in agentAllowlist or platformAllowlist.',
+                meta: { parameters: { path: '$.webhookUrlOverride', host: 'hooks.merchant.example' } },
+            }],
+        });
+
+        expect(ucpSaveErrorMessage(refusedSave, (key, values) => `${key}:${values.host}`))
+            .toBe('sw-sales-channel.detail.agenticCommerce.ucp.webhookHostNotListed:hooks.merchant.example');
+    });
+
+    it('shows the server text for every other refused save', () => {
+        const refusedSave = apiError({
+            errors: [{ code: 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_INVALID', detail: 'Invalid UCP config at $.active: must be a boolean.' }],
+        });
+
+        expect(ucpSaveErrorMessage(refusedSave, jest.fn())).toBe('Invalid UCP config at $.active: must be a boolean.');
     });
 });

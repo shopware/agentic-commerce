@@ -44,7 +44,7 @@ profile). The plugin does not build one, for the reasons in the SDK policy docum
 
 ## What an SDK spec bump means for a shop
 
-The plugin requires the SDK at the exact version it was tested against (`0.0.7` today), so a new SDK
+The plugin requires the SDK at the exact version it was tested against (`0.0.9` today), so a new SDK
 release never reaches a shop on its own. It arrives with a plugin release in which:
 
 - `UcpProtocol::VERSION` has been moved to the new date, after `ShopwareDataMapper` and

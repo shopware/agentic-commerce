@@ -61,6 +61,7 @@ class UcpSetupCommandTest extends TestCase
         static::assertInstanceOf(UcpConfig::class, $saved);
         static::assertTrue($saved->active);
         static::assertSame('log', $saved->signaturePolicy);
+        static::assertSame('listed', $saved->platformPolicy);
         static::assertTrue($saved->idempotencyRequired);
         static::assertSame(['localhost', 'shop.localhost'], $saved->platformAllowlist);
         static::assertSame(['localhost', 'shop.localhost'], $saved->agentAllowlist);
@@ -123,6 +124,24 @@ class UcpSetupCommandTest extends TestCase
      * The summary printed the carried-over hosts, so the only defence was an operator reading it
      * closely enough to notice.
      */
+    public function testSetupOnAChannelWithoutStoredSettingsAcceptsOnlyListedPlatforms(): void
+    {
+        $saved = null;
+        $configRepository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $configRepository->method('find')->willReturn(null);
+        $configRepository->expects(static::once())->method('save')
+            ->willReturnCallback(static function (string $salesChannelId, UcpConfig $config) use (&$saved): void {
+                $saved = $config;
+            });
+
+        $tester = new CommandTester($this->command($configRepository, new UcpSigningKeyServiceTestTenantRepository()));
+        $tester->execute(['--sales-channel' => 'Storefront', '--agent-host' => ['agent.example.com']], ['interactive' => false]);
+
+        static::assertInstanceOf(UcpConfig::class, $saved);
+        static::assertSame('listed', $saved->platformPolicy);
+        static::assertStringContainsString('listed', $tester->getDisplay());
+    }
+
     public function testProductionSetupClearsTheHostsAnEarlierDevRunLeftBehind(): void
     {
         $saved = null;

@@ -3,7 +3,13 @@ import templateSw from './sw-sales-channel-detail-agentic-commerce.sw.html.twig'
 import './sw-sales-channel-detail-agentic-commerce.scss';
 import { registerOrOverride } from '../../../../helper/register-or-override';
 import { useMtComponents } from '../../agentic-commerce/admin-version';
-import { toggleArrayValue, buildConfigPayload } from '../../agentic-commerce/ucp-form-state';
+import {
+    toggleArrayValue,
+    buildConfigPayload,
+    isValidHostEntry,
+    normalizeHostList,
+    PLATFORM_POLICIES,
+} from '../../agentic-commerce/ucp-form-state';
 import {
     buildSubTabItems,
     resolveActiveSubTab,
@@ -16,6 +22,19 @@ import { isTransactionalSalesChannelType } from '../../agentic-commerce/sales-ch
 
 const { Mixin, Defaults } = Shopware;
 
+const PLATFORM_POLICY_SNIPPETS = {
+    all: {
+        label: 'sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyAll',
+        listLabel: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistLabelAll',
+        hint: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHintAll',
+    },
+    listed: {
+        label: 'sw-sales-channel.detail.agenticCommerce.ucp.platformPolicyListed',
+        listLabel: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistLabel',
+        hint: 'sw-sales-channel.detail.agenticCommerce.ucp.platformAllowlistHintListed',
+    },
+};
+
 /**
  * Consolidated "Agentic Commerce" tab. Renders an always-visible unsaved-changes
  * banner, the UCP card (header on/off switch + Exposure/Preview sub-tabs), the
@@ -24,7 +43,7 @@ const { Mixin, Defaults } = Shopware;
  *
  * The UCP form/preview live on the parent page (injected via
  * `swSalesChannelGetUcpState`) so edits survive tab switches and persist through
- * the page's global Save. Signature policy, signing keys and the advanced
+ * the page's global Save. Signature policy, signing keys and the remaining
  * host/delivery settings are managed via console commands (ucp:config:* /
  * ucp:signing-keys:*), not this UI. This component is the thin view layer over the pure
  * helpers in ../../agentic-commerce/*.
@@ -140,6 +159,20 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
         selectedProfileDomain() {
             return this.form?.profileDomain || this.profileDomainOptions[0]?.value || '';
         },
+        platformPolicyOptions() {
+            return PLATFORM_POLICIES.map((value) => ({ value, label: this.$t(PLATFORM_POLICY_SNIPPETS[value].label) }));
+        },
+        platformAllowlistLabel() {
+            const policy = PLATFORM_POLICY_SNIPPETS[this.form?.platformPolicy] ?? PLATFORM_POLICY_SNIPPETS.all;
+
+            return this.$t(policy.listLabel);
+        },
+
+        platformAllowlistHint() {
+            const policy = PLATFORM_POLICY_SNIPPETS[this.form?.platformPolicy] ?? PLATFORM_POLICY_SNIPPETS.all;
+
+            return this.$t(policy.hint);
+        },
         previewJson() {
             return this.preview ? JSON.stringify(this.preview, null, 2) : '';
         },
@@ -210,6 +243,18 @@ registerOrOverride('sw-sales-channel-detail-agentic-commerce', {
 
         isTransportEnabled(transport) {
             return this.form.enabledTransports.includes(transport);
+        },
+
+        // 6.5 emits `change`, 6.6+ `update:value`; the legacy template listens to both.
+        setPlatformAllowlist(values) {
+            if (!Array.isArray(values)) {
+                return;
+            }
+            this.form.platformAllowlist = normalizeHostList(values);
+        },
+
+        isValidPlatformHost(value) {
+            return isValidHostEntry(value);
         },
     },
 });
