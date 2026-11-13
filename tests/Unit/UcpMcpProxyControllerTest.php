@@ -69,7 +69,7 @@ final class UcpMcpProxyControllerTest extends TestCase
 
         $response = $controller->proxy(Request::create('https://unknown.example/ucp/mcp'));
 
-        self::assertSame(Response::HTTP_FORBIDDEN, $response->getStatusCode());
+        self::assertSame(Response::HTTP_NOT_FOUND, $response->getStatusCode());
         self::assertStringContainsString('application/json', (string) $response->headers->get('Content-Type'));
 
         $payload = json_decode((string) $response->getContent(), true, flags: \JSON_THROW_ON_ERROR);
@@ -96,7 +96,7 @@ final class UcpMcpProxyControllerTest extends TestCase
 
         $response = $controller->proxy(Request::create('https://shop.example/ucp/mcp', Request::METHOD_POST));
 
-        self::assertSame(Response::HTTP_FORBIDDEN, $response->getStatusCode());
+        self::assertSame(Response::HTTP_NOT_FOUND, $response->getStatusCode());
     }
 
     #[Test]
@@ -118,7 +118,7 @@ final class UcpMcpProxyControllerTest extends TestCase
 
         $response = $controller->proxy(Request::create('https://shop.example/ucp/mcp', Request::METHOD_POST));
 
-        self::assertSame(Response::HTTP_FORBIDDEN, $response->getStatusCode());
+        self::assertSame(Response::HTTP_NOT_FOUND, $response->getStatusCode());
     }
 
     #[Test]
@@ -141,7 +141,7 @@ final class UcpMcpProxyControllerTest extends TestCase
 
         $response = $controller->proxy(Request::create('https://shop.example/ucp/mcp', Request::METHOD_POST));
 
-        self::assertSame(Response::HTTP_FORBIDDEN, $response->getStatusCode());
+        self::assertSame(Response::HTTP_NOT_FOUND, $response->getStatusCode());
     }
 
     #[Test]
@@ -422,7 +422,7 @@ final class UcpMcpProxyControllerTest extends TestCase
 
         $response = $controller->proxy(Request::create('https://shop.example/ucp/mcp', Request::METHOD_OPTIONS));
 
-        self::assertSame(Response::HTTP_FORBIDDEN, $response->getStatusCode());
+        self::assertSame(Response::HTTP_NOT_FOUND, $response->getStatusCode());
     }
 
     #[Test]

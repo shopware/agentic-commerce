@@ -217,13 +217,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D34',
-        description: 'A sales channel with MCP switched off answers /ucp/mcp with 403 "UCP MCP is not available for this host", where /ucp/a2a answers 404 while A2A is switched off.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/337',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D36',
         description: 'The SDK answers checkout operations with an empty ucp.services, also when the embedded transport is enabled, where UCP 2026-08-25 requires an embedded service binding with config.delegate in the checkout response for a checkout that can be embedded.',
         owner: 'dgrothaus-sw',
