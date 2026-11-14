@@ -47,15 +47,15 @@ jobs:
   shell-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: ShellCheck bin scripts
         run: shellcheck -x bin/*.sh bin/lib/*.sh
 
   docs-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -74,7 +74,7 @@ jobs:
   workflow-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Every job is aggregated by its workflow's gate
         run: bin/ci-assert-gate-coverage.sh .github/workflows/*.yml
       - name: Coverage floor checker tests
@@ -126,7 +126,7 @@ jobs:
     outputs:
       is_lane_sensitive: ${{ steps.scope.outputs.is_lane_sensitive }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
       - id: scope
@@ -164,7 +164,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/acceptance-report
 
   # One line-coverage figure per suite against .github/coverage-floor.json and, on a pull request,
@@ -181,15 +181,15 @@ jobs:
     # Not ubuntu-latest: .github/diff-cover-requirements.txt pins the CPython 3.12 wheels this image ships.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # On a pull request HEAD is the merge commit, so HEAD^1 is the base branch.
           fetch-depth: 2
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: php-unit-coverage
           path: ${{ runner.temp }}/coverage/php
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: admin-jest-coverage
           path: ${{ runner.temp }}/coverage/admin
@@ -202,7 +202,7 @@ jobs:
       # Read by coverage-floor.yml, which raises the floors after consecutive runs on main.
       - name: Upload the measurement
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-measurement
           path: ${{ runner.temp }}/measurement.json
@@ -225,7 +225,7 @@ jobs:
           exit "${status}"
       - name: Upload patch.md
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: patch-coverage
           path: ${{ runner.temp }}/patch/patch.md

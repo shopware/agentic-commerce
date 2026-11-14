@@ -35,10 +35,10 @@ jobs:
           - lane: '6.6.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}
