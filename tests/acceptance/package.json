@@ -20,7 +20,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.6",
     "@xmldom/xmldom": "^0.9.12",
     "dotenv": "^17.4.2",
     "eslint": "^10.2.1",
