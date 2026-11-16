@@ -28,13 +28,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D3',
-        description: 'The A2A transport runs no signature check, so the strict signature policy accepts an unsigned A2A request. A2aController builds a bare RequestContext without a platform profile.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/206',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D5',
         description: 'The MCP tools read the request from payload, where the MCP binding of UCP 2026-08-25 sends it in checkout or cart with an id and meta, so a spec-conformant create_checkout is refused with "$.line_items is required". The idempotency key is read only from the HTTP request, not from meta. tools/list offers no get_product.',
         owner: 'dgrothaus-sw',
