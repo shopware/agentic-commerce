@@ -20,9 +20,8 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * The strict-policy tests persist `signaturePolicy=strict` through UcpConfigService (the service behind
  * `ucp:config:set`), overriding the `log` system config from {@see UcpFlowTestBehaviour::configureUcpRuntime()}.
- * A2A stays incomplete while the SDK's RequestContextListener::isUcpRequest() exempts that path. The
- * embedded page must still be served: browsers cannot sign an iframe load, and the Embedded Checkout
- * Protocol authorizes it through the token in the URL.
+ * A2A is refused with the same 401 body as REST. The embedded page must still be served: browsers
+ * cannot sign an iframe load, and the Embedded Checkout Protocol authorizes it through the token in the URL.
  *
  * Requests target `APP_URL` — the test database's default storefront sales-channel domain — exactly
  * as Shopware's own functional tests do.
@@ -84,12 +83,8 @@ final class UcpRequestContextGuardTest extends TestCase
             'params' => ['query' => 'Kernel', 'limit' => 1],
         ]);
 
-        // JSON-RPC errors are also HTTP 200, so only a served result counts as the known gap.
-        if (Response::HTTP_OK === $response->getStatusCode() && isset($this->decode($response)['result'])) {
-            self::markTestIncomplete('A2A skips the signature check under strict, see agentic-commerce-alliance/ucp-php-sdk#206.');
-        }
-
         $this->assertMissingSignatureRejection($response);
+        self::assertArrayNotHasKey('result', $this->decode($response));
     }
 
     #[Test]
