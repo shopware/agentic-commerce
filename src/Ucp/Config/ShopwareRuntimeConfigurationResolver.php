@@ -8,6 +8,7 @@ use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Http\PathPrefixRestorer;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Http\HttpRequest;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
@@ -21,6 +22,7 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
         private readonly SalesChannelDomainResolver $domainResolver,
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly PathPrefixRestorer $pathPrefixRestorer,
+        private readonly RequestStack $requestStack,
         private readonly bool $profileFetchingDevelopmentMode = false,
     ) {
     }
@@ -34,7 +36,11 @@ final class ShopwareRuntimeConfigurationResolver implements RuntimeConfiguration
             $baseUri = $resolution->baseUrl;
         }
 
-        return $config->toRuntimeConfiguration($baseUri, $resolution?->salesChannelId, $this->versionDetector->supportsStoreApiMcp(), $this->profileFetchingDevelopmentMode);
+        // The same check as EmbeddedResponseListener: the path info carries neither the install's
+        // base path nor a domain's path prefix, while the URI handed in here can carry either.
+        $embeddedPage = str_starts_with($this->requestStack->getCurrentRequest()?->getPathInfo() ?? '', '/ucp/embedded/');
+
+        return $config->toRuntimeConfiguration($baseUri, $resolution?->salesChannelId, $this->versionDetector->supportsStoreApiMcp(), $this->profileFetchingDevelopmentMode, $embeddedPage);
     }
 
     private function fallbackBaseUri(string $absoluteUri): string
