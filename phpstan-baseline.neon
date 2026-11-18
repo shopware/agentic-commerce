@@ -103,13 +103,13 @@ parameters:
 			path: tests/Unit/UcpExtensionCapabilityTest.php
 
 		-
-			message: '#^Access to constant on deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
+			message: '#^(Access to constant on|Fetching class constant class of) deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
 			identifier: classConstant.deprecatedClass
 			count: 1
 			path: src/DependencyInjection/AgenticCommerceCoexistenceCompilerPass.php
 
 		-
-			message: '#^Access to constant on deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
+			message: '#^(Access to constant on|Fetching class constant class of) deprecated class Swag\\AgenticCommerce\\Compatibility\\Twig\\EntitySeoUrlCompatExtension#'
 			identifier: classConstant.deprecatedClass
 			count: 4
 			path: tests/Unit/DependencyInjection/AgenticCommerceCoexistenceCompilerPassTest.php
