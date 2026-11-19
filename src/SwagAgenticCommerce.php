@@ -17,10 +17,13 @@ use Swag\AgenticCommerce\AgenticFiles\CoreSalesChannelFileFeature;
 use Swag\AgenticCommerce\AgenticFiles\Fallback\AgenticFilesFallbackBundle;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
+use Swag\AgenticCommerce\Exception\PluginFilesReplacedException;
 use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\AdvertiseUcpToolsWithoutToolsetPinningPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
+use Swag\AgenticCommerce\UpdateProtection\ClassPreloader;
+use Swag\AgenticCommerce\UpdateProtection\UpdateProtectionServices;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -49,9 +52,14 @@ final class SwagAgenticCommerce extends Plugin
     /** Shopware resolves this through the project autoloader; a missing SDK is a failed install. */
     private const SDK_BUNDLE_CLASS = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
 
+    private bool $hasRememberedVersionAtBoot = false;
+
+    private ?string $versionAtBoot = null;
+
     public function getPath(): string
     {
         BundledClassLoading::register();
+        $this->rememberVersionAtBoot();
 
         return parent::getPath();
     }
@@ -59,6 +67,8 @@ final class SwagAgenticCommerce extends Plugin
     public function build(ContainerBuilder $container): void
     {
         BundledClassLoading::register();
+
+        UpdateProtectionServices::register($container);
 
         $logsDirParameter = $container->hasParameter('kernel.logs_dir') ? $container->getParameter('kernel.logs_dir') : null;
         $logsDir = \is_string($logsDirParameter) ? $logsDirParameter : null;
@@ -139,6 +149,7 @@ final class SwagAgenticCommerce extends Plugin
     public function install(InstallContext $installContext): void
     {
         BundledClassLoading::register();
+        $this->assertFilesAreTheBootedVersion();
 
         parent::install($installContext);
 
@@ -149,6 +160,7 @@ final class SwagAgenticCommerce extends Plugin
     public function update(UpdateContext $updateContext): void
     {
         BundledClassLoading::register();
+        $this->assertFilesAreTheBootedVersion();
 
         parent::update($updateContext);
 
@@ -156,9 +168,18 @@ final class SwagAgenticCommerce extends Plugin
         $this->syncCoreAgenticFiles();
     }
 
+    public function postUpdate(UpdateContext $updateContext): void
+    {
+        BundledClassLoading::register();
+        $this->assertFilesAreTheBootedVersion();
+
+        parent::postUpdate($updateContext);
+    }
+
     public function activate(ActivateContext $activateContext): void
     {
         BundledClassLoading::register();
+        $this->assertFilesAreTheBootedVersion();
 
         parent::activate($activateContext);
 
@@ -184,6 +205,40 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
+    }
+
+    private static function readVersion(string $pluginRoot): ?string
+    {
+        $manifestVersion = BundledClassLoading::readManifest($pluginRoot)['version'] ?? null;
+
+        return \is_string($manifestVersion) ? $manifestVersion : null;
+    }
+
+    private function rememberVersionAtBoot(): void
+    {
+        // Core's AssetBundleRegistrationCompilerPass calls getPath() on an instance built without the constructor.
+        if ($this->hasRememberedVersionAtBoot || !(new \ReflectionProperty(Plugin::class, 'basePath'))->isInitialized($this)) {
+            return;
+        }
+
+        $this->hasRememberedVersionAtBoot = true;
+        $this->versionAtBoot = self::readVersion($this->getBasePath());
+    }
+
+    /**
+     * PHP cannot unload a class, so old code must not run against replaced files unless the preload loaded them all.
+     */
+    private function assertFilesAreTheBootedVersion(): void
+    {
+        if (null === $this->versionAtBoot || ClassPreloader::hasLoadedEveryClass()) {
+            return;
+        }
+
+        $versionOnDisk = self::readVersion($this->getBasePath());
+
+        if ($versionOnDisk !== $this->versionAtBoot) {
+            throw PluginFilesReplacedException::whileTheProcessWasRunning($this->versionAtBoot, $versionOnDisk);
+        }
     }
 
     private function syncCoreAgenticFiles(): void

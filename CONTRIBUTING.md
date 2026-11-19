@@ -416,6 +416,15 @@ extension and many plugin classes implement SDK interfaces. `build()` writes the
 to the shop's `var/log/swag-agentic-commerce.log`, and the next usable build bootstraps the SDK
 schema.
 
+**Updates replace the files under a running process.** Core extracts a new release in place inside
+the download or upload request, `plugin:zip-import` or `store:download`. `src/UpdateProtection/`
+loads every class of the plugin and of the bundled SDK from `lib/preload-classes.php` before that
+happens, keeps the plugin's writing listeners quiet afterwards, and signals the message workers.
+Every new class reaches the list through the build; a class that cannot be loaded on a core line is
+skipped, and a marker under `var/` keeps a preload that died from blocking the next update. The
+lifecycle methods compare the version read at boot with the one on disk and stop when they differ,
+unless the preload loaded every class, which is the case `store:download` runs into.
+
 Never let a boot path throw when the SDK is absent, and never add SDK-dependent service definitions,
 routes, or bundles outside that guard. Both turn a degraded extension back into a shop answering
 `500` on every page, storefront included.
@@ -429,6 +438,7 @@ routes, or bundles outside that guard. Both turn a degraded extension back into 
 | FroshTools reporting `2 autoloaders registered`                                               | a bundled `vendor/` came back into the archive                                              |
 | `cannot unmarshal array into Go struct field .autoload.psr-4`                                 | `shopware-cli` reads psr-4 values as a string; a JSON array fails every `extension` command |
 | install fails with `MissingRequirementException` for `ucp-php-sdk/*`                          | the archive's `composer.json` still requires the SDK; the bundle step did not run           |
+| `The files of SwagAgenticCommerce were replaced by version …` from a lifecycle call           | the files changed in the running process without a complete preload, for example an rsync   |
 
 **Core changes do not replace any of this.** shopware/shopware#22734 adds `--minimal-changes` to the
 plugin Composer runs, and shopware/shopware#22735 runs them in a working copy of `vendor/`. Neither
