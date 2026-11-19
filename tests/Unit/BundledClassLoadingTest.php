@@ -283,6 +283,7 @@ final class BundledClassLoadingTest extends TestCase
     {
         $projectRoot = $this->pluginRoot($projectManifest);
         $pluginRoot = $projectRoot.'/custom/plugins/SwagAgenticCommerce';
+        $filesystem = new Filesystem();
 
         foreach ([
             'src/Foo.php',
@@ -290,8 +291,7 @@ final class BundledClassLoadingTest extends TestCase
             'lib/ucp-php-sdk/core/src/Enum/Transport.php',
             'lib/ucp-php-sdk/symfony-bundle/src/UcpSdkBundle.php',
         ] as $file) {
-            mkdir(\dirname($pluginRoot.'/'.$file), 0o777, true);
-            touch($pluginRoot.'/'.$file);
+            $filesystem->dumpFile($pluginRoot.'/'.$file, '');
         }
 
         file_put_contents($pluginRoot.'/composer.json', (string) json_encode([
