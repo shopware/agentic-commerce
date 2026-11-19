@@ -86,10 +86,12 @@ final class ShopwareRuntimeConfigurationResolverTest extends TestCase
         $ucpConfigRepository = $this->createStub(UcpConfigRepositoryInterface::class);
         $ucpConfigRepository->method('find')->willReturn($config);
         $emptyRequestStack = new RequestStack();
+        /** @var StaticEntityRepository<SalesChannelDomainCollection> $domainRepository */
+        $domainRepository = new StaticEntityRepository([new SalesChannelDomainCollection([$this->domain('domain-root', 'sales-channel-root', 'https://shop.example')])]);
 
         $runtimeConfiguration = (new ShopwareRuntimeConfigurationResolver(
             new UcpConfigService($ucpConfigRepository, $this->createStub(LegacyConfigStoreInterface::class)),
-            new SalesChannelDomainResolver(new StaticEntityRepository([new SalesChannelDomainCollection([$this->domain('domain-root', 'sales-channel-root', 'https://shop.example')])])),
+            new SalesChannelDomainResolver($domainRepository),
             new ShopwareVersionDetector('6.7.0.0'),
             new PathPrefixRestorer($emptyRequestStack),
             $emptyRequestStack,
