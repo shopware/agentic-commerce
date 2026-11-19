@@ -23,6 +23,7 @@ use Swag\AgenticCommerce\Ucp\DependencyInjection\AdvertiseUcpToolsWithoutToolset
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Swag\AgenticCommerce\UpdateProtection\ClassPreloader;
+use Swag\AgenticCommerce\UpdateProtection\LeftoverComposerDependencyRemover;
 use Swag\AgenticCommerce\UpdateProtection\UpdateProtectionServices;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -72,6 +73,12 @@ final class SwagAgenticCommerce extends Plugin
 
         $logsDirParameter = $container->hasParameter('kernel.logs_dir') ? $container->getParameter('kernel.logs_dir') : null;
         $logsDir = \is_string($logsDirParameter) ? $logsDirParameter : null;
+
+        $projectDir = $container->hasParameter('kernel.project_dir') ? $container->getParameter('kernel.project_dir') : null;
+
+        if (\is_string($projectDir) && LeftoverComposerDependencyRemover::isLeftoverIn($projectDir, $this->getBasePath())) {
+            SdkAvailability::logLeftoverComposerDependency($logsDir);
+        }
 
         // parent::build() loads services.php, which registers nothing while the SDK is missing.
         // This is the one place with a container to read the log directory from, and it runs when
@@ -164,6 +171,7 @@ final class SwagAgenticCommerce extends Plugin
 
         parent::update($updateContext);
 
+        $this->removeLeftoverComposerDependency($updateContext);
         $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
     }
@@ -238,6 +246,14 @@ final class SwagAgenticCommerce extends Plugin
 
         if ($versionOnDisk !== $this->versionAtBoot) {
             throw PluginFilesReplacedException::whileTheProcessWasRunning($this->versionAtBoot, $versionOnDisk);
+        }
+    }
+
+    private function removeLeftoverComposerDependency(UpdateContext $updateContext): void
+    {
+        if (isset($this->container)) {
+            LeftoverComposerDependencyRemover::withComposer($this->container, $this->getBasePath())
+                ->removeWhenCoreDoesNot($updateContext->getCurrentShopwareVersion());
         }
     }
 

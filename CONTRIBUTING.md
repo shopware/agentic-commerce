@@ -409,6 +409,11 @@ plugin directory and `lib/`. Core can then remove that Composer dependency at an
 running process losing a class. The base class loads `BundledClassLoading` by path, because it runs
 before the plugin's PSR-4 entries are guaranteed. Keep it free of any other plugin or SDK class.
 
+**The 1.4.0 requirement in the shop's `composer.json`.** Core removes it during the update from
+6.6.10.4 on. On older versions `LeftoverComposerDependencyRemover` does the same from `update()`,
+through core's own `CommandExecutor`, and never throws, because an exception from `update()` makes
+core deactivate the extension.
+
 **When the SDK is not usable,** the extension contributes **nothing** to the container:
 `services.php` and `routes.php` return without registering anything, and `getAdditionalBundles()`
 returns none. Half a container is not an option, because `services.php` configures the `ucp_sdk`

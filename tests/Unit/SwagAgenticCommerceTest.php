@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
 use Shopware\Core\Framework\Plugin\Context\UpdateContext;
 use Shopware\Core\Framework\Plugin\KernelPluginCollection;
+use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\Exception\PluginFilesReplacedException;
@@ -204,6 +205,66 @@ final class SwagAgenticCommerceTest extends TestCase
         }
 
         self::assertStringContainsString('The extension is inactive', (string) file_get_contents($logsDir.'/swag-agentic-commerce.log'));
+    }
+
+    #[Test]
+    public function testTheBuildLogsTheLeftoverRequirementOnlyWhileTheProjectStillRequiresThePlugin(): void
+    {
+        $pluginRoot = $this->archiveRootWithAnotherSdkVersion();
+        $logsDirWithRequirement = $this->temporaryDirectoryWithManifest([]);
+        $logsDirWithoutRequirement = $this->temporaryDirectoryWithManifest([]);
+
+        (new SwagAgenticCommerce(true, $pluginRoot))->build($this->containerBuilder(
+            $logsDirWithRequirement,
+            $this->temporaryDirectoryWithManifest(['require' => ['shopware/agentic-commerce' => '1.4.0']]),
+        ));
+        (new SwagAgenticCommerce(true, $pluginRoot))->build($this->containerBuilder($logsDirWithoutRequirement, $this->temporaryDirectoryWithManifest([])));
+
+        self::assertStringContainsString('still requires shopware/agentic-commerce', (string) file_get_contents($logsDirWithRequirement.'/swag-agentic-commerce.log'));
+        self::assertStringNotContainsString('still requires shopware/agentic-commerce', (string) file_get_contents($logsDirWithoutRequirement.'/swag-agentic-commerce.log'));
+    }
+
+    #[Test]
+    public function testAnUpdateOnACoreThatRemovesTheRequirementItselfLeavesTheProjectAlone(): void
+    {
+        $pluginRoot = $this->archiveRootWithAnotherSdkVersion();
+        $projectRoot = $this->temporaryDirectoryWithManifest(['require' => ['shopware/agentic-commerce' => '1.4.0']]);
+        $container = $this->containerBuilder($this->temporaryDirectoryWithManifest([]), $projectRoot);
+        $container->set(AgenticFilesCoreBridgeInterface::class, $this->createStub(AgenticFilesCoreBridgeInterface::class));
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+        $plugin->setContainer($container);
+        $updateContext = $this->createStub(UpdateContext::class);
+        $updateContext->method('getCurrentShopwareVersion')->willReturn('6.7.0.0');
+
+        $plugin->update($updateContext);
+
+        self::assertStringContainsString('shopware/agentic-commerce', (string) file_get_contents($projectRoot.'/composer.json'));
+    }
+
+    #[Test]
+    public function testAnUpdateOnACoreThatKeepsTheRequirementRemovesItThroughComposer(): void
+    {
+        $pluginRoot = $this->archiveRootWithAnotherSdkVersion();
+        $projectRoot = $this->temporaryDirectoryWithManifest([
+            'require' => ['shopware/agentic-commerce' => '1.4.0'],
+            'repositories' => [['packagist.org' => false]],
+        ]);
+        $container = $this->containerBuilder($this->temporaryDirectoryWithManifest([]), $projectRoot);
+        $container->set(AgenticFilesCoreBridgeInterface::class, $this->createStub(AgenticFilesCoreBridgeInterface::class));
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+        $plugin->setContainer($container);
+        $updateContext = $this->createStub(UpdateContext::class);
+        $updateContext->method('getCurrentShopwareVersion')->willReturn('6.6.10.3');
+        $workingDirectoryBeforeUpdate = (string) getcwd();
+
+        try {
+            $plugin->update($updateContext);
+        } finally {
+            chdir($workingDirectoryBeforeUpdate);
+        }
+
+        self::assertStringNotContainsString('shopware/agentic-commerce', (string) file_get_contents($projectRoot.'/composer.json'));
+        self::assertStringNotContainsString('failed', $this->loggedErrors());
     }
 
     #[Test]

@@ -340,6 +340,30 @@ another copy. If you added `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` t
 A project that requires the release archive through Composer, for example through a path repository,
 gets the bundled SDK with it: the archive's `composer.json` replaces both SDK packages.
 
+### Updating from 1.4.0 or older
+
+The first update into a release that bundles the SDK runs partly on the code of the version you
+update from, which does not prepare for its files being replaced. Three things to expect on that one
+update:
+
+- The request that uploads or downloads the new archive can answer `500` once. The files are
+  extracted regardless; continue with the update and the shop recovers.
+- 1.4.0 added `shopware/agentic-commerce` at exactly `1.4.0` to the shop's `composer.json`. Once the
+  new files are in place, that requirement cannot be met, and the next Composer run in the shop
+  fails. The update removes it: Shopware does so itself from `6.6.10.4` on, and the extension does
+  so on older versions. On a cluster setup nothing changes the shop's `composer.json`, so remove it
+  with `composer remove --no-scripts shopware/agentic-commerce`. While it is there, the extension
+  writes the steps to `var/log/swag-agentic-commerce.log`.
+
+Later updates load every class of the extension before Shopware replaces its files, so they do not
+have these gaps.
+
+If a console command stops with `The files of SwagAgenticCommerce were replaced by version …`, the
+files changed under the running command, for example through a deployment that copied them in. Run
+`bin/console plugin:update SwagAgenticCommerce` and then
+`bin/console plugin:activate SwagAgenticCommerce`, because Shopware deactivates an extension whose
+update fails.
+
 ## Further reading
 
 | Document                                                                     | What it covers                                                                   |
