@@ -4,77 +4,64 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use Composer\Autoload\ClassLoader;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Swag\AgenticCommerce\Exception\SdkNotAvailableException;
+use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
+use Shopware\Core\Framework\Plugin\KernelPluginCollection;
+use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
+use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
-use Symfony\Component\DependencyInjection\Container;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\AdvertiseUcpToolsWithoutToolsetPinningPass;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
- * The archive ships no dependencies, so Shopware has to install them.
- *
- * `executeComposerCommands()` is what makes it run `composer require shopware/agentic-commerce`
- * against the project on a zip install, which resolves the extracted archive through the
- * `custom/plugins/*` path repository and pulls the pinned SDK from Packagist. 1.3.0 returned false
- * here and vendored the SDK into the plugin instead, which left a second Composer ClassLoader in
- * every shop that installed it. Both halves are asserted: either one alone leaves the plugin
- * without an SDK at runtime.
- *
  * @internal
  */
 #[CoversClass(SwagAgenticCommerce::class)]
 final class SwagAgenticCommerceTest extends TestCase
 {
+    use RedirectsErrorLog;
+
     /** @var list<string> */
     private array $roots = [];
 
+    protected function setUp(): void
+    {
+        $this->redirectErrorLog();
+    }
+
     protected function tearDown(): void
     {
-        foreach ($this->roots as $root) {
-            @unlink($root.'/composer.json');
-            @rmdir($root);
-        }
-
+        $this->restoreErrorLog();
+        (new Filesystem())->remove($this->roots);
         $this->roots = [];
 
         parent::tearDown();
     }
 
     #[Test]
-    public function testItLetsShopwareInstallComposerDependencies(): void
+    public function testADevelopmentCheckoutLetsShopwareInstallTheSdkThroughComposer(): void
     {
         $plugin = new SwagAgenticCommerce(true, \dirname(__DIR__, 2));
 
+        self::assertDirectoryDoesNotExist(\dirname(__DIR__, 2).'/lib');
         self::assertTrue($plugin->executeComposerCommands());
     }
 
-    /**
-     * `PluginLifecycleService::executeComposerRequireWhenNeeded()` returns early on a cluster
-     * setup, so the requirements are never resolved. Installing anyway would report success and
-     * leave an extension that does nothing -- the one case where refusing is the kinder answer.
-     */
     #[Test]
-    public function testAClusterSetupRefusesTheInstallRatherThanInstallingNothing(): void
+    public function testAnArchiveWithTheBundledSdkNeedsNoComposerRun(): void
     {
-        $plugin = $this->pluginWithoutSdk(true);
+        $pluginRoot = $this->temporaryDirectoryWithManifest(['version' => '1.5.0']);
+        mkdir($pluginRoot.'/lib/ucp-php-sdk/core/src', 0o777, true);
 
-        $this->expectException(SdkNotAvailableException::class);
-        $this->expectExceptionMessageMatches('/cluster_setup/');
-
-        $this->refuse($plugin);
-    }
-
-    #[Test]
-    public function testAnOrdinaryShopIsLeftToComposerInstead(): void
-    {
-        // Everywhere else the missing SDK is the window between extraction and `composer require`,
-        // which closes by itself; refusing would turn that into a failed install.
-        $this->refuse($this->pluginWithoutSdk(false));
-        $this->refuse($this->pluginWithoutSdk(null));
-
-        $this->expectNotToPerformAssertions();
+        self::assertFalse((new SwagAgenticCommerce(true, $pluginRoot))->executeComposerCommands());
     }
 
     #[Test]
@@ -101,32 +88,86 @@ final class SwagAgenticCommerceTest extends TestCase
         }
     }
 
-    private function refuse(SwagAgenticCommerce $plugin): void
+    #[Test]
+    public function testAnUnusableSdkLeavesTheExtensionWithoutBundles(): void
     {
-        (new \ReflectionMethod($plugin, 'refuseWhenNothingWillInstallTheSdk'))->invoke($plugin);
+        $plugin = new SwagAgenticCommerce(true, $this->archiveRootWithAnotherSdkVersion());
+
+        $bundles = $plugin->getAdditionalBundles(new AdditionalBundleParameters(new ClassLoader(), new KernelPluginCollection(), []));
+
+        self::assertSame([], $bundles);
+    }
+
+    #[Test]
+    public function testAnUnusableSdkLeavesTheExtensionWithoutCompilerPassesAndSaysWhy(): void
+    {
+        $pluginRoot = $this->archiveRootWithAnotherSdkVersion();
+        $logsDir = $this->temporaryDirectoryWithManifest([]);
+        $container = $this->containerBuilder($logsDir, $this->temporaryDirectoryWithManifest([]));
+
+        (new SwagAgenticCommerce(true, $pluginRoot))->build($container);
+
+        $sdkPassClasses = [
+            AgenticCommerceCoexistenceCompilerPass::class,
+            ReplaceSdkSigningKeyCommandsPass::class,
+            ReplaceSdkUrlSafetyValidatorPass::class,
+            AdvertiseUcpToolsWithoutToolsetPinningPass::class,
+            TestAgentProfileFetcherCompilerPass::class,
+        ];
+
+        foreach ($container->getCompilerPassConfig()->getPasses() as $pass) {
+            self::assertNotContains($pass::class, $sdkPassClasses);
+        }
+
+        self::assertStringContainsString('The extension is inactive', (string) file_get_contents($logsDir.'/swag-agentic-commerce.log'));
     }
 
     /**
-     * @param bool|null $clusterSetup null leaves the parameter undefined, as an older shop would
+     * @param array<string, mixed> $manifest
      */
-    private function pluginWithoutSdk(?bool $clusterSetup): SwagAgenticCommerce
+    private function temporaryDirectoryWithManifest(array $manifest): string
     {
-        $root = sys_get_temp_dir().'/swag-agentic-cluster-'.bin2hex(random_bytes(6));
-        mkdir($root);
-        $this->roots[] = $root;
-        file_put_contents($root.'/composer.json', (string) json_encode(['require' => [
-            'ucp-php-sdk/core' => '9.9.9',
-            'ucp-php-sdk/symfony-bundle' => '9.9.9',
-        ]]));
+        $pluginRoot = sys_get_temp_dir().'/swag-agentic-plugin-'.bin2hex(random_bytes(6));
+        mkdir($pluginRoot);
+        $this->roots[] = $pluginRoot;
+        file_put_contents($pluginRoot.'/composer.json', (string) json_encode($manifest, \JSON_UNESCAPED_SLASHES));
 
-        $plugin = new SwagAgenticCommerce(true, $root);
+        return $pluginRoot;
+    }
 
-        if (null !== $clusterSetup) {
-            $plugin->setContainer(new Container(new ParameterBag([
-                'shopware.deployment.cluster_setup' => $clusterSetup,
-            ])));
+    private function archiveRootWithAnotherSdkVersion(): string
+    {
+        $pluginRoot = $this->temporaryDirectoryWithManifest([
+            'version' => '1.5.0',
+            'replace' => ['ucp-php-sdk/core' => '9.9.9', 'ucp-php-sdk/symfony-bundle' => '9.9.9'],
+        ]);
+
+        foreach (['core', 'symfony-bundle'] as $package) {
+            mkdir($pluginRoot.'/lib/ucp-php-sdk/'.$package.'/src', 0o777, true);
         }
 
-        return $plugin;
+        return $pluginRoot;
+    }
+
+    private function containerBuilder(string $logsDir, string $projectDir): ContainerBuilder
+    {
+        $container = new ContainerBuilder(new ParameterBag([
+            'kernel.logs_dir' => $logsDir,
+            'kernel.project_dir' => $projectDir,
+            'kernel.environment' => 'test',
+        ]));
+
+        $container->registerExtension(new class extends Extension {
+            public function getAlias(): string
+            {
+                return 'ucp_sdk';
+            }
+
+            public function load(array $configs, ContainerBuilder $container): void
+            {
+            }
+        });
+
+        return $container;
     }
 }
