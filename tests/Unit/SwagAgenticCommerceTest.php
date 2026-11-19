@@ -9,13 +9,19 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Parameter\AdditionalBundleParameters;
+use Shopware\Core\Framework\Plugin\Context\UpdateContext;
 use Shopware\Core\Framework\Plugin\KernelPluginCollection;
 use Swag\AgenticCommerce\DependencyInjection\AgenticCommerceCoexistenceCompilerPass;
 use Swag\AgenticCommerce\DependencyInjection\TestAgentProfileFetcherCompilerPass;
+use Swag\AgenticCommerce\Exception\PluginFilesReplacedException;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
+use Swag\AgenticCommerce\Tests\Unit\UpdateProtection\ClassLoadRecorder;
+use Swag\AgenticCommerce\Tests\Unit\UpdateProtection\TemporaryPluginRoot;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\AdvertiseUcpToolsWithoutToolsetPinningPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
+use Swag\AgenticCommerce\UpdateProtection\ClassPreloader;
+use Swag\AgenticCommerce\UpdateProtection\UpdateProtectionSubscriber;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
@@ -35,6 +41,7 @@ final class SwagAgenticCommerceTest extends TestCase
     protected function setUp(): void
     {
         $this->redirectErrorLog();
+        $this->preload([], []);
     }
 
     protected function tearDown(): void
@@ -89,6 +96,83 @@ final class SwagAgenticCommerceTest extends TestCase
     }
 
     #[Test]
+    public function testAnUpdateAfterTheFilesWereReplacedBeforeTheProcessStartedIsNotStopped(): void
+    {
+        $pluginRoot = $this->temporaryDirectoryWithManifest(['version' => '1.5.0']);
+        file_put_contents($pluginRoot.'/composer.json', (string) json_encode(['version' => '1.6.0']));
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+
+        $plugin->postUpdate($this->createStub(UpdateContext::class));
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
+    public function testALifecycleCallStopsWhenAnotherVersionReplacedTheFilesInTheRunningProcess(): void
+    {
+        $pluginRoot = $this->temporaryDirectoryWithManifest(['version' => '1.5.0']);
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+        file_put_contents($pluginRoot.'/composer.json', (string) json_encode(['version' => '1.6.0']));
+
+        $this->expectException(PluginFilesReplacedException::class);
+        $this->expectExceptionMessageMatches(
+            '/replaced by version 1\.6\.0 while this process was running version 1\.5\.0.*new process.*'
+            .'`bin\/console plugin:update SwagAgenticCommerce`.*`bin\/console plugin:activate SwagAgenticCommerce`/s'
+        );
+
+        $plugin->postUpdate($this->createStub(UpdateContext::class));
+    }
+
+    #[Test]
+    public function testALifecycleCallAfterThePreloadOfEveryClassIsNotStoppedByTheReplacedFiles(): void
+    {
+        $pluginRoot = $this->temporaryDirectoryWithManifest(['version' => '1.5.0']);
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+        file_put_contents($pluginRoot.'/composer.json', (string) json_encode(['version' => '1.6.0']));
+        $this->preload([\stdClass::class], []);
+
+        $plugin->postUpdate($this->createStub(UpdateContext::class));
+
+        $this->expectNotToPerformAssertions();
+    }
+
+    #[Test]
+    public function testALifecycleCallStopsWhenThePreloadFailedOnAClass(): void
+    {
+        $pluginRoot = $this->temporaryDirectoryWithManifest(['version' => '1.5.0']);
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+        file_put_contents($pluginRoot.'/composer.json', (string) json_encode(['version' => '1.6.0']));
+        $incompatibleClass = ClassLoadRecorder::className('IncompatibleClass');
+        $this->preload([$incompatibleClass], [], [$incompatibleClass]);
+
+        $this->expectException(PluginFilesReplacedException::class);
+
+        $plugin->postUpdate($this->createStub(UpdateContext::class));
+    }
+
+    #[Test]
+    public function testTheServiceConfigKeepsTheUpdateProtectionDefinitions(): void
+    {
+        $container = $this->containerBuilder($this->temporaryDirectoryWithManifest([]), $this->temporaryDirectoryWithManifest([]));
+
+        (new SwagAgenticCommerce(true, \dirname(__DIR__, 2)))->build($container);
+
+        foreach ([ClassPreloader::class, UpdateProtectionSubscriber::class] as $serviceClass) {
+            $definition = $container->getDefinition($serviceClass);
+            self::assertFalse($definition->isAutowired(), $serviceClass);
+            self::assertNotSame([], $definition->getArguments(), $serviceClass);
+        }
+    }
+
+    #[Test]
+    public function testThePathOfAnInstanceBuiltWithoutTheConstructorCanBeRead(): void
+    {
+        $pluginWithoutConstructor = (new \ReflectionClass(SwagAgenticCommerce::class))->newInstanceWithoutConstructor();
+
+        self::assertSame(\dirname(__DIR__, 2).'/src', $pluginWithoutConstructor->getPath());
+    }
+
+    #[Test]
     public function testAnUnusableSdkLeavesTheExtensionWithoutBundles(): void
     {
         $plugin = new SwagAgenticCommerce(true, $this->archiveRootWithAnotherSdkVersion());
@@ -120,6 +204,19 @@ final class SwagAgenticCommerceTest extends TestCase
         }
 
         self::assertStringContainsString('The extension is inactive', (string) file_get_contents($logsDir.'/swag-agentic-commerce.log'));
+    }
+
+    #[Test]
+    public function testALifecycleCallStopsWhenTheManifestIsGoneFromTheRunningProcess(): void
+    {
+        $pluginRoot = $this->temporaryDirectoryWithManifest(['version' => '1.5.0']);
+        $plugin = new SwagAgenticCommerce(true, $pluginRoot);
+        unlink($pluginRoot.'/composer.json');
+
+        $this->expectException(PluginFilesReplacedException::class);
+        $this->expectExceptionMessageMatches('/version unknown/');
+
+        $plugin->postUpdate($this->createStub(UpdateContext::class));
     }
 
     /**
@@ -169,5 +266,25 @@ final class SwagAgenticCommerceTest extends TestCase
         });
 
         return $container;
+    }
+
+    /**
+     * @param list<string> $pluginClassNames
+     * @param list<string> $sdkClassNames
+     * @param list<string> $incompatibleClassNames
+     */
+    private function preload(array $pluginClassNames, array $sdkClassNames, array $incompatibleClassNames = []): void
+    {
+        $pluginRoot = TemporaryPluginRoot::create();
+        $recorder = new ClassLoadRecorder($pluginRoot->markerPath(), [], $incompatibleClassNames);
+
+        if ([] !== $pluginClassNames || [] !== $sdkClassNames) {
+            $pluginRoot->writeClassLists($pluginClassNames, $sdkClassNames);
+        }
+
+        (new ClassPreloader($pluginRoot->path(), $pluginRoot->markerPath()))->preload(true);
+
+        $recorder->stop();
+        $pluginRoot->remove();
     }
 }

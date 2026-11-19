@@ -250,6 +250,8 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../../TestData',
             // Registered below under core's service id only.
             __DIR__.'/../../Content/ProductExport/AgenticProductExportDefinition.php',
+            // Registered by UpdateProtectionServices, which also runs while the SDK is unusable.
+            __DIR__.'/../../UpdateProtection',
         ]);
 
     // DAL repositories are bound by service id, not type — named args required.
