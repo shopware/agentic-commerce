@@ -30,6 +30,10 @@ final class SdkAvailability
 
     private const LOG_FILE = 'swag-agentic-commerce.log';
 
+    private const COMPOSER_REMOVE_STEPS = 'Remove it once in the shop root: `composer remove --no-scripts shopware/agentic-commerce`, '
+        .'delete var/cache/<environment>_*, run `bin/console plugin:refresh` and `bin/console cache:clear`, '
+        .'and reload PHP-FPM if opcache.validate_timestamps is 0.';
+
     /** @var array<string, array{reason: string|null, isBundled: bool}> */
     private static array $verdictByPluginRoot = [];
 
@@ -80,6 +84,29 @@ final class SdkAvailability
         }
 
         self::writeLog($message, $logDir);
+    }
+
+    public static function logLeftoverComposerDependency(?string $logDir): void
+    {
+        self::writeLog(
+            '[SwagAgenticCommerce] The shop\'s composer.json still requires shopware/agentic-commerce, which version '
+            .'1.4.0 added. The extension runs from custom/plugins and needs no Composer package any more. Updating '
+            .'the extension removes the requirement, on Shopware versions before 6.6.10.4 by the extension itself, '
+            .'except on a cluster setup, where nothing changes composer.json. While it stays, the next Composer run '
+            .'in the shop fails. '.self::COMPOSER_REMOVE_STEPS,
+            $logDir,
+        );
+    }
+
+    public static function logLeftoverComposerDependencyRemovalFailed(string $reason, ?string $logDir): void
+    {
+        self::writeLog(
+            \sprintf(
+                '[SwagAgenticCommerce] Removing shopware/agentic-commerce from the shop\'s composer.json failed: %s. ',
+                $reason,
+            ).self::COMPOSER_REMOVE_STEPS,
+            $logDir,
+        );
     }
 
     private static function writeLog(string $message, ?string $logDir): void

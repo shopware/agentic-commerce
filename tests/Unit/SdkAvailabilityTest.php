@@ -99,6 +99,43 @@ final class SdkAvailabilityTest extends TestCase
     }
 
     #[Test]
+    public function testItLogsTheCleanupForTheComposerDependencyThatVersion140Left(): void
+    {
+        $archiveRoot = $this->archiveRoot([]);
+
+        SdkAvailability::logLeftoverComposerDependency($archiveRoot);
+
+        $logWithCleanupSteps = (string) file_get_contents($archiveRoot.'/swag-agentic-commerce.log');
+
+        self::assertStringContainsString('composer remove --no-scripts shopware/agentic-commerce', $logWithCleanupSteps);
+        self::assertStringContainsString('bin/console plugin:refresh', $logWithCleanupSteps);
+        self::assertStringContainsString('except on a cluster setup', $logWithCleanupSteps);
+        self::assertStringContainsString('still requires shopware/agentic-commerce', $this->loggedErrors());
+    }
+
+    #[Test]
+    public function testItLogsWhyTheRemovalOfTheComposerDependencyFailedAndHowToDoItByHand(): void
+    {
+        $archiveRoot = $this->archiveRoot([]);
+
+        SdkAvailability::logLeftoverComposerDependencyRemovalFailed('Composer exited with 2', $archiveRoot);
+
+        $logWithRemovalFailure = (string) file_get_contents($archiveRoot.'/swag-agentic-commerce.log');
+
+        self::assertStringContainsString('Removing shopware/agentic-commerce from the shop\'s composer.json failed: Composer exited with 2.', $logWithRemovalFailure);
+        self::assertStringContainsString('composer remove --no-scripts shopware/agentic-commerce', $logWithRemovalFailure);
+        self::assertStringContainsString('Composer exited with 2', $this->loggedErrors());
+    }
+
+    #[Test]
+    public function testItWritesToTheErrorLogEvenWithoutALogDirectory(): void
+    {
+        SdkAvailability::logLeftoverComposerDependencyRemovalFailed('Composer exited with 2', null);
+
+        self::assertStringContainsString('Composer exited with 2', $this->loggedErrors());
+    }
+
+    #[Test]
     public function testAnAbsentManifestDoesNotRaise(): void
     {
         $pluginRoot = sys_get_temp_dir().'/swag-agentic-no-manifest-'.bin2hex(random_bytes(6));
