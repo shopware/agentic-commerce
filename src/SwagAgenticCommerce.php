@@ -26,6 +26,9 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 use Ucp\Sdk\Symfony\Bridge\DoctrineDbal\SchemaBootstrapper;
 
+// By path, because this class is used before the plugin's PSR-4 entries are guaranteed.
+require_once __DIR__.'/BundledClassLoading.php';
+
 /** @internal */
 #[Package('framework')]
 final class SwagAgenticCommerce extends Plugin
@@ -46,15 +49,25 @@ final class SwagAgenticCommerce extends Plugin
     /** Shopware resolves this through the project autoloader; a missing SDK is a failed install. */
     private const SDK_BUNDLE_CLASS = 'Ucp\\Sdk\\Symfony\\UcpSdkBundle';
 
+    public function getPath(): string
+    {
+        BundledClassLoading::register();
+
+        return parent::getPath();
+    }
+
     public function build(ContainerBuilder $container): void
     {
+        BundledClassLoading::register();
+
+        $logsDirParameter = $container->hasParameter('kernel.logs_dir') ? $container->getParameter('kernel.logs_dir') : null;
+        $logsDir = \is_string($logsDirParameter) ? $logsDirParameter : null;
+
         // parent::build() loads services.php, which registers nothing while the SDK is missing.
         // This is the one place with a container to read the log directory from, and it runs when
         // the degraded container is compiled rather than on every request.
         if (!SdkAvailability::isUsable($this->getBasePath())) {
-            $logsDir = $container->hasParameter('kernel.logs_dir') ? $container->getParameter('kernel.logs_dir') : null;
-
-            SdkAvailability::logUnusable($this->getBasePath(), \is_string($logsDir) ? $logsDir : null);
+            SdkAvailability::logUnusable($this->getBasePath(), $logsDir);
 
             parent::build($container);
 
@@ -93,6 +106,8 @@ final class SwagAgenticCommerce extends Plugin
             PassConfig::TYPE_BEFORE_OPTIMIZATION,
             1000,
         );
+
+        $this->bootstrapSdkSchemaWhenBuilding();
     }
 
     /**
@@ -100,8 +115,10 @@ final class SwagAgenticCommerce extends Plugin
      */
     public function getAdditionalBundles(AdditionalBundleParameters $parameters): array
     {
+        BundledClassLoading::register();
+
         // Both bundles below need services this plugin only registers with a usable SDK, so a
-        // zip install between extraction and `composer require` contributes nothing rather than
+        // plugin whose SDK is missing or at another version contributes nothing rather than
         // taking the shop down with it.
         if (!SdkAvailability::isUsable($this->getBasePath())) {
             return [];
@@ -121,7 +138,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function install(InstallContext $installContext): void
     {
-        $this->refuseWhenNothingWillInstallTheSdk();
+        BundledClassLoading::register();
 
         parent::install($installContext);
 
@@ -131,7 +148,7 @@ final class SwagAgenticCommerce extends Plugin
 
     public function update(UpdateContext $updateContext): void
     {
-        $this->refuseWhenNothingWillInstallTheSdk();
+        BundledClassLoading::register();
 
         parent::update($updateContext);
 
@@ -141,6 +158,8 @@ final class SwagAgenticCommerce extends Plugin
 
     public function activate(ActivateContext $activateContext): void
     {
+        BundledClassLoading::register();
+
         parent::activate($activateContext);
 
         $this->bootstrapSdkSchema();
@@ -148,13 +167,11 @@ final class SwagAgenticCommerce extends Plugin
     }
 
     /**
-     * Shopware resolves the requirements of a zip-installed plugin only if this is true, and the
-     * archive ships none of them. Returning false means bundling them, and a plugin-local
-     * `vendor/autoload.php` puts a second Composer ClassLoader in the shop.
+     * False for the release archive, which bundles the SDK; a development checkout requires it through Composer.
      */
     public function executeComposerCommands(): bool
     {
-        return true;
+        return !is_dir($this->getBasePath().'/'.BundledClassLoading::BUNDLED_SDK_DIRECTORY);
     }
 
     /**
@@ -167,31 +184,6 @@ final class SwagAgenticCommerce extends Plugin
             'ucp.editor' => ['ucp.viewer', 'system_config:update'],
             'ucp.key_rotator' => ['ucp.viewer'],
         ];
-    }
-
-    /**
-     * Refuses the lifecycle call when the SDK is missing and nothing is going to install it.
-     *
-     * `PluginLifecycleService::executeComposerRequireWhenNeeded()` returns early on a cluster
-     * setup, so the requirements are never resolved and the extension would install without
-     * error and then do nothing at all. Everywhere else a missing SDK is a window Composer
-     * closes by itself, and refusing there would turn a recoverable state into a failed install.
-     */
-    private function refuseWhenNothingWillInstallTheSdk(): void
-    {
-        if (SdkAvailability::isUsable($this->getBasePath())) {
-            return;
-        }
-
-        if (!isset($this->container) || !$this->container->hasParameter('shopware.deployment.cluster_setup')) {
-            return;
-        }
-
-        if (true !== $this->container->getParameter('shopware.deployment.cluster_setup')) {
-            return;
-        }
-
-        throw SdkNotAvailableException::clusterSetupNeedsTheSdkInTheProject(SdkAvailability::reason($this->getBasePath()) ?? 'the UCP SDK is not installed');
     }
 
     private function syncCoreAgenticFiles(): void
@@ -212,8 +204,7 @@ final class SwagAgenticCommerce extends Plugin
 
     private function bootstrapSdkSchema(): void
     {
-        // An install or update can land in the window where the SDK is not there yet. Activation
-        // runs this again, so the tables appear as soon as the shop has one.
+        // Activation and every container build retry this.
         if (!SdkAvailability::isUsable($this->getBasePath())) {
             return;
         }
@@ -225,5 +216,24 @@ final class SwagAgenticCommerce extends Plugin
         // The plugin is not active during install yet, so SDK services are not wired into the container.
         // Build the bootstrapper directly and keep request handling free from schema checks.
         (new SchemaBootstrapper(Kernel::getConnection()))->ensureSchema();
+    }
+
+    /**
+     * Compiling the container must never fail over the schema, and a `cache:clear` in a deployment step
+     * often has no database to reach.
+     */
+    private function bootstrapSdkSchemaWhenBuilding(): void
+    {
+        try {
+            Kernel::getConnection()->executeQuery('SELECT 1');
+        } catch (\Throwable) {
+            return;
+        }
+
+        try {
+            $this->bootstrapSdkSchema();
+        } catch (\Throwable $exception) {
+            error_log(\sprintf('[SwagAgenticCommerce] The SDK schema could not be bootstrapped while building the container: %s', $exception->getMessage()));
+        }
     }
 }

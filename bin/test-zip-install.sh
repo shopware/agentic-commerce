@@ -8,15 +8,6 @@
 # SdkNotAvailableException on every Shopware version. None of our checks caught it: the unit suite
 # does not install anything, and `extension validate` does not read vendor/.
 #
-# The archive now ships no dependencies at all and lets Shopware's own `composer require` install
-# them, so what this asserts is that the install brought the SDK into the shop -- not that the
-# plugin found a copy it carried.
-#
-# It then takes the SDK away again from the installed, active extension. That is the state an
-# update leaves behind for one request, and 1.3.0 answered 500 on every page in it, storefront
-# included. Anything wired to the SDK outside the SdkAvailability guard -- a service, a route, a
-# bundle, a class the service glob reflects on -- stops the container compiling and fails there.
-#
 # Above all it was invisible locally, because every sw-dev lane installs the SDK at project level
 # as a Composer path repository. The class was always reachable by another route, so the bundled
 # copy was never once exercised. The archive was only ever tested where the thing it ships was
@@ -71,19 +62,6 @@ in_shop() { docker exec -u www-data "${container}" sh -c "cd /var/www/html && $1
 
 say() { printf '  %s\n' "$1"; }
 
-# Print curl's status code, or 000 when there is not one. Keeps the code when curl prints it and
-# then exits non-zero anyway, which is how "404000" happened.
-http_status() {
-  local status
-  status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time "${2:-120}" "$1" 2>/dev/null || true)"
-
-  if [[ ! "${status}" =~ ^[0-9]{3}$ ]]; then
-    status="000"
-  fi
-
-  printf '%s' "${status}"
-}
-
 # Authenticate before temporarily removing a plugin that may already be active.
 token=$(curl -sS -X POST "${shop_url}/api/oauth/token" -H 'Content-Type: application/json' \
   -d "{\"client_id\":\"administration\",\"grant_type\":\"password\",\"scopes\":\"write\",\"username\":\"${admin_user}\",\"password\":\"${admin_pass}\"}" \
@@ -98,7 +76,6 @@ composer_backed_up=0
 registry_backed_up=0
 plugin_moved=0
 sdk_moved=0
-sdk_hidden=0
 archive_present=0
 # Invoked from the EXIT trap below, which shellcheck cannot see.
 # shellcheck disable=SC2317,SC2329
@@ -125,9 +102,6 @@ restore() {
     in_shop "rm -rf custom/plugins/${PLUGIN}" || true
     api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null || true
     in_shop "php bin/console cache:clear --no-warmup" >/dev/null 2>&1 || true
-  fi
-  if [[ "${sdk_hidden}" -eq 1 ]]; then
-    in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk-hidden vendor/ucp-php-sdk" || true
   fi
   if [[ "${sdk_moved}" -eq 1 ]]; then
     in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk vendor/ucp-php-sdk" || true
@@ -202,16 +176,16 @@ say "moved aside: plugin source (${plugin_moved}), project-level SDK (${sdk_move
 probe=$(in_shop "php -r 'require \"vendor/autoload.php\"; echo class_exists(\"${SDK_PROBE_CLASS//\\/\\\\}\") ? \"yes\" : \"no\";'" 2>/dev/null || echo "error")
 if [[ "${probe}" != "no" ]]; then
   echo "REFUSING TO RUN: the shop can still resolve ${SDK_PROBE_CLASS} (probe: ${probe})." >&2
-  echo "  The archive's own vendored copy would never be exercised, so a pass would be" >&2
+  echo "  The archive's own bundled copy would never be exercised, so a pass would be" >&2
   echo "  meaningless. Remove the project-level SDK first." >&2
   exit 1
 fi
 say "confirmed: ${SDK_PROBE_CLASS} is NOT resolvable by the shop"
 
+composer_checksums_before_install="$(in_shop "sha256sum composer.json composer.lock")"
+
 # ---------------------------------------------------------------------------------------------
 echo "== installing the archive through the admin upload endpoint"
-
-
 
 api() { curl -sS -o "$2" -w '%{http_code}' --max-time 300 -H "Authorization: Bearer ${token}" "${@:3}"; }
 
@@ -249,20 +223,16 @@ say "activate: HTTP 204"
 in_shop "php bin/console cache:clear --no-warmup" >/tmp/zit-cache-clear.log 2>&1
 
 # ---------------------------------------------------------------------------------------------
-echo "== checking it actually runs from the copy the archive shipped"
+echo "== checking it runs from the copy the archive shipped, without a Composer run"
 
-status=0
+has_failed=0
 
 discovery=$(curl -sS -o /tmp/zit-profile.json -w '%{http_code}' --max-time 120 "${shop_url}/.well-known/ucp")
 if [[ "${discovery}" == "200" ]]; then
-  python3 -c '
-import json
-d = json.load(open("/tmp/zit-profile.json"))
-u = d["ucp"]
-print("  discovery: HTTP 200, version %s, %d capabilities" % (u["version"], len(u.get("capabilities", {}))))'
+  say "$(jq -r '"discovery: HTTP 200, version \(.ucp.version), \(.ucp.capabilities // {} | length) capabilities"' /tmp/zit-profile.json)"
 else
   echo "FAIL: /.well-known/ucp returned HTTP ${discovery}." >&2
-  status=1
+  has_failed=1
 fi
 
 bundle_bytes=$(curl -sS -o /dev/null -w '%{size_download}' --max-time 120 \
@@ -271,63 +241,47 @@ if [[ "${bundle_bytes}" -gt 50000 ]]; then
   say "admin bundle: ${bundle_bytes} bytes served without a build step"
 else
   echo "FAIL: the administration bundle is ${bundle_bytes} bytes." >&2
-  status=1
+  has_failed=1
 fi
 
-# The point of the whole exercise: installing the archive must be what brings the SDK into the
-# shop. executeComposerCommands() makes Shopware run `composer require` against the project, and
-# `custom/plugins/*` is a path repository in shopware/production, so the plugin resolves from the
-# extracted directory and its pinned SDK comes from Packagist -- into the project's vendor, on the
-# one autoloader the shop already has. The refusal above proved none of it was there beforehand.
-probe_script=$(cat <<'PHP'
-<?php
-chdir('/var/www/html');
-$plugin = 'custom/plugins/'.getenv('ZIT_PLUGIN');
-require 'vendor/autoload.php';
-$class = getenv('ZIT_CLASS');
-$origin = class_exists($class) ? (new ReflectionClass($class))->getFileName() : 'unresolved';
-printf(
-    "%s|%s|%s\n",
-    $origin,
-    is_dir($plugin.'/vendor') ? 'plugin-vendor-present' : 'no-plugin-vendor',
-    file_exists('vendor/shopware/agentic-commerce') ? 'required-by-composer' : 'not-required'
-);
-PHP
-)
+for sdk_package in core symfony-bundle; do
+  if in_shop "test -f custom/plugins/${PLUGIN}/lib/ucp-php-sdk/${sdk_package}/composer.json"; then
+    say "the extracted plugin carries lib/ucp-php-sdk/${sdk_package}"
+  else
+    echo "FAIL: the extracted plugin has no lib/ucp-php-sdk/${sdk_package}." >&2
+    has_failed=1
+  fi
+done
 
-probe=$(printf '%s' "${probe_script}" | docker exec -i -u www-data \
-  -e "ZIT_PLUGIN=${PLUGIN}" -e "ZIT_CLASS=${SDK_PROBE_CLASS}" "${container}" php 2>/dev/null \
-  || echo "error|error|error")
+if in_shop "test -e vendor/ucp-php-sdk"; then
+  echo "FAIL: vendor/ucp-php-sdk appeared in the shop, so something ran Composer for the plugin." >&2
+  has_failed=1
+else
+  say "the shop's vendor/ gained no ucp-php-sdk"
+fi
 
-IFS='|' read -r sdk_origin plugin_vendor composer_required <<< "${probe}"
+if in_shop "test -e vendor/shopware/agentic-commerce"; then
+  echo "FAIL: vendor/shopware/agentic-commerce appeared, so Shopware required the plugin through Composer." >&2
+  echo "      executeComposerCommands() must return false for the archive." >&2
+  has_failed=1
+else
+  say "Shopware did not require the plugin through Composer"
+fi
 
-case "${sdk_origin}" in
-  */vendor/ucp-php-sdk/*) say "SDK resolved from the shop's own vendor: ${sdk_origin}" ;;
-  */custom/plugins/${PLUGIN}/*)
-    echo "FAIL: the SDK resolved from inside the plugin (${sdk_origin})." >&2
-    echo "      The archive is supposed to ship none, and Composer to install it." >&2
-    status=1
-    ;;
-  *)
-    echo "FAIL: ${SDK_PROBE_CLASS} is not resolvable after install (${sdk_origin})." >&2
-    status=1
-    ;;
-esac
-
-if [[ "${plugin_vendor}" != "no-plugin-vendor" ]]; then
+if in_shop "test -e custom/plugins/${PLUGIN}/vendor"; then
   echo "FAIL: the installed plugin has a vendor/ directory." >&2
   echo "      Its autoloader would register a second Composer ClassLoader in the shop." >&2
-  status=1
+  has_failed=1
 else
   say "the installed plugin carries no vendor/ of its own"
 fi
 
-if [[ "${composer_required}" != "required-by-composer" ]]; then
-  echo "FAIL: vendor/shopware/agentic-commerce is missing, so the install never ran composer." >&2
-  echo "      Something resolved the SDK by another route and this run proves nothing." >&2
-  status=1
+composer_checksums_after_install="$(in_shop "sha256sum composer.json composer.lock")"
+if [[ "${composer_checksums_after_install}" == "${composer_checksums_before_install}" ]]; then
+  say "composer.json and composer.lock are unchanged"
 else
-  say "Shopware required the plugin through Composer"
+  echo "FAIL: the install changed the shop's composer.json or composer.lock." >&2
+  has_failed=1
 fi
 
 datasets=$(in_shop "php -r 'require \"vendor/autoload.php\"; echo count(Composer\\InstalledVersions::getAllRawData());'" 2>/dev/null || echo "error")
@@ -335,81 +289,21 @@ if [[ "${datasets}" == "1" ]]; then
   say "Composer reports a single registered autoloader dataset"
 else
   echo "FAIL: Composer reports ${datasets} autoloader datasets, expected 1." >&2
-  status=1
+  has_failed=1
 fi
 
-# ---------------------------------------------------------------------------------------------
-echo "== checking the shop survives its SDK going missing"
-
-# The regression this exists for: an update extracts the new files one request before Shopware
-# runs composer, so an active extension boots with its dependency missing. 1.3.0 answered 500 on
-# every page in that state, storefront included, until someone installed the SDK by hand.
-#
-# Taking the SDK away from an installed, active extension reproduces exactly that, and it is what
-# catches SDK-dependent wiring added outside the SdkAvailability guard -- a service, a route, a
-# bundle, or a class implementing an SDK interface that the service glob then reflects on. Any of
-# those stop the container compiling, and the shop goes down with it.
-in_shop "cp vendor/composer/installed.json /tmp/zit-sdk-registry.json && cp vendor/composer/installed.php /tmp/zit-sdk-registry.php"
-in_shop "mv vendor/ucp-php-sdk /tmp/zit-sdk-hidden"
-sdk_hidden=1
-
-docker exec -i -u www-data "${container}" php <<'PHP' >/dev/null
-<?php
-chdir('/var/www/html');
-$names = ['ucp-php-sdk/core', 'ucp-php-sdk/symfony-bundle'];
-$installed = json_decode(file_get_contents('vendor/composer/installed.json'), true, 512, JSON_THROW_ON_ERROR);
-$installed['packages'] = array_values(array_filter(
-    $installed['packages'],
-    static fn (array $package): bool => !in_array($package['name'], $names, true),
-));
-file_put_contents('vendor/composer/installed.json', json_encode($installed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-$versions = require 'vendor/composer/installed.php';
-foreach ($names as $name) {
-    unset($versions['versions'][$name]);
-}
-file_put_contents('vendor/composer/installed.php', '<?php return '.var_export($versions, true).';');
-PHP
-
-in_shop "rm -rf var/cache/* var/log/swag-agentic-commerce.log"
-
-storefront="$(http_status "${shop_url}/" 180)"
-if [[ "${storefront}" == "200" ]]; then
-  say "storefront answers 200 with the extension installed and the SDK gone"
+plugin_lookup_http_code=$(api POST /tmp/zit-plugin.json -X POST "${shop_url}/api/search/plugin" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d "{\"filter\":[{\"type\":\"equals\",\"field\":\"name\",\"value\":\"${PLUGIN}\"}]}")
+if [[ "${plugin_lookup_http_code}" == "200" && "$(jq -r '.data[0].active // false' /tmp/zit-plugin.json)" == "true" ]]; then
+  say "the plugin is active"
 else
-  echo "FAIL: the storefront answered HTTP ${storefront} without the SDK." >&2
-  echo "      An active extension must not take the shop down while composer has not run yet;" >&2
-  echo "      something is wired to the SDK outside the SdkAvailability guard." >&2
-  status=1
+  echo "FAIL: the plugin is not active after install and activate (search: HTTP ${plugin_lookup_http_code})." >&2
+  has_failed=1
 fi
 
-degraded="$(http_status "${shop_url}/.well-known/ucp")"
-case "${degraded}" in
-  404) say "UCP is switched off rather than failing (HTTP 404)" ;;
-  500)
-    echo "FAIL: /.well-known/ucp answered 500 without the SDK; the routes are still registered." >&2
-    status=1
-    ;;
-  *) echo "FAIL: /.well-known/ucp answered HTTP ${degraded}, expected 404 while degraded." >&2; status=1 ;;
-esac
-
-if in_shop "grep -q 'composer require ucp-php-sdk' var/log/swag-agentic-commerce.log" 2>/dev/null; then
-  say "var/log/swag-agentic-commerce.log names the command that fixes it"
-else
-  echo "FAIL: nothing in var/log/swag-agentic-commerce.log tells the merchant how to recover." >&2
-  status=1
+if [[ "${has_failed}" -eq 0 ]]; then
+  echo "== PASS: the archive installs and runs from its own SDK without a Composer run"
 fi
 
-# Put it back, so the lane is left as it was found. Recovery is deliberately not asserted here:
-# the install above already proves the same transition -- a shop with no SDK ends with UCP
-# answering -- and doing it a second time by hand only measures when a PHP worker lets go of the
-# container it already built, which is the platform's business and not this extension's.
-in_shop "rm -rf vendor/ucp-php-sdk && mv /tmp/zit-sdk-hidden vendor/ucp-php-sdk"
-in_shop "cp /tmp/zit-sdk-registry.json vendor/composer/installed.json && cp /tmp/zit-sdk-registry.php vendor/composer/installed.php"
-sdk_hidden=0
-in_shop "rm -rf var/cache/*"
-
-if [[ "${status}" -eq 0 ]]; then
-  echo "== PASS: the archive installs, runs, and the shop survives losing the SDK"
-fi
-
-exit "${status}"
+exit "${has_failed}"

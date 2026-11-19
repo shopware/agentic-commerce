@@ -1,4 +1,5 @@
 /vendor/
+/lib/
 /.tools/
 /vendor-bin/*/vendor/
 /vendor-bin/*/composer.lock

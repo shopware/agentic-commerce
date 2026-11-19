@@ -46,12 +46,12 @@ customer creation, or hand-rolled context mutation. Repository access is accepta
 configuration, admin/runtime metadata, compatibility discovery, or a documented exception where no
 Store API route exists.
 
-The SDK is a required runtime dependency for this plugin line. Shopware installs the public
-Packagist packages through plugin Composer commands, so
-`SwagAgenticCommerce::executeComposerCommands()` stays enabled. If a future release should boot with
-UCP disabled when the SDK is missing, implement that as an explicit conditional service-loading mode
-in the plugin. Do not only suppress `getAdditionalBundles()` errors; the plugin service graph
-contains SDK interfaces and transport contracts.
+The SDK is a required runtime dependency for this plugin line. The release archive carries it as
+plain source under `lib/ucp-php-sdk/`, so `SwagAgenticCommerce::executeComposerCommands()` returns
+false there and Shopware never runs Composer for the plugin. A development checkout requires the SDK
+from Packagist and keeps Composer enabled. When the SDK is not usable, the plugin registers no
+services, routes or bundles at all; do not only suppress `getAdditionalBundles()` errors, because
+the plugin service graph contains SDK interfaces and transport contracts.
 
 ## UCP
 
@@ -311,64 +311,34 @@ often the container output or `php_errors.log` — and, when that directory is w
 and the command that fixes it:
 
 ```
-[SwagAgenticCommerce] The extension is inactive: ucp-php-sdk/core 0.0.9 is required but not
-installed. Shopware installs this itself when the plugin is installed or updated; if that did
-not happen -- an offline shop, or an interrupted update -- run `composer require
-ucp-php-sdk/core:0.0.9 ucp-php-sdk/symfony-bundle:0.0.9` in the shop root and clear the cache.
-The extension registers no services, routes or feeds until then.
+[SwagAgenticCommerce] The extension is inactive: The PHP extension ext-openssl is required by the
+UCP SDK but not loaded. It registers no services, routes or feeds until that is fixed. The release
+archive bundles the SDK, so Shopware installs no requirements for it. Clear the cache once the
+conflict is resolved.
 ```
 
-The extension needs the UCP SDK, and Shopware installs it through Composer when the extension is
-installed or updated. When that has not happened — a shop that cannot reach Packagist, or an update
-that stopped halfway — the extension registers nothing instead of taking the shop down with it. The
-storefront keeps serving, `/.well-known/ucp` answers `404` rather than `500`, and the product feeds
-stay quiet.
+The extension brings its own copy of the UCP SDK. When it cannot use it, for example because a PHP
+extension the SDK needs is not loaded, the extension registers nothing instead of taking the shop
+down with it. The storefront keeps serving, `/.well-known/ucp` answers `404` rather than `500`, and
+the product feeds stay quiet.
 
-To recover, run the command from the log entry in the shop root (the exact versions are in the
-extension's `composer.json`), then clear the cache. Deactivating and reactivating the extension in
-the administration has the same effect, and is the more reliable one if a worker is still serving
-the old state.
+To recover, fix what the log entry names, then clear the cache. Deactivating and reactivating the
+extension in the administration has the same effect, and is the more reliable one if a worker is
+still serving the old state.
 
 It is not in Shopware's own `var/log/prod-*.log`, and cannot be: the extension decides this while
 the container is being compiled, which is before any logger service exists.
 
-### Cluster setups
+### Cluster setups and Composer-managed projects
 
-A shop running with `shopware.deployment.cluster_setup: true` never lets Shopware run Composer for a
-plugin — `PluginLifecycleService::executeComposerRequireWhenNeeded()` returns early there, by
-design, because the filesystem is shared and built elsewhere. Nothing would install this extension's
-requirements, so installing it from a zip would report success and leave an extension that does
-nothing.
+The release archive needs nothing from Composer, so a cluster setup deploys it like any other
+extension. The extension always uses the SDK it brings, also when the shop's root `vendor/` holds
+another copy. If you added `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` to the project's
+`composer.json` for 1.4.0, nothing uses them any more, and you can remove them with
+`composer remove ucp-php-sdk/core ucp-php-sdk/symfony-bundle`.
 
-The extension refuses that install instead, naming what is missing:
-
-```
-This shop runs with shopware.deployment.cluster_setup enabled, where Shopware never runs composer
-for a plugin, so nothing will install this extension's requirements: ucp-php-sdk/core 0.0.9 is
-required but not installed. Add them to the project's composer.json and deploy, then install the
-extension.
-```
-
-Add `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` at the versions the extension's
-`composer.json` pins to the project, deploy, and install it again.
-
-### Updating from 1.3.0 or older
-
-Up to and including 1.3.0 the archive carried the UCP SDK inside itself. Those versions cannot be
-updated in place without a short gap: Shopware extracts the new files one request before it runs
-Composer, so between those two steps the old bundled SDK is gone and the new one is not installed
-yet. From 1.4.0 on the extension handles that gap by switching itself off, so the shop stays up and
-the update completes on its own.
-
-Two things to expect on that one upgrade:
-
-- Uploading the archive onto a 1.3.0 install can answer `500` for that single request. The files are
-  extracted regardless; continue with the update and the shop recovers.
-- If the update is interrupted before Composer ran, the shop is in the state described above. The
-  log entry tells you what to run.
-
-Later updates do not have this gap, because the SDK then lives in the shop's own `vendor/` and does
-not disappear when the extension's files are replaced.
+A project that requires the release archive through Composer, for example through a path repository,
+gets the bundled SDK with it: the archive's `composer.json` replaces both SDK packages.
 
 ## Further reading
 

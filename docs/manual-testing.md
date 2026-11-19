@@ -140,8 +140,8 @@ To test the package a merchant installs, rather than a lane checkout, download a
 - For a pre-release, download the ZIP attached to the GitHub release `<version> (pre-release)`. The
   extension list shows it as `Agentic Commerce (pre-release <version>)`.
 
-Upload it under **Extensions → My extensions → Upload extension**. The shop must reach Packagist,
-because Shopware installs the UCP SDK with Composer during the install. See
+Upload it under **Extensions → My extensions → Upload extension**. The ZIP carries the UCP SDK, so
+the install runs no Composer command and works without network access. See
 [Test packages on pull requests](releasing.md#test-packages-on-pull-requests) and
 [Pre-releases for testing](releasing.md#pre-releases-for-testing) for how both are built.
 

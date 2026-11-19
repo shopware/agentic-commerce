@@ -106,6 +106,12 @@ jobs:
           ' composer.json > composer.json.stamped
           mv composer.json.stamped composer.json
 
+      # Puts the SDK into lib/ and rewrites this checkout's composer.json for the archive, so Shopware
+      # registers the SDK through the plugin's own PSR-4 entries and never runs Composer for it. The
+      # checkout is a throwaway of this job.
+      - name: Bundle the UCP SDK into the archive
+        run: bin/ci-bundle-sdk-into-archive.sh .
+
       - name: Build and validate the extension zip
         env:
           OVERWRITE_VERSION: ${{ inputs.overwrite_version }}
@@ -115,8 +121,8 @@ jobs:
           if [[ -n "${OVERWRITE_VERSION}" ]]; then
             version_flag=(--overwrite-version "${OVERWRITE_VERSION}")
           fi
-          # --disable-git packs the checkout as it stands, label stamp included, and
-          # bin/ci-assert-zip-no-vendor.sh fails the build if anything strays in.
+          # --disable-git packs the checkout as it stands, label stamp and lib/ included, and
+          # bin/ci-assert-zip-bundles-sdk.sh fails the build if anything strays in.
           shopware-cli extension zip . --disable-git --release "${version_flag[@]}"
           # shopware-cli 0.19's phpstan checker needs vendor/autoload.php inside the extension, but
           # the zip ships no vendor/ by design. PHPStan runs with the full autoloader in ci.yml.
@@ -128,11 +134,12 @@ jobs:
       - name: Assert the zip ships a usable administration bundle
         run: bin/ci-assert-zip-admin-bundle.sh SwagAgenticCommerce.zip
 
-      # `extension validate` does not read the archive's dependency shape, so a build that
-      # reintroduced a bundled vendor/ -- and with it a second Composer autoloader in every
-      # shop -- would pass it.
-      - name: Assert the zip bundles no dependencies
-        run: bin/ci-assert-zip-no-vendor.sh SwagAgenticCommerce.zip
+      # `extension validate` does not read the archive's dependency shape, so a build that lost the
+      # bundled SDK, or shipped a vendor/ -- and with it a second Composer autoloader in every shop --
+      # would pass it. The checkout is passed along so the schema count can be compared with the
+      # bundled package.
+      - name: Assert the zip bundles the SDK and no vendor/
+        run: bin/ci-assert-zip-bundles-sdk.sh SwagAgenticCommerce.zip .
 
       - name: Unpack so the downloaded artifact is directly installable
         run: |
@@ -172,14 +179,17 @@ jobs:
             echo '```'
             echo
             echo 'It strips the project-level SDK first and refuses to run if the shop can still'
-            echo 'resolve it, because that is how the last defect stayed invisible.'
+            echo 'resolve it, because that is how the last defect stayed invisible. After the install'
+            echo 'it checks that the shop kept its composer.json and composer.lock and gained no'
+            echo 'vendor/ucp-php-sdk, so the archive brought the SDK without a Composer run.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Neither the admin-bundle guard nor the SDK guard can prove the archive installs. The SDK was
   # once present, correctly pointed at, and still never loaded, because Shopware does not require
   # a plugin's own vendor/autoload.php -- so both checks passed while `plugin:install` failed on
   # every Shopware version. Only an install onto a shop that does not separately provide the SDK
-  # settles it, on each supported line.
+  # settles it, on each supported line. The archive's own PSR-4 entries have to find the SDK, and
+  # the shop's Composer files must stay as they were.
   zip-install:
     name: Install the zip (${{ matrix.lane }})
     needs: package-zip
