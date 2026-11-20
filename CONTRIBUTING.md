@@ -382,35 +382,53 @@ Current worst offenders, all service classes, none of them good: `CheckoutComple
 How the extension reaches a shop, and what must stay true for it to keep arriving. This cost a
 release and a support round once; do not rediscover it.
 
-**Two routes, one dependency story.** A Composer shop resolves the extension and the UCP SDK through
-its own `composer.json`. A store shop uploads a zip, and Shopware then runs
-`composer require shopware/agentic-commerce:<version>` against the project itself, because
-`executeComposerCommands()` returns true. Every Shopware project declares `custom/plugins/*` as a
-path repository, so that require resolves the extracted archive locally and pulls the pinned SDK
-from Packagist into the shop's own `vendor/`. The archive therefore ships **no** dependencies —
-`bin/ci-assert-zip-no-vendor.sh` fails the build if any appear.
+**The archive bundles the SDK, and Shopware never runs Composer for it.** 1.4.0 let Shopware run
+`composer require shopware/agentic-commerce:<version> --update-with-dependencies` in the web
+request. On a shop whose packages were older than `shopware/core` allows, that updated Symfony under
+the running request and took the shop down. Since then `bin/ci-bundle-sdk-into-archive.sh` copies
+both SDK packages as plain source into `lib/ucp-php-sdk/` and rewrites the archive's
+`composer.json`: no SDK in `require`, both SDK packages in `replace` at the bundled version, and
+`autoload.psr-4` entries for `lib/`. Shopware adds those entries to the shop's single Composer
+`ClassLoader`, so no second autoloader appears. `executeComposerCommands()` returns false when
+`lib/ucp-php-sdk` exists. `bin/ci-assert-zip-bundles-sdk.sh` fails the build when the archive loses
+any of that.
 
-**Do not bundle the SDK back into the archive.** Shopware never loads a plugin's
-`vendor/autoload.php`, so a bundled copy only works if the plugin loads it — which registers a
-second Composer `ClassLoader` in the shop, reported by FroshTools as `2 autoloaders registered` and
-able to answer version lookups the shop's own registry should own
-(FriendsOfShopware/FroshTools#469). 1.3.0 shipped that way.
+**The repository manifest stays as it is.** A development checkout has no `lib/`, requires the SDK
+from Packagist, and keeps `executeComposerCommands()` true, so the lanes and CI install through
+Composer as before. Never commit `lib/`.
 
-**The update window is the hard part.** An update extracts the new files **one request before**
-Shopware runs Composer. In that request the extension is already active, and its dependency is
-either missing or still the previously pinned version. So:
+**Never ship a plugin-local `vendor/autoload.php` again.** Shopware never loads it, so it only works
+if the plugin loads it, which registers a second Composer `ClassLoader` in the shop, reported by
+FroshTools as `2 autoloaders registered` (FriendsOfShopware/FroshTools#469). 1.3.0 shipped that way.
+PSR-4 entries in the manifest are the bundling that works.
 
-- `SdkAvailability` decides whether the shop has the SDK this release names. It compares the
-  _installed version_ against the constraint in `composer.json`; `class_exists` is not enough,
-  because a shop holding the previous SDK passes that and then fatals on the first class the new
-  code needs.
-- When the answer is no, the extension contributes **nothing** to the container: `services.php` and
-  `routes.php` return without registering anything, and `getAdditionalBundles()` returns none. Half
-  a container is not an option — `services.php` configures the `ucp_sdk` extension and 13 plugin
-  classes implement SDK interfaces, so compilation dies either way.
-- `build()` writes the reason and the command that fixes it to the shop's
-  `var/log/swag-agentic-commerce.log`. A shop that lands there recovers by itself once the SDK
-  arrives; `activate()` bootstraps the SDK schema too, so a late recovery is complete.
+**Which copy of the SDK runs.** The bundled copy, always. `BundledClassLoading` prepends the `lib/`
+PSR-4 entries to the root loader and points the class map entries of the copies in the shop's root
+`vendor/` (the plugin and the SDK that 1.4.0 required, or an SDK a cluster project required) at the
+plugin directory and `lib/`. Core can then remove that Composer dependency at any point without the
+running process losing a class. The base class loads `BundledClassLoading` by path, because it runs
+before the plugin's PSR-4 entries are guaranteed. Keep it free of any other plugin or SDK class.
+
+**The 1.4.0 requirement in the shop's `composer.json`.** Core removes it during the update from
+6.6.10.4 on. On older versions `LeftoverComposerDependencyRemover` does the same from `update()`,
+through core's own `CommandExecutor`, and never throws, because an exception from `update()` makes
+core deactivate the extension.
+
+**When the SDK is not usable,** the extension contributes **nothing** to the container:
+`services.php` and `routes.php` return without registering anything, and `getAdditionalBundles()`
+returns none. Half a container is not an option, because `services.php` configures the `ucp_sdk`
+extension and many plugin classes implement SDK interfaces. `build()` writes the reason and the fix
+to the shop's `var/log/swag-agentic-commerce.log`, and the next usable build bootstraps the SDK
+schema.
+
+**Updates replace the files under a running process.** Core extracts a new release in place inside
+the download or upload request, `plugin:zip-import` or `store:download`. `src/UpdateProtection/`
+loads every class of the plugin and of the bundled SDK from `lib/preload-classes.php` before that
+happens, keeps the plugin's writing listeners quiet afterwards, and signals the message workers.
+Every new class reaches the list through the build; a class that cannot be loaded on a core line is
+skipped, and a marker under `var/` keeps a preload that died from blocking the next update. The
+lifecycle methods compare the version read at boot with the one on disk and stop when they differ,
+unless the preload loaded every class, which is the case `store:download` runs into.
 
 Never let a boot path throw when the SDK is absent, and never add SDK-dependent service definitions,
 routes, or bundles outside that guard. Both turn a degraded extension back into a shop answering
@@ -424,27 +442,24 @@ routes, or bundles outside that guard. Both turn a degraded extension back into 
 | `There is no extension able to load the configuration for "ucp_sdk"` from `services.php`      | same, one layer deeper: the container was compiled with SDK-dependent config                |
 | FroshTools reporting `2 autoloaders registered`                                               | a bundled `vendor/` came back into the archive                                              |
 | `cannot unmarshal array into Go struct field .autoload.psr-4`                                 | `shopware-cli` reads psr-4 values as a string; a JSON array fails every `extension` command |
-| install fails with `MissingRequirementException` for `ucp-php-sdk/*`                          | `executeComposerCommands()` returned false without the archive carrying the SDK             |
+| install fails with `MissingRequirementException` for `ucp-php-sdk/*`                          | the archive's `composer.json` still requires the SDK; the bundle step did not run           |
+| `The files of SwagAgenticCommerce were replaced by version …` from a lifecycle call           | the files changed in the running process without a complete preload, for example an rsync   |
 
-**The platform intends to remove this window.** shopware/shopware#13630 proposes separating
-`composer require`/`remove` from the plugin lifecycle and running it into a separate vendor
-directory that is swapped in at the end — and names our exact case, "the flag can be set or unset
-from one version to the other", as needing special handling. shopware/shopware#13631 goes further:
-require store plugins from the SBP registry instead of downloading zips. Neither lets the guard here
-go: this extension supports 6.5.8 upwards, so shops without those changes stay in scope for years.
-Read them before redesigning any of this, not after.
+**Core changes do not replace any of this.** shopware/shopware#22734 adds `--minimal-changes` to the
+plugin Composer runs, and shopware/shopware#22735 runs them in a working copy of `vendor/`. Neither
+changes the in-place extraction, and this extension supports 6.5.8 upwards, so shops without those
+changes stay in scope for years. Read them before redesigning any of this, not after.
 
 **Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a built
 archive through the admin upload endpoint on a shop stripped of the extension and the SDK, and
 refuses to run if the shop can already resolve the SDK. The `zip-install` job in `package-zip.yml`
-runs it on every pull request, on 6.5.x, 6.6.x and trunk, and it also takes the SDK away from the
-installed extension again to prove the shop stays up.
+runs it on every pull request, on 6.5.x, 6.6.x and trunk, and asserts that the install leaves the
+shop's `composer.json` and `composer.lock` untouched.
 
-Two scenarios are deliberately **not** in CI: an update from a version that bundled the SDK, and an
-update where the pinned SDK version moves. Both need a second archive in the job, and the
-bundled-SDK upgrade happens exactly once, on a small installed base. Both were verified by hand for
-1.4.0, and the README _Troubleshooting_ section tells a merchant what to expect. Do not reopen this
-without a reason that has changed.
+Updates are not in CI yet: from 1.3.0, from 1.4.0 as a Composer dependency, and between two releases
+that bundle different SDK versions. They need a second archive and shops whose packages are older
+than `shopware/core` allows, and they are verified by hand on such shops before each release that
+changes the SDK version or the installation route.
 
 ## Releases
 

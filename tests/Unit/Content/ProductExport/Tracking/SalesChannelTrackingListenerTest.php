@@ -30,6 +30,7 @@ use Shopware\Core\Test\Stub\DataAbstractionLayer\StaticEntityRepository;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingCustomerCollection;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingListener;
 use Swag\AgenticCommerce\Content\ProductExport\Tracking\SalesChannelTrackingOrderCollection;
+use Swag\AgenticCommerce\UpdateProtection\UpdateWindow;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Session\Session;
@@ -46,6 +47,13 @@ use Symfony\Contracts\Cache\TagAwareCacheInterface;
 #[CoversClass(SalesChannelTrackingListener::class)]
 class SalesChannelTrackingListenerTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        UpdateWindow::close();
+
+        parent::tearDown();
+    }
+
     public function testGetSubscribedEventsRegistersAllHooks(): void
     {
         $events = SalesChannelTrackingListener::getSubscribedEvents();
@@ -314,6 +322,32 @@ class SalesChannelTrackingListenerTest extends TestCase
         static::assertSame($referralCode, $record['salesChannelId']);
         static::assertSame(Defaults::LIVE_VERSION, $record['orderVersionId']);
         static::assertTrue(Uuid::isValid($record['id']));
+    }
+
+    public function testCreateTrackingRecordsWritesNothingWhileTheUpdateWindowIsOpen(): void
+    {
+        $referralCode = Uuid::randomHex();
+        $context = Context::createDefaultContext();
+        $orderEvent = new EntityWrittenEvent(OrderDefinition::ENTITY_NAME, [new EntityWriteResult(
+            ['id' => Uuid::randomHex()],
+            [],
+            OrderDefinition::ENTITY_NAME,
+            EntityWriteResult::OPERATION_INSERT,
+        )], $context);
+        $event = new EntityWrittenContainerEvent($context, new NestedEventCollection([$orderEvent]), []);
+
+        /** @var StaticEntityRepository<SalesChannelTrackingOrderCollection> $orderRepo */
+        $orderRepo = new StaticEntityRepository([new SalesChannelTrackingOrderCollection()]);
+
+        $listener = $this->createListener(
+            orderRepository: $orderRepo,
+            requestStack: $this->buildRequestStackWithReferral($referralCode),
+        );
+
+        UpdateWindow::open();
+        $listener->createTrackingRecords($event);
+
+        static::assertSame([], $orderRepo->upserts);
     }
 
     public function testCreateTrackingRecordsWritesCustomerInserts(): void
