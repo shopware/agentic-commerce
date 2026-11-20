@@ -3,18 +3,45 @@
 ## What happens today
 
 An agent completing a UCP checkout sends a payment instrument. The specification marks it required —
-`checkout.json` annotates `payment` as `ucp_request: {complete: "required"}` — and this plugin
-validates it against the schema and then **ignores it**. Every UCP order is placed with whatever
-payment method the sales channel defaults to, usually invoice or another offline method.
+`checkout.json` annotates `payment` as `ucp_request: {complete: "required"}` — and the plugin
+validates it against the schema.
 
-That is not a rounding error. It is the difference between a protocol that can carry a payment and
-one that only appears to.
+Before the instrument reaches anything that places an order, `CompletionPaymentGate` checks it. A
+completion is refused unless it carries **exactly one** instrument whose `handler_id` is a payment
+handler the business profile advertises in `payment_handlers` for the sales channel. The gate builds
+the profile from the same runtime configuration `/.well-known/ucp` uses, so what an agent could read
+there is what the gate accepts, and a handler a plugin has registered but the profile does not list
+is refused. The `ucp.payment_handlers` of a checkout response can list more: the SDK fills it from
+every registered handler the agent's profile also names, so it can name a handler the gate refuses
+until the profile lists the registered handlers.
 
-Since the release that added this document, the instrument reaches a seam instead of being dropped,
-and the default implementation logs a warning naming the handler the agent asked for. **Order
-behaviour is unchanged** — the default still charges the channel default — so installing the release
-changes nothing about how money moves. What changed is that the gap is now audible and has one
-obvious place to close it.
+A refusal is a business outcome. It is answered with `200`, the checkout stays `incomplete`, and it
+carries one message of `type: error`, `code: payment_failed` and `severity: recoverable`. Its `path`
+is `$.payment.instruments` when the count is not one and `$.payment.instruments[0].handler_id` when
+the handler is not advertised. No order is placed, no guest customer is registered and the session
+is not written. The SDK stores the refusal under the request's `Idempotency-Key` like any other
+answer, so an agent retries with a new key. Every refusal is also logged as a warning with the
+handler ids and the sales channel's tenant identifier, so a merchant can see why agents fail to
+complete.
+
+A completion with one instrument but without a UCP runtime configuration is not refused: the gate
+cannot tell which handlers the business advertises, so it throws
+`UcpConfigException::runtimeConfigurationMissing()`, which is answered with `500`. The dry run of
+the `complete_checkout` MCP tool reports it as a blocker.
+
+The legacy `completeCheckout($id, $context)` of the checkout adapter carries no instrument and
+counts as zero instruments, so an extension that decorates or calls it cannot bypass the gate. The
+dry run of the `complete_checkout` MCP tool applies the same rule.
+
+The profile advertises no payment handler yet, so no UCP checkout can be completed until it does.
+The exception is a shop where an extension registers a tokenizing payment handler and payment
+tokenization is switched on: the profile then lists every registered handler. Listing the handlers
+in every shop is tracked in
+[shopware/agentic-commerce#279](https://github.com/shopware/agentic-commerce/issues/279).
+
+What stays open is what happens to an instrument that passes the gate. The default implementation
+below still places the order with the sales channel's default payment method and logs a warning
+naming the handler. A real applier closes that, and the rest of this document is about writing one.
 
 ## Why it is not closed here
 
@@ -92,29 +119,24 @@ There is nothing to unregister and no compiler pass to write.
 
 ### Which instrument you get
 
-The **first** instrument on the completion — not necessarily the one the buyer chose.
+The only one. The gate refuses a completion with zero or several instruments before the applier is
+reached, so `$instrument` is always the single instrument the agent sent.
 
 UCP models payment as `{"instruments": [...]}` and marks the buyer's choice with `selected` at the
-instrument top level. The SDK's `PaymentInstrument` has no such property and completion maps the
-whole list through it, so nothing reaches this plugin that could tell two instruments apart. The SDK
-does honour `selected` on create and update, where it reads the raw payload before mapping; the
-asymmetry is tracked in
-[ucp-php-sdk#190](https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/190).
-
-The plugin does not refuse a completion carrying several instruments — that is a spec-valid request,
-and refusing it here would be this plugin deciding for every deployment. If charging the wrong one
-is unacceptable to your business, **your applier is the place to refuse**: throw
-`ValidationException` when the instrument you are handed is not one you can confidently settle. Once
-the SDK reports `selected`, this section goes away and the parameter becomes the chosen one.
+instrument top level. The plugin never has to choose between instruments, which is why it does not
+need `selected`. The SDK's `PaymentInstrument` carries the flag, on completion too, since 0.0.9.
 
 ### When it is called
 
 Immediately before the order is placed, and after everything the order needs already exists:
 
 1. the checkout session is loaded and the cart is calculated,
-2. the guest customer is provisioned and its context resolved,
-3. **`apply()` runs**,
-4. `placeOrder()` is called with the context `apply()` returned.
+2. `CompletionPaymentGate` accepts the instrument,
+3. the guest customer is provisioned and its context resolved,
+4. **`apply()` runs**,
+5. `placeOrder()` is called with the context `apply()` returned.
+
+The gate sits before guest provisioning on purpose: a refused completion registers no customer.
 
 So an implementation may switch the payment method, recalculate, and return the new context — those
 are one decision and one call.
@@ -125,12 +147,11 @@ agent may retry.
 
 ### What it receives
 
-`$instrument` is the instrument the agent selected. `payment.json` models the field as
-`{"instruments": [...]}`, so a request carries a list; the plugin picks the one flagged `selected`
-and otherwise the first, matching what the SDK does when reading the same shape on create and
-update. It is `null` when the agent sent none — return the context unchanged.
+`$instrument` is the one instrument the agent sent. The type allows `null` for an applier that is
+called from elsewhere, and the checkout adapter never passes it, because a completion without an
+instrument is refused before this point.
 
-`$instrument->handlerId` names a payment handler this business published in its profile.
+`$instrument->handlerId` names a payment handler this business advertises in its profile.
 `$instrument->credential` is an open map whose shape the handler defines.
 
 ## What an implementation has to cover
@@ -151,9 +172,9 @@ Whatever it does must leave a context `placeOrder()` can use.
 
 ### 3. Refuse what cannot be honoured — do not fall back
 
-Throw `Ucp\Sdk\Exception\ValidationException` when:
+The gate has already refused a handler id this business does not advertise. Throw
+`Ucp\Sdk\Exception\ValidationException` when:
 
-- the handler id names a handler this business does not publish,
 - the credential does not carry what the handler needs,
 - the resolved payment method is not available on this sales channel,
 - the provider declines.
@@ -165,8 +186,8 @@ it has been here.** An agent that presents a card and receives a successful orde
 payment was accepted. Silence is the wrong answer to "I cannot charge this".
 
 The one exception is the default implementation shipped with the plugin, which deliberately does
-fall back and warns instead — because making refusal the default would break every business already
-completing checkouts through the channel default, for a capability they have not been offered yet.
+fall back and warns instead. It only sees a handler the profile advertises, and no payment provider
+ships a handler together with its applier yet.
 
 ### 4. Decide what tokenization means for you
 

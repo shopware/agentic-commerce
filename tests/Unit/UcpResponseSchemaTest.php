@@ -29,6 +29,7 @@ use Ucp\Sdk\Enum\UcpResponseStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Internal\Validation\GeneratedSchemaValidator;
 use Ucp\Sdk\Model\Common\Link;
+use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Protocol\UcpEnvelope;
 use Ucp\Sdk\Model\Protocol\UcpOperationPayload;
 use Ucp\Sdk\Model\Protocol\UcpOperationResponse;
@@ -134,6 +135,21 @@ final class UcpResponseSchemaTest extends TestCase
         );
 
         self::assertCount(5, $checkout->links);
+        $this->assertValidates('checkout.complete.response', $checkout, UcpCapability::Checkout);
+    }
+
+    #[Test]
+    public function testARefusedCompletionValidatesAgainstTheCompleteResponseSchema(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $this->cartWithoutPromotion(),
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+            null,
+            'https://example.com/checkout/cart-token',
+            messages: [new Message('error', 'The payment handler "com.example.deactivated" is not one this business advertises.', 'recoverable', 'payment_failed', '$.payment.instruments[0].handler_id')],
+        );
+
         $this->assertValidates('checkout.complete.response', $checkout, UcpCapability::Checkout);
     }
 

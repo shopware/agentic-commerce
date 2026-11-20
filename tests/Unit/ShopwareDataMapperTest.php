@@ -26,6 +26,7 @@ use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachine
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Link;
+use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Common\Money;
 use Ucp\Sdk\Model\Order\Adjustment;
 
@@ -393,6 +394,37 @@ final class ShopwareDataMapperTest extends TestCase
 
         self::assertSame($this->legalLinkArrays(), $checkout->toArray()['links']);
         self::assertArrayNotHasKey('continue_url', $checkout->toArray());
+    }
+
+    #[Test]
+    public function testCheckoutAppendsTheGivenMessagesAfterTheCartMessages(): void
+    {
+        $shopwareCart = $this->cartWithoutPromotion();
+        $shopwareCart->addErrors(new CartErrorFixture(Error::LEVEL_WARNING, 'Discount Summer Sale has been added', 'promotion-discount-added'));
+        $refusal = new Message('error', 'The payment handler is not advertised.', 'recoverable', 'payment_failed', '$.payment.instruments[0].handler_id');
+
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $shopwareCart,
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+            messages: [$refusal],
+        );
+
+        self::assertCount(2, $checkout->messages);
+        self::assertSame('promotion-discount-added', $checkout->messages[0]->code);
+        self::assertSame($refusal, $checkout->messages[1]);
+    }
+
+    #[Test]
+    public function testCheckoutWithoutMessagesCarriesOnlyTheCartMessages(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCheckout(
+            $this->cartWithoutPromotion(),
+            $this->salesChannelContext(),
+            CheckoutStatus::Incomplete,
+        );
+
+        self::assertSame([], $checkout->messages);
     }
 
     #[Test]

@@ -15,6 +15,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutLegalLinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -28,6 +29,8 @@ use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
+use Ucp\Sdk\Model\Common\Buyer;
+use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
@@ -48,6 +51,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         private readonly ContextTokenGenerator $contextTokenGenerator,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
         private readonly CheckoutLegalLinkBuilder $legalLinkBuilder,
+        private readonly CompletionPaymentGate $completionPaymentGate,
     ) {
     }
 
@@ -69,14 +73,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->mapper->toCheckout(
-            $cart,
-            $salesChannelContext,
-            $status,
-            $request->buyer,
-            $this->continueUrlBuilder->build($salesChannelContext->getToken(), $salesChannelContext->getSalesChannelId()),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
-        );
+        return $this->openCheckout($cart, $salesChannelContext, $status, $request->buyer, $salesChannelContext->getToken());
     }
 
     /**
@@ -124,13 +121,12 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
         $buyer = $this->sessionStore->buyer($sessionMetadata);
 
-        return $this->mapper->toCheckout(
+        return $this->openCheckout(
             $cart,
             $salesChannelContext,
             $this->statusFor($cart->getLineItems()->count(), null !== $buyer),
             $buyer,
-            $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
+            $id,
         );
     }
 
@@ -165,54 +161,28 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->mapper->toCheckout(
-            $cart,
-            $salesChannelContext,
-            $status,
-            $buyer,
-            $this->continueUrlBuilder->build($request->id, $salesChannelContext->getSalesChannelId()),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
-        );
+        return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $request->id);
     }
 
     /**
      * The payment-aware entry point.
      *
-     * `completeCheckout()` below is kept and still works: the SDK calls this one when the
-     * adapter opts in, and that one otherwise, so nothing that already calls it breaks.
+     * `completeCheckout()` below carries no instrument, so the payment gate refuses it.
      */
     public function completeCheckoutFromRequest(CheckoutCompleteRequest $request, RequestContext $context): Checkout
     {
-        return $this->completeCheckoutInternal($request->id, $context, self::selectedInstrument($request));
-    }
-
-    /**
-     * The first instrument on a completion, which is as close to "the one the agent chose" as
-     * this release can get.
-     *
-     * `payment.json` models payment as `{"instruments": [...]}` and marks the buyer's choice with
-     * `selected` at the instrument top level. The SDK cannot report it: `PaymentInstrument` has no
-     * such property and `HttpPayloadMapper::toPaymentInstrument()` drops the field, so nothing
-     * reaches this method that could distinguish one instrument from another. An earlier version
-     * looked for `credential['selected']`, one level too deep, which could never be true and made
-     * the first-instrument fallback the only behaviour while reading as though selection worked.
-     *
-     * The asymmetry is upstream: the SDK honours `selected` on create and update, where it reads
-     * the raw payload before mapping, and not on complete, where it maps the whole list. Tracked
-     * in agentic-commerce-alliance/ucp-php-sdk#190; once that ships, select on the property here
-     * and drop this note.
-     */
-    private static function selectedInstrument(CheckoutCompleteRequest $request): ?PaymentInstrument
-    {
-        return $request->instruments[0] ?? null;
+        return $this->completeCheckoutInternal($request->id, $context, $request->instruments);
     }
 
     public function completeCheckout(string $id, RequestContext $context): Checkout
     {
-        return $this->completeCheckoutInternal($id, $context, null);
+        return $this->completeCheckoutInternal($id, $context, []);
     }
 
-    private function completeCheckoutInternal(string $id, RequestContext $context, ?PaymentInstrument $instrument): Checkout
+    /**
+     * @param list<PaymentInstrument> $instruments
+     */
+    private function completeCheckoutInternal(string $id, RequestContext $context, array $instruments): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         [$completedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
@@ -223,7 +193,22 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $instrument)
+        $refusal = $this->completionPaymentGate->refusal(
+            array_map(static fn (PaymentInstrument $instrument): string => $instrument->handlerId, $instruments),
+            $context,
+        );
+        if (null !== $refusal) {
+            return $this->openCheckout(
+                $cart,
+                $salesChannelContext,
+                CheckoutStatus::Incomplete,
+                $this->sessionStore->buyer($sessionMetadata),
+                $id,
+                [$refusal],
+            );
+        }
+
+        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $instruments[0])
             ?? $this->getCheckout($id, $context);
     }
 
@@ -264,13 +249,28 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
 
         $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
 
+        return $this->openCheckout(new Cart($cart->id), $salesChannelContext, CheckoutStatus::Canceled, $buyer, $id);
+    }
+
+    /**
+     * @param list<Message> $messages
+     */
+    private function openCheckout(
+        Cart $cart,
+        SalesChannelContext $salesChannelContext,
+        CheckoutStatus $status,
+        ?Buyer $buyer,
+        string $continueUrlCheckoutId,
+        array $messages = [],
+    ): Checkout {
         return $this->mapper->toCheckout(
-            new Cart($cart->id),
+            $cart,
             $salesChannelContext,
-            CheckoutStatus::Canceled,
+            $status,
             $buyer,
-            $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
+            $this->continueUrlBuilder->build($continueUrlCheckoutId, $salesChannelContext->getSalesChannelId()),
             legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
+            messages: $messages,
         );
     }
 

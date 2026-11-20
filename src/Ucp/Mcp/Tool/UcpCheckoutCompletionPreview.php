@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Model\Common\Message;
+use Ucp\Sdk\Model\RequestContext;
 
 /**
- * Derives what completing a checkout would do from its current status.
+ * Derives what completing a checkout would do from its current status and its payment.
  *
  * Split out of UcpCheckoutCompleteTool so the money path is testable: the tool
  * itself depends on the final ShoppingOperationExecutor and cannot be constructed
@@ -20,12 +24,38 @@ use Ucp\Sdk\Enum\CheckoutStatus;
 final class UcpCheckoutCompletionPreview
 {
     /**
+     * @param list<string> $handlerIds
+     */
+    public function paymentRefusal(CompletionPaymentGate $gate, array $handlerIds, RequestContext $context): ?Message
+    {
+        try {
+            return $gate->refusal($handlerIds, $context);
+        } catch (UcpConfigException $exception) {
+            return new Message('error', $exception->getMessage(), 'unrecoverable', $exception->getErrorCode());
+        }
+    }
+
+    /**
      * @return list<string> reasons a commit would not place an order, empty when it would
      */
-    public function blockers(mixed $status): array
+    public function blockers(mixed $status, ?Message $paymentRefusal = null): array
     {
         $status = $status instanceof CheckoutStatus ? $status->value : $status;
+        $statusBlockers = $this->statusBlockers($status);
 
+        // A completed checkout is replayed before the payment gate runs.
+        if (null === $paymentRefusal || CheckoutStatus::Completed->value === $status) {
+            return $statusBlockers;
+        }
+
+        return [...$statusBlockers, $paymentRefusal->content];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function statusBlockers(mixed $status): array
+    {
         return match ($status) {
             CheckoutStatus::ReadyForComplete->value => [],
             // Completing an already completed checkout replays the existing order

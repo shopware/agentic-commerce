@@ -1,9 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import { searchIds } from '@services/adminSearch';
-import { createCompletableCheckout } from '@services/completableCheckout';
+import { completionWithAdvertisedHandler, createCompletableCheckout } from '@services/completableCheckout';
 import { isRefusal, messageCodes } from '@services/ucpMessages';
-
-const unadvertisedCardInstrument = { id: 'instrument-1', handler_id: 'com.example.unadvertised', type: 'card', credential: { type: 'token', token: 'tok_test' } };
 
 test.describe('Payment handlers in the UCP profile @UcpKnownBlocked @UcpBlockedByD2', () => {
     test('an activated channel advertises a payment handler an agent can complete a checkout with', async ({ TestDataService }) => {
@@ -14,16 +12,18 @@ test.describe('Payment handlers in the UCP profile @UcpKnownBlocked @UcpBlockedB
 
         expect(Object.keys(activatedChannelProfilePreview.payment_handlers ?? {}), 'checkout.complete needs a payment instrument bound to an advertised handler').not.toHaveLength(0);
     });
-});
 
-test.describe('Payment with a handler the profile does not advertise @UcpKnownBlocked @UcpBlockedByD24', () => {
-    test('completion is refused and places no order', async ({ TestDataService, UcpAgent }) => {
-        const { agent, buyer, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
+    test('completion with two instruments of an advertised handler is refused with payment_failed', async ({ TestDataService, UcpAgent }) => {
+        const { agent, buyer, salesChannelId, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
+        const { payment: { instruments: [advertisedInstrument] } } = await completionWithAdvertisedHandler(TestDataService, salesChannelId);
 
-        const refusal = await agent.rest.send('POST', `${checkoutPath}/complete`, { body: { payment: { instruments: [unadvertisedCardInstrument] } } });
+        const twoInstrumentRefusal = await agent.rest.send('POST', `${checkoutPath}/complete`, {
+            body: { payment: { instruments: [advertisedInstrument, { ...advertisedInstrument, id: 'instrument-2' }] } },
+        });
 
-        expect.soft(await isRefusal(refusal), await refusal.text()).toBe(true);
-        expect.soft(await messageCodes(refusal)).toContain('payment_failed');
+        expect.soft(twoInstrumentRefusal.status(), await twoInstrumentRefusal.text()).toBe(200);
+        expect.soft(await isRefusal(twoInstrumentRefusal), await twoInstrumentRefusal.text()).toBe(true);
+        expect.soft(await messageCodes(twoInstrumentRefusal)).toContain('payment_failed');
         expect(await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email)).toEqual([]);
     });
 });
