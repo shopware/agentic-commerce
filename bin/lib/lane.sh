@@ -120,3 +120,17 @@ db_table_exists() {
 
   [[ "${result}" == "1" ]]
 }
+
+# The first request after a cache reset builds the container, so one try can take a minute.
+lane_wait_for_200() {
+  local url="$1" status=""
+  for _ in {1..12}; do
+    status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "${url}" || true)"
+    if [[ "${status}" == "200" ]]; then
+      return 0
+    fi
+    sleep 5
+  done
+  echo "${url} answers HTTP ${status}, expected 200." >&2
+  return 1
+}

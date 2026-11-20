@@ -453,13 +453,29 @@ changes stay in scope for years. Read them before redesigning any of this, not a
 **Before changing any of this, prove it on a lane.** `bin/test-zip-install.sh` installs a built
 archive through the admin upload endpoint on a shop stripped of the extension and the SDK, and
 refuses to run if the shop can already resolve the SDK. The `zip-install` job in `package-zip.yml`
-runs it on every pull request, on 6.5.x, 6.6.x and trunk, and asserts that the install leaves the
-shop's `composer.json` and `composer.lock` untouched.
+runs it on every pull request, on shops that `shopware-cli project create` makes (the production
+template, so Symfony comes from `shopware/core`):
 
-Updates are not in CI yet: from 1.3.0, from 1.4.0 as a Composer dependency, and between two releases
-that bundle different SDK versions. They need a second archive and shops whose packages are older
-than `shopware/core` allows, and they are verified by hand on such shops before each release that
-changes the SDK version or the installation route.
+- 6.5, 6.6 and 6.7, each with freshly resolved packages and with older ones. The older run takes the
+  newest patch that is at least 90 days old and pins the Symfony and Doctrine packages to the
+  releases before it, which is what a shop that was last updated then has.
+- trunk, with freshly resolved packages.
+
+On each shop the job installs the archive, then updates it from 1.3.0, from 1.4.0 and from the
+latest release. On a shop with older packages, 1.4.0 is the starting point through
+`composer require shopware/agentic-commerce:1.4.0` on the command line, because installing it
+through the Administration is the defect. After every install and update the job fails when a
+Composer package outside `shopware/agentic-commerce` and `ucp-php-sdk/*` changed in `composer.lock`
+or in `vendor/composer/installed.json`, when `composer.json` still requires the plugin, when a
+directory directly under `vendor/` or `vendor/<vendor>/` is empty, or when the storefront, the
+Administration or `/.well-known/ucp` does not answer `200`.
+
+`bin/ci-create-shop.sh` and `bin/ci-reset-shop.sh` make and reset the same shop locally. A manual
+run of `package-zip.yml` with `archive_under_test` set to a release tag tests that release's archive
+instead of the build. With `1.4.0` every run fails, because that archive does not bundle the SDK.
+Only the older-packages runs also list moved packages in the job summary, which proves the job
+catches what broke shops with that release. `shopware_versions` sets the Shopware version of a line,
+for example `{"6.6": "6.6.10.21"}`.
 
 ## Releases
 
