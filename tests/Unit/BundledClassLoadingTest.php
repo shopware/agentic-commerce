@@ -10,6 +10,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\BundledClassLoading;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 /**
  * @internal
@@ -156,9 +158,63 @@ final class BundledClassLoadingTest extends TestCase
         BundledClassLoading::registerOn($loader, $projectRoot.'/vendor', $projectRoot.'/custom/plugins/SwagAgenticCommerce');
 
         $classMap = $loader->getClassMap();
-        self::assertSame($projectRoot.'/vendor/shopware/agentic-commerce/src/RemovedInTheArchive.php', $classMap[self::PLUGIN_CLASS_WITHOUT_FILE]);
-        self::assertSame($projectRoot.'/vendor/shopware/agentic-commerce/src/Unlisted.php', $classMap[self::UNLISTED_PLUGIN_CLASS]);
-        self::assertSame($projectRoot.'/vendor/acme/other/Other.php', $classMap['Acme\\Other']);
+        self::assertSame($projectRoot.'/vendor/composer/../shopware/agentic-commerce/src/RemovedInTheArchive.php', $classMap[self::PLUGIN_CLASS_WITHOUT_FILE]);
+        self::assertSame($projectRoot.'/vendor/composer/../shopware/agentic-commerce/src/Unlisted.php', $classMap[self::UNLISTED_PLUGIN_CLASS]);
+        self::assertSame($projectRoot.'/vendor/composer/../acme/other/Other.php', $classMap['Acme\\Other']);
+    }
+
+    #[Test]
+    public function testItReplacesTheEntriesOfAClassMapComposerOptimized(): void
+    {
+        $projectRoot = (string) realpath($this->pluginRoot([]));
+        $filesystem = new Filesystem();
+        $autoloaderSuffix = 'SwagAgenticClassLoading'.bin2hex(random_bytes(6));
+        $filesystem->dumpFile($projectRoot.'/packages/ucp-sdk-core/src/Enum/Transport.php', '<?php namespace Ucp\\Sdk\\Enum; enum Transport {}');
+        $filesystem->dumpFile($projectRoot.'/packages/ucp-sdk-core/composer.json', (string) json_encode([
+            'name' => 'ucp-php-sdk/core',
+            'version' => '0.0.7',
+            'autoload' => ['psr-4' => ['Ucp\\Sdk\\' => 'src/']],
+        ]));
+        $filesystem->dumpFile($projectRoot.'/composer.json', (string) json_encode([
+            'repositories' => [
+                ['type' => 'path', 'url' => 'packages/ucp-sdk-core', 'options' => ['symlink' => false]],
+                ['packagist.org' => false],
+            ],
+            'require' => ['ucp-php-sdk/core' => '0.0.7'],
+            'config' => ['autoloader-suffix' => $autoloaderSuffix],
+        ]));
+        $pluginRoot = $projectRoot.'/custom/plugins/SwagAgenticCommerce';
+        $filesystem->dumpFile($pluginRoot.'/lib/ucp-php-sdk/core/src/Enum/Transport.php', '');
+        $filesystem->dumpFile($pluginRoot.'/composer.json', (string) json_encode([
+            'autoload' => ['psr-4' => ['Ucp\\Sdk\\' => 'lib/ucp-php-sdk/core/src/']],
+        ]));
+        $filesystem->dumpFile($pluginRoot.BundledClassLoading::CLASS_LIST_FILE, '<?php return '.var_export(['plugin' => [], 'sdk' => [self::CORE_CLASS]], true).';');
+
+        $composer = (new ExecutableFinder())->find('composer');
+        self::assertNotNull($composer, 'The test needs the composer binary to build an optimized autoloader.');
+        $composerInstall = new Process(
+            [$composer, 'install', '--optimize-autoloader', '--no-interaction', '--no-plugins', '--no-scripts', '--no-progress'],
+            $projectRoot,
+            ['COMPOSER_HOME' => $projectRoot.'/.composer'],
+        );
+        $composerInstall->mustRun();
+
+        require $projectRoot.'/vendor/composer/autoload_static.php';
+        $staticInitializerClass = 'Composer\\Autoload\\ComposerStaticInit'.$autoloaderSuffix;
+
+        if (!class_exists($staticInitializerClass, false)) {
+            self::fail('Composer did not write the static initializer '.$staticInitializerClass.'.');
+        }
+
+        $optimizedClassMap = (new \ReflectionClass($staticInitializerClass))->getStaticPropertyValue('classMap');
+        self::assertIsArray($optimizedClassMap);
+        self::assertStringContainsString('/composer/../', (string) $optimizedClassMap[self::CORE_CLASS]);
+        $loader = new ClassLoader($projectRoot.'/vendor');
+        $loader->addClassMap($optimizedClassMap);
+
+        BundledClassLoading::registerOn($loader, $projectRoot.'/vendor', $pluginRoot);
+
+        self::assertSame($pluginRoot.'/lib/ucp-php-sdk/core/src/Enum/Transport.php', $loader->getClassMap()[self::CORE_CLASS]);
     }
 
     #[Test]
@@ -320,12 +376,12 @@ final class BundledClassLoadingTest extends TestCase
     {
         $loader = new ClassLoader($projectRoot.'/vendor');
         $loader->addClassMap([
-            self::PLUGIN_CLASS => $projectRoot.'/vendor/shopware/agentic-commerce/src/Foo.php',
-            self::PLUGIN_CLASS_WITHOUT_FILE => $projectRoot.'/vendor/shopware/agentic-commerce/src/RemovedInTheArchive.php',
-            self::UNLISTED_PLUGIN_CLASS => $projectRoot.'/vendor/shopware/agentic-commerce/src/Unlisted.php',
-            self::CORE_CLASS => $projectRoot.'/vendor/ucp-php-sdk/core/src/Enum/Transport.php',
-            self::BUNDLE_CLASS => $projectRoot.'/vendor/ucp-php-sdk/symfony-bundle/src/UcpSdkBundle.php',
-            'Acme\\Other' => $projectRoot.'/vendor/acme/other/Other.php',
+            self::PLUGIN_CLASS => $projectRoot.'/vendor/composer/../shopware/agentic-commerce/src/Foo.php',
+            self::PLUGIN_CLASS_WITHOUT_FILE => $projectRoot.'/vendor/composer/../shopware/agentic-commerce/src/RemovedInTheArchive.php',
+            self::UNLISTED_PLUGIN_CLASS => $projectRoot.'/vendor/composer/../shopware/agentic-commerce/src/Unlisted.php',
+            self::CORE_CLASS => $projectRoot.'/vendor/composer/../ucp-php-sdk/core/src/Enum/Transport.php',
+            self::BUNDLE_CLASS => $projectRoot.'/vendor/composer/../ucp-php-sdk/symfony-bundle/src/UcpSdkBundle.php',
+            'Acme\\Other' => $projectRoot.'/vendor/composer/../acme/other/Other.php',
         ]);
 
         return $loader;
