@@ -145,6 +145,7 @@ final class BundledClassLoading
     private static function takeOverVendorCopies(ClassLoader $loader, string $vendorDir, string $pluginRoot): void
     {
         $pluginDirectoryByCopyDirectory = [];
+        $vendorDir = self::normalisePath($vendorDir);
 
         foreach (self::PLUGIN_DIRECTORY_BY_VENDOR_PACKAGE as $vendorPackage => $pluginDirectory) {
             $copyDirectory = $vendorDir.'/'.$vendorPackage.'/';
@@ -171,6 +172,8 @@ final class BundledClassLoading
                     continue;
                 }
 
+                $file = self::normalisePath($file);
+
                 foreach ($pluginDirectoryByCopyDirectory as $copyDirectory => $pluginDirectory) {
                     if (!str_starts_with($file, $copyDirectory)) {
                         continue;
@@ -188,6 +191,35 @@ final class BundledClassLoading
         }
 
         $loader->addClassMap($pluginFileByClassName);
+    }
+
+    /**
+     * Composer's optimized class map names files as `<vendor>/composer/../<package>/…`. Resolved without the
+     * filesystem, because this runs on every boot for every class of the archive.
+     */
+    private static function normalisePath(string $path): string
+    {
+        if (!str_contains($path, '/.')) {
+            return $path;
+        }
+
+        $segments = [];
+
+        foreach (explode('/', $path) as $index => $segment) {
+            if ('.' === $segment || ('' === $segment && 0 !== $index)) {
+                continue;
+            }
+
+            if ('..' === $segment && [] !== $segments && !\in_array(end($segments), ['', '..'], true)) {
+                array_pop($segments);
+
+                continue;
+            }
+
+            $segments[] = $segment;
+        }
+
+        return implode('/', $segments);
     }
 
     private static function resolveDirectory(string $directory): string
