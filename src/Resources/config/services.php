@@ -343,7 +343,8 @@ return static function (ContainerConfigurator $container): void {
 
     // Lazy, as a direct reference recurses without end: profile builder, capability registry, checkout capability, adapter, this gate.
     $services->set(CompletionPaymentGate::class)
-        ->arg('$profileBuilder', service_closure(ProfileBuilderInterface::class));
+        ->arg('$profileBuilder', service_closure(ProfileBuilderInterface::class))
+        ->arg('$logger', service('logger')->nullOnInvalid());
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);

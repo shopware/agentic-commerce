@@ -16,6 +16,7 @@ final class UcpConfigException extends HttpException
     public const INVALID_JSON = 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_INVALID_JSON';
     public const WEBHOOK_HOST_NOT_LISTED = 'SWAG_AGENTIC_COMMERCE__UCP_CONFIG_WEBHOOK_HOST_NOT_LISTED';
     public const SALES_CHANNEL_TYPE_NOT_SUPPORTED = 'SWAG_AGENTIC_COMMERCE__UCP_SALES_CHANNEL_TYPE_NOT_SUPPORTED';
+    public const RUNTIME_CONFIGURATION_MISSING = 'SWAG_AGENTIC_COMMERCE__UCP_RUNTIME_CONFIGURATION_MISSING';
 
     public static function invalidValue(string $path, string $message): self
     {
@@ -44,6 +45,15 @@ final class UcpConfigException extends HttpException
             self::SALES_CHANNEL_TYPE_NOT_SUPPORTED,
             'UCP cannot be activated for sales channel "{{ salesChannelId }}": its type cannot complete a purchase. Use a storefront or headless sales channel.',
             ['salesChannelId' => $salesChannelId],
+        );
+    }
+
+    public static function runtimeConfigurationMissing(): self
+    {
+        return new self(
+            Response::HTTP_INTERNAL_SERVER_ERROR,
+            self::RUNTIME_CONFIGURATION_MISSING,
+            'The request carries no UCP runtime configuration, so the payment handlers the business advertises cannot be determined.',
         );
     }
 

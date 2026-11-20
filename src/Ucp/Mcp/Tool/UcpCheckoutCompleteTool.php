@@ -92,7 +92,11 @@ final class UcpCheckoutCompleteTool
             $checkout,
             $this->completionPreview->blockers(
                 $checkout->jsonSerialize()['status'] ?? null,
-                $this->completionPaymentGate->refusal($this->completionPayment->handlerIds($requestPayload), $context),
+                $this->completionPreview->paymentRefusal(
+                    $this->completionPaymentGate,
+                    $this->completionPayment->handlerIds($requestPayload),
+                    $context,
+                ),
             ),
         );
     }

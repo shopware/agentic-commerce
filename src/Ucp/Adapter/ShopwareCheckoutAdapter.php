@@ -29,6 +29,8 @@ use Ucp\Sdk\Model\Checkout\CheckoutCompleteRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
+use Ucp\Sdk\Model\Common\Buyer;
+use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
@@ -71,14 +73,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->mapper->toCheckout(
-            $cart,
-            $salesChannelContext,
-            $status,
-            $request->buyer,
-            $this->continueUrlBuilder->build($salesChannelContext->getToken(), $salesChannelContext->getSalesChannelId()),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
-        );
+        return $this->openCheckout($cart, $salesChannelContext, $status, $request->buyer, $salesChannelContext->getToken());
     }
 
     /**
@@ -126,13 +121,12 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
         $buyer = $this->sessionStore->buyer($sessionMetadata);
 
-        return $this->mapper->toCheckout(
+        return $this->openCheckout(
             $cart,
             $salesChannelContext,
             $this->statusFor($cart->getLineItems()->count(), null !== $buyer),
             $buyer,
-            $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
+            $id,
         );
     }
 
@@ -167,14 +161,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->mapper->toCheckout(
-            $cart,
-            $salesChannelContext,
-            $status,
-            $buyer,
-            $this->continueUrlBuilder->build($request->id, $salesChannelContext->getSalesChannelId()),
-            legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
-        );
+        return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $request->id);
     }
 
     /**
@@ -211,14 +198,13 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $context,
         );
         if (null !== $refusal) {
-            return $this->mapper->toCheckout(
+            return $this->openCheckout(
                 $cart,
                 $salesChannelContext,
                 CheckoutStatus::Incomplete,
                 $this->sessionStore->buyer($sessionMetadata),
-                $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
-                legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
-                messages: [$refusal],
+                $id,
+                [$refusal],
             );
         }
 
@@ -263,13 +249,28 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
 
         $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
 
+        return $this->openCheckout(new Cart($cart->id), $salesChannelContext, CheckoutStatus::Canceled, $buyer, $id);
+    }
+
+    /**
+     * @param list<Message> $messages
+     */
+    private function openCheckout(
+        Cart $cart,
+        SalesChannelContext $salesChannelContext,
+        CheckoutStatus $status,
+        ?Buyer $buyer,
+        string $continueUrlCheckoutId,
+        array $messages = [],
+    ): Checkout {
         return $this->mapper->toCheckout(
-            new Cart($cart->id),
+            $cart,
             $salesChannelContext,
-            CheckoutStatus::Canceled,
+            $status,
             $buyer,
-            $this->continueUrlBuilder->build($id, $salesChannelContext->getSalesChannelId()),
+            $this->continueUrlBuilder->build($continueUrlCheckoutId, $salesChannelContext->getSalesChannelId()),
             legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
+            messages: $messages,
         );
     }
 

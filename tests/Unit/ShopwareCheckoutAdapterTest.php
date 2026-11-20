@@ -64,6 +64,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
@@ -685,6 +686,19 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $checkout = $adapter->completeCheckout(self::OPEN_CHECKOUT_ID, $this->completionRequestContext())->toArray();
 
         $this->assertRefusedCheckout($checkout, 'Completing a checkout needs exactly one payment instrument, 0 given.', '$.payment.instruments');
+    }
+
+    #[Test]
+    public function testCompletingWithoutRuntimeConfigurationFailsInsteadOfAnsweringWithARecoverableRefusal(): void
+    {
+        $adapter = $this->openCheckoutAdapter($this->openCheckoutContext(), $this->completionPaymentGate(self::ADVERTISED_HANDLER_ID));
+
+        $this->expectException(UcpConfigException::class);
+
+        $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::OPEN_CHECKOUT_ID, [new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)]),
+            new RequestContext('shop.example'),
+        );
     }
 
     #[Test]

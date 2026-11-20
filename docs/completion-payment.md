@@ -20,7 +20,14 @@ carries one message of `type: error`, `code: payment_failed` and `severity: reco
 is `$.payment.instruments` when the count is not one and `$.payment.instruments[0].handler_id` when
 the handler is not advertised. No order is placed, no guest customer is registered and the session
 is not written. The SDK stores the refusal under the request's `Idempotency-Key` like any other
-answer, so an agent retries with a new key.
+answer, so an agent retries with a new key. Every refusal is also logged as a warning with the
+handler ids and the sales channel's tenant identifier, so a merchant can see why agents fail to
+complete.
+
+A completion with one instrument but without a UCP runtime configuration is not refused: the gate
+cannot tell which handlers the business advertises, so it throws
+`UcpConfigException::runtimeConfigurationMissing()`, which is answered with `500`. The dry run of
+the `complete_checkout` MCP tool reports it as a blocker.
 
 The legacy `completeCheckout($id, $context)` of the checkout adapter carries no instrument and
 counts as zero instruments, so an extension that decorates or calls it cannot bypass the gate. The
