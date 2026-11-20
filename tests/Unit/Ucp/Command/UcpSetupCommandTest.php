@@ -117,13 +117,6 @@ class UcpSetupCommandTest extends TestCase
         static::assertStringContainsString('No platform is allowed yet', $tester->getDisplay());
     }
 
-    /**
-     * saveConfig() merges a partial payload over the stored config, so a production rerun naming
-     * no host used to leave an earlier `--dev` run's `localhost` and own-domain hosts in place --
-     * a channel documented as admitting only what `--agent-host` names, still admitting a laptop.
-     * The summary printed the carried-over hosts, so the only defence was an operator reading it
-     * closely enough to notice.
-     */
     public function testSetupOnAChannelWithoutStoredSettingsAcceptsOnlyListedPlatforms(): void
     {
         $saved = null;
@@ -142,6 +135,10 @@ class UcpSetupCommandTest extends TestCase
         static::assertStringContainsString('listed', $tester->getDisplay());
     }
 
+    /**
+     * The stored config is what a `--dev` run writes; saveConfig() merges over it, so each list
+     * must be seeded or its assertion below passes whether or not production clears it.
+     */
     public function testProductionSetupClearsTheHostsAnEarlierDevRunLeftBehind(): void
     {
         $saved = null;
@@ -151,6 +148,7 @@ class UcpSetupCommandTest extends TestCase
             'signaturePolicy' => 'log',
             'platformAllowlist' => ['localhost', 'shop.localhost'],
             'agentAllowlist' => ['localhost', 'shop.localhost'],
+            'remoteProfileAllowlist' => ['localhost', 'shop.localhost'],
         ]));
         $configRepository->method('save')
             ->willReturnCallback(static function (string $salesChannelId, UcpConfig $config) use (&$saved): void {
