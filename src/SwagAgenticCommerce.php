@@ -24,6 +24,7 @@ use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPas
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Swag\AgenticCommerce\UpdateProtection\ClassPreloader;
 use Swag\AgenticCommerce\UpdateProtection\LeftoverComposerDependencyRemover;
+use Swag\AgenticCommerce\UpdateProtection\PendingSdkSchema;
 use Swag\AgenticCommerce\UpdateProtection\UpdateProtectionServices;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -124,7 +125,9 @@ final class SwagAgenticCommerce extends Plugin
             1000,
         );
 
-        $this->bootstrapSdkSchemaWhenBuilding();
+        if (\is_string($projectDir)) {
+            $this->bootstrapPendingSdkSchema($projectDir);
+        }
     }
 
     /**
@@ -172,6 +175,7 @@ final class SwagAgenticCommerce extends Plugin
         parent::update($updateContext);
 
         $this->removeLeftoverComposerDependency($updateContext);
+        $this->markSdkSchemaAsPending();
         $this->bootstrapSdkSchema();
         $this->syncCoreAgenticFiles();
     }
@@ -275,7 +279,6 @@ final class SwagAgenticCommerce extends Plugin
 
     private function bootstrapSdkSchema(): void
     {
-        // Activation and every container build retry this.
         if (!SdkAvailability::isUsable($this->getBasePath())) {
             return;
         }
@@ -289,22 +292,35 @@ final class SwagAgenticCommerce extends Plugin
         (new SchemaBootstrapper(Kernel::getConnection()))->ensureSchema();
     }
 
+    private function markSdkSchemaAsPending(): void
+    {
+        $projectDir = isset($this->container) && $this->container->hasParameter('kernel.project_dir')
+            ? $this->container->getParameter('kernel.project_dir')
+            : null;
+
+        if (\is_string($projectDir)) {
+            PendingSdkSchema::markIn($projectDir);
+        }
+    }
+
     /**
+     * Runs only with the marker, because the SDK's schema diff drops columns it does not know.
+     *
      * Compiling the container must never fail over the schema, and a `cache:clear` in a deployment step
      * often has no database to reach.
      */
-    private function bootstrapSdkSchemaWhenBuilding(): void
+    private function bootstrapPendingSdkSchema(string $projectDir): void
     {
-        try {
-            Kernel::getConnection()->executeQuery('SELECT 1');
-        } catch (\Throwable) {
-            return;
-        }
+        PendingSdkSchema::applyWhenMarkedIn($projectDir, function (): bool {
+            try {
+                Kernel::getConnection()->executeQuery('SELECT 1');
+            } catch (\Throwable) {
+                return false;
+            }
 
-        try {
             $this->bootstrapSdkSchema();
-        } catch (\Throwable $exception) {
-            error_log(\sprintf('[SwagAgenticCommerce] The SDK schema could not be bootstrapped while building the container: %s', $exception->getMessage()));
-        }
+
+            return true;
+        });
     }
 }
