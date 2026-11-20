@@ -51,6 +51,15 @@ final class UcpConfigRuntimeConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function testItHandsTheEmbeddedAllowlistToTheEmbeddedPagesOnly(): void
+    {
+        $config = UcpConfig::fromArray(['active' => true, 'platformPolicy' => 'all', 'embeddedAllowedOrigins' => ['https://host.example']]);
+
+        self::assertSame([], $config->toRuntimeConfiguration('https://merchant.example')->allowedAgentDomains);
+        self::assertSame(['https://host.example'], $config->toRuntimeConfiguration('https://merchant.example', embeddedPage: true)->allowedAgentDomains);
+    }
+
+    #[Test]
     public function testItBuildsRuntimeConfigurationForStoreApiMcp(): void
     {
         $config = UcpConfig::fromArray([

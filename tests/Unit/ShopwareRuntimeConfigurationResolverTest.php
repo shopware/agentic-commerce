@@ -65,10 +65,73 @@ final class ShopwareRuntimeConfigurationResolverTest extends TestCase
         static::assertSame('https://shop.example', $runtimeConfiguration->baseUri);
     }
 
-    private function resolver(Request $mainRequest, ?Request $subRequest = null): ShopwareRuntimeConfigurationResolver
+    #[Test]
+    public function testItChecksTheOriginOfAnEmbeddedPageAgainstTheEmbeddedAllowlist(): void
+    {
+        $config = new UcpConfig(active: true, agentAllowlist: ['agent.example'], embeddedAllowedOrigins: ['https://host.example']);
+        $embeddedRequestWithStrippedPrefix = Request::create('https://shop.example/ucp/embedded/checkout/checkout-id');
+        $embeddedRequestWithStrippedPrefix->attributes->set(RequestTransformer::ORIGINAL_REQUEST_URI, '/de/ucp/embedded/checkout/checkout-id');
+
+        $runtimeConfiguration = $this->resolver($embeddedRequestWithStrippedPrefix, config: $config)
+            ->resolve(new HttpRequest('GET', 'https://shop.example/ucp/embedded/checkout/checkout-id', ['origin' => 'https://host.example'], [], ''));
+
+        static::assertSame('sales-channel-de', $runtimeConfiguration->tenantIdentifier);
+        static::assertSame(['https://host.example'], $runtimeConfiguration->allowedAgentDomains);
+    }
+
+    #[Test]
+    public function testItKeepsTheAgentAllowlistWithoutARequestBeingHandled(): void
+    {
+        $config = new UcpConfig(active: true, agentAllowlist: ['agent.example'], embeddedAllowedOrigins: ['https://host.example']);
+        $ucpConfigRepository = $this->createStub(UcpConfigRepositoryInterface::class);
+        $ucpConfigRepository->method('find')->willReturn($config);
+        $emptyRequestStack = new RequestStack();
+        /** @var StaticEntityRepository<SalesChannelDomainCollection> $domainRepository */
+        $domainRepository = new StaticEntityRepository([new SalesChannelDomainCollection([$this->domain('domain-root', 'sales-channel-root', 'https://shop.example')])]);
+
+        $runtimeConfiguration = (new ShopwareRuntimeConfigurationResolver(
+            new UcpConfigService($ucpConfigRepository, $this->createStub(LegacyConfigStoreInterface::class)),
+            new SalesChannelDomainResolver($domainRepository),
+            new ShopwareVersionDetector('6.7.0.0'),
+            new PathPrefixRestorer($emptyRequestStack),
+            $emptyRequestStack,
+        ))->resolve(new HttpRequest('GET', 'https://shop.example/ucp/embedded/cart/cart-id', [], [], ''));
+
+        static::assertSame(['agent.example'], $runtimeConfiguration->allowedAgentDomains);
+    }
+
+    #[Test]
+    public function testItChecksTheOriginOfAnEmbeddedPageOfAShopInstalledInASubDirectory(): void
+    {
+        $config = new UcpConfig(active: true, agentAllowlist: ['agent.example'], embeddedAllowedOrigins: ['https://host.example']);
+        $embeddedRequestBelowBasePath = Request::create('https://shop.example/shop/public/ucp/embedded/cart/cart-id', server: [
+            'SCRIPT_FILENAME' => '/var/www/shop/public/index.php',
+            'SCRIPT_NAME' => '/shop/public/index.php',
+        ]);
+
+        $runtimeConfiguration = $this->resolver($embeddedRequestBelowBasePath, config: $config)
+            ->resolve(new HttpRequest('GET', 'https://shop.example/shop/public/ucp/embedded/cart/cart-id', ['origin' => 'https://host.example'], [], ''));
+
+        static::assertSame(['https://host.example'], $runtimeConfiguration->allowedAgentDomains);
+    }
+
+    #[Test]
+    public function testItKeepsTheAgentAllowlistForAnAgentRequestBelowADomainPrefixThatLooksEmbedded(): void
+    {
+        $config = new UcpConfig(active: true, agentAllowlist: ['agent.example'], embeddedAllowedOrigins: ['https://host.example']);
+        $cartRequestWithStrippedPrefix = Request::create('https://shop.example/ucp/v1/carts', Request::METHOD_POST);
+        $cartRequestWithStrippedPrefix->attributes->set(RequestTransformer::ORIGINAL_REQUEST_URI, '/ucp/embedded/ucp/v1/carts');
+
+        $runtimeConfiguration = $this->resolver($cartRequestWithStrippedPrefix, config: $config)
+            ->resolve(new HttpRequest('POST', 'https://shop.example/ucp/embedded/ucp/v1/carts', [], [], ''));
+
+        static::assertSame(['agent.example'], $runtimeConfiguration->allowedAgentDomains);
+    }
+
+    private function resolver(Request $mainRequest, ?Request $subRequest = null, UcpConfig $config = new UcpConfig(active: true)): ShopwareRuntimeConfigurationResolver
     {
         $ucpConfigRepository = $this->createStub(UcpConfigRepositoryInterface::class);
-        $ucpConfigRepository->method('find')->willReturn(new UcpConfig(active: true));
+        $ucpConfigRepository->method('find')->willReturn($config);
 
         /** @var StaticEntityRepository<SalesChannelDomainCollection> $domainRepository */
         $domainRepository = new StaticEntityRepository([new SalesChannelDomainCollection([
@@ -87,6 +150,7 @@ final class ShopwareRuntimeConfigurationResolverTest extends TestCase
             new SalesChannelDomainResolver($domainRepository),
             new ShopwareVersionDetector('6.7.0.0'),
             new PathPrefixRestorer($requestStack),
+            $requestStack,
         );
     }
 
