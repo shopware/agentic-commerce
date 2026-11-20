@@ -22,6 +22,7 @@ use Swag\AgenticCommerce\Ucp\DependencyInjection\AdvertiseUcpToolsWithoutToolset
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkSigningKeyCommandsPass;
 use Swag\AgenticCommerce\Ucp\DependencyInjection\ReplaceSdkUrlSafetyValidatorPass;
 use Swag\AgenticCommerce\UpdateProtection\ClassPreloader;
+use Swag\AgenticCommerce\UpdateProtection\PendingSdkSchema;
 use Swag\AgenticCommerce\UpdateProtection\UpdateProtectionSubscriber;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
@@ -265,6 +266,46 @@ final class SwagAgenticCommerceTest extends TestCase
 
         self::assertStringNotContainsString('shopware/agentic-commerce', (string) file_get_contents($projectRoot.'/composer.json'));
         self::assertStringNotContainsString('failed', $this->loggedErrors());
+    }
+
+    #[Test]
+    public function testAnUpdateLeavesTheSdkSchemaPendingForTheNextProcess(): void
+    {
+        $projectRoot = $this->temporaryDirectoryWithManifest([]);
+        $container = $this->containerBuilder($this->temporaryDirectoryWithManifest([]), $projectRoot);
+        $container->set(AgenticFilesCoreBridgeInterface::class, $this->createStub(AgenticFilesCoreBridgeInterface::class));
+        $plugin = new SwagAgenticCommerce(true, $this->archiveRootWithAnotherSdkVersion());
+        $plugin->setContainer($container);
+        $updateContext = $this->createStub(UpdateContext::class);
+        $updateContext->method('getCurrentShopwareVersion')->willReturn('6.7.0.0');
+
+        $plugin->update($updateContext);
+
+        self::assertFileExists($projectRoot.'/var/swag-agentic-commerce-sdk-schema-pending');
+    }
+
+    #[Test]
+    public function testABuildWithoutAUsableSdkKeepsTheSdkSchemaPending(): void
+    {
+        $projectRoot = $this->temporaryDirectoryWithManifest([]);
+        PendingSdkSchema::markIn($projectRoot);
+
+        (new SwagAgenticCommerce(true, $this->archiveRootWithAnotherSdkVersion()))
+            ->build($this->containerBuilder($this->temporaryDirectoryWithManifest([]), $projectRoot));
+
+        self::assertFileExists($projectRoot.'/var/swag-agentic-commerce-sdk-schema-pending');
+    }
+
+    #[Test]
+    public function testABuildWithoutPendingSdkSchemaLeavesTheProjectDirectoryAlone(): void
+    {
+        $projectRoot = $this->temporaryDirectoryWithManifest([]);
+
+        (new SwagAgenticCommerce(true, \dirname(__DIR__, 2)))
+            ->build($this->containerBuilder($this->temporaryDirectoryWithManifest([]), $projectRoot));
+
+        self::assertDirectoryDoesNotExist($projectRoot.'/var');
+        self::assertSame('', $this->loggedErrors());
     }
 
     #[Test]
