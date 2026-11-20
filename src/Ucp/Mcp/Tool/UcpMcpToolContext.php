@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 use Doctrine\DBAL\Connection;
 use Psr\Log\LoggerInterface;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -73,9 +74,9 @@ final class UcpMcpToolContext
      *
      * @param UcpMcpJsonObject                                $fingerprintInput
      * @param callable(RequestContext): UcpMcpOperationResult $execute
-     * @param (callable(RequestContext): string)|null         $preview          renders a read-only preview for a tool whose effects a rollback does not undo
+     * @param (callable(RequestContext): McpToolResult)|null  $preview          renders a read-only preview for a tool whose effects a rollback does not undo
      */
-    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false, ?callable $preview = null): string
+    public function executeMutating(string $operation, array $fingerprintInput, callable $execute, bool $dryRun = false, ?callable $preview = null): McpToolResult
     {
         $context = $this->requestContext();
 
@@ -108,6 +109,8 @@ final class UcpMcpToolContext
             throw new IdempotencyConflictException('Idempotency key refers to a completed response that is no longer replayable.');
         }
 
+        // The record holds the operation data, never the rendered tool result, so a
+        // replay is rendered the same way as the first call, whichever version stored it.
         if ('completed' === $record->status && null !== $record->responseBody) {
             /** @var UcpMcpJsonObject $responseBody */
             $responseBody = $record->responseBody;
@@ -142,10 +145,9 @@ final class UcpMcpToolContext
      * @param UcpMcpOperationResult $data
      * @param list<string>          $blockers
      */
-    public function preview(string $operation, array|UcpOperationResponse $data, array $blockers = []): string
+    public function preview(string $operation, array|UcpOperationResponse $data, array $blockers = []): McpToolResult
     {
-        return json_encode([
-            'success' => true,
+        return McpToolResult::success($this->normalizeData($data), [
             'dryRun' => true,
             'preview' => [
                 'operation' => $operation,
@@ -153,8 +155,7 @@ final class UcpMcpToolContext
                 'wouldSucceed' => [] === $blockers,
                 'blockers' => $blockers,
             ],
-            'data' => $this->normalizeData($data),
-        ], \JSON_THROW_ON_ERROR);
+        ]);
     }
 
     /**
@@ -169,7 +170,7 @@ final class UcpMcpToolContext
      *
      * @param callable(RequestContext): UcpMcpOperationResult $execute
      */
-    private function previewMutation(callable $execute, RequestContext $context): string
+    private function previewMutation(callable $execute, RequestContext $context): McpToolResult
     {
         $this->connection->beginTransaction();
 
@@ -307,32 +308,36 @@ final class UcpMcpToolContext
      * profile and a rejected signature were both `internal` here while REST answered
      * 424 `agent_profile_unreachable` `recoverable` and 401 for the other.
      *
+     * The descriptor's `code` is the error code; `type`, `severity` and any
+     * `violations` are the error details. That is how core's McpToolResultParser read
+     * the `{"success": false, "error": {…}}` string this method returned before, so a
+     * client on a current protocol revision sees the same structured error.
+     *
      * Every throwable is logged before it is flattened. The generic response is
      * deliberate, but the exception used to vanish with it — a failure an operator
      * could only reproduce by calling the same operation over REST, where the
      * listener does not swallow it. Logging server-side leaks nothing to the client.
      */
-    public function failure(\Throwable $exception): string
+    public function failure(\Throwable $exception): McpToolResult
     {
         $this->logger->error('UCP MCP tool call failed.', ['exception' => $exception]);
 
         $descriptor = $this->describe($exception);
 
-        $error = [
+        $details = [
             'type' => $descriptor->type,
-            'message' => $descriptor->internal ? 'The tool call failed unexpectedly.' : $exception->getMessage(),
-            'code' => $descriptor->code,
             'severity' => $descriptor->severity,
         ];
 
         if ($exception instanceof ValidationException && [] !== $exception->getViolations()) {
-            $error['violations'] = $exception->getViolations();
+            $details['violations'] = $exception->getViolations();
         }
 
-        return json_encode([
-            'success' => false,
-            'error' => $error,
-        ], \JSON_THROW_ON_ERROR);
+        return McpToolResult::failure(
+            $descriptor->internal ? 'The tool call failed unexpectedly.' : $exception->getMessage(),
+            $descriptor->code,
+            $details,
+        );
     }
 
     /**
@@ -366,17 +371,9 @@ final class UcpMcpToolContext
      * @param UcpMcpOperationResult $data
      * @param bool|null             $dryRun whether the caller mutated state; null for read-only tools, which never do
      */
-    public function success(array|UcpOperationResponse $data, ?bool $dryRun = null): string
+    public function success(array|UcpOperationResponse $data, ?bool $dryRun = null): McpToolResult
     {
-        $payload = ['success' => true];
-
-        if (null !== $dryRun) {
-            $payload['dryRun'] = $dryRun;
-        }
-
-        $payload['data'] = $this->normalizeData($data);
-
-        return json_encode($payload, \JSON_THROW_ON_ERROR);
+        return McpToolResult::success($this->normalizeData($data), null === $dryRun ? [] : ['dryRun' => $dryRun]);
     }
 
     /**

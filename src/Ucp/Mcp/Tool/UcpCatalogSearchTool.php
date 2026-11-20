@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
@@ -23,7 +24,7 @@ final class UcpCatalogSearchTool
     ) {
     }
 
-    public function __invoke(string $query = '', int $limit = 10): string
+    public function __invoke(string $query = '', int $limit = 10): McpToolResult
     {
         try {
             return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(

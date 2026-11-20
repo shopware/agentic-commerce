@@ -8,6 +8,7 @@ use Composer\InstalledVersions;
 use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Kernel;
+use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 
 /** @internal */
 #[Package('framework')]
@@ -52,6 +53,12 @@ final class ShopwareVersionDetector
         }
 
         if (!class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController')) {
+            return false;
+        }
+
+        // The UCP tools are registered only from 6.7.16.0, see UcpMcpToolRegistration. Before
+        // that the endpoint would serve none of them, so the transport is not offered.
+        if (!UcpMcpToolset::coreSupportsToolResults()) {
             return false;
         }
 

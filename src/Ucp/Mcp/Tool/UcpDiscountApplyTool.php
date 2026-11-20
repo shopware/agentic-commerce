@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
@@ -24,7 +25,7 @@ final class UcpDiscountApplyTool
     ) {
     }
 
-    public function __invoke(string $cartId, string $code, bool $dryRun = true): string
+    public function __invoke(string $cartId, string $code, bool $dryRun = true): McpToolResult
     {
         try {
             $requestPayload = ['cart_id' => $cartId, 'code' => $code];

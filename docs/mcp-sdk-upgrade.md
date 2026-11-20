@@ -26,8 +26,9 @@ To keep PHPStan and the trunk lane green we target the v0.5.0 API:
   **JSON-string `payload`** that `UcpMcpToolContext::decodeObject()` parses, instead of a typed
   `array $payload` validated by `#[Schema(definition: ShoppingOperationToolSchemas::…)]`.
 - **Errors** are returned **in band** by `UcpMcpToolContext::failure()` as
-  `{"success":false,"error":{…}}` tool content, mirroring the `{"success":true,"data":…}` shape of
-  `success()`. Throwing instead is not an option on this version: the MCP server turns any exception
+  `McpToolResult::failure()`: the UCP error code is the result's code, `type`, `severity` and
+  `violations` are its details. `success()` returns `McpToolResult::success()` the same way, and core
+  renders both into the tool's MCP content (Shopware 6.7.16.0 and later). Throwing instead is not an option on this version: the MCP server turns any exception
   into a generic `"Error while executing tool"` JSON-RPC error, so the message the agent needs in
   order to correct its call is lost. In-band tool errors are also what the MCP spec recommends, so
   this stays correct after the SDK bump — a `ToolCallException` is only worth adding for genuinely

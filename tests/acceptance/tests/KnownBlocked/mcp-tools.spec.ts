@@ -12,7 +12,7 @@ const UCP_SHOPPING_TOOLS = [
 
 test.describe('MCP tools @UcpKnownBlocked @UcpBlockedByD5', () => {
     test('tools/list offers every UCP shopping tool', async ({ InstanceMeta, TestDataService, UcpAgent }) => {
-        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP arrived in 6.7.12.0');
+        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'The UCP MCP tools need Shopware 6.7.16.0');
         const mcpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(mcpChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'] });
         const mcpConnection = await openMcpSession(UcpAgent.at(mcpChannel.url));
@@ -25,7 +25,7 @@ test.describe('MCP tools @UcpKnownBlocked @UcpBlockedByD5', () => {
     });
 
     test('create_checkout with meta and checkout arguments creates the checkout', async ({ InstanceMeta, TestDataService, UcpAgent }) => {
-        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP arrived in 6.7.12.0');
+        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'The UCP MCP tools need Shopware 6.7.16.0');
         const mcpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(mcpChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'] });
         const product = await TestDataService.createBasicProduct({ visibilities: [{ salesChannelId: mcpChannel.salesChannel.id, visibility: 30 }] });
@@ -50,7 +50,7 @@ test.describe('MCP tools @UcpKnownBlocked @UcpBlockedByD5', () => {
     });
 
     test('cancel_checkout with the idempotency key in meta cancels the checkout', async ({ InstanceMeta, TestDataService, UcpAgent }) => {
-        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP arrived in 6.7.12.0');
+        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'The UCP MCP tools need Shopware 6.7.16.0');
         const mcpChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(mcpChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'] });
         const product = await TestDataService.createBasicProduct({ visibilities: [{ salesChannelId: mcpChannel.salesChannel.id, visibility: 30 }] });
