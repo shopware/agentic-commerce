@@ -31,10 +31,10 @@ git push origin v1.3.1-rc.1
 ```
 
 `store-release.yml` then builds the archive with `1.3.1-rc.1` as its version and runs the same
-archive guards as a release. It installs the archive on 6.5.x, 6.6.x and trunk shops that have never
-seen the UCP SDK, and attaches it to a GitHub release marked as a pre-release. This path never
-uploads to the Store and uses no Store secrets. GitHub reads the workflow from the tagged commit, so
-the commit must contain this workflow.
+archive guards as a release. It installs and updates the archive on 6.5, 6.6, 6.7 and trunk shops
+that have never seen the UCP SDK, and attaches it to a GitHub release marked as a pre-release. This
+path never uploads to the Store and uses no Store secrets. GitHub reads the workflow from the tagged
+commit, so the commit must contain this workflow.
 
 The tag must have the form `v<major>.<minor>.<patch>-<alpha|beta|rc>.<n>`. Only a tag with a hyphen
 starts the workflow, so a release tag never does. A tag with a hyphen but the wrong form, such as
@@ -139,8 +139,8 @@ re-executes one it has already marked applied**. This has a hard consequence for
 
 Every pull request gets an install-ready ZIP. The `zip-artifact` job in `ci.yml` calls
 `.github/workflows/package-zip.yml`, which builds the extension the way a Store release does, checks
-it with `bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-bundles-sdk.sh`, installs it on
-6.5.x, 6.6.x and trunk shops that have never seen the UCP SDK, and uploads it as the
+it with `bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-bundles-sdk.sh`, installs and
+updates it on 6.5, 6.6, 6.7 and trunk shops that have never seen the UCP SDK, and uploads it as the
 `SwagAgenticCommerce` run artifact.
 
 1. Open the pull request's `zip-artifact` check, go to the run's **Summary**, and download
