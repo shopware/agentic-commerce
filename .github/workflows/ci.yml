@@ -102,9 +102,6 @@ jobs:
       shopware_66_ref: ${{ inputs.shopware_66_ref }}
       shopware_trunk_ref: ${{ inputs.shopware_trunk_ref }}
 
-  # Builds the archive the way a Store release does, installs it on 6.5, 6.6 and trunk, and leaves
-  # it as the run's downloadable SwagAgenticCommerce artifact. A pull request build carries its PR
-  # number in the extension label, so an installed copy never passes for the release.
   zip-artifact:
     permissions:
       contents: read

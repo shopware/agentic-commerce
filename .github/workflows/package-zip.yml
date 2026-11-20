@@ -33,6 +33,14 @@ on:
         options:
           - none
           - prerelease
+      archive_under_test:
+        description: 'Release tag whose published archive the zip-install job tests instead of the build, for example 1.4.0, which has to fail on the older-packages runs'
+        required: false
+        default: ''
+      shopware_versions:
+        description: 'JSON object that sets the Shopware version of a line for the zip-install job, for example {"6.6": "6.6.10.21"}'
+        required: false
+        default: ''
   workflow_call:
     inputs:
       overwrite_version:
@@ -161,14 +169,13 @@ jobs:
           path: SwagAgenticCommerce.zip
           retention-days: 3
 
-      # The zip-install job below installs this archive on 6.5, 6.6 and trunk. This tells a
-      # developer how to repeat it against their own lane, against the downloaded artifact.
       - name: How to verify this archive on a local lane
         run: |
           {
             echo "### Installing this archive on your own lane"
             echo
-            echo 'The zip-install job already did this on 6.5.x, 6.6.x and trunk. To repeat it'
+            echo 'The zip-install job already did this on shopware-cli shops of 6.5, 6.6, 6.7 and trunk,'
+            echo 'and updated the archive from 1.3.0, 1.4.0 and the latest release. To repeat it'
             echo 'against a local lane, on a shop that does not already provide the SDK:'
             echo
             echo '```'
@@ -180,8 +187,62 @@ jobs:
             echo
             echo 'It strips the project-level SDK first and refuses to run if the shop can still'
             echo 'resolve it, because that is how the last defect stayed invisible. After the install'
-            echo 'it checks that the shop kept its composer.json and composer.lock and gained no'
-            echo 'vendor/ucp-php-sdk, so the archive brought the SDK without a Composer run.'
+            echo 'it checks that no Composer package outside the plugin moved, that the shop gained no'
+            echo 'vendor/ucp-php-sdk and that the storefront, the Administration and /.well-known/ucp'
+            echo 'answer 200, so the archive brought the SDK without a Composer run.'
+            echo
+            echo 'bin/ci-create-shop.sh makes the shop the job uses. Given --packages-before, it pins the'
+            echo 'Symfony and Doctrine packages to the releases before that time.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  zip-install-plan:
+    name: Plan the zip install runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve the Shopware versions and download the release archives
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_UNDER_TEST: ${{ inputs.archive_under_test }}
+          SHOPWARE_VERSIONS: ${{ inputs.shopware_versions }}
+        run: |
+          bin/ci-plan-zip-install.sh --output-dir zip-install-archives \
+            --archive-under-test "${ARCHIVE_UNDER_TEST}" --shopware-versions "${SHOPWARE_VERSIONS}"
+
+      - name: Upload the release archives
+        uses: actions/upload-artifact@v6
+        with:
+          name: zip-install-archives
+          path: zip-install-archives
+          retention-days: 3
+
+      - name: Summarise the plan
+        env:
+          MATRIX: ${{ steps.plan.outputs.matrix }}
+          ARCHIVE_UNDER_TEST: ${{ inputs.archive_under_test }}
+        run: |
+          {
+            echo "### Zip install runs"
+            echo
+            echo '| Line | Packages | Shopware | PHP | Packages released before |'
+            echo '| --- | --- | --- | --- | --- |'
+            jq -r '.[] | "| \(.line) | \(.packages) | \(.shopware_version) | \(.php_version) | \(.packages_before) |"' <<< "${MATRIX}"
+            echo
+            echo "Each run installs the archive, then updates from every release archive below:"
+            echo
+            for base_archive in zip-install-archives/base/*.zip; do
+              echo "- ${base_archive##*/SwagAgenticCommerce-}"
+            done
+            if [[ -n "${ARCHIVE_UNDER_TEST}" ]]; then
+              echo
+              echo "The archive under test is the published ${ARCHIVE_UNDER_TEST} release, not the build."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Neither the admin-bundle guard nor the SDK guard can prove the archive installs. The SDK was
@@ -191,56 +252,148 @@ jobs:
   # settles it, on each supported line. The archive's own PSR-4 entries have to find the SDK, and
   # the shop's Composer files must stay as they were.
   zip-install:
-    name: Install the zip (${{ matrix.lane }})
-    needs: package-zip
+    name: Install the zip (${{ matrix.line }}, ${{ matrix.packages }} packages)
+    needs: [package-zip, zip-install-plan]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        lane: ['6.5.x', '6.6.x', 'trunk']
+        include: ${{ fromJSON(needs.zip-install-plan.outputs.matrix) }}
+    env:
+      CACHE_KEY_PREFIX: zip-install-composer-${{ matrix.line }}-${{ matrix.packages }}-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           path: agentic-commerce
-      - name: Check out the lane
-        uses: actions/checkout@v6
-        with:
-          repository: shopware/shopware
-          ref: ${{ matrix.lane }}
-          path: shopware
+
+      - name: Install shopware-cli
+        uses: shopware/shopware-cli-action@v3
+
       - name: Download the built archive
         uses: actions/download-artifact@v7
         with:
           name: SwagAgenticCommerce-archive
           path: ${{ github.workspace }}
-      - run: chmod +x agentic-commerce/bin/ci-smoke.sh agentic-commerce/bin/ci-write-compose.sh agentic-commerce/bin/test-zip-install.sh
-      - run: agentic-commerce/bin/ci-write-compose.sh "$GITHUB_WORKSPACE/shopware" "${{ matrix.lane }}"
-      # CI_SMOKE_SKIP_PLUGIN removes the plugin and both SDK packages from the project before
-      # installing it, which is the whole point: on a shop that can resolve the SDK by another
-      # route, a green install proves nothing about the archive.
-      - name: Boot a shop that has never seen the SDK
-        run: agentic-commerce/bin/ci-smoke.sh "$GITHUB_WORKSPACE/shopware"
+
+      - name: Download the release archives
+        uses: actions/download-artifact@v7
+        with:
+          name: zip-install-archives
+          path: ${{ github.workspace }}/zip-install-archives
+
+      - name: Restore Composer's download cache
+        id: composer-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.composer/cache
+          key: ${{ env.CACHE_KEY_PREFIX }}${{ github.run_id }}
+          restore-keys: ${{ env.CACHE_KEY_PREFIX }}
+
+      - name: Let Composer authenticate its GitHub downloads
         env:
-          SHOPWARE_REF: ${{ matrix.lane }}
-          # SKIP_PLUGIN is only accepted together with BOOTSTRAP_ONLY: a run that installs
-          # nothing has no smoke assertions left to make.
-          CI_SMOKE_SKIP_PLUGIN: '1'
-          CI_SMOKE_BOOTSTRAP_ONLY: '1'
-          CI_SMOKE_MODE: cold
-          CI_SMOKE_KEEP_STACK: '1'
-      - name: Install the archive the way a merchant does
-        working-directory: shopware
+          GITHUB_TOKEN_FOR_COMPOSER: ${{ github.token }}
         run: |
           set -euo pipefail
-          container="$(docker compose ps -a -q web)"
-          if [[ -z "${container}" ]]; then
-            echo "The lane has no web container; the bootstrap step did not leave the stack up." >&2
-            exit 1
+          mkdir -p ~/.composer
+          (umask 077 && jq -n --arg token "${GITHUB_TOKEN_FOR_COMPOSER}" '{"github-oauth": {"github.com": $token}}' > ~/.composer/auth.json)
+
+      - name: Create the shop
+        env:
+          SHOPWARE_VERSION: ${{ matrix.shopware_version }}
+          PHP_VERSION: ${{ matrix.php_version }}
+          PACKAGES_BEFORE: ${{ matrix.packages_before }}
+        run: |
+          set -euo pipefail
+          packages_before_args=()
+          if [[ -n "${PACKAGES_BEFORE}" ]]; then
+            packages_before_args=(--packages-before "${PACKAGES_BEFORE}")
           fi
-          url="$(sed -nE 's/^[[:space:]]*APP_URL:[[:space:]]*(.+)$/\1/p' compose.yaml | head -n 1)"
-          "$GITHUB_WORKSPACE/agentic-commerce/bin/test-zip-install.sh" \
-            --zip "$GITHUB_WORKSPACE/SwagAgenticCommerce.zip" \
-            --container "${container}" \
-            --shop-url "${url:-http://localhost:8000}"
+          agentic-commerce/bin/ci-create-shop.sh shop "${SHOPWARE_VERSION}" --php-version "${PHP_VERSION}" "${packages_before_args[@]}"
+
+      - name: Install and update the archive
+        env:
+          PACKAGES: ${{ matrix.packages }}
+          SHOPWARE_VERSION: ${{ matrix.shopware_version }}
+        run: |
+          set -uo pipefail
+          plugin_root="${GITHUB_WORKSPACE}/agentic-commerce"
+          archives_dir="${GITHUB_WORKSPACE}/zip-install-archives"
+          archive_under_test_path="${GITHUB_WORKSPACE}/SwagAgenticCommerce.zip"
+          if [[ -f "${archives_dir}/under-test/SwagAgenticCommerce.zip" ]]; then
+            archive_under_test_path="${archives_dir}/under-test/SwagAgenticCommerce.zip"
+          fi
+          test_options=(--shop-url http://127.0.0.1:8000 --exec-user "$(id -u)" --keep)
+          if [[ "${PACKAGES}" == "older" ]]; then
+            test_options+=(--older-packages)
+          fi
+
+          has_failed=0
+          scenario_results=()
+          run_scenario() {
+            local name="$1" exit_code=0 scenario_log failed_checks
+            shift
+            scenario_log="${RUNNER_TEMP}/zip-install/${name}.log"
+            mkdir -p "${RUNNER_TEMP}/zip-install"
+            echo "::group::${name}"
+            "${plugin_root}/bin/ci-reset-shop.sh" shop || exit_code=3
+            if [[ "${exit_code}" -eq 0 ]]; then
+              container="$(cd shop && docker compose ps -a -q web)"
+              "${plugin_root}/bin/test-zip-install.sh" --zip "${archive_under_test_path}" --container "${container}" "${test_options[@]}" \
+                --work-dir "${RUNNER_TEMP}/zip-install/${name}" "$@" 2>&1 | tee "${scenario_log}" || exit_code=$?
+            fi
+            echo "::endgroup::"
+            case "${exit_code}" in
+              0) scenario_results+=("| ${name} | passed |") ;;
+              3)
+                has_failed=1
+                scenario_results+=("| ${name} | setup failed, the archive was not exercised |")
+                echo "::error title=${name}::The shop or the base archive could not be set up."
+                ;;
+              *)
+                has_failed=1
+                failed_checks="$(sed -n 's/^FAIL: //p' "${scenario_log}" | sed 's/|/\\|/g' | awk 'NR > 1 { printf "; " } { printf "%s", $0 }')"
+                scenario_results+=("| ${name} | failed: ${failed_checks:-see the log} |")
+                echo "::error title=${name}::The archive failed a check."
+                ;;
+            esac
+          }
+
+          run_scenario install
+          for base_archive in $(printf '%s\n' "${archives_dir}"/base/*.zip | sort -V); do
+            archive_suffix="${base_archive##*/SwagAgenticCommerce-}"
+            version="${archive_suffix%.zip}"
+            run_scenario "update-from-${version}" --from-zip "${base_archive}"
+          done
+
+          {
+            echo "### Shopware ${SHOPWARE_VERSION}, ${PACKAGES} packages"
+            echo
+            echo '| Scenario | Result |'
+            echo '| --- | --- |'
+            printf '%s\n' "${scenario_results[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "${has_failed}"
+
+      - name: Save Composer's download cache
+        if: ${{ !cancelled() && steps.composer-cache.outputs.cache-matched-key != format('{0}{1}', env.CACHE_KEY_PREFIX, hashFiles('shop/composer.lock')) }}
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.composer/cache
+          key: ${{ env.CACHE_KEY_PREFIX }}${{ hashFiles('shop/composer.lock') }}
+
+      - name: Upload the shop's logs and Composer files
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: zip-install-${{ matrix.line }}-${{ matrix.packages }}
+          path: |
+            shop/var/log
+            ${{ runner.temp }}/zip-install
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Take the GitHub token off the runner
+        if: always()
+        run: rm -f ~/.composer/auth.json
