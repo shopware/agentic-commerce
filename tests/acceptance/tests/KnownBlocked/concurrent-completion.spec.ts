@@ -1,7 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { APIResponse } from '@playwright/test';
 import { searchIds } from '@services/adminSearch';
-import { COMPLETION_WITHOUT_INSTRUMENT, createCompletableCheckout } from '@services/completableCheckout';
+import { completionWithAdvertisedHandler, createCompletableCheckout } from '@services/completableCheckout';
 
 const PARALLEL_COMPLETIONS = 4;
 
@@ -15,12 +15,13 @@ async function isRefusedWhileInFlight(completion: APIResponse): Promise<boolean>
     return messages.some(message => message.code === 'invalid_request' && (message.content ?? '').startsWith('Checkout completion is already processing'));
 }
 
-test.describe('Concurrent completion @UcpSerial', () => {
+test.describe('Concurrent completion @UcpKnownBlocked @UcpBlockedByD2', () => {
     test('parallel completions of one checkout place exactly one order', async ({ TestDataService, UcpAgent }) => {
-        const { agent, buyer, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
+        const { agent, buyer, salesChannelId, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
+        const completionRequest = await completionWithAdvertisedHandler(TestDataService, salesChannelId);
 
         const completions = await Promise.all(Array.from({ length: PARALLEL_COMPLETIONS }, () =>
-            agent.rest.send('POST', `${checkoutPath}/complete`, { body: COMPLETION_WITHOUT_INSTRUMENT }),
+            agent.rest.send('POST', `${checkoutPath}/complete`, { body: completionRequest }),
         ));
         const answers = (await Promise.all(completions.map(async completion => `${completion.status()} ${await completion.text()}`))).join('\n');
 

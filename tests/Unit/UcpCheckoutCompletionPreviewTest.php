@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompletionPreview;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Model\Common\Message;
 
 /** @internal */
 final class UcpCheckoutCompletionPreviewTest extends TestCase
@@ -41,6 +42,33 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     public function testBlockedStatusesExplainWhyACommitWouldNotPlaceAnOrder(string $status, string $expectedBlocker): void
     {
         self::assertSame([$expectedBlocker], (new UcpCheckoutCompletionPreview())->blockers($status));
+    }
+
+    #[Test]
+    public function testAPaymentRefusalBlocksACommitEvenWhenTheCheckoutIsReady(): void
+    {
+        self::assertSame(
+            ['Completing a checkout needs exactly one payment instrument, 0 given.'],
+            (new UcpCheckoutCompletionPreview())->blockers('ready_for_complete', $this->paymentRefusal()),
+        );
+    }
+
+    #[Test]
+    public function testAPaymentRefusalIsListedAfterTheStatusBlocker(): void
+    {
+        self::assertSame(
+            [
+                'Checkout is incomplete: finish it with update_checkout before completing.',
+                'Completing a checkout needs exactly one payment instrument, 0 given.',
+            ],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', $this->paymentRefusal()),
+        );
+    }
+
+    #[Test]
+    public function testAPaymentRefusalDoesNotBlockAnAlreadyCompletedCheckoutBecauseItIsReplayedBeforePayment(): void
+    {
+        self::assertSame([], (new UcpCheckoutCompletionPreview())->blockers('completed', $this->paymentRefusal()));
     }
 
     #[Test]
@@ -80,5 +108,10 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     public function testAnUnknownStatusBlocksRatherThanSilentlyAllowingACommit(mixed $status, string $expectedBlocker): void
     {
         self::assertSame([$expectedBlocker], (new UcpCheckoutCompletionPreview())->blockers($status));
+    }
+
+    private function paymentRefusal(): Message
+    {
+        return new Message('error', 'Completing a checkout needs exactly one payment instrument, 0 given.', 'recoverable', 'payment_failed', '$.payment.instruments');
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompletionPayment;
@@ -66,5 +67,36 @@ final class UcpCheckoutCompletionPaymentTest extends TestCase
 
         self::assertSame(['dev.ucp.buyer_ip' => '203.0.113.1'], $result['signals']);
         self::assertArrayHasKey('payment', $result);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, list<string>}>
+     */
+    public static function handlerIdsProvider(): iterable
+    {
+        yield 'no payment' => [[], []];
+        yield 'payment that is not an object' => [['payment' => null], []];
+        yield 'empty payment' => [['payment' => []], []];
+        yield 'empty instrument list' => [['payment' => ['instruments' => []]], []];
+        yield 'one instrument' => [['payment' => ['instruments' => [['handler_id' => 'com.shopware.invoice']]]], ['com.shopware.invoice']];
+        yield 'two instruments' => [
+            ['payment' => ['instruments' => [['handler_id' => 'com.shopware.invoice'], ['handler_id' => 'com.example.card']]]],
+            ['com.shopware.invoice', 'com.example.card'],
+        ];
+        yield 'instrument without a handler id' => [['payment' => ['instruments' => [['type' => 'card']]]], ['']];
+        yield 'instrument that is not an object' => [['payment' => ['instruments' => ['com.shopware.invoice']]], []];
+        yield 'flat instrument' => [['payment' => ['handler_id' => 'com.shopware.invoice']], ['com.shopware.invoice']];
+        yield 'flat instrument without a handler id' => [['payment' => ['type' => 'card']], ['']];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param list<string>         $expectedHandlerIds
+     */
+    #[DataProvider('handlerIdsProvider')]
+    #[Test]
+    public function testHandlerIdsAreReadTheWayTheSdkMapsThePaymentObject(array $payload, array $expectedHandlerIds): void
+    {
+        self::assertSame($expectedHandlerIds, (new UcpCheckoutCompletionPayment())->handlerIds($payload));
     }
 }

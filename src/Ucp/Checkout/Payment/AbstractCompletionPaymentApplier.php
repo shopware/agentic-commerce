@@ -26,7 +26,7 @@ abstract class AbstractCompletionPaymentApplier
     abstract public function getDecorated(): self;
 
     /**
-     * @param PaymentInstrument|null $instrument the first instrument sent, not the chosen one
+     * @param PaymentInstrument|null $instrument the one instrument the completion carries
      * @param SalesChannelContext    $context    the context the order is about to be placed with
      *
      * @return SalesChannelContext the context to place it with

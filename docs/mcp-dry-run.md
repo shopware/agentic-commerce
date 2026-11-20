@@ -67,6 +67,11 @@ call, so it is still the one entry point every mutating tool goes through — se
 Blocker derivation lives in `UcpCheckoutCompletionPreview` — split out of the tool because the tool
 depends on the final `ShoppingOperationExecutor` and cannot be constructed with a mock.
 
+A payload that does not carry exactly one payment instrument naming a handler the profile advertises
+adds the refusal of `CompletionPaymentGate` to the blockers, so the preview says what a commit would
+answer with `payment_failed`. A checkout that is already completed has no such blocker, because a
+completion replays its order before the gate runs.
+
 ## Limits of the rolled-back dry run
 
 Honest scope: the transaction covers **database** state on the plugin's DBAL connection. It does not

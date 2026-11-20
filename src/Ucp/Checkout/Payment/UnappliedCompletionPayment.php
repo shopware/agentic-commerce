@@ -14,16 +14,13 @@ use Ucp\Sdk\Model\RequestContext;
 /**
  * The default: change nothing, and say so.
  *
- * Completion keeps charging the sales channel default, which is what it did before this
- * seam existed, so installing this release changes no order. What changes is that the gap
- * is now audible -- an agent presenting an instrument produces a warning naming the handler
- * it asked for, instead of the instrument disappearing without trace.
+ * {@see CompletionPaymentGate} has already refused every completion whose single instrument names
+ * a handler the profile does not advertise, so this only sees an advertised handler. For one
+ * that has no applier yet, the order is placed with the sales channel default and the warning
+ * names the handler the agent asked for.
  *
- * Deliberately a warning rather than a refusal. Refusing would be the more correct answer to
- * "we cannot honour this payment", and it is the answer a real implementation should give --
- * but making it the default would break every business already completing checkouts through
- * the channel default, for a capability they have not been offered yet. The refusal belongs
- * to whoever implements the real applier, and the base class says so.
+ * Deliberately a warning rather than a refusal. The refusal for a credential or a payment method
+ * the provider cannot honour belongs to the real applier, and the base class says so.
  *
  * Replace it by aliasing {@see AbstractCompletionPaymentApplier} to your own service, or
  * decorate this one and delegate through `getDecorated()` for the instruments you do not

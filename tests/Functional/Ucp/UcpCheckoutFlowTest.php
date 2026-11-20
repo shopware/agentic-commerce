@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Functional\Ucp;
 
+use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Context;
@@ -35,6 +36,7 @@ final class UcpCheckoutFlowTest extends TestCase
     public function testCheckoutCreateUpdateCompleteAndOrderRead(): void
     {
         $this->configureUcpRuntime();
+        $invoiceHandlerId = $this->advertiseInvoicePaymentHandler();
         $productId = $this->seedStorefrontProduct('Kernel Test Album');
         $lineItem = static fn (int $quantity): array => ['item' => ['id' => $productId, 'title' => 'Kernel Test Album', 'price' => 19.99], 'quantity' => $quantity];
         $buyer = ['email' => 'kernel-tester@example.com', 'first_name' => 'Kernel', 'last_name' => 'Tester'];
@@ -60,7 +62,7 @@ final class UcpCheckoutFlowTest extends TestCase
         self::assertSame(Response::HTTP_OK, $update->getStatusCode());
         self::assertSame(2, $this->decode($update)['line_items'][0]['quantity'], 'Expected checkout.update to change the line-item quantity.');
 
-        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => (object) []]);
+        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => $invoiceHandlerId]]]]);
         self::assertSame(Response::HTTP_OK, $complete->getStatusCode());
         $completed = $this->decode($complete);
         self::assertSame('completed', $completed['status'], 'Expected checkout.complete to complete the session.');
@@ -86,9 +88,59 @@ final class UcpCheckoutFlowTest extends TestCase
     }
 
     #[Test]
+    public function testCompletionWithoutAnInstrumentIsRefusedWithoutPlacingAnOrder(): void
+    {
+        $this->assertCompletionIsRefusedWithoutPlacingAnOrder([]);
+    }
+
+    #[Test]
+    public function testCompletionWithAHandlerTheProfileDoesNotAdvertiseIsRefusedWithoutPlacingAnOrder(): void
+    {
+        $this->assertCompletionIsRefusedWithoutPlacingAnOrder(['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => 'com.example.deactivated']]]);
+    }
+
+    /**
+     * Called by two tests rather than fed by a data provider, because the 6.5 lanes run this suite
+     * on PHPUnit 9, which ignores the `DataProvider` attribute.
+     *
+     * @param array<string, mixed> $payment
+     */
+    private function assertCompletionIsRefusedWithoutPlacingAnOrder(array $payment): void
+    {
+        $this->configureUcpRuntime();
+        $productId = $this->seedStorefrontProduct('Refused Album', 'UCP-IT-REFUSED');
+        $buyerEmail = 'refused-completion@example.com';
+        $fulfillment = ['type' => 'shipping', 'extra' => ['shipping_address' => ['street' => 'Kernel Street 1', 'zipcode' => '12345', 'city' => 'Berlin', 'country_code' => 'DE']]];
+
+        $create = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions', [
+            'line_items' => [['item' => ['id' => $productId, 'title' => 'Refused Album', 'price' => 19.99], 'quantity' => 1]],
+            'buyer' => ['email' => $buyerEmail, 'first_name' => 'Refused', 'last_name' => 'Completion'],
+            'fulfillment' => $fulfillment,
+        ]);
+        self::assertSame(Response::HTTP_CREATED, $create->getStatusCode(), (string) $create->getContent());
+        $checkoutId = $this->decode($create)['id'];
+
+        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => $payment]);
+
+        self::assertSame(Response::HTTP_OK, $complete->getStatusCode(), (string) $complete->getContent());
+        $refused = $this->decode($complete);
+        self::assertSame('incomplete', $refused['status']);
+        self::assertArrayNotHasKey('order', $refused);
+        $paymentFailedMessages = array_values(array_filter($refused['messages'] ?? [], static fn (array $message): bool => 'payment_failed' === ($message['code'] ?? null)));
+        self::assertCount(1, $paymentFailedMessages);
+        self::assertSame('error', $paymentFailedMessages[0]['type']);
+        self::assertSame('recoverable', $paymentFailedMessages[0]['severity']);
+
+        $connection = static::getContainer()->get(Connection::class);
+        self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM order_customer WHERE email = :email', ['email' => $buyerEmail]), 'Expected the refused completion to place no order.');
+        self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM customer WHERE email = :email', ['email' => $buyerEmail]), 'Expected the refused completion to register no guest customer.');
+    }
+
+    #[Test]
     public function testCheckoutCarriesTheSalesChannelLegalPagesAsLinks(): void
     {
         $this->configureUcpRuntime();
+        $invoiceHandlerId = $this->advertiseInvoicePaymentHandler();
         $productId = $this->seedStorefrontProduct('Legal Links Album', 'UCP-IT-LEGAL');
         $lineItem = static fn (int $quantity): array => ['item' => ['id' => $productId, 'title' => 'Legal Links Album', 'price' => 19.99], 'quantity' => $quantity];
         $buyer = ['email' => 'legal-links@example.com', 'first_name' => 'Legal', 'last_name' => 'Links'];
@@ -138,7 +190,7 @@ final class UcpCheckoutFlowTest extends TestCase
         self::assertSame(Response::HTTP_OK, $update->getStatusCode(), (string) $update->getContent());
         $this->assertLegalLinks('continue', $expectedLegalLinks, $this->decode($update));
 
-        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => (object) []]);
+        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => $invoiceHandlerId]]]]);
         self::assertSame(Response::HTTP_OK, $complete->getStatusCode(), (string) $complete->getContent());
         $completed = $this->decode($complete);
         self::assertSame('completed', $completed['status']);

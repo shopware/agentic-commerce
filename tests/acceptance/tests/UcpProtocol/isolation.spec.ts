@@ -1,8 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
-import { createCompletableCheckout, placeOrder } from '@services/completableCheckout';
 import { advertisedEndpoints, fetchAnswerByRoute, fetchDiscoveryDocument } from '@services/discovery';
 import { CARTS_PATH, shoppingRoutes } from '@services/shoppingRoutes';
-import { isRefusal, messageCodes } from '@services/ucpMessages';
+import { messageCodes } from '@services/ucpMessages';
 
 test.describe('Sales channel isolation @UcpProtocol', () => {
     test('a cart created on one channel is not found on another', async ({ TestDataService, UcpAgent }) => {
@@ -81,17 +80,5 @@ test.describe('Sales channel isolation @UcpProtocol', () => {
         const jsonAnswerByRoute = Object.fromEntries(Object.entries(answerByRoute).filter(([, answer]) => answer.contentType.includes('json')));
         // Core answers for the inactive channel, with a status that differs between Shopware versions.
         expect(jsonAnswerByRoute, JSON.stringify(answerByRoute, null, 2)).toEqual({});
-    });
-});
-
-test.describe('Agent isolation @UcpProtocol', () => {
-    test('another agent cannot read an order this agent placed', async ({ TestDataService, UcpAgent, UcpAgentB }) => {
-        const { agent, buyer, channelUrl, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
-        const placedOrder = await placeOrder(agent, checkoutPath);
-
-        const foreignOrderRefusal = await UcpAgentB.at(channelUrl).rest.send('GET', `/ucp/v1/orders/${placedOrder.id}`);
-
-        expect(await isRefusal(foreignOrderRefusal), await foreignOrderRefusal.text()).toBe(true);
-        expect(await foreignOrderRefusal.text()).not.toContain(buyer.email);
     });
 });

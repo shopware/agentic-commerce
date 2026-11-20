@@ -111,6 +111,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -164,6 +165,7 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\env;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\inline_service;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service_closure;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
 
 use Ucp\Sdk\Adapter\CartAdapterInterface;
@@ -180,6 +182,7 @@ use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
 use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
+use Ucp\Sdk\Service\ProfileBuilderInterface;
 use Ucp\Sdk\Service\ResponseSignatureServiceInterface;
 use Ucp\Sdk\Service\RuntimeConfigurationResolverInterface;
 use Ucp\Sdk\Symfony\Bridge\EmbeddedPageRendererInterface;
@@ -330,12 +333,17 @@ return static function (ContainerConfigurator $container): void {
     $services->set(CheckoutWebhookUrlGuard::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
-    // Completion keeps charging the sales channel default until something is registered
-    // under this interface. Replacing it is the whole integration: alias your own service
-    // here and the instrument reaches it. See docs/completion-payment.md.
+    // Reached only for an instrument naming a handler the profile advertises. Until something is
+    // registered under this interface the order is placed with the sales channel default payment
+    // method. Replacing it is the whole integration: alias your own service here and the
+    // instrument reaches it. See docs/completion-payment.md.
     $services->set(UnappliedCompletionPayment::class)
         ->arg('$logger', service('logger')->nullOnInvalid());
     $services->alias(AbstractCompletionPaymentApplier::class, UnappliedCompletionPayment::class);
+
+    // Lazy, as a direct reference recurses without end: profile builder, capability registry, checkout capability, adapter, this gate.
+    $services->set(CompletionPaymentGate::class)
+        ->arg('$profileBuilder', service_closure(ProfileBuilderInterface::class));
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);

@@ -338,9 +338,7 @@ final class UcpMcpToolContextTest extends TestCase
     public function testDecodeObjectAcceptsTheEmptyObjectEveryToolDefaultsTo(): void
     {
         // Every UCP tool declares `string $payload = '{}'`, so this is the value
-        // that arrives whenever an agent omits the payload — which the tool
-        // descriptions explicitly invite ("Omit it to charge the sales channel
-        // default (invoice/offline) method, which needs nothing from the buyer").
+        // that arrives whenever an agent omits the payload.
         //
         // It used to throw `$.payload must be a JSON object, array given`, because
         // json_decode('{}', true) yields [] and array_is_list([]) is true. The
