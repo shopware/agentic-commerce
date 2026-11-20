@@ -16,32 +16,34 @@ local lane tooling.
 | Admin card implementation                  | legacy `sw-card` is common           | mixed                                    | Meteor `mt-card` is common                                   |
 | Plugin admin public output used at runtime | legacy `static/*` plus loader bridge | can hit both legacy and Vite paths       | Vite assets                                                  |
 | Discovery support                          | unavailable                          | unavailable                              | available only when the trunk bridge exists                  |
-| MCP transport                              | never                                | never                                    | from 6.7.12, see [MCP Tool Visibility](#mcp-tool-visibility) |
+| MCP transport                              | never                                | never                                    | from 6.7.16, see [MCP Tool Visibility](#mcp-tool-visibility) |
 | URL field reports a cleared value          | no                                   | from `6.6.9.0`                           | yes                                                          |
 | Local PHP runtime                          | `8.2`                                | `8.3`                                    | `8.4`                                                        |
 
 ## MCP Tool Visibility
 
-The MCP transport is offered when core's `StoreApiMcpServerController` exists (first in
-`v6.7.12.0`), and on 6.7.12 and 6.7.13 only with the `MCP_SERVER` feature flag active.
-`/.well-known/ucp` advertises it on exactly those lines, which the `UcpProtocol` acceptance project
-(`mcp.spec.ts`) asserts.
+The UCP MCP tools return core's `McpToolResult`, which core ships from `v6.7.16.0`. The plugin
+registers them only where it exists (`UcpMcpToolRegistration`), and offers the MCP transport only
+there: the transport needs core's `StoreApiMcpServerController` (first in `v6.7.12.0`) and the
+`McpToolResult` classes. On 6.7.12 to 6.7.15 the plugin offers neither the UCP tools nor the
+transport, although core's Store API MCP endpoint exists. `/.well-known/ucp` advertises MCP on
+exactly the lines that offer it, which the `UcpProtocol` acceptance project (`mcp.spec.ts`) asserts.
 
 The UCP MCP tools belong to the `ucp` toolset, not to core's `discovery` group, whose tools are
 listed on every Store API session. What the first `tools/list` of a fresh session contains:
 
-| Shopware               | `/ucp/mcp`              | `/store-api/_mcp`         | Mechanism                                    | Evidence                        |
-| ---------------------- | ----------------------- | ------------------------- | -------------------------------------------- | ------------------------------- |
-| 6.5.x, 6.6.x, < 6.7.12 | no MCP transport        | no Store API MCP endpoint | none                                         | source                          |
-| 6.7.12 to 6.7.13       | every tool              | every tool                | no progressive disclosure in core            | source                          |
-| 6.7.14.x               | UCP and discovery tools | UCP and discovery tools   | `AdvertiseUcpToolsWithoutToolsetPinningPass` | CI `shopware-matrix (6.7.14.x)` |
-| 6.7.15 and later       | UCP and discovery tools | discovery tools only      | `/ucp/mcp` pins `?toolsets=ucp`              | CI `shopware-matrix (trunk)`    |
+| Shopware               | `/ucp/mcp`              | `/store-api/_mcp`         | Mechanism                                       | Evidence                     |
+| ---------------------- | ----------------------- | ------------------------- | ----------------------------------------------- | ---------------------------- |
+| 6.5.x, 6.6.x, < 6.7.12 | no MCP transport        | no Store API MCP endpoint | none                                            | source                       |
+| 6.7.12 to 6.7.15       | no MCP transport        | core tools, no UCP tools  | UCP tools need `McpToolResult` (6.7.16.0)       | source                       |
+| 6.7.16 and later       | UCP and discovery tools | discovery tools only      | `/ucp/mcp` pins `?toolsets=ucp`                 | CI `shopware-matrix (trunk)` |
 
-- The pin is used when core defines `McpToolsetRegistry::ALL_TOOLSETS` (from 6.7.15.0); otherwise
-  the compiler pass adds the UCP tools to core's default list.
+- The pin is used when core defines `McpToolsetRegistry::ALL_TOOLSETS` (from 6.7.15.0), so it is
+  always used where the tools exist. `AdvertiseUcpToolsWithoutToolsetPinningPass`, which added the
+  UCP tools to core's default list on 6.7.14.x, finds no UCP tool to add there any more.
 - Core reads `?toolsets=` only from the main request, so the pin goes on the `/ucp/mcp` request
   before the internal sub-request to `/store-api/_mcp`.
-- A plain Store API client on 6.7.15 or later reaches the UCP tools with `?toolsets=ucp` or
+- A plain Store API client on 6.7.16 or later reaches the UCP tools with `?toolsets=ucp` or
   `shopware-toolset-enable`.
 
 ## Rules We Must Keep

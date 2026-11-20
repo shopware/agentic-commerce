@@ -3,8 +3,11 @@ import type { APIResponse } from '@playwright/test';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
 import type { JsonRpcCallOptions } from '@fixtures/UcpAgent';
 
-/** `/ucp/mcp` proxies core's Store API MCP server, which arrived in 6.7.12.0. */
-export const STORE_API_MCP_MISSING = '<6.7.12.0';
+/**
+ * `/ucp/mcp` proxies core's Store API MCP server (6.7.12.0), but the plugin registers its UCP tools, and
+ * with them the transport, only from 6.7.16.0, where core takes the `McpToolResult` they return.
+ */
+export const STORE_API_MCP_MISSING = '<6.7.16.0';
 
 export interface McpSession {
     call(method: string, params?: Record<string, unknown>, options?: JsonRpcCallOptions): Promise<APIResponse>

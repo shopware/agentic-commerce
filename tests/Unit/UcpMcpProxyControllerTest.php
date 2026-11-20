@@ -52,6 +52,10 @@ final class UcpMcpProxyControllerTest extends TestCase
         if (!class_exists('Shopware\\Core\\Framework\\Mcp\\Controller\\StoreApiMcpServerController')) {
             eval('namespace Shopware\\Core\\Framework\\Mcp\\Controller { final class StoreApiMcpServerController {} }');
         }
+        // The UCP MCP tools, and with them the transport, need core's McpToolResult renderer (6.7.16.0).
+        if (!class_exists('Shopware\\Core\\Framework\\Mcp\\Result\\McpToolResultRenderer')) {
+            eval('namespace Shopware\\Core\\Framework\\Mcp\\Result { final class McpToolResultRenderer {} }');
+        }
     }
 
     #[Test]

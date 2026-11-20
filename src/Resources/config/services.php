@@ -120,6 +120,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisioner;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
+use Swag\AgenticCommerce\Ucp\DependencyInjection\UcpMcpToolRegistration;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
 use Swag\AgenticCommerce\Ucp\Embedded\ShopwareEmbeddedPageRenderer;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
@@ -136,19 +137,6 @@ use Swag\AgenticCommerce\Ucp\Identity\ShopwareIdentityLinkingAdapter;
 use Swag\AgenticCommerce\Ucp\Identity\UcpOAuthScopeRegistry;
 use Swag\AgenticCommerce\Ucp\Mcp\Api\UcpMcpProxyController;
 use Swag\AgenticCommerce\Ucp\Mcp\Routing\StoreApiMcpRouteScopeWhitelist;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCartCancelTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCartCreateTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCartGetTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCartUpdateTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCatalogLookupTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCatalogSearchTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCancelTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompleteTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCreateTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutGetTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
-use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
 use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
@@ -247,6 +235,8 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../../TestData',
             // Registered below under core's service id only.
             __DIR__.'/../../Content/ProductExport/AgenticProductExportDefinition.php',
+            // Registered by UcpMcpToolRegistration only, and only where core supports them.
+            __DIR__.'/../../Ucp/Mcp/Tool/*Tool.php',
         ]);
 
     // DAL repositories are bound by service id, not type — named args required.
@@ -380,21 +370,8 @@ return static function (ContainerConfigurator $container): void {
     $services->set(CleanupExpiredOAuthTokensTaskHandler::class)
         ->arg('$scheduledTaskRepository', service('scheduled_task.repository'));
 
-    // Store API MCP tools.
-
-    $services->set(UcpCatalogSearchTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCatalogLookupTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCartCreateTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCartGetTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCartUpdateTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCartCancelTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpDiscountApplyTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCheckoutCreateTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCheckoutGetTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCheckoutUpdateTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCheckoutCompleteTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpCheckoutCancelTool::class)->tag('shopware.store_api_mcp.tool');
-    $services->set(UcpOrderGetTool::class)->tag('shopware.store_api_mcp.tool');
+    // Store API MCP tools, only where core takes the McpToolResult they return (6.7.16.0+).
+    UcpMcpToolRegistration::register($services);
 
     $services->set(StoreApiMcpRouteScopeWhitelist::class)
         ->tag('shopware.route_scope_whitelist');

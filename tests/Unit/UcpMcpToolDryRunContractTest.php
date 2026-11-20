@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Ucp\Sdk\Service\ProtocolValidatorInterface;
 
 /**
@@ -155,6 +156,23 @@ final class UcpMcpToolDryRunContractTest extends TestCase
         sort($found);
 
         self::assertSame($classified, $found, 'A tool was added or removed without updating this contract.');
+    }
+
+    /**
+     * Core reads a tool's result from its declared return type: a native `McpToolResult` is rendered
+     * as structured content, while the legacy `{"success": …}` string goes through a parser that core
+     * deprecates for 6.8. A tool that drifted back to `string` would still pass its own tests.
+     */
+    #[DataProvider('mutatingToolProvider')]
+    #[DataProvider('readOnlyToolProvider')]
+    #[Test]
+    public function testEveryToolReturnsAToolResult(string $tool): void
+    {
+        $type = (new \ReflectionMethod(self::TOOL_NAMESPACE.$tool, '__invoke'))->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $type);
+        self::assertFalse($type->allowsNull());
+        self::assertSame(McpToolResult::class, $type->getName());
     }
 
     /**
