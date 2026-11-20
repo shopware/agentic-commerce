@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # full history so shopware-cli can generate the changelog
           fetch-depth: 0
@@ -139,7 +139,7 @@ jobs:
           unzip -q SwagAgenticCommerce.zip -d dist
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: SwagAgenticCommerce
           path: dist
@@ -147,7 +147,7 @@ jobs:
           retention-days: 14
 
       - name: Upload the archive for the install and publish jobs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: SwagAgenticCommerce-archive
           path: SwagAgenticCommerce.zip
@@ -190,17 +190,17 @@ jobs:
         lane: ['6.5.x', '6.6.x', 'trunk']
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - name: Check out the lane
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane }}
           path: shopware
       - name: Download the built archive
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: SwagAgenticCommerce-archive
           path: ${{ github.workspace }}

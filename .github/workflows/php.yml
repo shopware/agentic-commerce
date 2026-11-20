@@ -73,14 +73,14 @@ jobs:
             php-version: '8.2'
             shopware-ref: ${{ vars.SHOPWARE_67_LATEST_REF || '6.7.16.x' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
           coverage: ${{ matrix.coverage || 'none' }}
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ matrix.shopware-ref || matrix.php-version == '8.1' && env.SHOPWARE_65_REF || env.SHOPWARE_66_REF }}
@@ -112,7 +112,7 @@ jobs:
           SHOPWARE_PROJECT_DIR: ${{ github.workspace }}/shopware
       - name: Upload unit coverage
         if: matrix.coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: php-unit-coverage
           path: agentic-commerce/coverage/php/clover.xml
@@ -127,14 +127,14 @@ jobs:
   phpstan-trunk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
@@ -169,19 +169,19 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           coverage: none
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: agentic-commerce-alliance/ucp-php-sdk
           ref: ${{ env.UCP_SDK_REF }}
           path: ucp-php-sdk
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_66_REF }}
@@ -210,7 +210,7 @@ jobs:
   plugin-dependencies:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
@@ -238,7 +238,7 @@ jobs:
           echo "Composer audit report written to ${audit_file} (exit ${audit_status})."
       - name: Upload plugin Composer advisory report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: composer-audit-plugin
           path: composer-audit-plugin.json
@@ -251,7 +251,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
       - uses: shivammathur/setup-php@v2
@@ -280,10 +280,10 @@ jobs:
           - lane: '6.7.14.x'
           - lane: 'trunk'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || matrix.lane == '6.7.14.x' && env.SHOPWARE_6714_REF || env.SHOPWARE_TRUNK_REF }}
@@ -301,7 +301,7 @@ jobs:
           CI_COMPOSER_AUDIT_OUTPUT: ${{ github.workspace }}/composer-audit.json
       - name: Upload Composer advisory report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: composer-audit-${{ matrix.lane }}
           path: composer-audit.json
@@ -319,11 +319,11 @@ jobs:
     # Runs after failed lanes too, to report whatever audits they uploaded.
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
       - name: Download Composer advisory reports
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           pattern: composer-audit-*
@@ -336,10 +336,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
