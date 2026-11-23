@@ -343,7 +343,7 @@ gets the bundled SDK with it: the archive's `composer.json` replaces both SDK pa
 ### Updating from 1.4.0 or older
 
 The first update into a release that bundles the SDK runs partly on the code of the version you
-update from, which does not prepare for its files being replaced. Three things to expect on that one
+update from, which does not prepare for its files being replaced. Two things to expect on that one
 update:
 
 - The request that uploads or downloads the new archive can answer `500` once. The files are
