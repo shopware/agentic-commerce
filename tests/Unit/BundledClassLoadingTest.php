@@ -72,6 +72,23 @@ final class BundledClassLoadingTest extends TestCase
     }
 
     #[Test]
+    public function testThePluginClassesStayLoadableWhenTheVendorSymlinkToThePluginIsRemoved(): void
+    {
+        $projectRoot = $this->composerCopyProject([]);
+        $pluginRoot = $projectRoot.'/custom/plugins/SwagAgenticCommerce';
+        $filesystem = new Filesystem();
+        $filesystem->remove($projectRoot.'/vendor/shopware/agentic-commerce');
+        $filesystem->symlink($pluginRoot, $projectRoot.'/vendor/shopware/agentic-commerce');
+        $loader = new ClassLoader($projectRoot.'/vendor');
+        $loader->addPsr4('Swag\\AgenticCommerce\\', $projectRoot.'/vendor/shopware/agentic-commerce/src');
+
+        BundledClassLoading::registerOn($loader, $projectRoot.'/vendor', $pluginRoot);
+        $filesystem->remove($projectRoot.'/vendor/shopware/agentic-commerce');
+
+        self::assertSame(realpath($pluginRoot.'/src/Foo.php'), $loader->findFile(self::PLUGIN_CLASS));
+    }
+
+    #[Test]
     public function testTheBundledSdkWinsOverARootVendorEntryOfTheSamePrefix(): void
     {
         $projectRoot = $this->composerCopyProject(['require' => ['ucp-php-sdk/core' => '0.0.7']]);

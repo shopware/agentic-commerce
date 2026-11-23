@@ -63,7 +63,11 @@ final class BundledClassLoading
             && !str_starts_with($pluginRoot.'/', $vendorDir.'/');
 
         foreach ($relativeDirectoriesByPrefix as $prefix => $relativeDirectories) {
-            $registeredDirectories = array_map(self::resolveDirectory(...), $loader->getPrefixesPsr4()[$prefix] ?? []);
+            $registeredDirectories = $loader->getPrefixesPsr4()[$prefix] ?? [];
+            $realpathDirectories = array_map(self::resolveDirectory(...), $registeredDirectories);
+            // Compared without resolving symlinks: 1.4.0 loads the plugin through the `vendor/shopware/agentic-commerce`
+            // symlink, which the Composer removal in the update request deletes before the response is sent.
+            $normalisedDirectories = array_map(self::normaliseDirectory(...), $registeredDirectories);
             $bundledSdkDirectories = [];
 
             foreach ((array) $relativeDirectories as $relativeDirectory) {
@@ -71,13 +75,13 @@ final class BundledClassLoading
 
                 if ($isBundledSdkPreferred && str_starts_with($relativeDirectory, self::BUNDLED_SDK_DIRECTORY.'/')) {
                     $bundledSdkDirectories[] = $directory;
-                } elseif (!\in_array($directory, $registeredDirectories, true)) {
+                } elseif (!\in_array($directory, $normalisedDirectories, true)) {
                     $loader->addPsr4($prefix, $directory);
                 }
             }
 
             if ([] !== $bundledSdkDirectories
-                && \array_slice($registeredDirectories, 0, \count($bundledSdkDirectories)) !== $bundledSdkDirectories) {
+                && \array_slice($realpathDirectories, 0, \count($bundledSdkDirectories)) !== $bundledSdkDirectories) {
                 $loader->addPsr4($prefix, $bundledSdkDirectories, true);
             }
         }
@@ -220,6 +224,11 @@ final class BundledClassLoading
         }
 
         return implode('/', $segments);
+    }
+
+    private static function normaliseDirectory(string $directory): string
+    {
+        return rtrim(self::normalisePath($directory), '/');
     }
 
     private static function resolveDirectory(string $directory): string
