@@ -306,16 +306,28 @@ check_composer_state() {
 }
 
 upload_archive() {
-  local archive="$1" upload_http_code
+  local archive="$1" role="$2" upload_http_code
   api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null
-  # Some lanes answer 500 here on a PHP upload_tmp_dir quirk while still extracting the archive,
-  # and the first update from 1.4.0 can too, so the upload status is reported rather than enforced;
-  # install and update are the checks that matter.
   # Set before the upload, not after a successful install: the upload extracts the archive into
   # custom/plugins/ and refreshes the plugin record, so from here on the lane holds a copy whether
   # or not anything below succeeds.
   archive_present=1
   upload_http_code=$(api POST "${work_dir}/upload.json" -X POST "${shop_url}/api/_action/extension/upload" -F "file=@${archive};type=application/zip")
+  if [[ "${upload_http_code}" != "204" ]]; then
+    report_error_detail "${work_dir}/upload.json"
+    # The upload request still runs the installed release after the archive is extracted. The
+    # files are in place and the update succeeds, but the two releases before the update
+    # protection can answer 500 here:
+    # - 1.3.0 always: it loads the SDK from its own vendor/ucp-php-sdk, which the archive replaces
+    #   with lib/ucp-php-sdk, so Ucp\Sdk\Symfony\EventListener\IdempotencyResponseListener is
+    #   not found.
+    # - 1.4.0 sometimes, in dev only: the profiler builds Twig with 1.4.0's container, which
+    #   passes UcpAgenticFilesExtension fewer arguments than the extracted class takes.
+    # Any other base must answer 204.
+    if [[ "${role}" != "test" || ! "${base_version}" =~ ^1\.(3|4)\.0$ || "${upload_http_code}" != "500" ]]; then
+      fail_step "${role}" "upload returned HTTP ${upload_http_code}."
+    fi
+  fi
   say "upload: HTTP ${upload_http_code}"
   api POST /dev/null -X POST "${shop_url}/api/_action/extension/refresh" >/dev/null
 }
@@ -324,12 +336,12 @@ report_error_detail() {
   {
     jq -r '"      " + ((.errors[0].detail // "") | tostring | .[0:400])' "$1" 2>/dev/null \
       || { printf '      '; sed -e 's/<[^>]*>//g' "$1" | tr '\n' ' ' | head -c 400; echo; }
-  } >&2
+  } >&2 || true
 }
 
 install_through_admin() {
   local archive="$1" role="$2" install_http_code activate_http_code
-  upload_archive "${archive}"
+  upload_archive "${archive}" "${role}"
 
   install_http_code=$(api POST "${work_dir}/install.json" -X POST "${shop_url}/api/_action/extension/install/plugin/${PLUGIN}")
   if [[ "${install_http_code}" != "204" ]]; then
@@ -347,7 +359,7 @@ install_through_admin() {
 
 update_through_admin() {
   local archive="$1" update_http_code
-  upload_archive "${archive}"
+  upload_archive "${archive}" test
 
   update_http_code=$(api POST "${work_dir}/update.json" -X POST "${shop_url}/api/_action/extension/update/plugin/${PLUGIN}")
   if [[ "${update_http_code}" != "204" ]]; then
