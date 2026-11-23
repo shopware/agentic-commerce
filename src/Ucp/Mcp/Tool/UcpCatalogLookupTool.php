@@ -12,9 +12,9 @@ use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'lookup_catalog', title: 'UCP Catalog Lookup', description: 'Load products by id from the current Store API sales-channel catalog through the shared UCP catalog capability. The ids parameter is a string, NOT an array: pass a JSON array string such as ["id-a","id-b"], or a single id, or a comma-separated list of ids.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('inventory')]
 final class UcpCatalogLookupTool
 {

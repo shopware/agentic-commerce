@@ -13,9 +13,9 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'cancel_cart', title: 'UCP Cart Cancel', description: 'Cancel a cart through the shared UCP cart capability. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('checkout')]
 final class UcpCartCancelTool
 {

@@ -32,11 +32,11 @@ exactly the lines that offer it, which the `UcpProtocol` acceptance project (`mc
 The UCP MCP tools belong to the `ucp` toolset, not to core's `discovery` group, whose tools are
 listed on every Store API session. What the first `tools/list` of a fresh session contains:
 
-| Shopware               | `/ucp/mcp`              | `/store-api/_mcp`         | Mechanism                                       | Evidence                     |
-| ---------------------- | ----------------------- | ------------------------- | ----------------------------------------------- | ---------------------------- |
-| 6.5.x, 6.6.x, < 6.7.12 | no MCP transport        | no Store API MCP endpoint | none                                            | source                       |
-| 6.7.12 to 6.7.15       | no MCP transport        | core tools, no UCP tools  | UCP tools need `McpToolResult` (6.7.16.0)       | source                       |
-| 6.7.16 and later       | UCP and discovery tools | discovery tools only      | `/ucp/mcp` pins `?toolsets=ucp`                 | CI `shopware-matrix (trunk)` |
+| Shopware               | `/ucp/mcp`              | `/store-api/_mcp`         | Mechanism                                 | Evidence                     |
+| ---------------------- | ----------------------- | ------------------------- | ----------------------------------------- | ---------------------------- |
+| 6.5.x, 6.6.x, < 6.7.12 | no MCP transport        | no Store API MCP endpoint | none                                      | source                       |
+| 6.7.12 to 6.7.15       | no MCP transport        | core tools, no UCP tools  | UCP tools need `McpToolResult` (6.7.16.0) | source                       |
+| 6.7.16 and later       | UCP and discovery tools | discovery tools only      | `/ucp/mcp` pins `?toolsets=ucp`           | CI `shopware-matrix (trunk)` |
 
 - The pin is used when core defines `McpToolsetRegistry::ALL_TOOLSETS` (from 6.7.15.0), so it is
   always used where the tools exist. `AdvertiseUcpToolsWithoutToolsetPinningPass`, which added the

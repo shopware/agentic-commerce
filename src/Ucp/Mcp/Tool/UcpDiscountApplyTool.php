@@ -13,9 +13,9 @@ use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'apply_discount', title: 'UCP Discount Apply', description: 'Apply a discount code to a cart through the shared UCP discount capability. Always use dryRun=true (the default) to check whether the code would be accepted without persisting it, then set dryRun=false to commit.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('checkout')]
 final class UcpDiscountApplyTool
 {

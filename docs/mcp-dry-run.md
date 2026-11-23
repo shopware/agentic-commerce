@@ -35,9 +35,9 @@ McpToolResult::success($operationResult, ['dryRun' => true]);
 A commit returns the same with `'dryRun' => false`. The flag is always present on a mutating tool so
 an agent can never be in doubt about whether it committed. Read-only tools return no metadata.
 
-Core renders that into the MCP `CallToolResult`. For clients on protocol 2025-06-18 or later the data
-is the `structuredContent`. Until Shopware 6.8 the text block keeps the legacy envelope, with the
-metadata under `_meta`:
+Core renders that into the MCP `CallToolResult`. For clients on protocol 2025-06-18 or later the
+data is the `structuredContent`. Until Shopware 6.8 the text block keeps the legacy envelope, with
+the metadata under `_meta`:
 
 ```json
 { "success": true, "data": { "…": "the operation result" }, "_meta": { "dryRun": true } }
@@ -45,10 +45,10 @@ metadata under `_meta`:
 
 With the 6.8 behaviour active, the metadata moves to the result's `_meta` as `shopware/dryRun`.
 
-A failure is `McpToolResult::failure()` with the UCP error code (`invalid_request`,
-`not_found`, …) as its code and `type`, `severity` and, for validation errors, `violations` as its
-details. Clients on 2025-06-18 or later get all of them in `structuredContent.error`; the legacy text
-envelope carries only `error` (the message) and `code`.
+A failure is `McpToolResult::failure()` with the UCP error code (`invalid_request`, `not_found`, …)
+as its code and `type`, `severity` and, for validation errors, `violations` as its details. Clients
+on 2025-06-18 or later get all of them in `structuredContent.error`; the legacy text envelope
+carries only `error` (the message) and `code`.
 
 ## Why `checkout-complete` is different
 

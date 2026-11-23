@@ -12,9 +12,9 @@ use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'get_order', title: 'UCP Order Get', description: 'Load an order by id through the shared UCP order capability.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('after-sales')]
 final class UcpOrderGetTool
 {
