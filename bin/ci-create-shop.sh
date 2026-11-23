@@ -76,8 +76,11 @@ if [[ -n "${packages_before}" ]]; then
     done
     # The cache directory is the one shopware-cli mounts for its own Composer run.
     mkdir -p "${HOME}/.composer"
+    # -W lets Composer move the dependencies of the pinned packages too: a release of one of
+    # them after the cut-off can require a newer pinned package (egulias/email-validator 4.0.5
+    # requires symfony/polyfill-intl-idn ^1.43).
     "${compose[@]}" run --rm --no-deps -T -v "${HOME}/.composer:/tmp/composer" web \
-      composer update "${pinned_names[@]}" "${with_options[@]}" --no-scripts --no-interaction
+      composer update "${pinned_names[@]}" "${with_options[@]}" -W --no-scripts --no-interaction
     for pin in "${pins[@]}"; do
       locked_version="$(jq -r --arg name "${pin%%:*}" '.packages[] | select(.name == $name) | .version' composer.lock)"
       if [[ "${locked_version}" != "${pin#*:}" ]]; then
