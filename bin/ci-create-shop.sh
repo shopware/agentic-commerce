@@ -45,18 +45,21 @@ setup_failure() {
 }
 
 echo "== creating the project"
-shopware-cli project create "${shop_dir}" "${shopware_version}" --docker --no-audit --php-version "${php_version}" --no-interaction
+shopware-cli project create "${shop_dir}" "${shopware_version}" --docker --no-audit --php-version "${php_version}" --no-interaction \
+  || setup_failure "shopware-cli project create failed."
 shop_dir="$(cd "${shop_dir}" && pwd)"
 cd "${shop_dir}"
 
 read -ra compose <<< "$(lane_detect_compose_cmd)"
 
 # The search service stays down, so the shop must not expect it. The development mode lets the
-# profile fetch in the UCP checks reach http://127.0.0.1.
+# profile fetch in the UCP checks reach http://127.0.0.1. The image runs Shopware in dev, which
+# builds services earlier than prod and hides class loading failures of an update.
 cat > compose.override.yaml <<'YAML'
 services:
   web:
     environment:
+      APP_ENV: prod
       SHOPWARE_ES_ENABLED: "0"
       SHOPWARE_ES_INDEXING_ENABLED: "0"
       COMPOSER_POLICY_ADVISORIES_BLOCK: "0"
@@ -80,7 +83,8 @@ if [[ -n "${packages_before}" ]]; then
     # them after the cut-off can require a newer pinned package (egulias/email-validator 4.0.5
     # requires symfony/polyfill-intl-idn ^1.43).
     "${compose[@]}" run --rm --no-deps -T -v "${HOME}/.composer:/tmp/composer" web \
-      composer update "${pinned_names[@]}" "${with_options[@]}" -W --no-scripts --no-interaction
+      composer update "${pinned_names[@]}" "${with_options[@]}" -W --no-scripts --no-interaction \
+      || setup_failure "pinning the packages failed."
     for pin in "${pins[@]}"; do
       locked_version="$(jq -r --arg name "${pin%%:*}" '.packages[] | select(.name == $name) | .version' composer.lock)"
       if [[ "${locked_version}" != "${pin#*:}" ]]; then
@@ -94,7 +98,7 @@ if [[ -n "${packages_before}" ]]; then
 fi
 
 echo "== installing the shop"
-"${compose[@]}" up -d web
+"${compose[@]}" up -d web || setup_failure "the web container does not start."
 # The generated health check pings through the socket, which the image's temporary setup server
 # answers before the database accepts TCP connections.
 for _ in {1..60}; do
@@ -105,7 +109,7 @@ for _ in {1..60}; do
 done
 "${compose[@]}" exec -T database mariadb-admin ping -h 127.0.0.1 --protocol=tcp -uroot -proot --silent >/dev/null 2>&1 \
   || setup_failure "the database does not accept TCP connections."
-web bin/console system:install --basic-setup --force
+web bin/console system:install --basic-setup --force || setup_failure "system:install failed."
 
 lane_wait_for_200 "${SHOP_URL}/" || setup_failure "the storefront does not answer."
 lane_wait_for_200 "${SHOP_URL}/admin" || setup_failure "the Administration does not answer."

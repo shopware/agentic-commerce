@@ -190,16 +190,19 @@ if [[ -n "${sync_session}" ]]; then
   fi
 fi
 
-in_shop "test ! -e /tmp/zit-plugin && test ! -e /tmp/zit-sdk"
-in_shop "cp composer.json /tmp/zit-composer.json && cp composer.lock /tmp/zit-composer.lock"
+in_shop "test ! -e /tmp/zit-plugin && test ! -e /tmp/zit-sdk" \
+  || setup_failure "a previous run left /tmp/zit-plugin or /tmp/zit-sdk in the shop."
+in_shop "cp composer.json /tmp/zit-composer.json && cp composer.lock /tmp/zit-composer.lock" \
+  || setup_failure "composer.json and composer.lock could not be backed up."
 composer_backed_up=1
-in_shop "cp vendor/composer/installed.json /tmp/zit-installed.json && cp vendor/composer/installed.php /tmp/zit-installed.php"
+in_shop "cp vendor/composer/installed.json /tmp/zit-installed.json && cp vendor/composer/installed.php /tmp/zit-installed.php" \
+  || setup_failure "Composer's package registry could not be backed up."
 registry_backed_up=1
 
 # A development lane also registers the plugin and SDK in Composer's package registry.
 # Leaving those entries behind makes Shopware treat the ZIP as Composer-managed and
 # skip its shipped dependencies, even though the registered SDK files were moved away.
-docker exec -i -u "${exec_user}" "${container}" php <<'PHP'
+docker exec -i -u "${exec_user}" "${container}" php <<'PHP' || setup_failure "the plugin and the SDK could not be removed from the Composer files."
 <?php
 chdir('/var/www/html');
 $names = ['shopware/agentic-commerce', 'ucp-php-sdk/core', 'ucp-php-sdk/symfony-bundle'];
@@ -224,11 +227,11 @@ PHP
 # none. Either way what must not be present when the archive is uploaded is a second copy of the
 # plugin.
 if in_shop "test -d custom/plugins/${PLUGIN}"; then
-  in_shop "mv custom/plugins/${PLUGIN} /tmp/zit-plugin"
+  in_shop "mv custom/plugins/${PLUGIN} /tmp/zit-plugin" || setup_failure "the plugin source could not be moved aside."
   plugin_moved=1
 fi
 if in_shop "test -d vendor/ucp-php-sdk"; then
-  in_shop "mv vendor/ucp-php-sdk /tmp/zit-sdk"
+  in_shop "mv vendor/ucp-php-sdk /tmp/zit-sdk" || setup_failure "the project-level SDK could not be moved aside."
   sdk_moved=1
 fi
 say "moved aside: plugin source (${plugin_moved}), project-level SDK (${sdk_moved})"
@@ -316,15 +319,12 @@ upload_archive() {
   if [[ "${upload_http_code}" != "204" ]]; then
     report_error_detail "${work_dir}/upload.json"
     # The upload request still runs the installed release after the archive is extracted. The
-    # files are in place and the update succeeds, but the two releases before the update
-    # protection can answer 500 here:
-    # - 1.3.0 always: it loads the SDK from its own vendor/ucp-php-sdk, which the archive replaces
-    #   with lib/ucp-php-sdk, so Ucp\Sdk\Symfony\EventListener\IdempotencyResponseListener is
-    #   not found.
-    # - 1.4.0 sometimes, in dev only: the profiler builds Twig with 1.4.0's container, which
-    #   passes UcpAgenticFilesExtension fewer arguments than the extracted class takes.
-    # Any other base must answer 204.
-    if [[ "${role}" != "test" || ! "${base_version}" =~ ^1\.(3|4)\.0$ || "${upload_http_code}" != "500" ]]; then
+    # files are in place and the update succeeds, but over 1.3.0 the upload answers 500: 1.3.0
+    # still loads the SDK's event listeners from its own vendor/ucp-php-sdk, which the archive
+    # replaces with lib/ucp-php-sdk.
+    # In prod neither the response nor the shop's log names that cause, so the base version
+    # decides. Any other base must answer 204.
+    if [[ "${role}" != "test" || "${base_version}" != "1.3.0" || "${upload_http_code}" != "500" ]]; then
       fail_step "${role}" "upload returned HTTP ${upload_http_code}."
     fi
   fi
@@ -354,7 +354,8 @@ install_through_admin() {
   [[ "${activate_http_code}" == "204" ]] || fail_step "${role}" "activate returned HTTP ${activate_http_code}."
   say "activate: HTTP 204"
 
-  in_shop "php bin/console cache:clear --no-warmup" > "${work_dir}/cache-clear.log" 2>&1
+  in_shop "php bin/console cache:clear --no-warmup" > "${work_dir}/cache-clear.log" 2>&1 \
+    || fail_step "${role}" "cache:clear failed after activate."
 }
 
 update_through_admin() {
