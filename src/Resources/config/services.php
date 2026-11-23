@@ -432,8 +432,9 @@ return static function (ContainerConfigurator $container): void {
     // is gated the same way in routes.php. Their feature flags + runtime guards remain as
     // defense-in-depth.
     if ('prod' !== EnvironmentHelper::getVariable('APP_ENV', 'prod')) {
-        // src/Ucp/Test is not in the release zip; skip it when absent.
-        if (class_exists(TestWebhookController::class)) {
+        // src/Ucp/Test is not in the release zip; skip it when absent. Checked on disk, because
+        // after an update from a Composer install the shop's class map still names these files.
+        if (is_file(__DIR__.'/../../Ucp/Test/Api/TestWebhookController.php')) {
             $services->set(WebhookCaptureStore::class)
                 ->arg('$projectDir', param('kernel.project_dir'));
 
