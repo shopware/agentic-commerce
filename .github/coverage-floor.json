@@ -5,11 +5,11 @@
   "suites": {
     "php": {
       "format": "clover",
-      "floor": 79.65
+      "floor": 79.79
     },
     "admin": {
       "format": "cobertura",
-      "floor": 77.66
+      "floor": 78.32
     }
   }
 }
