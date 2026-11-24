@@ -131,7 +131,14 @@ export function readAdminPrivilegeMapping(): Promise<PrivilegeMapping> {
 function salesChannelExtensionFile(...segments: string[]): string {
     return path.join(
         resolvePluginDir(),
-        'src', 'Resources', 'app', 'administration', 'src', 'extension', 'sw-sales-channel', ...segments,
+        'src',
+        'Resources',
+        'app',
+        'administration',
+        'src',
+        'extension',
+        'sw-sales-channel',
+        ...segments,
     );
 }
 

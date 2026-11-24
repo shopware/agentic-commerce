@@ -27,7 +27,6 @@ export default defineConfig(
             '@stylistic/indent': ['error', 4, { SwitchCase: 1 }],
             '@stylistic/member-delimiter-style': ['error'],
             '@stylistic/no-multi-spaces': ['error'],
-            '@stylistic/object-curly-spacing': ['error', 'always'],
             '@stylistic/space-before-function-paren': ['error', {
                 anonymous: 'always',
                 named: 'never',

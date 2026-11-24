@@ -113,8 +113,7 @@ test.describe('UCP Administration ACL @UcpAcl', () => {
         expect((await TestDataService.getUcpConfig(salesChannel.id)).enabledCapabilities).not.toContain('discount');
         expect(requests.filter(({ method, pathname }) =>
             method !== 'GET'
-            && (pathname.startsWith('/api/sales-channel') || pathname.endsWith('/api/_action/sync')),
-        )).toEqual([]);
+            && (pathname.startsWith('/api/sales-channel') || pathname.endsWith('/api/_action/sync')))).toEqual([]);
         await detail.reload(salesChannel.id);
         await expect(detail.capability('discount')).not.toBeChecked();
 

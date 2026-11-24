@@ -7,9 +7,17 @@ import type { knownBlockers } from '../../known-blockers';
 
 /** The binding's tools minus get_product, which the plugin does not offer yet (known blocker D5 in {@link knownBlockers}). */
 const OFFERED_UCP_SHOPPING_TOOLS = [
-    'search_catalog', 'lookup_catalog',
-    'create_cart', 'get_cart', 'update_cart', 'cancel_cart',
-    'create_checkout', 'get_checkout', 'update_checkout', 'complete_checkout', 'cancel_checkout',
+    'search_catalog',
+    'lookup_catalog',
+    'create_cart',
+    'get_cart',
+    'update_cart',
+    'cancel_cart',
+    'create_checkout',
+    'get_checkout',
+    'update_checkout',
+    'complete_checkout',
+    'cancel_checkout',
     'get_order',
 ];
 
