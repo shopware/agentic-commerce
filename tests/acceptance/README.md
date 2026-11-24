@@ -313,7 +313,7 @@ Read by the plugin fixtures: `SHOPWARE_DIR`, `PLUGIN_DIR`, `UCP_AGENT_PROFILE_BA
 `UCP_CONSOLE`, `UCP_CONSOLE_TIMEOUT_MS`, `ATS_SKIP_CLEANUP`.
 
 > `DATABASE_URL` is parsed into `ATS_DATABASE_USERNAME`/`_PASSWORD`/`_HOST`/`_NAME` for parity with
-> core's configuration, but **nothing consumes those variables today**. ATS 12.20.0 ships no
+> core's configuration, but **nothing consumes those variables today**. ATS 12.27.0 ships no
 > database driver and reaches Shopware only over the Admin API, the Store API and Mailpit. Do not go
 > looking for a database connection that is never opened.
 
@@ -331,10 +331,3 @@ Activating UCP on a channel auto-provisions a signing key in the SDK's key store
 that ships the sales-channel file subsystem it also enables the agentic files for that channel. The
 worker channel keeps both. Signing keys of the channels the suite created are removed only when
 `UcpConsole` can reach `bin/console`; otherwise they outlive their channel.
-
-## Notes
-
-- `npm install` warns that `skia-canvas` has an install script npm 11 does not run by default. It is
-  a transitive dependency of the ATS's screenshot comparison. Nothing in this suite uses visual
-  assertions today; approve the script with `npm install-scripts approve skia-canvas` if that
-  changes.
