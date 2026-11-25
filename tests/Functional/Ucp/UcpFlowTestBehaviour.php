@@ -8,17 +8,22 @@ use Doctrine\DBAL\Connection;
 use Shopware\Core\Content\Test\Product\ProductBuilder;
 use Shopware\Core\DevOps\Environment\EnvironmentHelper;
 use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\Test\TestCaseBase\EventDispatcherBehaviour;
 use Shopware\Core\Framework\Test\TestCaseBase\IntegrationTestBehaviour;
 use Shopware\Core\Framework\Test\TestCaseBase\KernelLifecycleManager;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
+use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Swag\AgenticCommerce\Ucp\Test\StaticAgentProfileFetcher;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\HttpFoundation\Response;
+use Ucp\Sdk\Event\ProfileBuiltEvent;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
+use Ucp\Sdk\Model\RequestContext;
+use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 use Ucp\Sdk\Service\ProfileBuilderInterface;
 
 /**
@@ -46,6 +51,7 @@ use Ucp\Sdk\Service\ProfileBuilderInterface;
  */
 trait UcpFlowTestBehaviour
 {
+    use EventDispatcherBehaviour;
     use IntegrationTestBehaviour;
 
     private KernelBrowser $browser;
@@ -81,6 +87,39 @@ trait UcpFlowTestBehaviour
         $config->set('SwagAgenticCommerce.config.continueUrlTemplate', $this->ucpDomain.'/checkout/confirm?checkoutId={checkoutId}', $this->ucpSalesChannelId);
 
         $container->get(StaticAgentProfileFetcher::class)->setProfile($this->buildMerchantProfile());
+    }
+
+    /**
+     * Makes the profile advertise the invoice payment handler, which it does not do on its own, so a
+     * completion can name one. Call from the test body, after {@see configureUcpRuntime()}.
+     *
+     * @return string the `handler_id` a completion has to name
+     */
+    protected function advertiseInvoicePaymentHandler(): string
+    {
+        $container = static::getContainer();
+        $invoiceHandlerId = (new ShopwareInvoicePaymentHandler())->id();
+        $invoiceHandler = $container->get(PaymentHandlerRegistryInterface::class)->find($invoiceHandlerId);
+        self::assertNotNull($invoiceHandler, 'Expected the payment handler registry to know the invoice handler.');
+        $invoiceDescriptor = $invoiceHandler->describe(new RequestContext($this->ucpDomain));
+
+        $this->addEventListener(
+            $container->get('event_dispatcher'),
+            ProfileBuiltEvent::class,
+            static function (ProfileBuiltEvent $event) use ($invoiceDescriptor): void {
+                $profile = $event->getProfile();
+                $event->replaceProfile(new PlatformProfile(
+                    $profile->version,
+                    $profile->services,
+                    $profile->capabilities,
+                    [$invoiceDescriptor->name => [$invoiceDescriptor]],
+                    $profile->signingKeys,
+                    $profile->supportedVersions,
+                ));
+            },
+        );
+
+        return $invoiceHandlerId;
     }
 
     /**

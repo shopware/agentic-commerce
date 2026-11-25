@@ -130,7 +130,8 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
-     * @param list<Link> $legalLinks
+     * @param list<Link>    $legalLinks
+     * @param list<Message> $messages
      */
     public function toCheckout(
         Cart $cart,
@@ -140,6 +141,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
         ?string $continueUrl = null,
         ?OrderEntity $order = null,
         array $legalLinks = [],
+        array $messages = [],
     ): Checkout {
         return new Checkout(
             id: $cart->getToken() ?: $context->getToken(),
@@ -147,7 +149,7 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
             currency: $context->getCurrency()->getIsoCode(),
             lineItems: $this->mapShopwareLineItems($cart->getLineItems()),
             totals: $this->cartMoneySummary($cart),
-            messages: $this->mapCartMessages($cart),
+            messages: [...$this->mapCartMessages($cart), ...$messages],
             links: [
                 ...(null !== $continueUrl ? [new Link('continue', $continueUrl, 'Continue checkout')] : []),
                 ...$legalLinks,

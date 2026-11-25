@@ -54,7 +54,7 @@ export async function placeOrderSendingWebhooksToCapture(
     const webhookCaptureChannel = await TestDataService.createWebhookCaptureChannel();
     await TestDataService.activateUcp(salesChannelId, { webhookUrlOverride: webhookCaptureChannel.targetUrl });
     await clearCapturedWebhook(request, webhookCaptureChannel);
-    const placedOrder = await placeOrder(agent, checkoutPath);
+    const placedOrder = await placeOrder(TestDataService, agent, salesChannelId, checkoutPath);
 
     return { capture: webhookCaptureChannel, salesChannelId, channelUrl, placedOrder };
 }

@@ -8,6 +8,7 @@ use Mcp\Capability\Attribute\McpTool;
 use Mcp\Capability\Attribute\Schema;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\ProtocolValidatorInterface;
@@ -19,7 +20,7 @@ use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
  *
  * @internal
  */
-#[McpTool(name: 'complete_checkout', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object matching the UCP checkout.complete request; UCP requires a payment object here. Omit it to charge the sales channel default (invoice/offline) method, which needs nothing from the buyer.')]
+#[McpTool(name: 'complete_checkout', title: 'UCP Checkout Complete', description: 'Complete a checkout session through the shared UCP checkout capability. This places the order and takes payment. With dryRun=true (the default) nothing is placed: the current checkout is read back and reported together with anything that would block a commit. Set dryRun=false only once the buyer has confirmed the purchase. The payload parameter is a JSON object matching the UCP checkout.complete request; UCP requires a payment object here. It must carry exactly one instrument whose handler_id is a payment handler the business profile advertises for the sales channel. Otherwise the checkout stays incomplete with a payment_failed error and no order is placed.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
 #[Package('checkout')]
 final class UcpCheckoutCompleteTool
@@ -30,6 +31,7 @@ final class UcpCheckoutCompleteTool
         private readonly UcpCheckoutCompletionPreview $completionPreview,
         private readonly UcpCheckoutCompletionPayment $completionPayment,
         private readonly ProtocolValidatorInterface $protocolValidator,
+        private readonly CompletionPaymentGate $completionPaymentGate,
     ) {
     }
 
@@ -66,7 +68,7 @@ final class UcpCheckoutCompleteTool
      * rolled-back transaction: completion synchronously POSTs an `order.created`
      * webhook to the merchant, and a rollback does not recall an HTTP request. The
      * preview is therefore built from the read-only `checkout.get` path — the same
-     * one get_checkout uses — plus the blockers its status implies.
+     * one get_checkout uses — plus the blockers its status and its payment imply.
      *
      * That read never looks at the payload, so the request is validated here explicitly --
      * otherwise an invalid payment object previews clean and fails on commit, which is the one
@@ -88,7 +90,14 @@ final class UcpCheckoutCompleteTool
         return $this->toolContext->preview(
             'checkout.complete',
             $checkout,
-            $this->completionPreview->blockers($checkout->jsonSerialize()['status'] ?? null),
+            $this->completionPreview->blockers(
+                $checkout->jsonSerialize()['status'] ?? null,
+                $this->completionPreview->paymentRefusal(
+                    $this->completionPaymentGate,
+                    $this->completionPayment->handlerIds($requestPayload),
+                    $context,
+                ),
+            ),
         );
     }
 }
