@@ -7,14 +7,15 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'cancel_checkout', title: 'UCP Checkout Cancel', description: 'Cancel a checkout session through the shared UCP checkout capability. Always use dryRun=true (the default) to validate the request without persisting it, then set dryRun=false to commit.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('checkout')]
 final class UcpCheckoutCancelTool
 {
@@ -24,7 +25,7 @@ final class UcpCheckoutCancelTool
     ) {
     }
 
-    public function __invoke(string $id, bool $dryRun = true): string
+    public function __invoke(string $id, bool $dryRun = true): McpToolResult
     {
         try {
             return $this->toolContext->executeMutating(

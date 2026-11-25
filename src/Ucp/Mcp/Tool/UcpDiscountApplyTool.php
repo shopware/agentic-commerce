@@ -7,14 +7,15 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'apply_discount', title: 'UCP Discount Apply', description: 'Apply a discount code to a cart through the shared UCP discount capability. Always use dryRun=true (the default) to check whether the code would be accepted without persisting it, then set dryRun=false to commit.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('checkout')]
 final class UcpDiscountApplyTool
 {
@@ -24,7 +25,7 @@ final class UcpDiscountApplyTool
     ) {
     }
 
-    public function __invoke(string $cartId, string $code, bool $dryRun = true): string
+    public function __invoke(string $cartId, string $code, bool $dryRun = true): McpToolResult
     {
         try {
             $requestPayload = ['cart_id' => $cartId, 'code' => $code];

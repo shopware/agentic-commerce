@@ -24,14 +24,31 @@ Read-only already, so no `dryRun`: `cart-get`, `catalog-lookup`, `catalog-search
 
 ## Response shape
 
-A rolled-back dry run returns the real operation result, flagged:
+The tools return core's `McpToolResult` (Shopware 6.7.16.0 and later, see
+[version differences](shopware-version-differences.md)). The operation result is the result's
+`data`; the dry-run flag is metadata. A rolled-back dry run returns the real operation result:
 
-```json
-{ "success": true, "dryRun": true, "data": { "…": "the operation result" } }
+```php
+McpToolResult::success($operationResult, ['dryRun' => true]);
 ```
 
-A commit returns the same envelope with `"dryRun": false`. The flag is always present on a mutating
-tool so an agent can never be in doubt about whether it committed. Read-only tools omit it entirely.
+A commit returns the same with `'dryRun' => false`. The flag is always present on a mutating tool so
+an agent can never be in doubt about whether it committed. Read-only tools return no metadata.
+
+Core renders that into the MCP `CallToolResult`. For clients on protocol 2025-06-18 or later the
+data is the `structuredContent`. Until Shopware 6.8 the text block keeps the legacy envelope, with
+the metadata under `_meta`:
+
+```json
+{ "success": true, "data": { "…": "the operation result" }, "_meta": { "dryRun": true } }
+```
+
+With the 6.8 behaviour active, the metadata moves to the result's `_meta` as `shopware/dryRun`.
+
+A failure is `McpToolResult::failure()` with the UCP error code (`invalid_request`, `not_found`, …)
+as its code and `type`, `severity` and, for validation errors, `violations` as its details. Clients
+on 2025-06-18 or later get all of them in `structuredContent.error`; the legacy text envelope
+carries only `error` (the message) and `code`.
 
 ## Why `checkout-complete` is different
 
@@ -48,19 +65,18 @@ So `checkout-complete` previews instead of executing: it reads the checkout back
 `checkout.get` path `get_checkout` uses, and reports what a commit would do. It supplies that
 preview to `UcpMcpToolContext::executeMutating()` as a callback rather than branching before the
 call, so it is still the one entry point every mutating tool goes through — see
-[Idempotency](#idempotency):
+[Idempotency](#idempotency). The current checkout is the `data`, the preview sits next to `dryRun`
+in the metadata:
 
 ```json
 {
-  "success": true,
   "dryRun": true,
   "preview": {
     "operation": "checkout.complete",
     "committed": false,
     "wouldSucceed": false,
     "blockers": ["Checkout is incomplete: finish it with update_checkout before completing."]
-  },
-  "data": { "…": "the current checkout" }
+  }
 }
 ```
 
@@ -96,6 +112,10 @@ That holds for `checkout-complete` too, which is why its read-only preview is ha
 in the same method, so a tool cannot skip it by previewing differently — a bypass this tool did have
 once, on the one tool that can take money. Anything added later with its own preview shape belongs
 in that `$preview` callback for the same reason.
+
+The idempotency record stores the operation result, never the rendered tool result. A replay is
+wrapped as `McpToolResult::success($stored, ['dryRun' => false])` like the first call, so records
+written before the switch to `McpToolResult` replay unchanged.
 
 ## Not in this repository
 

@@ -7,13 +7,14 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Mcp\UcpMcpToolset;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationExecutor;
 use Ucp\Sdk\Symfony\Operation\ShoppingOperationRequest;
 
+/** @internal */
 #[McpTool(name: 'get_cart', title: 'UCP Cart Get', description: 'Load a cart by id through the shared UCP cart capability.')]
 #[McpToolGroup(UcpMcpToolset::NAME)]
-/** @internal */
 #[Package('checkout')]
 final class UcpCartGetTool
 {
@@ -23,7 +24,7 @@ final class UcpCartGetTool
     ) {
     }
 
-    public function __invoke(string $id): string
+    public function __invoke(string $id): McpToolResult
     {
         try {
             return $this->toolContext->success($this->operationExecutor->execute(new ShoppingOperationRequest(

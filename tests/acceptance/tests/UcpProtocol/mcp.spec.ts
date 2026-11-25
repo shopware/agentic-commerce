@@ -15,7 +15,7 @@ const OFFERED_UCP_SHOPPING_TOOLS = [
 
 test.describe('MCP transport @UcpProtocol', () => {
     test.beforeEach(({ InstanceMeta }) => {
-        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP arrived in 6.7.12.0');
+        test.skip(satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'The UCP MCP tools need Shopware 6.7.16.0');
     });
 
     test('the profile advertises the MCP endpoint with the MCP service schema', async ({ TestDataService, browser }) => {
@@ -59,7 +59,7 @@ test.describe('MCP transport @UcpProtocol', () => {
 
 test.describe('MCP transport without Store API MCP @UcpProtocol', () => {
     test('the profile does not advertise MCP although it is enabled', async ({ InstanceMeta, TestDataService, browser }) => {
-        test.skip(!satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'Store API MCP exists from 6.7.12.0');
+        test.skip(!satisfies(InstanceMeta.version, STORE_API_MCP_MISSING), 'The UCP MCP tools exist from Shopware 6.7.16.0');
         const mcpEnabledChannel = await TestDataService.createStorefrontSalesChannelOnOwnHost();
         await TestDataService.activateUcp(mcpEnabledChannel.salesChannel.id, { enabledTransports: ['rest', 'mcp'] });
 

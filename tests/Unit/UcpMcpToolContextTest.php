@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\AgenticCommerce\Ucp\Http\SymfonyRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpMcpToolContext;
 use Symfony\Component\HttpFoundation\Request;
@@ -134,7 +135,9 @@ final class UcpMcpToolContextTest extends TestCase
             },
         );
 
-        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['ok' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFalse($result->isError());
+        self::assertSame(['ok' => true], $result->data);
+        self::assertSame(['dryRun' => false], $result->meta);
     }
 
     #[Test]
@@ -165,7 +168,9 @@ final class UcpMcpToolContextTest extends TestCase
             static fn (): array => ['cancelled' => true],
         );
 
-        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['cancelled' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFalse($result->isError());
+        self::assertSame(['cancelled' => true], $result->data);
+        self::assertSame(['dryRun' => false], $result->meta);
     }
 
     #[Test]
@@ -203,7 +208,9 @@ final class UcpMcpToolContextTest extends TestCase
         );
 
         self::assertFalse($executed);
-        self::assertSame(['success' => true, 'dryRun' => false, 'data' => ['stored' => true]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFalse($result->isError());
+        self::assertSame(['stored' => true], $result->data);
+        self::assertSame(['dryRun' => false], $result->meta);
     }
 
     #[Test]
@@ -388,16 +395,12 @@ final class UcpMcpToolContextTest extends TestCase
 
         $result = $context->failure(new ValidationException('UCP-Agent header with a profile URI is required for UCP runtime requests.', ['$.headers.ucp-agent is required']));
 
-        self::assertSame([
-            'success' => false,
-            'error' => [
-                'type' => 'validation',
-                'message' => 'UCP-Agent header with a profile URI is required for UCP runtime requests.',
-                'code' => 'invalid_request',
-                'severity' => 'recoverable',
-                'violations' => ['$.headers.ucp-agent is required'],
-            ],
-        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFailure(
+            $result,
+            'UCP-Agent header with a profile URI is required for UCP runtime requests.',
+            'invalid_request',
+            ['type' => 'validation', 'severity' => 'recoverable', 'violations' => ['$.headers.ucp-agent is required']],
+        );
     }
 
     /**
@@ -423,10 +426,7 @@ final class UcpMcpToolContextTest extends TestCase
         // `code` and `severity` come from the same descriptor the SDK's HTTP listener
         // reads, so an agent gets the machine-readable part of the failure over MCP too
         // rather than only prose it has to parse.
-        self::assertSame([
-            'success' => false,
-            'error' => ['type' => $expectedType, 'message' => 'nope', 'code' => $expectedCode, 'severity' => $expectedSeverity],
-        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFailure($result, 'nope', $expectedCode, ['type' => $expectedType, 'severity' => $expectedSeverity]);
     }
 
     #[Test]
@@ -439,10 +439,11 @@ final class UcpMcpToolContextTest extends TestCase
         // This is the failure the store suite spent a session on: over REST it answered
         // 424 `agent_profile_unreachable` `recoverable`, over MCP it was `internal` with
         // no code at all, so the two transports described the same exception differently.
-        $error = json_decode($result, true, flags: \JSON_THROW_ON_ERROR)['error'];
-        self::assertSame('agent_profile_unreachable', $error['code']);
-        self::assertSame('recoverable', $error['severity']);
-        self::assertStringContainsString('could not be fetched', $error['message']);
+        self::assertTrue($result->isError());
+        self::assertNotNull($result->error);
+        self::assertSame('agent_profile_unreachable', $result->error->code);
+        self::assertSame('recoverable', $result->error->details['severity'] ?? null);
+        self::assertStringContainsString('could not be fetched', $result->error->message);
     }
 
     #[Test]
@@ -456,15 +457,7 @@ final class UcpMcpToolContextTest extends TestCase
             new AccessDeniedHttpException('Customer is not logged in.'),
         );
 
-        self::assertSame([
-            'success' => false,
-            'error' => [
-                'type' => 'request',
-                'message' => 'Customer is not logged in.',
-                'code' => 'invalid_request',
-                'severity' => 'recoverable',
-            ],
-        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFailure($result, 'Customer is not logged in.', 'invalid_request', ['type' => 'request', 'severity' => 'recoverable']);
     }
 
     #[Test]
@@ -476,9 +469,10 @@ final class UcpMcpToolContextTest extends TestCase
             new ServiceUnavailableHttpException(null, 'Database "shop_prod" on db-01:3306 is not reachable.'),
         );
 
-        $error = json_decode($result, true, flags: \JSON_THROW_ON_ERROR)['error'];
-        self::assertSame('internal', $error['type']);
-        self::assertSame('The tool call failed unexpectedly.', $error['message']);
+        self::assertTrue($result->isError());
+        self::assertNotNull($result->error);
+        self::assertSame('internal', $result->error->details['type'] ?? null);
+        self::assertSame('The tool call failed unexpectedly.', $result->error->message);
     }
 
     #[Test]
@@ -486,15 +480,7 @@ final class UcpMcpToolContextTest extends TestCase
     {
         $result = $this->toolContext($this->requestContext())->failure(new \RuntimeException('SQLSTATE[42S02]: table "secret" does not exist'));
 
-        self::assertSame([
-            'success' => false,
-            'error' => [
-                'type' => 'internal',
-                'message' => 'The tool call failed unexpectedly.',
-                'code' => 'internal_error',
-                'severity' => 'unrecoverable',
-            ],
-        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFailure($result, 'The tool call failed unexpectedly.', 'internal_error', ['type' => 'internal', 'severity' => 'unrecoverable']);
     }
 
     #[Test]
@@ -508,7 +494,9 @@ final class UcpMcpToolContextTest extends TestCase
         // The generic response is deliberate; the exception vanishing with it was not.
         // Without this the only way to see the cause was to call the same operation over
         // REST, where the SDK's listener does not swallow it.
-        self::assertSame('The tool call failed unexpectedly.', json_decode($result, true, flags: \JSON_THROW_ON_ERROR)['error']['message']);
+        self::assertTrue($result->isError());
+        self::assertNotNull($result->error);
+        self::assertSame('The tool call failed unexpectedly.', $result->error->message);
         self::assertCount(1, $logger->records);
         self::assertSame('error', $logger->records[0]['level']);
         self::assertSame('UCP MCP tool call failed.', $logger->records[0]['message']);
@@ -552,10 +540,9 @@ final class UcpMcpToolContextTest extends TestCase
         );
 
         self::assertTrue($executed, 'A dry run must still run the operation, otherwise it validates nothing.');
-        self::assertSame(
-            ['success' => true, 'dryRun' => true, 'data' => ['id' => 'cart-id']],
-            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
-        );
+        self::assertFalse($result->isError());
+        self::assertSame(['id' => 'cart-id'], $result->data);
+        self::assertSame(['dryRun' => true], $result->meta);
     }
 
     #[Test]
@@ -573,10 +560,9 @@ final class UcpMcpToolContextTest extends TestCase
             idempotencyService: $idempotencyService,
         )->executeMutating('cart.cancel', ['id' => 'cart-id'], static fn (): array => ['cancelled' => true], true);
 
-        self::assertSame(
-            ['success' => true, 'dryRun' => true, 'data' => ['cancelled' => true]],
-            json_decode($result, true, flags: \JSON_THROW_ON_ERROR),
-        );
+        self::assertFalse($result->isError());
+        self::assertSame(['cancelled' => true], $result->data);
+        self::assertSame(['dryRun' => true], $result->meta);
     }
 
     #[Test]
@@ -612,7 +598,7 @@ final class UcpMcpToolContextTest extends TestCase
                 self::fail('A dry run must not execute the operation.');
             },
             true,
-            static function (): string {
+            static function (): McpToolResult {
                 self::fail('A preview must fail the same validation a commit would.');
             },
         );
@@ -626,6 +612,8 @@ final class UcpMcpToolContextTest extends TestCase
 
         $requestContext = $this->requestContext(idempotencyRequired: false);
 
+        $preview = McpToolResult::success(['id' => 'checkout-id'], ['dryRun' => true, 'preview' => []]);
+
         $result = $this->toolContext($requestContext, connection: $connection)->executeMutating(
             'checkout.complete',
             ['id' => 'checkout-id'],
@@ -633,14 +621,14 @@ final class UcpMcpToolContextTest extends TestCase
                 self::fail('A previewed operation must never run: its webhook cannot be rolled back.');
             },
             true,
-            static function (RequestContext $context) use ($requestContext): string {
+            static function (RequestContext $context) use ($requestContext, $preview): McpToolResult {
                 self::assertSame($requestContext, $context, 'The preview must receive the checked context.');
 
-                return '{"success":true,"dryRun":true,"preview":{}}';
+                return $preview;
             },
         );
 
-        self::assertSame('{"success":true,"dryRun":true,"preview":{}}', $result);
+        self::assertSame($preview, $result);
     }
 
     #[Test]
@@ -651,6 +639,8 @@ final class UcpMcpToolContextTest extends TestCase
         $idempotencyService->expects(self::never())->method('complete');
         $idempotencyService->expects(self::never())->method('abort');
 
+        $preview = McpToolResult::success(['previewed' => true], ['dryRun' => true]);
+
         $result = $this->toolContext(
             $this->requestContext(idempotencyRequired: true, idempotencyKey: 'idem-key'),
             idempotencyService: $idempotencyService,
@@ -659,10 +649,10 @@ final class UcpMcpToolContextTest extends TestCase
             ['id' => 'checkout-id'],
             static fn (): array => ['completed' => true],
             true,
-            static fn (): string => '{"previewed":true}',
+            static fn (): McpToolResult => $preview,
         );
 
-        self::assertSame('{"previewed":true}', $result);
+        self::assertSame($preview, $result);
     }
 
     #[Test]
@@ -707,7 +697,9 @@ final class UcpMcpToolContextTest extends TestCase
     {
         $result = $this->toolContext($this->requestContext())->success(['products' => []]);
 
-        self::assertSame(['success' => true, 'data' => ['products' => []]], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        self::assertFalse($result->isError());
+        self::assertSame(['products' => []], $result->data);
+        self::assertSame([], $result->meta);
     }
 
     #[Test]
@@ -722,8 +714,9 @@ final class UcpMcpToolContextTest extends TestCase
             ['Checkout is incomplete.'],
         );
 
+        self::assertFalse($result->isError());
+        self::assertSame(['id' => 'checkout-id', 'status' => 'incomplete'], $result->data);
         self::assertSame([
-            'success' => true,
             'dryRun' => true,
             'preview' => [
                 'operation' => 'checkout.complete',
@@ -731,8 +724,7 @@ final class UcpMcpToolContextTest extends TestCase
                 'wouldSucceed' => false,
                 'blockers' => ['Checkout is incomplete.'],
             ],
-            'data' => ['id' => 'checkout-id', 'status' => 'incomplete'],
-        ], json_decode($result, true, flags: \JSON_THROW_ON_ERROR));
+        ], $result->meta);
     }
 
     #[Test]
@@ -743,11 +735,26 @@ final class UcpMcpToolContextTest extends TestCase
             ['id' => 'checkout-id', 'status' => 'ready_for_complete'],
         );
 
-        $payload = json_decode($result, true, flags: \JSON_THROW_ON_ERROR);
+        self::assertFalse($result->isError());
+        self::assertTrue($result->meta['dryRun']);
+        self::assertSame(
+            ['operation' => 'checkout.complete', 'committed' => false, 'wouldSucceed' => true, 'blockers' => []],
+            $result->meta['preview'],
+        );
+    }
 
-        self::assertTrue($payload['preview']['wouldSucceed']);
-        self::assertSame([], $payload['preview']['blockers']);
-        self::assertFalse($payload['preview']['committed']);
+    /**
+     * @param array<string, mixed> $details
+     */
+    private static function assertFailure(McpToolResult $result, string $message, string $code, array $details): void
+    {
+        self::assertTrue($result->isError());
+        self::assertNull($result->data);
+        self::assertSame([], $result->meta);
+        self::assertNotNull($result->error);
+        self::assertSame($message, $result->error->message);
+        self::assertSame($code, $result->error->code);
+        self::assertSame($details, $result->error->details);
     }
 
     private function toolContext(
