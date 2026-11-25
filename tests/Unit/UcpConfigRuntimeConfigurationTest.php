@@ -55,8 +55,10 @@ final class UcpConfigRuntimeConfigurationTest extends TestCase
     {
         $config = UcpConfig::fromArray(['active' => true, 'platformPolicy' => 'all', 'embeddedAllowedOrigins' => ['https://host.example']]);
 
-        self::assertSame([], $config->toRuntimeConfiguration('https://merchant.example')->allowedAgentDomains);
-        self::assertSame(['https://host.example'], $config->toRuntimeConfiguration('https://merchant.example', embeddedPage: true)->allowedAgentDomains);
+        $runtimeConfiguration = $config->toRuntimeConfiguration('https://merchant.example');
+
+        self::assertSame([], $runtimeConfiguration->allowedAgentDomains);
+        self::assertSame(['https://host.example'], $runtimeConfiguration->allowedEmbeddedOrigins);
     }
 
     #[Test]

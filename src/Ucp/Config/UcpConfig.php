@@ -254,10 +254,8 @@ final class UcpConfig
      *                                             URL-safety validator, so the SDK's request-context
      *                                             factory never saw it and its development-mode paths
      *                                             (a shop acting as its own agent) stayed dark in Shopware.
-     * @param bool $embeddedPage                   whether the request targets `/ucp/embedded/*`, where the SDK
-     *                                             checks the Origin against `allowedAgentDomains`
      */
-    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false, bool $profileFetchingDevelopmentMode = false, bool $embeddedPage = false): RuntimeConfiguration
+    public function toRuntimeConfiguration(string $fallbackBaseUri, ?string $tenantIdentifier = null, bool $storeApiMcpAvailable = false, bool $profileFetchingDevelopmentMode = false): RuntimeConfiguration
     {
         $baseUri = $this->resolveBaseUri($fallbackBaseUri);
         $host = parse_url($baseUri, \PHP_URL_HOST);
@@ -271,12 +269,6 @@ final class UcpConfig
         // The SDK checks the agent domain under either policy. Under `all` only an explicit
         // agent allowlist may gate, or the fallback would refuse every unlisted platform again.
         $allowedAgentDomains = [] !== $this->agentAllowlist || PlatformPolicy::All === $platformPolicy ? $this->agentAllowlist : $fallbackHosts;
-        if ($embeddedPage) {
-            // The SDK checks an embedded page's Origin against this same list, while this config keeps
-            // agents and embedding hosts apart. Hand it the list the preflight already grants until
-            // the SDK has an embedded-origin field of its own.
-            $allowedAgentDomains = $this->embeddedAllowedOrigins;
-        }
 
         return new RuntimeConfiguration(
             self::ucpVersion(),
@@ -292,6 +284,7 @@ final class UcpConfig
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
             $profileFetchingDevelopmentMode,
             $platformPolicy,
+            $this->embeddedAllowedOrigins,
         );
     }
 
