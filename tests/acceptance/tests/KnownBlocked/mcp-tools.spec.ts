@@ -4,9 +4,18 @@ import { openMcpSession, STORE_API_MCP_MISSING, toolOutput } from '@services/mcp
 import { CHECKOUT_SESSIONS_PATH } from '@services/shoppingRoutes';
 
 const UCP_SHOPPING_TOOLS = [
-    'search_catalog', 'lookup_catalog', 'get_product',
-    'create_cart', 'get_cart', 'update_cart', 'cancel_cart',
-    'create_checkout', 'get_checkout', 'update_checkout', 'complete_checkout', 'cancel_checkout',
+    'search_catalog',
+    'lookup_catalog',
+    'get_product',
+    'create_cart',
+    'get_cart',
+    'update_cart',
+    'cancel_cart',
+    'create_checkout',
+    'get_checkout',
+    'update_checkout',
+    'complete_checkout',
+    'cancel_checkout',
     'get_order',
 ];
 

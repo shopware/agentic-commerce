@@ -20,8 +20,7 @@ test.describe('Concurrent completion @UcpSerial', () => {
         const { agent, buyer, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
 
         const completions = await Promise.all(Array.from({ length: PARALLEL_COMPLETIONS }, () =>
-            agent.rest.send('POST', `${checkoutPath}/complete`, { body: COMPLETION_WITHOUT_INSTRUMENT }),
-        ));
+            agent.rest.send('POST', `${checkoutPath}/complete`, { body: COMPLETION_WITHOUT_INSTRUMENT })));
         const answers = (await Promise.all(completions.map(async completion => `${completion.status()} ${await completion.text()}`))).join('\n');
 
         const inFlightRefusals = await Promise.all(completions.map(isRefusedWhileInFlight));

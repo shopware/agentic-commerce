@@ -20,8 +20,14 @@ test.describe('Signature base construction @Signer', () => {
         });
 
         expect(components).toEqual([
-            '@method', '@authority', '@path', '@query',
-            'ucp-agent', 'idempotency-key', 'content-digest', 'content-type',
+            '@method',
+            '@authority',
+            '@path',
+            '@query',
+            'ucp-agent',
+            'idempotency-key',
+            'content-digest',
+            'content-type',
         ]);
     });
 
