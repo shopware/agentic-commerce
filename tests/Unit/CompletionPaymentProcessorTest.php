@@ -237,7 +237,7 @@ final class CompletionPaymentProcessorTest extends TestCase
     }
 
     #[Test]
-    public function testARetryWhosePaymentMethodCannotChangeFailsForGoodWithoutPaying(): void
+    public function testARetryWhosePaymentMethodCannotChangeFailsRetryablyWithoutPaying(): void
     {
         $exception = new \RuntimeException('The payment of this order can no longer change.');
         $this->applier->method('apply')->willReturnArgument(1);
@@ -247,7 +247,7 @@ final class CompletionPaymentProcessorTest extends TestCase
         $result = $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
 
         self::assertSame(CheckoutStatus::Incomplete, $result->status);
-        self::assertFalse($result->retryable);
+        self::assertTrue($result->retryable);
         self::assertCount(1, $this->logger->records);
         self::assertSame('warning', $this->logger->records[0]['level']);
         self::assertSame([

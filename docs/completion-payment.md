@@ -137,8 +137,9 @@ again, because no order is placed. A completion that is refused keeps the status
 Newer Shopware versions, from `6.6.10.21` and `6.7.13.0` on, only change the payment of an order
 when the payment method has _Allow payment change after checkout_ switched on. Payment methods that
 extensions add have it off by default. When Shopware refuses the change, the answer is `incomplete`
-with a `payment_failed` message of severity `unrecoverable`, and the checkout stays that way. A
-payment extension that wants agents to pay again switches the setting on for its payment method.
+with a recoverable `payment_failed` message. The agent can then complete the checkout with the
+instrument of another handler. A payment extension that wants agents to pay again with its own
+payment method switches the setting on for it.
 
 When the order is paid in another way in the meantime, for example by the buyer on the order page of
 the Storefront, the checkout reads `completed`.

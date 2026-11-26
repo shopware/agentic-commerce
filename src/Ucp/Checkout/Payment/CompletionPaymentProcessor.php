@@ -88,15 +88,15 @@ final class CompletionPaymentProcessor
         try {
             $this->paymentGateway->changePaymentMethod($orderId, $context);
         } catch (\Throwable $exception) {
-            // Shopware refuses the change for a payment method without "Allow payment change after checkout".
-            $this->logger?->warning('An order placed through a UCP checkout cannot be paid again: Shopware refused to change its payment.', [
+            // Shopware refuses the change for a payment method without "Allow payment change after checkout", where another handler may still pay.
+            $this->logger?->warning('Shopware refused to change the payment method of an order placed through a UCP checkout.', [
                 'order_id' => $orderId,
                 'payment_method_id' => $context->getPaymentMethod()->getId(),
                 'sales_channel_id' => $context->getSalesChannelId(),
                 'exception' => $exception,
             ]);
 
-            return CompletionPaymentResult::failed(false);
+            return CompletionPaymentResult::failed();
         }
 
         return $this->pay($orderId, $context, $instrument, $finishUrl, $errorUrl);
