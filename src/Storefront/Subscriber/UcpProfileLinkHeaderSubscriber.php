@@ -20,7 +20,8 @@ final class UcpProfileLinkHeaderSubscriber implements EventSubscriberInterface
     public function __construct(
         private readonly UcpConfigService $configService,
         private readonly SalesChannelDomainResolver $domainResolver,
-        private readonly UcpProfileLocator $profileLocator,
+        // Has a default, because the upload over 1.4.0 builds this subscriber from 1.4.0's container with two arguments.
+        private readonly UcpProfileLocator $profileLocator = new UcpProfileLocator(),
     ) {
     }
 

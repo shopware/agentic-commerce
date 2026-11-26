@@ -78,24 +78,43 @@ final class UcpProfileLinkHeaderSubscriberTest extends TestCase
         static::assertSame([], $htmlResponse->headers->all('Link'));
     }
 
+    #[Test]
+    public function itAppendsTheLinkWhenBuiltWithTheArgumentsOfThe140Container(): void
+    {
+        $response = new Response('', Response::HTTP_OK, ['Content-Type' => 'text/html']);
+
+        (new UcpProfileLinkHeaderSubscriber($this->configService(new UcpConfig(active: true)), $this->domainResolver($this->domain())))
+            ->onBeforeSendResponse($this->responseEvent($response));
+
+        static::assertSame(['</.well-known/ucp>; rel="service-meta"'], $response->headers->all('Link'));
+    }
+
     private function subscriber(
         UcpConfig $config,
         ?SalesChannelDomainEntity $domain = null,
     ): UcpProfileLinkHeaderSubscriber {
+        return new UcpProfileLinkHeaderSubscriber($this->configService($config), $this->domainResolver($domain), new UcpProfileLocator());
+    }
+
+    private function configService(UcpConfig $config): UcpConfigService
+    {
         $configRepository = $this->createStub(UcpConfigRepositoryInterface::class);
         $configRepository->method('find')->willReturn($config);
 
-        $configService = new UcpConfigService(
+        return new UcpConfigService(
             $configRepository,
             $this->createStub(LegacyConfigStoreInterface::class),
         );
+    }
+
+    private function domainResolver(?SalesChannelDomainEntity $domain): SalesChannelDomainResolver
+    {
         /** @var StaticEntityRepository<SalesChannelDomainCollection> $domainRepository */
         $domainRepository = new StaticEntityRepository([
             new SalesChannelDomainCollection(null === $domain ? [] : [$domain]),
         ]);
-        $domainResolver = new SalesChannelDomainResolver($domainRepository);
 
-        return new UcpProfileLinkHeaderSubscriber($configService, $domainResolver, new UcpProfileLocator());
+        return new SalesChannelDomainResolver($domainRepository);
     }
 
     private function responseEvent(Response $response): BeforeSendResponseEvent
