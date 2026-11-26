@@ -11,9 +11,8 @@ completion is refused unless it carries **exactly one** instrument whose `handle
 handler the business profile advertises in `payment_handlers` for the sales channel. The gate builds
 the profile from the same runtime configuration `/.well-known/ucp` uses, so what an agent could read
 there is what the gate accepts, and a handler a plugin has registered but the profile does not list
-is refused. The `ucp.payment_handlers` of a checkout response can list more: the SDK fills it from
-every registered handler the agent's profile also names, so it can name a handler the gate refuses
-until the profile lists the registered handlers.
+is refused. The `ucp.payment_handlers` of a checkout response comes from the SDK, which fills it
+from every registered handler the agent's profile also names.
 
 A refusal is a business outcome. It is answered with `200`, the checkout stays `incomplete`, and it
 carries one message of `type: error`, `code: payment_failed` and `severity: recoverable`. Its `path`
@@ -33,15 +32,52 @@ The legacy `completeCheckout($id, $context)` of the checkout adapter carries no 
 counts as zero instruments, so an extension that decorates or calls it cannot bypass the gate. The
 dry run of the `complete_checkout` MCP tool applies the same rule.
 
-The profile advertises no payment handler yet, so no UCP checkout can be completed until it does.
-The exception is a shop where an extension registers a tokenizing payment handler and payment
-tokenization is switched on: the profile then lists every registered handler. Listing the handlers
-in every shop is tracked in
-[shopware/agentic-commerce#279](https://github.com/shopware/agentic-commerce/issues/279).
+The profile lists every payment handler registered with the `ucp_sdk.payment_handler` tag as soon as
+UCP is active for the sales channel. The plugin registers `com.shopware.invoice` itself, so every
+UCP shop advertises at least that one.
 
-What stays open is what happens to an instrument that passes the gate. The default implementation
-below still places the order with the sales channel's default payment method and logs a warning
-naming the handler. A real applier closes that, and the rest of this document is about writing one.
+## What happens to an instrument that passes the gate
+
+1. `AbstractCompletionPaymentApplier::apply()` decides which payment method the order gets. The
+   default implementation below keeps the sales channel's default payment method and logs a warning
+   naming the handler.
+2. The order is placed through the Store API order route. The instrument is part of the request
+   data, so the payment handler of the order's payment method can refuse it before the order is
+   written. See
+   [Receiving the instrument in a payment handler](#receiving-the-instrument-in-a-payment-handler).
+3. The plugin runs Shopware's payment handling for the order through the Store API route behind
+   `/store-api/handle-payment`, the call a headless storefront makes after placing an order. The
+   instrument is part of that request as well.
+4. The outcome is mapped to the checkout:
+
+| Payment handling                 | Checkout `status`     | What the agent gets                                                                         |
+| -------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
+| returns without a redirect       | `completed`           | `order` with its `permalink_url`                                                            |
+| returns a redirect               | `requires_escalation` | the redirect as `continue_url` and a `payment_requires_buyer_input` message, no `order` yet |
+| throws, or answers its error URL | `incomplete`          | a recoverable `payment_failed` message at `$.payment.instruments[0]`, no `order`            |
+
+`completed` means that nothing is left for the agent to do. It does not mean that money arrived: an
+invoice or prepayment order is `completed` with an open transaction, as it is in the Storefront.
+
+### After a redirect
+
+The buyer finishes the payment at `continue_url` and returns to the order page of the Storefront.
+Until then `checkout.get` and a repeated `checkout.complete` answer `requires_escalation` with the
+same `continue_url`, and no second payment is started. Once the order transaction leaves the states
+`open`, `in_progress` and `unconfirmed`, the checkout reads `completed`. When it becomes `failed` or
+`cancelled`, the checkout reads `incomplete` with `payment_failed`.
+
+### After a failed payment
+
+The order exists and its cart is gone, so the checkout can no longer be updated. The agent completes
+the checkout again, with the same or another instrument. That call passes the gate and the applier
+like the first one. It then gives the order a new transaction for the payment method of the returned
+context, through the Store API route behind `/store-api/order/payment`, and runs the payment
+handling again. No second order is placed. When Shopware does not allow the order's payment to
+change any more, the call is answered with an error and nothing is charged.
+
+Every failed payment is logged as a warning with the order id, the handler id and the payment method
+id. The credential is never logged and never stored in the checkout session.
 
 ## Why it is not closed here
 
@@ -134,7 +170,11 @@ Immediately before the order is placed, and after everything the order needs alr
 2. `CompletionPaymentGate` accepts the instrument,
 3. the guest customer is provisioned and its context resolved,
 4. **`apply()` runs**,
-5. `placeOrder()` is called with the context `apply()` returned.
+5. `placeOrder()` is called with the context `apply()` returned,
+6. the payment handling runs for the placed order, with the same context.
+
+`apply()` also runs when the agent completes a checkout again after a failed payment. The order
+exists then, and the payment method of the returned context becomes the order's new payment method.
 
 The gate sits before guest provisioning on purpose: a refused completion registers no customer.
 
@@ -153,6 +193,34 @@ instrument is refused before this point.
 
 `$instrument->handlerId` names a payment handler this business advertises in its profile.
 `$instrument->credential` is an open map whose shape the handler defines.
+
+## Receiving the instrument in a payment handler
+
+The applier only picks the payment method. The token reaches the payment extension through the
+handler of that payment method, under the request key
+`AbstractCompletionPaymentApplier::REQUEST_KEY` (`ucpPaymentInstrument`):
+
+```php
+[
+    'type' => 'card',
+    'handler_id' => 'com.acme.card',
+    'credential' => ['type' => 'token', 'token' => '...'],
+    'billing_address' => [...],
+]
+```
+
+| Shopware version    | Before the order is written                                     | After the order is placed                                 |
+| ------------------- | --------------------------------------------------------------- | --------------------------------------------------------- |
+| `6.6.5.0` and newer | `AbstractPaymentHandler::validate()` reads it from the data bag | `AbstractPaymentHandler::pay()` reads it from the request |
+| older               | a prepared payment handler reads it in `validate()`             | `pay()` reads it from the `RequestDataBag`                |
+
+Refuse a token you cannot charge in `validate()` where you can: the completion then fails before an
+order exists. A failure in `pay()` leaves an order with a failed transaction behind, which the agent
+pays again as described above.
+
+An existing payment handler does not look at this key, so it treats an agent order like a Storefront
+order without payment data. A handler that needs the buyer in the browser returns its redirect, and
+the agent gets `requires_escalation`.
 
 ## What an implementation has to cover
 
@@ -179,15 +247,16 @@ The gate has already refused a handler id this business does not advertise. Thro
 - the resolved payment method is not available on this sales channel,
 - the provider declines.
 
-The SDK maps that to a UCP error descriptor the agent can read and act on.
+The SDK maps that to a UCP error descriptor the agent can read and act on. A refusal from the
+payment handler itself, in `validate()` or `pay()`, needs no special exception.
 
 **Falling back to the channel default is the behaviour that made this gap invisible for as long as
 it has been here.** An agent that presents a card and receives a successful order has been told its
 payment was accepted. Silence is the wrong answer to "I cannot charge this".
 
 The one exception is the default implementation shipped with the plugin, which deliberately does
-fall back and warns instead. It only sees a handler the profile advertises, and no payment provider
-ships a handler together with its applier yet.
+fall back and warns instead. The payment handling then runs for the sales channel's default payment
+method, so a method that needs the buyer still answers `requires_escalation`.
 
 ### 4. Decide what tokenization means for you
 
@@ -201,8 +270,8 @@ a shopping capability. Worth settling before building against it.
 
 The acceptance test is an order placed against a **non-default** payment method, driven end to end
 over HTTP: create a checkout, complete it with an instrument naming that method, and assert the
-resulting order carries it. A unit test asserting `apply()` returns a switched context proves the
-seam and not the outcome.
+resulting order carries it and that its transaction has the state your handler sets. A unit test
+asserting `apply()` returns a switched context proves the seam and not the outcome.
 
 `UnappliedCompletionPayment` is a usable stand-in for tests that need the seam to do nothing.
 
@@ -212,6 +281,5 @@ seam and not the outcome.
    offers, or an allow-list?
 2. Should an unavailable method fail the completion, or fail the earlier `checkout.update` that
    selected it, so the agent learns sooner?
-3. Does a declined payment leave the checkout retryable, or move it to a terminal state?
-4. Who owns the mapping from a UCP handler id to a Shopware payment method — configuration, the
+3. Who owns the mapping from a UCP handler id to a Shopware payment method — configuration, the
    handler implementation, or the provider's own registry?

@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
@@ -52,8 +53,12 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
+        ?string $paymentRedirectUrl = null,
     ): void {
         $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
+        if (null !== $paymentRedirectUrl) {
+            $metadata[CompletionPaymentResult::SESSION_REDIRECT_URL_KEY] = $paymentRedirectUrl;
+        }
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 

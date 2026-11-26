@@ -20,6 +20,9 @@ use Shopware\Core\Checkout\Cart\SalesChannel\CartResponse;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
 use Shopware\Core\Checkout\Customer\CustomerEntity;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionCollection;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionEntity;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionStates;
 use Shopware\Core\Checkout\Order\OrderCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
@@ -39,6 +42,7 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterfac
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParameters;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
@@ -61,6 +65,8 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
@@ -69,6 +75,7 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
@@ -105,6 +112,9 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     private const TOS_PAGE_ID = '44444444444444444444444444444444';
     private const PRIVACY_PAGE_ID = '55555555555555555555555555555555';
     private const ADVERTISED_HANDLER_ID = 'com.shopware.invoice';
+    private const PLACED_CHECKOUT_ID = 'checkout-context-token';
+    private const PLACED_ORDER_ID = '99999999999999999999999999999999';
+    private const PAYMENT_REDIRECT_URL = 'https://psp.example/pay/1';
 
     #[Test]
     public function testCompletedCheckoutReadsOrderWithCheckoutSalesChannelContext(): void
@@ -423,7 +433,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
                 $this->uninitialized(CheckoutWebhookUrlGuard::class),
                 $this->createMock(OrderWebhookPublisherInterface::class),
                 new OrderPermalinkBuilder(),
-                new UnappliedCompletionPayment(),
+                new CompletionPaymentProcessor(new UnappliedCompletionPayment(), $this->createMock(OrderPaymentGatewayInterface::class)),
                 $this->legalLinkBuilder(),
             ),
             $contextResolver,
@@ -739,6 +749,177 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         self::assertSame($presentedInstrument, $applier->appliedInstrument);
     }
 
+    #[Test]
+    public function testCompletingAPlacedOrderWhosePaymentFailedRetriesThePayment(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::PLACED_ORDER_ID);
+        $paymentGateway->expects(static::once())->method('pay')->willReturn(null);
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $paymentGateway,
+        );
+
+        $checkout = $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::PLACED_CHECKOUT_ID, [new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)]),
+            $this->completionRequestContext(),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $checkout->status);
+        self::assertSame(self::PLACED_ORDER_ID, $checkout->order?->id);
+    }
+
+    #[Test]
+    public function testCompletingAPlacedOrderAwaitingTheBuyerReplaysTheRedirectWithoutRetrying(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::RequiresEscalation->value, CompletionPaymentResult::SESSION_REDIRECT_URL_KEY => self::PAYMENT_REDIRECT_URL],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_OPEN),
+            $paymentGateway,
+        );
+
+        $checkout = $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::PLACED_CHECKOUT_ID, [new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)]),
+            $this->completionRequestContext(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::RequiresEscalation->value, $checkout['status']);
+        self::assertSame(self::PAYMENT_REDIRECT_URL, $checkout['continue_url']);
+        self::assertSame(['payment_requires_buyer_input'], array_column($checkout['messages'], 'code'));
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    #[Test]
+    public function testCompletingAPlacedOrderWhosePaymentFailedWithARefusedInstrumentAnswersTheRefusalWithoutRetrying(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $paymentGateway,
+        );
+
+        $checkout = $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::PLACED_CHECKOUT_ID, [new PaymentInstrument('invoice', 'com.example.deactivated')]),
+            $this->completionRequestContext(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([[
+            'type' => 'error',
+            'content' => 'The payment handler "com.example.deactivated" is not one this business advertises.',
+            'severity' => 'recoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments[0].handler_id',
+        ]], $checkout['messages']);
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    #[Test]
+    public function testReadingAPlacedOrderWithAFailedTransactionAnswersIncomplete(): void
+    {
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::RequiresEscalation->value, CompletionPaymentResult::SESSION_REDIRECT_URL_KEY => self::PAYMENT_REDIRECT_URL],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+        );
+
+        $checkout = $adapter->getCheckout(self::PLACED_CHECKOUT_ID, new RequestContext('shop.example'))->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame(['payment_failed'], array_column($checkout['messages'], 'code'));
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    /**
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway): ShopwareCheckoutAdapter
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturn(['swagAgenticCommerce' => ['ucpCheckout' => [
+            ...$sessionMetadata,
+            'orderId' => self::PLACED_ORDER_ID,
+            'shopwareContextToken' => 'rotated-shopware-context-token',
+        ]]]);
+
+        $checkoutSessionStore = new CheckoutSessionStore($persister);
+        $checkoutSessionManager = new CheckoutSessionManager($checkoutSessionStore);
+        $contextResolver = new SalesChannelContextResolver(
+            $this->domainResolver(self::SALES_CHANNEL_ID),
+            new StaticSalesChannelContextService($this->openCheckoutContext()),
+            $persister,
+        );
+        $continueUrlBuilder = $this->continueUrlBuilder(self::CONTINUE_URL_TEMPLATE);
+
+        $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $completionStore->method('completedOrderId')->willReturn(self::PLACED_ORDER_ID);
+        $completionStore->expects(static::never())->method('complete');
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->method('getOrderForSalesChannelContext')->willReturn($order);
+        $orderGateway->expects(static::never())->method('placeOrder');
+
+        $checkoutCompleter = new CheckoutCompleter(
+            $orderGateway,
+            new ShopwareDataMapper(),
+            $this->createMock(GuestCustomerContextProvisionerInterface::class),
+            $this->ucpConfigService(),
+            $checkoutSessionManager,
+            $completionStore,
+            new LockFactory(new InMemoryStore()),
+            $continueUrlBuilder,
+            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $this->createMock(OrderWebhookPublisherInterface::class),
+            new OrderPermalinkBuilder(),
+            new CompletionPaymentProcessor(new UnappliedCompletionPayment(), $paymentGateway),
+            $this->legalLinkBuilder(),
+        );
+
+        return new ShopwareCheckoutAdapter(
+            $this->uninitialized(ShopwareCartGateway::class),
+            $orderGateway,
+            new ShopwareDataMapper(),
+            $checkoutSessionStore,
+            $checkoutSessionManager,
+            $completionStore,
+            new CheckoutGuestAddressPayloadResolver($checkoutSessionStore),
+            $continueUrlBuilder,
+            $checkoutCompleter,
+            $contextResolver,
+            new ContextTokenGenerator(),
+            new OrderPermalinkBuilder(),
+            $this->legalLinkBuilder(),
+            $this->completionPaymentGate(self::ADVERTISED_HANDLER_ID),
+        );
+    }
+
+    private function orderWithTransaction(string $transactionState): OrderEntity
+    {
+        $state = new StateMachineStateEntity();
+        $state->setId('66666666666666666666666666666666');
+        $state->setTechnicalName($transactionState);
+
+        $transaction = new OrderTransactionEntity();
+        $transaction->setId('77777777777777777777777777777777');
+        $transaction->setCreatedAt(new \DateTimeImmutable('2026-11-01 10:00:00'));
+        $transaction->setStateMachineState($state);
+
+        $order = $this->order(self::PLACED_ORDER_ID);
+        $order->setTransactions(new OrderTransactionCollection([$transaction]));
+
+        return $order;
+    }
+
     /**
      * @param array<string, mixed> $checkout
      */
@@ -783,7 +964,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
-            $applier,
+            new CompletionPaymentProcessor($applier, $this->createMock(OrderPaymentGatewayInterface::class)),
             $this->legalLinkBuilder(),
         );
     }

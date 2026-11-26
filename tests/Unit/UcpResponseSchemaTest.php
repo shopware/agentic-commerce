@@ -20,6 +20,7 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Promotion\Cart\PromotionCartAddedInformationError;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Enum\CheckoutStatus;
@@ -151,6 +152,40 @@ final class UcpResponseSchemaTest extends TestCase
         );
 
         $this->assertValidates('checkout.complete.response', $checkout, UcpCapability::Checkout);
+    }
+
+    /**
+     * @return iterable<string, array{CompletionPaymentResult, string}>
+     */
+    public static function unpaidOrderProvider(): iterable
+    {
+        yield 'a complete call whose payment awaits the buyer' => [CompletionPaymentResult::awaitsBuyer('https://psp.example/pay/1'), 'checkout.complete.response'];
+        yield 'a read whose payment awaits the buyer' => [CompletionPaymentResult::awaitsBuyer('https://psp.example/pay/1'), 'checkout.get.response'];
+        yield 'a complete call whose payment failed' => [CompletionPaymentResult::failed(), 'checkout.complete.response'];
+        yield 'a read whose payment failed' => [CompletionPaymentResult::failed(), 'checkout.get.response'];
+    }
+
+    #[DataProvider('unpaidOrderProvider')]
+    #[Test]
+    public function testAPlacedOrderWithoutACompletedPaymentValidatesAgainstItsResponseSchema(CompletionPaymentResult $payment, string $schema): void
+    {
+        $order = new OrderEntity();
+        $order->setId('99999999999999999999999999999999');
+        $order->setPrice(new CartPrice(10.0, 10.0, 10.0, new CalculatedTaxCollection(), new TaxRuleCollection(), CartPrice::TAX_STATE_GROSS));
+        $order->setShippingCosts(new CalculatedPrice(0.0, 0.0, new CalculatedTaxCollection(), new TaxRuleCollection()));
+
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $order,
+            'cart-token',
+            'EUR',
+            'https://example.com/checkout/cart-token',
+            orderPermalinkUrl: 'https://example.com/account/order/deep-link-code',
+            legalLinks: $this->legalLinks(),
+            payment: $payment,
+        );
+
+        self::assertNull($checkout->order);
+        $this->assertValidates($schema, $checkout, UcpCapability::Checkout);
     }
 
     /**

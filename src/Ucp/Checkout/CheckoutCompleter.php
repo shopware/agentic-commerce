@@ -5,18 +5,21 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Symfony\Component\Lock\LockFactory;
-use Ucp\Sdk\Enum\CheckoutStatus;
+use Symfony\Component\Lock\LockInterface;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
+use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
@@ -37,7 +40,7 @@ final class CheckoutCompleter
         private readonly CheckoutWebhookUrlGuard $webhookUrlGuard,
         private readonly OrderWebhookPublisherInterface $orderWebhookPublisher,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
-        private readonly AbstractCompletionPaymentApplier $completionPaymentApplier,
+        private readonly CompletionPaymentProcessor $completionPayment,
         private readonly CheckoutLegalLinkBuilder $legalLinkBuilder,
     ) {
     }
@@ -61,14 +64,7 @@ final class CheckoutCompleter
             return null;
         }
 
-        $lock = $this->lockFactory->createLock(
-            'ucp.checkout.completion.'.$checkoutId.'.'.$salesChannelId,
-            300.0,
-        );
-
-        if (!$lock->acquire(false)) {
-            throw new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.');
-        }
+        $lock = $this->lock($checkoutId, $salesChannelId);
 
         try {
             if (null !== $this->completionStore->completedOrderId($checkoutId)) {
@@ -95,24 +91,19 @@ final class CheckoutCompleter
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
             }
 
-            $customerContext = $this->completionPaymentApplier->apply(
+            $customerContext = $this->completionPayment->apply(
                 $paymentInstrument,
                 $customerContext,
                 $requestContext,
             );
 
-            $order = $this->orderGateway->placeOrder($cart, $customerContext);
+            $order = $this->orderGateway->placeOrder($cart, $customerContext, $paymentInstrument);
+            $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
+            $payment = $this->completionPayment->pay($order->getId(), $customerContext, $paymentInstrument, $permalinkUrl);
 
             // Saved before the completion row: a reader that finds the row loads the session afterwards
             // and needs its rotated context token.
-            $this->sessionManager->saveForCheckoutId(
-                $checkoutId,
-                $customerContext,
-                CheckoutStatus::Completed->value,
-                $buyer,
-                orderId: $order->getId(),
-                orderDeepLinkCode: $order->getDeepLinkCode(),
-            );
+            $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment);
 
             $this->completionStore->complete($checkoutId, $order->getId());
 
@@ -126,16 +117,76 @@ final class CheckoutCompleter
                 );
             }
 
-            return $this->mapper->toCompletedCheckout(
-                $order,
-                $checkoutId,
-                $customerContext->getCurrency()->getIsoCode(),
-                $this->continueUrlBuilder->build($checkoutId, $customerContext->getSalesChannelId()),
-                orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $requestContext),
-                legalLinks: $this->legalLinkBuilder->build($customerContext),
-            );
+            return $this->placedCheckout($checkoutId, $order, $customerContext, $permalinkUrl, $payment);
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Pays the order of a checkout again after its payment failed.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public function retryPayment(
+        string $checkoutId,
+        array $metadata,
+        OrderEntity $order,
+        SalesChannelContext $salesChannelContext,
+        RequestContext $requestContext,
+        ?PaymentInstrument $paymentInstrument,
+    ): Checkout {
+        $lock = $this->lock($checkoutId, $salesChannelContext->getSalesChannelId());
+
+        try {
+            $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
+            $payment = $this->completionPayment->retry($order->getId(), $paymentInstrument, $salesChannelContext, $requestContext, $permalinkUrl);
+
+            $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $payment);
+
+            return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $payment);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function lock(string $checkoutId, string $salesChannelId): LockInterface
+    {
+        $lock = $this->lockFactory->createLock(
+            'ucp.checkout.completion.'.$checkoutId.'.'.$salesChannelId,
+            300.0,
+        );
+
+        if (!$lock->acquire(false)) {
+            throw new ValidationException('Checkout completion is already processing; retry the same checkout id after the in-flight request finishes.');
+        }
+
+        return $lock;
+    }
+
+    private function saveSession(string $checkoutId, SalesChannelContext $context, ?Buyer $buyer, OrderEntity $order, CompletionPaymentResult $payment): void
+    {
+        $this->sessionManager->saveForCheckoutId(
+            $checkoutId,
+            $context,
+            $payment->status->value,
+            $buyer,
+            orderId: $order->getId(),
+            orderDeepLinkCode: $order->getDeepLinkCode(),
+            paymentRedirectUrl: $payment->redirectUrl,
+        );
+    }
+
+    private function placedCheckout(string $checkoutId, OrderEntity $order, SalesChannelContext $context, string $permalinkUrl, CompletionPaymentResult $payment): Checkout
+    {
+        return $this->mapper->toCompletedCheckout(
+            $order,
+            $checkoutId,
+            $context->getCurrency()->getIsoCode(),
+            $this->continueUrlBuilder->build($checkoutId, $context->getSalesChannelId()),
+            orderPermalinkUrl: $permalinkUrl,
+            legalLinks: $this->legalLinkBuilder->build($context),
+            payment: $payment,
+        );
     }
 }

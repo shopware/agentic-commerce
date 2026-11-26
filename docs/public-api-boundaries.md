@@ -15,6 +15,9 @@ Public contracts:
   decorate it and delegate through `getDecorated()`. An abstract class rather than an interface, per
   `adr/2020-11-25-decoration-pattern.md`, so a parameter can be added later without breaking every
   implementation at once. See `docs/completion-payment.md`.
+- The request key `AbstractCompletionPaymentApplier::REQUEST_KEY` (`ucpPaymentInstrument`) and the
+  shape of its value. A payment handler reads the agent's instrument there when the order is placed
+  and when it is paid.
 - `Swag\AgenticCommerce\Content\ProductExport\Provider\AbstractAgenticCommerceProductExportProvider`
   plus the `swag_agentic_commerce.product_export.provider` service tag for product-export provider
   extensions. A third party extends the class, implements `getTechnicalName()` and

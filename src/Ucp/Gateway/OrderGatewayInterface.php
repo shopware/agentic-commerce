@@ -8,13 +8,17 @@ use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
 #[Package('after-sales')]
 interface OrderGatewayInterface
 {
-    public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity;
+    /**
+     * @param PaymentInstrument|null $instrument handed to the payment handler of the order's payment method
+     */
+    public function placeOrder(Cart $cart, SalesChannelContext $context, ?PaymentInstrument $instrument = null): OrderEntity;
 
     public function getOrder(string $orderId, RequestContext $requestContext): OrderEntity;
 

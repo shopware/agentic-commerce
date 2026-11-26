@@ -18,7 +18,8 @@ A sales channel advertises payment tokenization only when all conditions are tru
 
 Until then:
 
-- `/.well-known/ucp` must expose an empty `payment_handlers` object.
+- `/.well-known/ucp` lists the registered payment handlers under `payment_handlers`, such as
+  `com.shopware.invoice`. This list does not depend on tokenization.
 - `/.well-known/ucp` must not advertise `dev.ucp.shopping.payment_tokenization`.
 - `POST /ucp/v1/tokenize` must return a controlled `501`.
 

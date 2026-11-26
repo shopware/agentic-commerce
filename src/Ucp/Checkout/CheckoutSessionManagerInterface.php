@@ -62,5 +62,6 @@ interface CheckoutSessionManagerInterface
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
+        ?string $paymentRedirectUrl = null,
     ): void;
 }

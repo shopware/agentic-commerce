@@ -19,7 +19,11 @@ use Shopware\Core\Checkout\Cart\SalesChannel\CartOrderRoute;
 use Shopware\Core\Checkout\Customer\SalesChannel\AbstractRegisterRoute;
 use Shopware\Core\Checkout\Customer\SalesChannel\RegisterRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
+use Shopware\Core\Checkout\Order\SalesChannel\AbstractSetPaymentOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
+use Shopware\Core\Checkout\Order\SalesChannel\SetPaymentOrderRoute;
+use Shopware\Core\Checkout\Payment\SalesChannel\AbstractHandlePaymentMethodRoute;
+use Shopware\Core\Checkout\Payment\SalesChannel\HandlePaymentMethodRoute;
 use Shopware\Core\Content\Media\MediaService;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
@@ -112,6 +116,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
@@ -124,10 +129,12 @@ use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Embedded\EmbeddedResponseListener;
 use Swag\AgenticCommerce\Ucp\Embedded\ShopwareEmbeddedPageRenderer;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCatalogGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderPaymentGateway;
 use Swag\AgenticCommerce\Ucp\Http\ConfiguredUrlSafetyValidatorFactory;
 use Swag\AgenticCommerce\Ucp\Http\PathPrefixRestoringRequestContextFactory;
 use Swag\AgenticCommerce\Ucp\Http\PathPrefixRestoringResponseSignatureService;
@@ -318,6 +325,8 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractCartOrderRoute::class, CartOrderRoute::class);
     $services->alias(AbstractRegisterRoute::class, RegisterRoute::class);
     $services->alias(AbstractOrderRoute::class, OrderRoute::class);
+    $services->alias(AbstractHandlePaymentMethodRoute::class, HandlePaymentMethodRoute::class);
+    $services->alias(AbstractSetPaymentOrderRoute::class, SetPaymentOrderRoute::class);
     $services->alias(AbstractCountryRoute::class, CountryRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
@@ -331,6 +340,7 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(GuestCustomerContextProvisionerInterface::class, GuestCustomerContextProvisioner::class);
     $services->alias(ShopwareDataMapperInterface::class, ShopwareDataMapper::class);
     $services->alias(OrderGatewayInterface::class, ShopwareOrderGateway::class);
+    $services->alias(OrderPaymentGatewayInterface::class, ShopwareOrderPaymentGateway::class);
 
     $services->set(CheckoutWebhookUrlGuard::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
@@ -342,6 +352,9 @@ return static function (ContainerConfigurator $container): void {
     $services->set(UnappliedCompletionPayment::class)
         ->arg('$logger', service('logger')->nullOnInvalid());
     $services->alias(AbstractCompletionPaymentApplier::class, UnappliedCompletionPayment::class);
+
+    $services->set(CompletionPaymentProcessor::class)
+        ->arg('$logger', service('logger')->nullOnInvalid());
 
     // Lazy, as a direct reference recurses without end: profile builder, capability registry, checkout capability, adapter, this gate.
     $services->set(CompletionPaymentGate::class)

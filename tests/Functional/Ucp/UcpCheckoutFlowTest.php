@@ -32,11 +32,12 @@ final class UcpCheckoutFlowTest extends TestCase
 {
     use UcpFlowTestBehaviour;
 
+    private const INVOICE_HANDLER_ID = 'com.shopware.invoice';
+
     #[Test]
     public function testCheckoutCreateUpdateCompleteAndOrderRead(): void
     {
         $this->configureUcpRuntime();
-        $invoiceHandlerId = $this->advertiseInvoicePaymentHandler();
         $productId = $this->seedStorefrontProduct('Kernel Test Album');
         $lineItem = static fn (int $quantity): array => ['item' => ['id' => $productId, 'title' => 'Kernel Test Album', 'price' => 19.99], 'quantity' => $quantity];
         $buyer = ['email' => 'kernel-tester@example.com', 'first_name' => 'Kernel', 'last_name' => 'Tester'];
@@ -62,12 +63,24 @@ final class UcpCheckoutFlowTest extends TestCase
         self::assertSame(Response::HTTP_OK, $update->getStatusCode());
         self::assertSame(2, $this->decode($update)['line_items'][0]['quantity'], 'Expected checkout.update to change the line-item quantity.');
 
-        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => $invoiceHandlerId]]]]);
+        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => self::INVOICE_HANDLER_ID]]]]);
         self::assertSame(Response::HTTP_OK, $complete->getStatusCode());
         $completed = $this->decode($complete);
         self::assertSame('completed', $completed['status'], 'Expected checkout.complete to complete the session.');
         $orderId = $completed['order']['id'] ?? null;
         self::assertNotEmpty($orderId, 'Expected checkout.complete to create a Shopware order.');
+
+        $completeAgain = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => self::INVOICE_HANDLER_ID]]]]);
+        self::assertSame(Response::HTTP_OK, $completeAgain->getStatusCode(), (string) $completeAgain->getContent());
+        $replayed = $this->decode($completeAgain);
+        self::assertSame('completed', $replayed['status'], 'Expected a second checkout.complete to replay the completed session.');
+        self::assertSame($orderId, $replayed['order']['id'] ?? null, 'Expected a second checkout.complete to place no second order.');
+
+        $completedGet = $this->ucpRequest('GET', '/ucp/v1/checkout-sessions/'.$checkoutId);
+        self::assertSame(Response::HTTP_OK, $completedGet->getStatusCode(), (string) $completedGet->getContent());
+        $read = $this->decode($completedGet);
+        self::assertSame('completed', $read['status'], 'Expected checkout.get to keep the paid session completed.');
+        self::assertSame($orderId, $read['order']['id'] ?? null);
 
         $order = $this->ucpRequest('GET', '/ucp/v1/orders/'.$orderId, null, [
             'HTTP_SW_CONTEXT_TOKEN' => $this->completedCheckoutContextToken($checkoutId),
@@ -140,7 +153,6 @@ final class UcpCheckoutFlowTest extends TestCase
     public function testCheckoutCarriesTheSalesChannelLegalPagesAsLinks(): void
     {
         $this->configureUcpRuntime();
-        $invoiceHandlerId = $this->advertiseInvoicePaymentHandler();
         $productId = $this->seedStorefrontProduct('Legal Links Album', 'UCP-IT-LEGAL');
         $lineItem = static fn (int $quantity): array => ['item' => ['id' => $productId, 'title' => 'Legal Links Album', 'price' => 19.99], 'quantity' => $quantity];
         $buyer = ['email' => 'legal-links@example.com', 'first_name' => 'Legal', 'last_name' => 'Links'];
@@ -190,7 +202,7 @@ final class UcpCheckoutFlowTest extends TestCase
         self::assertSame(Response::HTTP_OK, $update->getStatusCode(), (string) $update->getContent());
         $this->assertLegalLinks('continue', $expectedLegalLinks, $this->decode($update));
 
-        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => $invoiceHandlerId]]]]);
+        $complete = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => self::INVOICE_HANDLER_ID]]]]);
         self::assertSame(Response::HTTP_OK, $complete->getStatusCode(), (string) $complete->getContent());
         $completed = $this->decode($complete);
         self::assertSame('completed', $completed['status']);

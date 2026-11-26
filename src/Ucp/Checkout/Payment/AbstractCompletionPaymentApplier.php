@@ -23,6 +23,11 @@ use Ucp\Sdk\Model\RequestContext;
 #[Package('framework')]
 abstract class AbstractCompletionPaymentApplier
 {
+    /**
+     * The request key under which the payment handler of the order's payment method finds the instrument.
+     */
+    public const REQUEST_KEY = 'ucpPaymentInstrument';
+
     abstract public function getDecorated(): self;
 
     /**
