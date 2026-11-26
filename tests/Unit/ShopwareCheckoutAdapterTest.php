@@ -604,25 +604,111 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         ], $checkout['links']);
     }
 
+    /**
+     * @return iterable<string, array{string|null, string, list<string>}>
+     */
+    public static function storedContextTokenProvider(): iterable
+    {
+        yield 'a rotated context token' => ['rotated-shopware-context-token', 'rotated-shopware-context-token', ['rotated-shopware-context-token', self::OPEN_CHECKOUT_ID]];
+        yield 'no stored context token' => [null, self::OPEN_CHECKOUT_ID, [self::OPEN_CHECKOUT_ID]];
+    }
+
+    /**
+     * @param list<string> $expectedSavedTokens
+     */
+    #[Test]
+    #[DataProvider('storedContextTokenProvider')]
+    public function testUpdateCheckoutWorksOnTheCartOfTheStoredContextToken(?string $storedContextToken, string $expectedCartToken, array $expectedSavedTokens): void
+    {
+        $cartLoadRoute = new RecordingCartLoadRoute($this->cart());
+        $savedTokens = [];
+        $adapter = $this->openCheckoutAdapterWithStoredContextToken($storedContextToken, $cartLoadRoute, $savedTokens);
+
+        $checkout = $adapter->updateCheckout(
+            new CheckoutUpdateRequest(
+                self::OPEN_CHECKOUT_ID,
+                [new UcpLineItem('product-a', 'product-a', 0.0, 1)],
+                new Buyer(email: 'buyer@example.com'),
+            ),
+            new RequestContext('shop.example'),
+        )->toArray();
+
+        self::assertSame([$expectedCartToken], array_values(array_unique($cartLoadRoute->loadedTokens)));
+        self::assertSame($expectedSavedTokens, $savedTokens);
+        self::assertSame(self::OPEN_CHECKOUT_ID, $checkout['id']);
+    }
+
+    /**
+     * @param list<string> $expectedSavedTokens
+     */
+    #[Test]
+    #[DataProvider('storedContextTokenProvider')]
+    public function testCancelCheckoutWorksOnTheCartOfTheStoredContextToken(?string $storedContextToken, string $expectedCartToken, array $expectedSavedTokens): void
+    {
+        $cartLoadRoute = new RecordingCartLoadRoute($this->cart());
+        $savedTokens = [];
+        $adapter = $this->openCheckoutAdapterWithStoredContextToken($storedContextToken, $cartLoadRoute, $savedTokens);
+
+        $checkout = $adapter->cancelCheckout(self::OPEN_CHECKOUT_ID, new RequestContext('shop.example'))->toArray();
+
+        self::assertSame([$expectedCartToken], array_values(array_unique($cartLoadRoute->loadedTokens)));
+        self::assertSame($expectedSavedTokens, $savedTokens);
+        self::assertSame(self::OPEN_CHECKOUT_ID, $checkout['id']);
+        self::assertSame(CheckoutStatus::Canceled->value, $checkout['status']);
+    }
+
+    /**
+     * @param list<string> $savedTokens receives the token of every session save
+     */
+    private function openCheckoutAdapterWithStoredContextToken(?string $storedContextToken, RecordingCartLoadRoute $cartLoadRoute, array &$savedTokens): ShopwareCheckoutAdapter
+    {
+        $persister = $this->openCheckoutPersister(storedContextToken: $storedContextToken);
+        $persister->method('save')->willReturnCallback(static function (string $token) use (&$savedTokens): void {
+            $savedTokens[] = $token;
+        });
+
+        $contextService = $this->createMock(SalesChannelContextServiceInterface::class);
+        $contextService->method('get')->willReturnCallback(
+            fn (SalesChannelContextServiceParameters $parameters): SalesChannelContext => $this->openCheckoutContext(token: $parameters->getToken()),
+        );
+
+        return $this->openCheckoutAdapter(
+            $this->openCheckoutContext(),
+            cartLoadRoute: $cartLoadRoute,
+            persister: $persister,
+            contextService: $contextService,
+        );
+    }
+
+    private function openCheckoutPersister(?string $buyerEmail = null, ?string $storedContextToken = null): SalesChannelContextPersister&MockObject
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->method('load')->willReturn([
+            'swagAgenticCommerce' => ['ucpCheckout' => [
+                'status' => CheckoutStatus::Incomplete->value,
+                ...(null === $buyerEmail ? [] : ['buyer' => ['email' => $buyerEmail]]),
+                ...(null === $storedContextToken ? [] : ['shopwareContextToken' => $storedContextToken]),
+            ]],
+        ]);
+
+        return $persister;
+    }
+
     private function openCheckoutAdapter(
         SalesChannelContext $salesChannelContext,
         ?CheckoutPaymentSelector $paymentSelector = null,
         ?CheckoutCompleter $checkoutCompleter = null,
         ?RecordingCartLoadRoute $cartLoadRoute = null,
         ?string $buyerEmail = null,
+        ?SalesChannelContextPersister $persister = null,
+        ?SalesChannelContextServiceInterface $contextService = null,
     ): ShopwareCheckoutAdapter {
-        $persister = $this->createMock(SalesChannelContextPersister::class);
-        $persister->method('load')->willReturn([
-            'swagAgenticCommerce' => ['ucpCheckout' => [
-                'status' => CheckoutStatus::Incomplete->value,
-                ...(null === $buyerEmail ? [] : ['buyer' => ['email' => $buyerEmail]]),
-            ]],
-        ]);
+        $persister ??= $this->openCheckoutPersister($buyerEmail);
 
         $checkoutSessionStore = new CheckoutSessionStore($persister);
         $contextResolver = new SalesChannelContextResolver(
             $this->domainResolver(self::SALES_CHANNEL_ID),
-            new StaticSalesChannelContextService($salesChannelContext),
+            $contextService ?? new StaticSalesChannelContextService($salesChannelContext),
             $persister,
         );
 
@@ -1553,13 +1639,13 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         return new UcpConfigService($repository, $this->createMock(LegacyConfigStoreInterface::class));
     }
 
-    private function openCheckoutContext(bool $withLegalLinkDomain = true): SalesChannelContext
+    private function openCheckoutContext(bool $withLegalLinkDomain = true, string $token = self::OPEN_CHECKOUT_ID): SalesChannelContext
     {
         $currency = new CurrencyEntity();
         $currency->setIsoCode('EUR');
 
         $salesChannelContext = $this->createMock(SalesChannelContext::class);
-        $salesChannelContext->method('getToken')->willReturn(self::OPEN_CHECKOUT_ID);
+        $salesChannelContext->method('getToken')->willReturn($token);
         $salesChannelContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
         $salesChannelContext->method('getCurrency')->willReturn($currency);
         if ($withLegalLinkDomain) {

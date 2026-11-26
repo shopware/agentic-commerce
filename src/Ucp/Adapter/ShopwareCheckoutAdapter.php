@@ -148,9 +148,10 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             throw new ValidationException('Completed checkout sessions cannot be updated.');
         }
 
+        $contextToken = $this->sessionStore->contextToken($sessionMetadata, $request->id);
         $discountCodes = $this->discountCodes($request->discounts);
         [$salesChannelContext, $cart] = $this->cartGateway->synchronizeCheckoutCart(
-            $request->id,
+            $contextToken,
             $request->lineItems,
             $discountCodes,
             $context,
@@ -162,7 +163,8 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
 
         $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, $sessionMetadata, $request->payment);
 
-        $this->sessionManager->save(
+        $this->sessionManager->saveForCheckoutId(
+            $request->id,
             $salesChannelContext,
             $status->value,
             $buyer,
@@ -347,10 +349,11 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $sessionMetadata = $this->sessionStore->load($id, $resolution->salesChannelId);
         $buyer = $this->sessionStore->buyer($sessionMetadata);
 
-        [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($id, $context);
-        $cart = $this->cartGateway->cancelCart($id, $context);
+        $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
+        [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
+        $cart = $this->cartGateway->cancelCart($contextToken, $context);
 
-        $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
+        $this->sessionManager->saveForCheckoutId($id, $salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
 
         return $this->openCheckout(new Cart($cart->id), $salesChannelContext, CheckoutStatus::Canceled, $buyer, $id);
     }
