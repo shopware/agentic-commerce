@@ -27,6 +27,7 @@ use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\SalesChannelCollection;
 use Shopware\Core\System\SalesChannel\SalesChannelEvents;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
+use Swag\AgenticCommerce\UpdateProtection\UpdateWindow;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpKernel\Event\ControllerEvent;
@@ -115,6 +116,10 @@ class SalesChannelTrackingListener implements EventSubscriberInterface
 
     public function createTrackingRecords(EntityWrittenContainerEvent $event): void
     {
+        if (UpdateWindow::isOpen()) {
+            return;
+        }
+
         $orderEvent = $event->getEventByEntityName(OrderDefinition::ENTITY_NAME);
         $customerEvent = $event->getEventByEntityName(CustomerDefinition::ENTITY_NAME);
 

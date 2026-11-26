@@ -23,6 +23,7 @@ use Shopware\Core\System\SalesChannel\Exception\DefaultSalesChannelTypeCannotBeD
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
 use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChannelTypeProtectionSubscriber;
+use Swag\AgenticCommerce\UpdateProtection\UpdateWindow;
 
 /**
  * @internal
@@ -30,6 +31,13 @@ use Swag\AgenticCommerce\System\SalesChannel\Subscriber\AgenticCommerceSalesChan
 #[CoversClass(AgenticCommerceSalesChannelTypeProtectionSubscriber::class)]
 class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        UpdateWindow::close();
+
+        parent::tearDown();
+    }
+
     public function testSubscribesToPreWriteValidationEvent(): void
     {
         static::assertSame(
@@ -62,6 +70,21 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriberTest extends TestCase
             $this->createDeleteCommand(SalesChannelTypeDefinition::ENTITY_NAME, Uuid::randomHex()),
         ]);
 
+        $this->createSubscriber()->preWriteValidateEvent($event);
+
+        static::assertSame([], $event->getExceptions()->getExceptions());
+    }
+
+    public function testValidatesNothingWhileTheUpdateWindowIsOpen(): void
+    {
+        $this->skipIfCoreShipsAgenticCommerce();
+
+        $writeContext = WriteContext::createFromContext(Context::createDefaultContext());
+        $event = new PreWriteValidationEvent($writeContext, [
+            $this->createDeleteCommand(SalesChannelTypeDefinition::ENTITY_NAME, SwagAgenticCommerce::SALES_CHANNEL_TYPE_AGENTIC_COMMERCE),
+        ]);
+
+        UpdateWindow::open();
         $this->createSubscriber()->preWriteValidateEvent($event);
 
         static::assertSame([], $event->getExceptions()->getExceptions());

@@ -63,21 +63,22 @@ tilde, and not a `>=a <b` window. A caret on a `0.0.x` version already means tha
 `0.0.3`), `~0.0.6` expands to the open `>=0.0.6 <0.1.0`, and even `>=0.0.6 <0.0.7` still admits a
 four-component `0.0.6.1`. An exact version is the only constraint that cannot widen.
 
-The pin is deliberate. A plugin has no `composer.lock` and the SDK resolves at merchant install
-time, so a range let any matching release — which carries no compatibility promise — reach
-production without a plugin change. The SDK serves exactly one UCP version per release and switches
-it outright (see the SDK's `docs/ucp-version-support-policy.md`), so an SDK release that moves the
-spec date changes what every shop advertises and has to arrive together with the plugin review that
-goes with it. The pin turns that into a release decision instead of an accident.
-[docs/ucp-version-support.md](ucp-version-support.md) is the integrator-facing summary.
+The pin is deliberate. A plugin has no `composer.lock`, and the archive build and source installs
+resolve the SDK from the pin, so a range let any matching release — which carries no compatibility
+promise — reach production without a plugin change. The SDK serves exactly one UCP version per
+release and switches it outright (see the SDK's `docs/ucp-version-support-policy.md`), so an SDK
+release that moves the spec date changes what every shop advertises and has to arrive together with
+the plugin review that goes with it. The pin turns that into a release decision instead of an
+accident. [docs/ucp-version-support.md](ucp-version-support.md) is the integrator-facing summary.
 
 Moving the pin is a plugin release:
 
 1. **Wait for the SDK tag to be published on Packagist.** `ucp-php-sdk/core` and
-   `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build and merchant installs
-   resolve them from there. Do not merge plugin code that references symbols which only exist on the
-   SDK `main` branch or an unmerged SDK PR — anyone who resolved before that tag existed gets the
-   older release that lacks them, and the plugin fatals with `Class "…" not found`.
+   `ucp-php-sdk/symfony-bundle` are public Packagist packages; the Store build bundles them from
+   there, and source installs resolve them from there. Do not merge plugin code that references
+   symbols which only exist on the SDK `main` branch or an unmerged SDK PR — anyone who resolved
+   before that tag existed gets the older release that lacks them, and the plugin fatals with
+   `Class "…" not found`.
 2. **Move the pin, and the forced versions with it.**
    - `composer.json` — the exact `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` versions. Both,
      not only the bundle: the bundle accepts a _range_ of `core`, so pinning the bundle alone would
@@ -138,7 +139,7 @@ re-executes one it has already marked applied**. This has a hard consequence for
 
 Every pull request gets an install-ready ZIP. The `zip-artifact` job in `ci.yml` calls
 `.github/workflows/package-zip.yml`, which builds the extension the way a Store release does, checks
-it with `bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-no-vendor.sh`, installs it on
+it with `bin/ci-assert-zip-admin-bundle.sh` and `bin/ci-assert-zip-bundles-sdk.sh`, installs it on
 6.5.x, 6.6.x and trunk shops that have never seen the UCP SDK, and uploads it as the
 `SwagAgenticCommerce` run artifact.
 
@@ -161,23 +162,19 @@ plugin's source `composer.json` is the public metadata source of truth for plugi
 dependencies: it requires the public `ucp-php-sdk/core` and `ucp-php-sdk/symfony-bundle` Packagist
 packages at an exact version. Shopware packages are provided by the active lane.
 
-A store release resolves them the same way, just later: the plugin returns true from
-`executeComposerCommands()`, so Shopware runs `composer require shopware/agentic-commerce:<version>`
-against the project when the archive is installed or updated. Every Shopware project declares
-`custom/plugins/*` as a path repository, so that resolves the extracted archive locally and pulls
-the pinned SDK from Packagist into the shop's own `vendor/`. The archive ships no dependencies of
-its own -- `bin/ci-assert-zip-no-vendor.sh` fails the build if any appear, because a plugin-local
-`vendor/autoload.php` registers a second Composer `ClassLoader` in the shop. The trade-off is that a
-zip install has to reach Packagist.
+A store release carries the SDK itself. The **Package extension zip** workflow runs
+`bin/ci-bundle-sdk-into-archive.sh`, which copies the pinned SDK packages as plain source into
+`lib/ucp-php-sdk/`, writes `lib/preload-classes.php`, and rewrites the archive's `composer.json`:
+the SDK leaves `require` and appears in `replace` at the bundled version, and `autoload.psr-4`
+points at `lib/`. The archive's `executeComposerCommands()` therefore returns false, and Shopware
+never runs Composer for it. A zip install needs no network access and changes nothing in the shop's
+`composer.json` or `composer.lock`. `bin/ci-assert-zip-bundles-sdk.sh` fails the build when the
+archive ships a `vendor/` or loses the bundled SDK, the manifest changes or the preload list.
 
-An update extracts the new files one request before Shopware runs Composer, so an active plugin
-boots at least once with its dependency missing, or with the previously pinned SDK still installed.
-`SdkAvailability` decides that question -- comparing the installed version against the one
-`composer.json` pins, not merely whether the classes load -- and when the answer is no,
-`services.php` and `routes.php` return without registering anything and `build()` writes the reason
-and the fix to the shop's `var/log/swag-agentic-commerce.log`. The plugin contributes nothing to the
-container rather than half of it, which is what keeps the storefront answering while Composer
-catches up.
+Moving the SDK pin is therefore a change to the shipped code like any other: the next release
+bundles the new version, and the update protection in `src/UpdateProtection/` keeps the request that
+extracts it from mixing classes of two versions. Another copy of the SDK in the shop's root
+`vendor/` does not matter, because the bundled copy always wins.
 
 Only the `sdk-main-compatibility` job and local smoke runs with `UCP_SDK_SOURCE=path` use path
 repositories for the SDK, see [Which SDK a CI job resolves](#which-sdk-a-ci-job-resolves).

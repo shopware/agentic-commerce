@@ -17,6 +17,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelType\SalesChannelTyp
 use Shopware\Core\System\SalesChannel\Exception\DefaultSalesChannelTypeCannotBeDeleted;
 use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\SwagAgenticCommerce;
+use Swag\AgenticCommerce\UpdateProtection\UpdateWindow;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
@@ -42,6 +43,10 @@ class AgenticCommerceSalesChannelTypeProtectionSubscriber implements EventSubscr
 
     public function preWriteValidateEvent(PreWriteValidationEvent $event): void
     {
+        if (UpdateWindow::isOpen()) {
+            return;
+        }
+
         if ($this->versionDetector->coreShipsAgenticCommerce()) {
             return;
         }
