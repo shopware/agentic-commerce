@@ -29,10 +29,6 @@ use Shopware\Core\Checkout\Order\OrderCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRouteResponse;
-use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
-use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
-use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
-use Shopware\Core\Checkout\Payment\SalesChannel\PaymentMethodRouteResponse;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
@@ -76,7 +72,6 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\RegisteredHandlerPaymentMethodResolver;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
@@ -88,7 +83,6 @@ use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
-use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
@@ -97,7 +91,6 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
 use Symfony\Component\Routing\RouterInterface;
-use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
@@ -111,7 +104,6 @@ use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
-use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
 /** @internal */
 #[CoversClass(ShopwareCheckoutAdapter::class)]
@@ -127,7 +119,6 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     private const PLACED_CHECKOUT_ID = 'checkout-context-token';
     private const PLACED_ORDER_ID = '99999999999999999999999999999999';
     private const PAYMENT_REDIRECT_URL = 'https://psp.example/pay/1';
-    private const PAYMENT_METHOD_ID = '88888888888888888888888888888888';
 
     private bool $isPaymentMethodAvailable = true;
 
@@ -1392,31 +1383,6 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         return $lineItem;
     }
 
-    private function paymentMethodResolver(): RegisteredHandlerPaymentMethodResolver
-    {
-        $paymentHandler = $this->createMock(PaymentHandlerInterface::class);
-        $paymentHandler->method('prepareInstrument')->willReturn(['paymentMethodId' => self::PAYMENT_METHOD_ID, 'token' => '']);
-        $handlerRegistry = $this->createMock(PaymentHandlerRegistryInterface::class);
-        $handlerRegistry->method('find')->willReturn($paymentHandler);
-
-        $paymentMethodRoute = $this->createMock(AbstractPaymentMethodRoute::class);
-        $paymentMethodRoute->method('load')->willReturnCallback(function (Request $request, SalesChannelContext $context, Criteria $criteria): PaymentMethodRouteResponse {
-            $entities = new PaymentMethodCollection();
-            if ($this->isPaymentMethodAvailable) {
-                $paymentMethod = new PaymentMethodEntity();
-                $paymentMethod->setId(self::PAYMENT_METHOD_ID);
-                $entities->add($paymentMethod);
-            }
-
-            return new PaymentMethodRouteResponse(new EntitySearchResult('payment_method', $entities->count(), $entities, null, $criteria, Context::createDefaultContext()));
-        });
-
-        return new RegisteredHandlerPaymentMethodResolver(
-            $handlerRegistry,
-            new SalesChannelPaymentMethods($this->createMock(EntityRepository::class), $paymentMethodRoute),
-        );
-    }
-
     /**
      * @param array<string, mixed> $sessionMetadata
      */
@@ -1554,14 +1520,19 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         return new CheckoutPaymentSelector(
             new CompletionPaymentGate(new AdvertisedPaymentHandlers(static fn (): RecordingProfileBuilder => $profileBuilder)),
             $applier,
-            $this->paymentMethodResolver(),
         );
     }
 
     private function passThroughApplier(): AbstractCompletionPaymentApplier
     {
         $applier = $this->createMock(AbstractCompletionPaymentApplier::class);
-        $applier->method('apply')->willReturnArgument(1);
+        $applier->method('apply')->willReturnCallback(function (?PaymentInstrument $instrument, SalesChannelContext $context): SalesChannelContext {
+            if (!$this->isPaymentMethodAvailable) {
+                throw CompletionPaymentException::paymentMethodUnavailable($instrument->handlerId ?? '');
+            }
+
+            return $context;
+        });
 
         return $applier;
     }
