@@ -7,7 +7,7 @@ description: >-
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v6
+    - uses: actions/setup-node@v7
       with:
         node-version: '24'
         cache: npm
@@ -17,7 +17,7 @@ runs:
       working-directory: tests/acceptance
       run: npm ci --no-audit --no-fund
     - name: Download the shard reports
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         pattern: acceptance-blob-*
         path: ${{ runner.temp }}/acceptance-blobs
@@ -26,7 +26,7 @@ runs:
       shell: bash
       run: bin/ci-acceptance-report.sh "${RUNNER_TEMP}/acceptance-blobs" "${RUNNER_TEMP}/acceptance-report"
     - name: Upload the merged report
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: acceptance-report
         path: ${{ runner.temp }}/acceptance-report

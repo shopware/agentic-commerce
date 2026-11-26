@@ -26,15 +26,15 @@ jobs:
   admin-static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ env.SHOPWARE_TRUNK_REF }}
           path: shopware
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -47,7 +47,7 @@ jobs:
           ADMIN_PATH: ${{ github.workspace }}/shopware/src/Administration/Resources/app/administration
       - name: Upload Jest coverage
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: admin-jest-coverage
           path: agentic-commerce/tests/jest/administration/coverage
@@ -72,10 +72,10 @@ jobs:
           - lane: 'trunk'
             mode: vite
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: agentic-commerce
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: shopware/shopware
           ref: ${{ matrix.lane == '6.5.x' && env.SHOPWARE_65_REF || matrix.lane == '6.6.x' && env.SHOPWARE_66_REF || env.SHOPWARE_TRUNK_REF }}

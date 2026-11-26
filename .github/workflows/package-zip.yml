@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # full history so shopware-cli can generate the changelog
           fetch-depth: 0
@@ -155,7 +155,7 @@ jobs:
           unzip -q SwagAgenticCommerce.zip -d dist
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: SwagAgenticCommerce
           path: dist
@@ -163,7 +163,7 @@ jobs:
           retention-days: 14
 
       - name: Upload the archive for the install and publish jobs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: SwagAgenticCommerce-archive
           path: SwagAgenticCommerce.zip
@@ -203,7 +203,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Resolve the Shopware versions and download the release archives
         id: plan
@@ -216,7 +216,7 @@ jobs:
             --archive-under-test "${ARCHIVE_UNDER_TEST}" --shopware-versions "${SHOPWARE_VERSIONS}"
 
       - name: Upload the release archives
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: zip-install-archives
           path: zip-install-archives
@@ -264,7 +264,7 @@ jobs:
       CACHE_KEY_PREFIX: zip-install-composer-${{ matrix.line }}-${{ matrix.packages }}-
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: agentic-commerce
 
@@ -272,13 +272,13 @@ jobs:
         uses: shopware/shopware-cli-action@v3
 
       - name: Download the built archive
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: SwagAgenticCommerce-archive
           path: ${{ github.workspace }}
 
       - name: Download the release archives
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: zip-install-archives
           path: ${{ github.workspace }}/zip-install-archives
@@ -385,7 +385,7 @@ jobs:
 
       - name: Upload the shop's logs and Composer files
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: zip-install-${{ matrix.line }}-${{ matrix.packages }}
           path: |
