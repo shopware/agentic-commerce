@@ -93,6 +93,30 @@ test.describe('Test agent profile host @Setup', () => {
 
         expect(((await servedProfile.json()) as UcpProfileDocument).ucp.capabilities).toEqual({});
     });
+
+    test('the published profile declares every payment handler an activated channel advertises', async ({ UcpAgentProfileHost, TestDataService, page }) => {
+        const advertisingChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(advertisingChannel.salesChannel.id);
+        const { payment_handlers: advertisedHandlers } = await TestDataService.getProfilePreview(advertisingChannel.salesChannel.id);
+        expect(Object.keys(advertisedHandlers), 'the activated channel advertises no payment handler').not.toHaveLength(0);
+
+        const agent = await UcpAgentProfileHost.publish();
+        const servedProfile = await page.request.get(new URL(`ucp-acceptance-agents/${agent.kid}.json`, process.env.APP_URL).toString());
+        const { payment_handlers: declaredHandlers } = ((await servedProfile.json()) as UcpProfileDocument).ucp;
+
+        const declaredHandlerIds = Object.values(declaredHandlers).flat().map(declaredHandler => declaredHandler.id);
+        for (const advertisedHandler of Object.values(advertisedHandlers).flat()) {
+            expect(declaredHandlerIds, 'the SDK negotiates payment handlers on the entry id').toContain(advertisedHandler.id);
+        }
+    });
+
+    test('a payment handlers override replaces the default set', async ({ UcpAgentProfileHost, page }) => {
+        const agentWithoutPaymentHandlers = await UcpAgentProfileHost.publish({ paymentHandlers: {} });
+
+        const servedProfile = await page.request.get(new URL(`ucp-acceptance-agents/${agentWithoutPaymentHandlers.kid}.json`, process.env.APP_URL).toString());
+
+        expect(((await servedProfile.json()) as UcpProfileDocument).ucp.payment_handlers).toEqual({});
+    });
 });
 
 test.describe('UCP privilege mapping @Setup', () => {

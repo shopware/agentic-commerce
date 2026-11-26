@@ -21,13 +21,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D2',
-        description: 'The profile advertises an empty payment_handlers map, so an agent has no handler to pay with. Completion needs exactly one instrument naming an advertised handler, so a spec that places an order is refused with payment_failed.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/279',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D3',
         description: 'The A2A transport runs no signature check, so the strict signature policy accepts an unsigned A2A request. A2aController builds a bare RequestContext without a platform profile.',
         owner: 'dgrothaus-sw',
@@ -221,6 +214,20 @@ export const knownBlockers: KnownBlocker[] = [
         description: 'The plugin grants the preflight of an embedded allowed origin, but the SDK refuses that origin\'s GET to the embedded page with 403, because it checks the Origin against the agent allowlist, which falls back to the shop\'s own host when empty.',
         owner: 'dgrothaus-sw',
         issueUrl: 'https://github.com/shopware/agentic-commerce/issues/343',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D39',
+        description: 'The SDK rejects an agent profile whose payment_handlers entries have the shape of UCP 2026-08-25 (id, version, spec, schema), because it requires name, config_schema and instrument_schemas. It negotiates on the entry id, where the specification keys the registry by handler name and makes id an instance identifier.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/279',
+        reviewBy: '2026-12-31',
+    },
+    {
+        key: 'D40',
+        description: 'The SDK answers every successful checkout response with an empty ucp.payment_handlers, where UCP 2026-08-25 requires the handlers negotiated between the agent and the profile.',
+        owner: 'dgrothaus-sw',
+        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/279',
         reviewBy: '2026-12-31',
     },
 ];

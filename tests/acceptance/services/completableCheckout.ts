@@ -1,14 +1,17 @@
 import { expect } from '@playwright/test';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- typescript-eslint does not see the {@link} references in completionWithAdvertisedHandler()'s doc comment
-import type { knownBlockers } from '../known-blockers';
 import { CHECKOUT_SESSIONS_PATH } from './shoppingRoutes';
+
+const INVOICE_HANDLER_ID = 'com.shopware.invoice';
+
+export const invoiceInstrument = { id: 'instrument-1', handler_id: INVOICE_HANDLER_ID, type: 'invoice' };
 
 export async function createCompletableCheckout(
     TestDataService: FixtureTypes['TestDataService'],
     UcpAgent: FixtureTypes['UcpAgent'],
+    salesChannelOverrides: Record<string, unknown> = {},
 ) {
-    const ucpChannel = await TestDataService.createStorefrontSalesChannel();
+    const ucpChannel = await TestDataService.createStorefrontSalesChannel(salesChannelOverrides);
     await TestDataService.activateUcp(ucpChannel.salesChannel.id);
     const product = await TestDataService.createBasicProduct({ visibilities: [{ salesChannelId: ucpChannel.salesChannel.id, visibility: 30 }] });
     const agent = UcpAgent.at(ucpChannel.url);
@@ -23,19 +26,15 @@ export async function createCompletableCheckout(
     return { agent, buyer, fulfillment, lineItems, salesChannelId: ucpChannel.salesChannel.id, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
 }
 
-/**
- * The completion request naming the first payment handler the profile advertises, which fails
- * while it advertises none (known blocker D2 in {@link knownBlockers}).
- */
 export async function completionWithAdvertisedHandler(
     TestDataService: FixtureTypes['TestDataService'],
     salesChannelId: string,
 ) {
     const { payment_handlers: advertisedHandlers = {} } = await TestDataService.getProfilePreview(salesChannelId);
-    const [advertisedHandler] = Object.values(advertisedHandlers).flat();
-    expect(advertisedHandler, 'the profile advertises no payment handler to complete a checkout with').toBeDefined();
+    const advertisedHandlerIds = Object.values(advertisedHandlers).flat().map(advertisedHandler => advertisedHandler.id);
+    expect(advertisedHandlerIds, 'the profile does not advertise the invoice handler').toContain(INVOICE_HANDLER_ID);
 
-    return { payment: { instruments: [{ id: 'instrument-1', handler_id: advertisedHandler.id, type: 'card', credential: { type: 'token', token: 'tok_test' } }] } };
+    return { payment: { instruments: [invoiceInstrument] } };
 }
 
 export async function placeOrder(
