@@ -79,6 +79,14 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     }
 
     #[Test]
+    public function testAPlacedOrderThatIsReadyToBePaidAgainHasNoBlocker(): void
+    {
+        $messages = array_map(static fn (Message $message): array => $message->toArray(), CompletionPaymentResult::readyToPayAgain()->messages());
+
+        self::assertSame([], (new UcpCheckoutCompletionPreview())->blockers(CompletionPaymentResult::readyToPayAgain()->status, null, $messages));
+    }
+
+    #[Test]
     public function testAPlacedOrderWhosePaymentCannotBePaidAgainIsBlocked(): void
     {
         self::assertSame(

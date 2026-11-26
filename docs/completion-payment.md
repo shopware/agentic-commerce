@@ -108,12 +108,31 @@ same `continue_url`, and no second payment is started. Once the order transactio
 
 ### After a failed payment
 
-The order exists and its cart is gone, so the checkout can no longer be updated. The agent completes
-the checkout again, with the same or another instrument. That call passes the gate and the applier
-like the first one. It then gives the order a new transaction for the payment method of the returned
-context, through the Store API route behind `/store-api/order/payment`, and runs the payment
-handling again. No second order is placed. The handler's `validate()` does not run again, because no
-order is placed.
+The order exists and its cart is gone. The checkout reads `incomplete` with a recoverable
+`payment_failed` message at `$.payment.instruments[0]`, so the agent resolves it through Update
+Checkout, as the UCP specification describes for `incomplete`.
+
+An Update Checkout with an instrument for another payment handler is accepted when the order can be
+paid again. The instrument has to pass the gate, and its handler has to resolve a payment method the
+buyer may use. Nothing is switched yet. The checkout then reads `ready_for_complete` without a
+message, and `checkout.get` answers the same until the agent completes it. An Update Checkout
+without an instrument, or with one that is refused, keeps the status of the checkout and answers one
+recoverable `payment_failed` message, and the order keeps its payment.
+
+The order cannot change, so only its payment can. An Update Checkout whose line items differ from
+the order's in product or quantity keeps the status as well and answers one recoverable error with
+the code `order_placed` at `$.line_items`. Line items that repeat the order's, or none, are
+accepted. Buyer, fulfillment and discounts of the request are ignored. The specification states no
+error for a change the business cannot apply, but it answers an Update Checkout during
+`complete_in_progress` with the current checkout and a recoverable message, and this follows that. A
+placed checkout that cannot be paid again, because its payment is paid, awaits the buyer or failed
+for good, still answers an Update Checkout with `422`.
+
+The agent then completes the checkout, with the same instrument or another one. That call passes the
+gate and the applier like the first one. It then gives the order a new transaction for the payment
+method of the returned context, through the Store API route behind `/store-api/order/payment`, and
+runs the payment handling again. No second order is placed. The handler's `validate()` does not run
+again, because no order is placed. A completion that is refused keeps the status the checkout had.
 
 Newer Shopware versions, from `6.6.10.21` on, only change the payment of an order when the payment
 method has _Allow payment change after checkout_ switched on. Payment methods that extensions add

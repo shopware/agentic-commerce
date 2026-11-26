@@ -513,6 +513,26 @@ final class ShopwareDataMapperTest extends TestCase
     }
 
     #[Test]
+    public function testAnOrderReadyToBePaidAgainReadsReadyForCompleteWithoutAnOrderConfirmation(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            orderPermalinkUrl: 'https://shop.example/account/order/deep-link-code',
+            legalLinks: $this->legalLinks(),
+            payment: CompletionPaymentResult::readyToPayAgain(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::ReadyForComplete->value, $checkout['status']);
+        self::assertSame('https://shop.example/continue', $checkout['continue_url']);
+        self::assertSame([], $checkout['messages']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertSame($this->legalLinkArrays(), $checkout['links']);
+    }
+
+    #[Test]
     public function testAnOrderThatCannotBePaidAgainCarriesAnUnrecoverablePaymentFailure(): void
     {
         $checkout = (new ShopwareDataMapper())->toCompletedCheckout(

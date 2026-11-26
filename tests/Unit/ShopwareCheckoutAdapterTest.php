@@ -20,6 +20,8 @@ use Shopware\Core\Checkout\Cart\SalesChannel\CartResponse;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
 use Shopware\Core\Checkout\Customer\CustomerEntity;
+use Shopware\Core\Checkout\Order\Aggregate\OrderLineItem\OrderLineItemCollection;
+use Shopware\Core\Checkout\Order\Aggregate\OrderLineItem\OrderLineItemEntity;
 use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionCollection;
 use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionEntity;
 use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionStates;
@@ -27,6 +29,10 @@ use Shopware\Core\Checkout\Order\OrderCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRouteResponse;
+use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
+use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
+use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
+use Shopware\Core\Checkout\Payment\SalesChannel\PaymentMethodRouteResponse;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Context;
@@ -70,6 +76,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\RegisteredHandlerPaymentMethodResolver;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
@@ -81,6 +88,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderGateway;
+use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
 use Swag\AgenticCommerce\Ucp\SalesChannel\ContextTokenGenerator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
@@ -89,6 +97,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
 use Symfony\Component\Routing\RouterInterface;
+use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
@@ -102,6 +111,7 @@ use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
+use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 
 /** @internal */
 #[CoversClass(ShopwareCheckoutAdapter::class)]
@@ -117,6 +127,9 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     private const PLACED_CHECKOUT_ID = 'checkout-context-token';
     private const PLACED_ORDER_ID = '99999999999999999999999999999999';
     private const PAYMENT_REDIRECT_URL = 'https://psp.example/pay/1';
+    private const PAYMENT_METHOD_ID = '88888888888888888888888888888888';
+
+    private bool $isPaymentMethodAvailable = true;
 
     #[Test]
     public function testCompletedCheckoutReadsOrderWithCheckoutSalesChannelContext(): void
@@ -1070,10 +1083,291 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         self::assertArrayNotHasKey('order', $checkout);
     }
 
+    #[Test]
+    public function testUpdatingAPlacedOrderWhosePaymentFailedWithAUsableInstrumentReadsReadyForCompleteAndIsStored(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+        $savedSessions = [];
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $paymentGateway,
+            $this->recordingPlacedOrderPersister(['status' => CheckoutStatus::Incomplete->value], $savedSessions),
+        );
+
+        $checkout = $adapter->updateCheckout($this->placedOrderUpdate(), $this->completionRequestContext())->toArray();
+
+        self::assertSame(CheckoutStatus::ReadyForComplete->value, $checkout['status']);
+        self::assertSame([], $checkout['messages']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertContains(CheckoutStatus::ReadyForComplete->value, array_column($savedSessions, 'status'));
+    }
+
+    #[Test]
+    public function testAPlacedOrderMarkedReadyIsReadAsReadyForCompleteUntilTheAgentCompletes(): void
+    {
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::ReadyForComplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+        );
+
+        $checkout = $adapter->getCheckout(self::PLACED_CHECKOUT_ID, new RequestContext('shop.example'))->toArray();
+
+        self::assertSame(CheckoutStatus::ReadyForComplete->value, $checkout['status']);
+        self::assertSame([], $checkout['messages']);
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    #[Test]
+    public function testCompletingAPlacedOrderMarkedReadyPaysItAgain(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::PLACED_ORDER_ID);
+        $paymentGateway->expects(static::once())->method('pay')->willReturn(null);
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::ReadyForComplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $paymentGateway,
+        );
+
+        $checkout = $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::PLACED_CHECKOUT_ID, [new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)]),
+            $this->completionRequestContext(),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $checkout->status);
+        self::assertSame(self::PLACED_ORDER_ID, $checkout->order?->id);
+    }
+
+    #[Test]
+    public function testUpdatingAPlacedOrderThatCrashedDuringThePaymentIsAccepted(): void
+    {
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::CompleteInProgress->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_OPEN),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+        );
+
+        $checkout = $adapter->updateCheckout($this->placedOrderUpdate(), $this->completionRequestContext());
+
+        self::assertSame(CheckoutStatus::ReadyForComplete, $checkout->status);
+    }
+
+    #[Test]
+    public function testUpdatingAPlacedOrderWithoutLineItemsLeavesTheOrderAsItIs(): void
+    {
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+        );
+
+        $checkout = $adapter->updateCheckout(
+            new CheckoutUpdateRequest(self::PLACED_CHECKOUT_ID, [], payment: new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)),
+            $this->completionRequestContext(),
+        );
+
+        self::assertSame(CheckoutStatus::ReadyForComplete, $checkout->status);
+    }
+
+    /**
+     * @return iterable<string, array{list<UcpLineItem>}>
+     */
+    public static function changedLineItemsProvider(): iterable
+    {
+        yield 'another quantity' => [[new UcpLineItem('product-a', 'product-a', 10.0, 2)]];
+        yield 'another product' => [[new UcpLineItem('product-b', 'product-b', 10.0, 1)]];
+        yield 'an additional product' => [[new UcpLineItem('product-a', 'product-a', 10.0, 1), new UcpLineItem('product-b', 'product-b', 10.0, 1)]];
+    }
+
+    /**
+     * @param list<UcpLineItem> $lineItems
+     */
+    #[DataProvider('changedLineItemsProvider')]
+    #[Test]
+    public function testUpdatingAPlacedOrderWithOtherLineItemsKeepsItsStatusWithARecoverableRefusal(array $lineItems): void
+    {
+        $savedSessions = [];
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $this->recordingPlacedOrderPersister(['status' => CheckoutStatus::Incomplete->value], $savedSessions),
+        );
+
+        $checkout = $adapter->updateCheckout(
+            new CheckoutUpdateRequest(self::PLACED_CHECKOUT_ID, $lineItems, payment: new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)),
+            $this->completionRequestContext(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([[
+            'type' => 'error',
+            'content' => 'The order is placed, so only its payment can change. Send the line items of the order, or none.',
+            'severity' => 'recoverable',
+            'code' => 'order_placed',
+            'path' => '$.line_items',
+        ]], $checkout['messages']);
+        self::assertSame([], $savedSessions, 'A refused update stores nothing');
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    #[Test]
+    public function testUpdatingAPlacedOrderRepeatingItsLineItemsInAnotherOrderIsAccepted(): void
+    {
+        $order = $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED);
+        $order->setLineItems(new OrderLineItemCollection([
+            $this->orderProductLineItem('line-a', 'product-a', 1),
+            $this->orderProductLineItem('line-b', 'product-b', 3),
+        ]));
+        $adapter = $this->placedOrderAdapter(['status' => CheckoutStatus::Incomplete->value], $order, $this->createMock(OrderPaymentGatewayInterface::class));
+
+        $checkout = $adapter->updateCheckout(
+            new CheckoutUpdateRequest(self::PLACED_CHECKOUT_ID, [new UcpLineItem('product-b', 'product-b', 10.0, 3), new UcpLineItem('product-a', 'product-a', 10.0, 1)], payment: new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)),
+            $this->completionRequestContext(),
+        );
+
+        self::assertSame(CheckoutStatus::ReadyForComplete, $checkout->status);
+    }
+
+    #[Test]
+    public function testUpdatingAPlacedOrderWithAnInstrumentTheProfileDoesNotAdvertiseKeepsItsStatusWithTheRefusal(): void
+    {
+        $savedSessions = [];
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $this->recordingPlacedOrderPersister(['status' => CheckoutStatus::Incomplete->value], $savedSessions),
+        );
+
+        $checkout = $adapter->updateCheckout(
+            new CheckoutUpdateRequest(self::PLACED_CHECKOUT_ID, [new UcpLineItem('product-a', 'product-a', 10.0, 1)], payment: new PaymentInstrument('invoice', 'com.example.deactivated')),
+            $this->completionRequestContext(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([[
+            'type' => 'error',
+            'content' => 'The payment handler "com.example.deactivated" is not one this business advertises.',
+            'severity' => 'recoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments[0].handler_id',
+        ]], $checkout['messages']);
+        self::assertSame([], $savedSessions);
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    #[Test]
+    public function testUpdatingAPlacedOrderWithAPaymentMethodTheBuyerMayNotUseKeepsItsStatusWithTheRefusal(): void
+    {
+        $this->isPaymentMethodAvailable = false;
+        $savedSessions = [];
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $this->recordingPlacedOrderPersister(['status' => CheckoutStatus::Incomplete->value], $savedSessions),
+        );
+
+        $checkout = $adapter->updateCheckout($this->placedOrderUpdate(), $this->completionRequestContext())->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([['payment_failed', 'recoverable', '$.payment.instruments[0]']], array_map(
+            static fn (array $message): array => [$message['code'], $message['severity'], $message['path']],
+            $checkout['messages'],
+        ));
+        self::assertSame([], $savedSessions);
+    }
+
+    #[Test]
+    public function testUpdatingAPlacedOrderWithoutAnInstrumentKeepsItsStatusWithTheRefusal(): void
+    {
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+        );
+
+        $checkout = $adapter->updateCheckout(
+            new CheckoutUpdateRequest(self::PLACED_CHECKOUT_ID, [new UcpLineItem('product-a', 'product-a', 10.0, 1)]),
+            $this->completionRequestContext(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([['payment_failed', 'recoverable', '$.payment.instruments']], array_map(
+            static fn (array $message): array => [$message['code'], $message['severity'], $message['path']],
+            $checkout['messages'],
+        ));
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function placedOrderThatCannotBePaidAgainProvider(): iterable
+    {
+        yield 'the payment failed for good' => [['status' => 'incomplete', CompletionPaymentResult::SESSION_RETRYABLE_KEY => false], OrderTransactionStates::STATE_FAILED];
+        yield 'the buyer has to finish the payment at the provider' => [['status' => 'requires_escalation', CompletionPaymentResult::SESSION_REDIRECT_URL_KEY => self::PAYMENT_REDIRECT_URL], OrderTransactionStates::STATE_OPEN];
+        yield 'the order is paid' => [['status' => 'completed'], OrderTransactionStates::STATE_PAID];
+        yield 'the order is paid although the session reads incomplete' => [['status' => 'incomplete'], OrderTransactionStates::STATE_PAID];
+    }
+
     /**
      * @param array<string, mixed> $sessionMetadata
      */
-    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway): ShopwareCheckoutAdapter
+    #[DataProvider('placedOrderThatCannotBePaidAgainProvider')]
+    #[Test]
+    public function testUpdatingAPlacedOrderThatCannotBePaidAgainIsRefused(array $sessionMetadata, string $transactionState): void
+    {
+        $savedSessions = [];
+        $adapter = $this->placedOrderAdapter(
+            $sessionMetadata,
+            $this->orderWithTransaction($transactionState),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $this->recordingPlacedOrderPersister($sessionMetadata, $savedSessions),
+        );
+
+        $this->expectExceptionObject(new ValidationException('Completed checkout sessions cannot be updated.'));
+
+        try {
+            $adapter->updateCheckout($this->placedOrderUpdate(), $this->completionRequestContext());
+        } finally {
+            self::assertSame([], $savedSessions);
+        }
+    }
+
+    private function placedOrderUpdate(): CheckoutUpdateRequest
+    {
+        return new CheckoutUpdateRequest(
+            self::PLACED_CHECKOUT_ID,
+            [new UcpLineItem('product-a', 'product-a', 10.0, 1)],
+            payment: new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID),
+        );
+    }
+
+    /**
+     * @param array<string, mixed>       $sessionMetadata
+     * @param list<array<string, mixed>> $savedSessions   receives the checkout session of every save
+     */
+    private function recordingPlacedOrderPersister(array $sessionMetadata, array &$savedSessions): SalesChannelContextPersister
+    {
+        $persister = $this->placedOrderPersister($sessionMetadata);
+        $persister->method('save')->willReturnCallback(static function (string $token, array $parameters) use (&$savedSessions): void {
+            $savedSessions[] = $parameters['swagAgenticCommerce']['ucpCheckout'];
+        });
+
+        return $persister;
+    }
+
+    /**
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function placedOrderPersister(array $sessionMetadata): SalesChannelContextPersister&MockObject
     {
         $persister = $this->createMock(SalesChannelContextPersister::class);
         $persister->method('load')->willReturn(['swagAgenticCommerce' => ['ucpCheckout' => [
@@ -1081,6 +1375,54 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             'orderId' => self::PLACED_ORDER_ID,
             'shopwareContextToken' => 'rotated-shopware-context-token',
         ]]]);
+
+        return $persister;
+    }
+
+    private function orderProductLineItem(string $id, string $productId, int $quantity): OrderLineItemEntity
+    {
+        $lineItem = new OrderLineItemEntity();
+        $lineItem->setId($id);
+        $lineItem->setIdentifier($productId);
+        $lineItem->setReferencedId($productId);
+        $lineItem->setType(LineItem::PRODUCT_LINE_ITEM_TYPE);
+        $lineItem->setQuantity($quantity);
+        $lineItem->setLabel($productId);
+
+        return $lineItem;
+    }
+
+    private function paymentMethodResolver(): RegisteredHandlerPaymentMethodResolver
+    {
+        $paymentHandler = $this->createMock(PaymentHandlerInterface::class);
+        $paymentHandler->method('prepareInstrument')->willReturn(['paymentMethodId' => self::PAYMENT_METHOD_ID, 'token' => '']);
+        $handlerRegistry = $this->createMock(PaymentHandlerRegistryInterface::class);
+        $handlerRegistry->method('find')->willReturn($paymentHandler);
+
+        $paymentMethodRoute = $this->createMock(AbstractPaymentMethodRoute::class);
+        $paymentMethodRoute->method('load')->willReturnCallback(function (Request $request, SalesChannelContext $context, Criteria $criteria): PaymentMethodRouteResponse {
+            $entities = new PaymentMethodCollection();
+            if ($this->isPaymentMethodAvailable) {
+                $paymentMethod = new PaymentMethodEntity();
+                $paymentMethod->setId(self::PAYMENT_METHOD_ID);
+                $entities->add($paymentMethod);
+            }
+
+            return new PaymentMethodRouteResponse(new EntitySearchResult('payment_method', $entities->count(), $entities, null, $criteria, Context::createDefaultContext()));
+        });
+
+        return new RegisteredHandlerPaymentMethodResolver(
+            $handlerRegistry,
+            new SalesChannelPaymentMethods($this->createMock(EntityRepository::class), $paymentMethodRoute),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway, ?SalesChannelContextPersister $persister = null): ShopwareCheckoutAdapter
+    {
+        $persister ??= $this->placedOrderPersister($sessionMetadata);
 
         $checkoutSessionStore = new CheckoutSessionStore($persister);
         $checkoutSessionManager = new CheckoutSessionManager($checkoutSessionStore);
@@ -1146,6 +1488,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
 
         $order = $this->order(self::PLACED_ORDER_ID);
         $order->setTransactions(new OrderTransactionCollection([$transaction]));
+        $order->setLineItems(new OrderLineItemCollection([$this->orderProductLineItem('line-a', 'product-a', 1)]));
 
         return $order;
     }
@@ -1211,6 +1554,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         return new CheckoutPaymentSelector(
             new CompletionPaymentGate(new AdvertisedPaymentHandlers(static fn (): RecordingProfileBuilder => $profileBuilder)),
             $applier,
+            $this->paymentMethodResolver(),
         );
     }
 

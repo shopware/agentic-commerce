@@ -129,6 +129,51 @@ final class CompletionPaymentResultTest extends TestCase
         self::assertSame(CheckoutStatus::Completed, $result->status);
     }
 
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function payableTransactionStateProvider(): iterable
+    {
+        yield 'the payment provider declined' => [OrderTransactionStates::STATE_FAILED];
+        yield 'the buyer cancelled at the payment provider' => [OrderTransactionStates::STATE_CANCELLED];
+        yield 'the payment call died before it finished' => [OrderTransactionStates::STATE_OPEN];
+    }
+
+    #[DataProvider('payableTransactionStateProvider')]
+    #[Test]
+    public function testAReadySessionOfAnOrderThatIsNotPaidStaysReadyAndCanBePaidAgain(string $transactionState): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::ReadyForComplete->value],
+            $this->order($this->transaction($transactionState, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::ReadyForComplete, $result->status);
+        self::assertTrue($result->canBePaidAgain());
+        self::assertSame([], $result->messages());
+    }
+
+    #[Test]
+    public function testAReadySessionOfAnOrderPaidSinceIsCompleted(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::ReadyForComplete->value],
+            $this->order($this->transaction(OrderTransactionStates::STATE_PAID, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $result->status);
+        self::assertFalse($result->canBePaidAgain());
+    }
+
+    #[Test]
+    public function testAnOrderReadyToBePaidAgainCarriesNoSessionDataAndKeepsTheCheckoutContinueUrl(): void
+    {
+        $result = CompletionPaymentResult::readyToPayAgain();
+
+        self::assertSame([], $result->sessionData());
+        self::assertSame('https://shop.example/checkout/1', $result->continueUrl('https://shop.example/checkout/1'));
+    }
+
     #[Test]
     public function testAnIncompleteSessionMarkedNotRetryableCannotBePaidAgain(): void
     {

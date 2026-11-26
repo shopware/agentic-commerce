@@ -684,6 +684,124 @@ final class CheckoutCompleterTest extends TestCase
     }
 
     #[Test]
+    public function testMarkingAFailedOrderReadyToPayAgainSavesReadyForCompleteWithoutPaying(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $lockFactory = new LockFactory(new InMemoryStore());
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $customerContext,
+            $lockFactory,
+        );
+
+        $checkout = $completer->markReadyToPayAgain(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'));
+
+        static::assertSame(CheckoutStatus::ReadyForComplete, $checkout->status);
+        static::assertSame([], $checkout->messages);
+        static::assertNull($checkout->order);
+        static::assertSame([['session', CheckoutStatus::ReadyForComplete->value, []]], $calls);
+        static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after the update');
+    }
+
+    #[Test]
+    public function testMarkingAnOrderThatAnotherRequestPaidSavesNothingAndReplaysItAsCompleted(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_PAID), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Completed->value]),
+            $this->recordingCompletionStore($calls),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $customerContext,
+        );
+
+        $checkout = $completer->markReadyToPayAgain(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'));
+
+        static::assertSame(CheckoutStatus::Completed, $checkout->status);
+        static::assertSame([], $calls);
+    }
+
+    #[Test]
+    public function testMarkingAnOrderThatCannotBePaidAgainSavesNothingAndReplaysTheFailure(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value, CompletionPaymentResult::SESSION_RETRYABLE_KEY => false]),
+            $this->recordingCompletionStore($calls),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $customerContext,
+        );
+
+        $checkout = $completer->markReadyToPayAgain(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'));
+
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([['payment_failed', 'unrecoverable']], $this->messageCodes($checkout));
+        static::assertSame([], $calls);
+    }
+
+    #[Test]
+    public function testMarkingAnOrderWhileACompletionIsRunningIsRefused(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+        $lockFactory = new LockFactory(new InMemoryStore());
+        $runningCompletion = $lockFactory->createLock(self::LOCK_KEY);
+        $runningCompletion->acquire();
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $this->recordingCompletionStore($calls),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $customerContext,
+            $lockFactory,
+        );
+
+        $this->expectException(ValidationException::class);
+
+        $completer->markReadyToPayAgain(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'));
+    }
+
+    #[Test]
+    public function testRetryPaymentOfAnOrderMarkedReadyPaysItAgain(): void
+    {
+        $instrument = new PaymentInstrument('card', 'com.example.psp');
+        $customerContext = $this->customerContext();
+        $calls = [];
+
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::ORDER_ID, $customerContext);
+        $paymentGateway->expects(static::once())->method('pay')->willReturn(null);
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::ReadyForComplete->value]),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $customerContext,
+        );
+
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'), $instrument);
+
+        static::assertSame(CheckoutStatus::Completed, $checkout->status);
+        static::assertSame([['session', CheckoutStatus::Completed->value, []]], $calls);
+    }
+
+    #[Test]
     public function testAnApplierRefusalKeepsTheStatusWithOneRecoverablePaymentFailedAndPlacesNoOrder(): void
     {
         $calls = [];

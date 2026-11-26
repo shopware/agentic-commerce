@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\LineItem\LineItem;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -32,6 +33,7 @@ use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
+use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -136,9 +138,13 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     public function updateCheckout(CheckoutUpdateRequest $request, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $sessionMetadata = $this->sessionStore->load($request->id, $resolution->salesChannelId);
+        [$placedOrderId, $sessionMetadata] = $this->loadSession($request->id, $resolution->salesChannelId);
 
-        if (($sessionMetadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id)) {
+        if (null !== $placedOrderId) {
+            return $this->updatePlacedOrder($placedOrderId, $request, $sessionMetadata, $context);
+        }
+
+        if (($sessionMetadata['status'] ?? null) === 'completed') {
             throw new ValidationException('Completed checkout sessions cannot be updated.');
         }
 
@@ -227,6 +233,67 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         }
 
         return $this->checkoutCompleter->retryPayment($checkoutId, $orderId, $salesChannelContext, $context, $instrument);
+    }
+
+    /**
+     * The order cannot change, so only its payment can: buyer, fulfillment and discounts of the request are ignored.
+     *
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function updatePlacedOrder(string $orderId, CheckoutUpdateRequest $request, array $sessionMetadata, RequestContext $context): Checkout
+    {
+        $salesChannelContext = $this->completedCheckoutContext($sessionMetadata, $context);
+        $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
+        $payment = CompletionPaymentResult::ofPlacedOrder($sessionMetadata, $order);
+
+        if (!$payment->canBePaidAgain()) {
+            throw new ValidationException('Completed checkout sessions cannot be updated.');
+        }
+
+        $refusal = $this->placedOrderLineItemsRefusal($order, $request->lineItems)
+            ?? $this->paymentSelector->refusalForPlacedOrder($request->payment, $salesChannelContext, $context);
+        if (null !== $refusal) {
+            return $this->placedCheckout($order, $request->id, $salesChannelContext, $context, $payment, [$refusal]);
+        }
+
+        return $this->checkoutCompleter->markReadyToPayAgain($request->id, $orderId, $salesChannelContext, $context);
+    }
+
+    /**
+     * @param list<UcpLineItem> $requestedLineItems an empty list leaves the line items of the order as they are
+     */
+    private function placedOrderLineItemsRefusal(OrderEntity $order, array $requestedLineItems): ?Message
+    {
+        if ([] === $requestedLineItems) {
+            return null;
+        }
+
+        $quantityByOrderedProductId = [];
+        foreach ($order->getLineItems() ?? [] as $lineItem) {
+            if (LineItem::PRODUCT_LINE_ITEM_TYPE === $lineItem->getType()) {
+                $productId = $lineItem->getReferencedId() ?? $lineItem->getIdentifier();
+                $quantityByOrderedProductId[$productId] = ($quantityByOrderedProductId[$productId] ?? 0) + $lineItem->getQuantity();
+            }
+        }
+
+        $quantityByRequestedProductId = [];
+        foreach ($requestedLineItems as $lineItem) {
+            $quantityByRequestedProductId[$lineItem->id] = ($quantityByRequestedProductId[$lineItem->id] ?? 0) + $lineItem->quantity;
+        }
+
+        ksort($quantityByOrderedProductId);
+        ksort($quantityByRequestedProductId);
+        if ($quantityByOrderedProductId === $quantityByRequestedProductId) {
+            return null;
+        }
+
+        return new Message(
+            'error',
+            'The order is placed, so only its payment can change. Send the line items of the order, or none.',
+            'recoverable',
+            'order_placed',
+            '$.line_items',
+        );
     }
 
     /**

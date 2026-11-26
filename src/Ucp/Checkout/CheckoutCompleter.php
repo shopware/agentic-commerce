@@ -107,23 +107,23 @@ final class CheckoutCompleter
                 return $this->refusedCheckout($checkoutId, $cart, $customerContext, $buyer, $metadata, $statusBeforeCompletion, $exception);
             }
 
-            [$order, $payment] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
+            [$order, $paymentOutcome] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
             $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
 
             // The order is tied to the checkout before the payment runs, so a crash in between cannot lose it.
             // The session comes first: a reader that finds the completion row needs its rotated context token.
-            $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment ?? CompletionPaymentResult::inProgress());
+            $this->saveSession($checkoutId, $customerContext, $buyer, $order, $paymentOutcome ?? CompletionPaymentResult::inProgress());
             $this->completionStore->complete($checkoutId, $order->getId());
 
-            if (null === $payment) {
-                $payment = $this->completionPayment->pay(
+            if (null === $paymentOutcome) {
+                $paymentOutcome = $this->completionPayment->pay(
                     $order->getId(),
                     $customerContext,
                     $paymentInstrument,
                     $permalinkUrl,
                     $this->errorUrl($checkoutId, $customerContext, $permalinkUrl),
                 );
-                $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment);
+                $this->saveSession($checkoutId, $customerContext, $buyer, $order, $paymentOutcome);
             }
 
             if (null !== $config->webhookUrlOverride) {
@@ -136,7 +136,7 @@ final class CheckoutCompleter
                 );
             }
 
-            return $this->placedCheckout($checkoutId, $order, $customerContext, $permalinkUrl, $payment);
+            return $this->placedCheckout($checkoutId, $order, $customerContext, $permalinkUrl, $paymentOutcome);
         } finally {
             $lock->release();
         }
@@ -156,11 +156,11 @@ final class CheckoutCompleter
             $metadata = $this->sessionManager->load($checkoutId, $salesChannelContext->getSalesChannelId());
             $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $metadata);
             $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
-            $payment = CompletionPaymentResult::ofPlacedOrder($metadata, $order);
+            $paymentOutcome = CompletionPaymentResult::ofPlacedOrder($metadata, $order);
 
-            if ($payment->canBePaidAgain()) {
+            if ($paymentOutcome->canBePaidAgain()) {
                 try {
-                    $payment = $this->completionPayment->retry(
+                    $paymentOutcome = $this->completionPayment->retry(
                         $orderId,
                         $paymentInstrument,
                         $salesChannelContext,
@@ -169,13 +169,38 @@ final class CheckoutCompleter
                         $this->errorUrl($checkoutId, $salesChannelContext, $permalinkUrl),
                     );
                 } catch (CompletionPaymentException|ValidationException $exception) {
-                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $payment, [PaymentFailedMessage::recoverable($exception->getMessage())]);
+                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $paymentOutcome, [PaymentFailedMessage::recoverable($exception->getMessage())]);
                 }
 
-                $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $payment);
+                $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $paymentOutcome);
             }
 
-            return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $payment);
+            return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $paymentOutcome);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function markReadyToPayAgain(
+        string $checkoutId,
+        string $orderId,
+        SalesChannelContext $salesChannelContext,
+        RequestContext $requestContext,
+    ): Checkout {
+        $lock = $this->lock($checkoutId, $salesChannelContext->getSalesChannelId());
+
+        try {
+            // Read again under the lock: another request may have paid the order in the meantime.
+            $metadata = $this->sessionManager->load($checkoutId, $salesChannelContext->getSalesChannelId());
+            $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $metadata);
+            $paymentOutcome = CompletionPaymentResult::ofPlacedOrder($metadata, $order);
+
+            if ($paymentOutcome->canBePaidAgain()) {
+                $paymentOutcome = CompletionPaymentResult::readyToPayAgain();
+                $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $paymentOutcome);
+            }
+
+            return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $this->orderPermalinkBuilder->build($order, $requestContext), $paymentOutcome);
         } finally {
             $lock->release();
         }
@@ -213,23 +238,23 @@ final class CheckoutCompleter
         return $lock;
     }
 
-    private function saveSession(string $checkoutId, SalesChannelContext $context, ?Buyer $buyer, OrderEntity $order, CompletionPaymentResult $payment): void
+    private function saveSession(string $checkoutId, SalesChannelContext $context, ?Buyer $buyer, OrderEntity $order, CompletionPaymentResult $paymentOutcome): void
     {
         $this->sessionManager->saveForCheckoutId(
             $checkoutId,
             $context,
-            $payment->status->value,
+            $paymentOutcome->status->value,
             $buyer,
             orderId: $order->getId(),
             orderDeepLinkCode: $order->getDeepLinkCode(),
-            payment: $payment,
+            payment: $paymentOutcome,
         );
     }
 
     /**
      * @param list<Message>|null $messages
      */
-    private function placedCheckout(string $checkoutId, OrderEntity $order, SalesChannelContext $context, string $permalinkUrl, CompletionPaymentResult $payment, ?array $messages = null): Checkout
+    private function placedCheckout(string $checkoutId, OrderEntity $order, SalesChannelContext $context, string $permalinkUrl, CompletionPaymentResult $paymentOutcome, ?array $messages = null): Checkout
     {
         return $this->mapper->toCompletedCheckout(
             $order,
@@ -238,7 +263,7 @@ final class CheckoutCompleter
             $this->continueUrlBuilder->build($checkoutId, $context->getSalesChannelId()),
             orderPermalinkUrl: $permalinkUrl,
             legalLinks: $this->legalLinkBuilder->build($context),
-            payment: $payment,
+            payment: $paymentOutcome,
             messages: $messages,
         );
     }

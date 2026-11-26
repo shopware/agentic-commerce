@@ -16,7 +16,7 @@ use Ucp\Sdk\Model\Common\Message;
  * `Completed`: nothing is left for the agent to do. `CompleteInProgress`: the payment call has not
  * returned yet. `RequiresEscalation`: the buyer has to finish
  * the payment at `$redirectUrl`. `Incomplete`: the payment failed; the agent may complete again
- * while `$retryable` holds.
+ * while `$retryable` holds. `ReadyForComplete`: the order is still unpaid, and Complete Checkout pays it again.
  *
  * @internal
  */
@@ -66,6 +66,11 @@ final class CompletionPaymentResult
         return new self(CheckoutStatus::Incomplete, null, $retryable);
     }
 
+    public static function readyToPayAgain(): self
+    {
+        return new self(CheckoutStatus::ReadyForComplete);
+    }
+
     /**
      * @param array<string, mixed> $sessionMetadata the checkout session as the completion saved it
      */
@@ -80,6 +85,10 @@ final class CompletionPaymentResult
         $failed = \in_array($transactionState, self::FAILED_STATES, true);
         if (null !== $transactionState && !$failed && !\in_array($transactionState, self::AWAITING_STATES, true)) {
             return self::completed();
+        }
+
+        if (CheckoutStatus::ReadyForComplete->value === $sessionStatus) {
+            return self::readyToPayAgain();
         }
 
         if (!$failed && CheckoutStatus::RequiresEscalation->value === $sessionStatus) {
@@ -99,6 +108,7 @@ final class CompletionPaymentResult
     {
         // A payment call that is really running holds the completion lock, so one left in progress has died.
         return CheckoutStatus::CompleteInProgress === $this->status
+            || CheckoutStatus::ReadyForComplete === $this->status
             || (CheckoutStatus::Incomplete === $this->status && $this->retryable);
     }
 
