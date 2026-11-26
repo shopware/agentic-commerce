@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Gateway;
 
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractSetPaymentOrderRoute;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractHandlePaymentMethodRoute;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
@@ -13,6 +14,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /** @internal */
+#[Package('checkout')]
 final class ShopwareOrderPaymentGateway implements OrderPaymentGatewayInterface
 {
     public function __construct(

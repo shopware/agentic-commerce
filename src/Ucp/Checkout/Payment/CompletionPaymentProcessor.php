@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 
 use Psr\Log\LoggerInterface;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,6 +20,7 @@ use Ucp\Sdk\Model\RequestContext;
  *
  * @internal
  */
+#[Package('checkout')]
 final class CompletionPaymentProcessor
 {
     public function __construct(

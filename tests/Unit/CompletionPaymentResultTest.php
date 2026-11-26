@@ -48,6 +48,18 @@ final class CompletionPaymentResultTest extends TestCase
     }
 
     #[Test]
+    public function testAnEscalatedSessionWhoseTransactionWasRemindedStillAwaitsTheBuyer(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::RequiresEscalation->value, CompletionPaymentResult::SESSION_REDIRECT_URL_KEY => self::REDIRECT_URL],
+            $this->order($this->transaction(OrderTransactionStates::STATE_REMINDED, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::RequiresEscalation, $result->status);
+        self::assertSame(self::REDIRECT_URL, $result->redirectUrl);
+    }
+
+    #[Test]
     public function testAnEscalatedSessionWhoseTransactionIsPaidIsCompleted(): void
     {
         $result = CompletionPaymentResult::ofPlacedOrder(

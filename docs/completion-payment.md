@@ -103,8 +103,8 @@ invoice or prepayment order is `completed` with an open transaction, as it is in
 The buyer finishes the payment at `continue_url` and returns to the order page of the Storefront.
 Until then `checkout.get` and a repeated `checkout.complete` answer `requires_escalation` with the
 same `continue_url`, and no second payment is started. Once the order transaction leaves the states
-`open`, `in_progress` and `unconfirmed`, the checkout reads `completed`. When it becomes `failed` or
-`cancelled`, the checkout reads `incomplete` with `payment_failed`.
+`open`, `in_progress`, `unconfirmed` and `reminded`, the checkout reads `completed`. When it becomes
+`failed` or `cancelled`, the checkout reads `incomplete` with `payment_failed`.
 
 ### After a failed payment
 
@@ -134,11 +134,11 @@ method of the returned context, through the Store API route behind `/store-api/o
 runs the payment handling again. No second order is placed. The handler's `validate()` does not run
 again, because no order is placed. A completion that is refused keeps the status the checkout had.
 
-Newer Shopware versions, from `6.6.10.21` on, only change the payment of an order when the payment
-method has _Allow payment change after checkout_ switched on. Payment methods that extensions add
-have it off by default. When Shopware refuses the change, the answer is `incomplete` with a
-`payment_failed` message of severity `unrecoverable`, and the checkout stays that way. A payment
-extension that wants agents to pay again switches the setting on for its payment method.
+Newer Shopware versions, from `6.6.10.21` and `6.7.13.0` on, only change the payment of an order
+when the payment method has _Allow payment change after checkout_ switched on. Payment methods that
+extensions add have it off by default. When Shopware refuses the change, the answer is `incomplete`
+with a `payment_failed` message of severity `unrecoverable`, and the checkout stays that way. A
+payment extension that wants agents to pay again switches the setting on for its payment method.
 
 When the order is paid in another way in the meantime, for example by the buyer on the order page of
 the Storefront, the checkout reads `completed`.

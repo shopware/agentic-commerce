@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Ucp\Gateway;
 
+use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /** @internal */
+#[Package('checkout')]
 interface OrderPaymentGatewayInterface
 {
     /**

@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionEntity;
 use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionStates;
 use Shopware\Core\Checkout\Order\OrderEntity;
+use Shopware\Core\Framework\Log\Package;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Message;
 
@@ -20,6 +21,7 @@ use Ucp\Sdk\Model\Common\Message;
  *
  * @internal
  */
+#[Package('checkout')]
 final class CompletionPaymentResult
 {
     public const SESSION_REDIRECT_URL_KEY = 'paymentRedirectUrl';
@@ -28,7 +30,8 @@ final class CompletionPaymentResult
     private const AWAITING_STATES = [
         OrderTransactionStates::STATE_OPEN,
         OrderTransactionStates::STATE_IN_PROGRESS,
-        'unconfirmed',
+        OrderTransactionStates::STATE_UNCONFIRMED,
+        OrderTransactionStates::STATE_REMINDED,
     ];
 
     private const FAILED_STATES = [
