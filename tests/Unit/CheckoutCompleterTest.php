@@ -9,10 +9,14 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\CartException;
 use Shopware\Core\Checkout\Cart\Price\Struct\CalculatedPrice;
 use Shopware\Core\Checkout\Cart\Price\Struct\CartPrice;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionCollection;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionEntity;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionStates;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
 use Shopware\Core\Defaults;
@@ -25,6 +29,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
+use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
@@ -218,6 +223,11 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
+            public function load(string $checkoutId, string $salesChannelId): array
+            {
+                return [];
+            }
+
             public function buyer(array $metadata): ?Buyer
             {
                 return null;
@@ -237,7 +247,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null, ?string $paymentRedirectUrl = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null, ?CompletionPaymentResult $payment = null): void
             {
                 ++$this->saveCount;
             }
@@ -315,7 +325,7 @@ final class CheckoutCompleterTest extends TestCase
 
         static::assertSame($expectedCheckout, $result);
         static::assertEquals($this->legalLinks(), $mapper->legalLinks);
-        static::assertSame(1, $saveCount, 'sessionManager->saveForCheckoutId() must be called exactly once');
+        static::assertSame(2, $saveCount, 'The session is saved before the payment and again with its result');
         static::assertSame(1, $saveCountAtCompletionRow, 'The session must carry the rotated context token before the completion row exists');
 
         // Lock released via finally — a new acquire must succeed
@@ -473,19 +483,23 @@ final class CheckoutCompleterTest extends TestCase
     }
 
     #[Test]
-    public function testAPaymentRedirectAnswersRequiresEscalationAndKeepsTheRedirectInTheSession(): void
+    public function testThePaymentRunsAfterTheOrderIsTiedToTheCheckoutAndARedirectAnswersRequiresEscalation(): void
     {
         $instrument = new PaymentInstrument('card', 'com.example.psp');
         $customerContext = $this->customerContext();
+        $calls = [];
 
         $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
         $paymentGateway->expects(static::once())
             ->method('pay')
             ->with(self::ORDER_ID, $customerContext, $instrument, self::PERMALINK_URL)
-            ->willReturn(self::PAYMENT_REDIRECT_URL);
+            ->willReturnCallback(static function () use (&$calls): string {
+                $calls[] = ['pay'];
 
-        $savedSessions = [];
-        $completer = $this->placingCompleter($this->orderGatewayPlacing($this->placedOrder()), $this->recordingSessionManager($savedSessions), $this->openCompletionStore(), $paymentGateway, $customerContext);
+                return self::PAYMENT_REDIRECT_URL;
+            });
+
+        $completer = $this->placingCompleter($this->orderGatewayPlacing($this->placedOrder()), $this->recordingSessionManager($calls), $this->recordingCompletionStore($calls), $paymentGateway, $customerContext);
 
         $checkout = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), $instrument);
 
@@ -493,68 +507,165 @@ final class CheckoutCompleterTest extends TestCase
         static::assertSame(CheckoutStatus::RequiresEscalation, $checkout->status);
         static::assertSame(self::PAYMENT_REDIRECT_URL, $checkout->continueUrl);
         static::assertNull($checkout->order);
-        static::assertSame([[
-            'status' => CheckoutStatus::RequiresEscalation->value,
-            'orderId' => self::ORDER_ID,
-            'paymentRedirectUrl' => self::PAYMENT_REDIRECT_URL,
-        ]], $savedSessions);
+        static::assertSame([
+            ['session', CheckoutStatus::CompleteInProgress->value, []],
+            ['completion row', self::ORDER_ID],
+            ['pay'],
+            ['session', CheckoutStatus::RequiresEscalation->value, [CompletionPaymentResult::SESSION_REDIRECT_URL_KEY => self::PAYMENT_REDIRECT_URL]],
+        ], $calls);
     }
 
     #[Test]
-    public function testAFailedPaymentAnswersIncompleteAndStillRecordsTheCompletion(): void
+    public function testAFailedPaymentAnswersIncompleteAndKeepsTheCompletion(): void
     {
+        $calls = [];
         $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
         $paymentGateway->method('pay')->willThrowException(new \RuntimeException('Card declined.'));
 
-        $completionStore = $this->openCompletionStore();
-        $completionStore->expects(static::once())->method('complete')->with(self::CHECKOUT_ID, self::ORDER_ID);
-
-        $savedSessions = [];
-        $completer = $this->placingCompleter($this->orderGatewayPlacing($this->placedOrder()), $this->recordingSessionManager($savedSessions), $completionStore, $paymentGateway, $this->customerContext());
+        $completer = $this->placingCompleter($this->orderGatewayPlacing($this->placedOrder()), $this->recordingSessionManager($calls), $this->recordingCompletionStore($calls), $paymentGateway, $this->customerContext());
 
         $checkout = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
 
         static::assertInstanceOf(Checkout::class, $checkout);
         static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
-        static::assertSame(['payment_failed'], array_map(static fn (Message $message): ?string => $message->code, $checkout->messages));
+        static::assertSame([['payment_failed', 'recoverable']], $this->messageCodes($checkout));
         static::assertNull($checkout->order);
-        static::assertSame([[
-            'status' => CheckoutStatus::Incomplete->value,
-            'orderId' => self::ORDER_ID,
-            'paymentRedirectUrl' => null,
-        ]], $savedSessions);
+        static::assertSame([
+            ['session', CheckoutStatus::CompleteInProgress->value, []],
+            ['completion row', self::ORDER_ID],
+            ['session', CheckoutStatus::Incomplete->value, []],
+        ], $calls);
     }
 
     #[Test]
-    public function testRetryPaymentSavesTheNewStatusAndReturnsTheMappedCheckout(): void
+    public function testAnOrderShopwareStoredDespiteAFailedPaymentIsKeptAndCannotBePaidAgain(): void
+    {
+        $calls = [];
+        $customerContext = $this->customerContext();
+
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->method('placeOrder')->willThrowException(CartException::invalidPaymentButOrderStored(self::ORDER_ID));
+        $orderGateway->expects(static::once())
+            ->method('getOrderForSalesChannelContext')
+            ->with(self::ORDER_ID, $customerContext)
+            ->willReturn($this->placedOrder());
+
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $completer = $this->placingCompleter($orderGateway, $this->recordingSessionManager($calls), $this->recordingCompletionStore($calls), $paymentGateway, $customerContext);
+
+        $checkout = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
+
+        static::assertInstanceOf(Checkout::class, $checkout);
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([['payment_failed', 'unrecoverable']], $this->messageCodes($checkout));
+        static::assertSame([
+            ['session', CheckoutStatus::Incomplete->value, [CompletionPaymentResult::SESSION_RETRYABLE_KEY => false]],
+            ['completion row', self::ORDER_ID],
+        ], $calls);
+    }
+
+    #[Test]
+    public function testAnyOtherCartExceptionFromTheOrderPlacementPropagates(): void
+    {
+        $calls = [];
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->method('placeOrder')->willThrowException(CartException::invalidPaymentOrderNotStored(self::ORDER_ID));
+        $orderGateway->expects(static::never())->method('getOrderForSalesChannelContext');
+
+        $completer = $this->placingCompleter($orderGateway, $this->recordingSessionManager($calls), $this->recordingCompletionStore($calls), $this->createMock(OrderPaymentGatewayInterface::class), $this->customerContext());
+
+        try {
+            $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
+            static::fail('The cart exception must propagate.');
+        } catch (CartException $exception) {
+            static::assertSame(CartException::CART_PAYMENT_INVALID_ORDER_CODE, $exception->getErrorCode());
+        }
+
+        static::assertSame([], $calls);
+    }
+
+    #[Test]
+    public function testRetryPaymentPaysAFailedOrderAgainAndSavesTheNewStatus(): void
     {
         $instrument = new PaymentInstrument('card', 'com.example.psp');
         $context = $this->customerContext();
+        $calls = [];
 
         $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
         $paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::ORDER_ID, $context);
         $paymentGateway->expects(static::once())->method('pay')->with(self::ORDER_ID, $context, $instrument, self::PERMALINK_URL)->willReturn(null);
 
-        $orderGateway = $this->createMock(OrderGatewayInterface::class);
-        $orderGateway->expects(static::never())->method('placeOrder');
-
-        $completionStore = $this->openCompletionStore();
+        $completionStore = $this->recordingCompletionStore($calls);
         $completionStore->expects(static::never())->method('complete');
 
-        $savedSessions = [];
         $lockFactory = new LockFactory(new InMemoryStore());
-        $completer = $this->placingCompleter($orderGateway, $this->recordingSessionManager($savedSessions), $completionStore, $paymentGateway, $context, $lockFactory);
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $context),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $completionStore,
+            $paymentGateway,
+            $context,
+            $lockFactory,
+        );
 
-        $checkout = $completer->retryPayment(self::CHECKOUT_ID, [], $this->placedOrder(), $context, new RequestContext('shop.example'), $instrument);
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $context, new RequestContext('shop.example'), $instrument);
 
         static::assertSame(CheckoutStatus::Completed, $checkout->status);
         static::assertSame(self::ORDER_ID, $checkout->order?->id);
-        static::assertSame([[
-            'status' => CheckoutStatus::Completed->value,
-            'orderId' => self::ORDER_ID,
-            'paymentRedirectUrl' => null,
-        ]], $savedSessions);
+        static::assertSame([['session', CheckoutStatus::Completed->value, []]], $calls);
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after the retry');
+    }
+
+    #[Test]
+    public function testRetryPaymentDoesNotPayAgainWhenAnotherRequestPaidTheOrderInTheMeantime(): void
+    {
+        $context = $this->customerContext();
+        $calls = [];
+
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_PAID), $context),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Completed->value]),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $context,
+        );
+
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $context, new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
+
+        static::assertSame(CheckoutStatus::Completed, $checkout->status);
+        static::assertSame(self::ORDER_ID, $checkout->order?->id);
+        static::assertSame([], $calls, 'Nothing is saved when the payment is not retried');
+    }
+
+    #[Test]
+    public function testRetryPaymentReplaysAFailureThatCannotBePaidAgain(): void
+    {
+        $context = $this->customerContext();
+        $calls = [];
+
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $context),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value, CompletionPaymentResult::SESSION_RETRYABLE_KEY => false]),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $context,
+        );
+
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $context, new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
+
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([['payment_failed', 'unrecoverable']], $this->messageCodes($checkout));
+        static::assertSame([], $calls);
     }
 
     #[Test]
@@ -621,6 +732,15 @@ final class CheckoutCompleterTest extends TestCase
         return $orderGateway;
     }
 
+    private function orderGatewayReading(OrderEntity $order, SalesChannelContext $context): OrderGatewayInterface
+    {
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::never())->method('placeOrder');
+        $orderGateway->method('getOrderForSalesChannelContext')->with(self::ORDER_ID, $context)->willReturn($order);
+
+        return $orderGateway;
+    }
+
     private function openCompletionStore(): CheckoutCompletionStoreInterface&MockObject
     {
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
@@ -630,18 +750,43 @@ final class CheckoutCompleterTest extends TestCase
     }
 
     /**
-     * @param list<array{status: string, orderId: string|null, paymentRedirectUrl: string|null}> $savedSessions
+     * @param list<list<mixed>> $calls
      */
-    private function recordingSessionManager(array &$savedSessions): CheckoutSessionManagerInterface
+    private function recordingCompletionStore(array &$calls): CheckoutCompletionStoreInterface&MockObject
+    {
+        $completionStore = $this->openCompletionStore();
+        $completionStore->method('complete')->willReturnCallback(static function (string $checkoutId, string $orderId) use (&$calls): void {
+            $calls[] = ['completion row', $orderId];
+        });
+
+        return $completionStore;
+    }
+
+    /**
+     * Records every save as `['session', status, what the payment adds to the session]`.
+     *
+     * @param list<list<mixed>>    $calls
+     * @param array<string, mixed> $storedSession what `load()` answers
+     */
+    private function recordingSessionManager(array &$calls, array $storedSession = []): CheckoutSessionManagerInterface
     {
         $sessionManager = $this->createMock(CheckoutSessionManagerInterface::class);
+        $sessionManager->method('load')->with(self::CHECKOUT_ID, self::SALES_CHANNEL_ID)->willReturn($storedSession);
         $sessionManager->method('saveForCheckoutId')->willReturnCallback(
-            static function (string $checkoutId, SalesChannelContext $context, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null, ?string $paymentRedirectUrl = null) use (&$savedSessions): void {
-                $savedSessions[] = ['status' => $status, 'orderId' => $orderId, 'paymentRedirectUrl' => $paymentRedirectUrl];
+            static function (string $checkoutId, SalesChannelContext $context, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null, ?CompletionPaymentResult $payment = null) use (&$calls): void {
+                $calls[] = ['session', $status, $payment?->sessionData()];
             },
         );
 
         return $sessionManager;
+    }
+
+    /**
+     * @return list<array{0: string|null, 1: string|null}>
+     */
+    private function messageCodes(Checkout $checkout): array
+    {
+        return array_map(static fn (Message $message): array => [$message->code, $message->severity], $checkout->messages);
     }
 
     private function customerContext(): SalesChannelContext
@@ -661,7 +806,7 @@ final class CheckoutCompleterTest extends TestCase
         return $customerContext;
     }
 
-    private function placedOrder(): OrderEntity
+    private function placedOrder(?string $transactionState = null): OrderEntity
     {
         $taxes = new CalculatedTaxCollection();
         $taxRules = new TaxRuleCollection();
@@ -671,6 +816,18 @@ final class CheckoutCompleterTest extends TestCase
         $order->setDeepLinkCode(self::DEEP_LINK_CODE);
         $order->setPrice(new CartPrice(10.0, 10.0, 10.0, $taxes, $taxRules, CartPrice::TAX_STATE_GROSS));
         $order->setShippingCosts(new CalculatedPrice(0.0, 0.0, $taxes, $taxRules));
+
+        if (null !== $transactionState) {
+            $state = new StateMachineStateEntity();
+            $state->setId('00000000000000000000000000000007');
+            $state->setTechnicalName($transactionState);
+
+            $transaction = new OrderTransactionEntity();
+            $transaction->setId('00000000000000000000000000000008');
+            $transaction->setCreatedAt(new \DateTimeImmutable('2026-11-01 10:00:00'));
+            $transaction->setStateMachineState($state);
+            $order->setTransactions(new OrderTransactionCollection([$transaction]));
+        }
 
         return $order;
     }
@@ -748,6 +905,11 @@ final class CheckoutCompleterTest extends TestCase
     private function nullSessionManager(): CheckoutSessionManagerInterface
     {
         return new class implements CheckoutSessionManagerInterface {
+            public function load(string $checkoutId, string $salesChannelId): array
+            {
+                return [];
+            }
+
             public function buyer(array $metadata): ?Buyer
             {
                 return null;
@@ -767,7 +929,7 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
 
-            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null, ?string $paymentRedirectUrl = null): void
+            public function saveForCheckoutId(string $checkoutId, SalesChannelContext $salesChannelContext, string $status, ?Buyer $buyer, array $discountCodes = [], ?string $orderId = null, ?string $orderDeepLinkCode = null, ?array $guestAddress = null, ?array $guestShippingAddress = null, ?CompletionPaymentResult $payment = null): void
             {
             }
         };

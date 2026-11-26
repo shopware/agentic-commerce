@@ -80,6 +80,7 @@ final class CompletionPaymentProcessorTest extends TestCase
         $result = $this->processor->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), self::RETURN_URL);
 
         self::assertSame(CheckoutStatus::Incomplete, $result->status);
+        self::assertTrue($result->retryable);
         self::assertCount(1, $this->logger->records);
         self::assertSame('warning', $this->logger->records[0]['level']);
         self::assertSame([
@@ -131,13 +132,35 @@ final class CompletionPaymentProcessorTest extends TestCase
     }
 
     #[Test]
-    public function testARetryWhosePaymentMethodCannotChangeThrowsWithoutPaying(): void
+    public function testARetryWhosePaymentMethodCannotChangeFailsForGoodWithoutPaying(): void
     {
+        $exception = new \RuntimeException('The payment of this order can no longer change.');
         $this->applier->method('apply')->willReturnArgument(1);
-        $this->paymentGateway->method('changePaymentMethod')->willThrowException(new ValidationException('The payment of this order can no longer change.'));
+        $this->paymentGateway->method('changePaymentMethod')->willThrowException($exception);
         $this->paymentGateway->expects(static::never())->method('pay');
 
-        $this->expectExceptionObject(new ValidationException('The payment of this order can no longer change.'));
+        $result = $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::RETURN_URL);
+
+        self::assertSame(CheckoutStatus::Incomplete, $result->status);
+        self::assertFalse($result->retryable);
+        self::assertCount(1, $this->logger->records);
+        self::assertSame('warning', $this->logger->records[0]['level']);
+        self::assertSame([
+            'order_id' => self::ORDER_ID,
+            'payment_method_id' => self::PAYMENT_METHOD_ID,
+            'sales_channel_id' => self::SALES_CHANNEL_ID,
+            'exception' => $exception,
+        ], $this->logger->records[0]['context']);
+    }
+
+    #[Test]
+    public function testARetryWhoseInstrumentTheApplierRefusesThrowsWithoutChangingThePayment(): void
+    {
+        $this->applier->method('apply')->willThrowException(new ValidationException('The instrument is refused.'));
+        $this->paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $this->paymentGateway->expects(static::never())->method('pay');
+
+        $this->expectExceptionObject(new ValidationException('The instrument is refused.'));
 
         $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::RETURN_URL);
     }

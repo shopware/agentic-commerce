@@ -15,9 +15,11 @@ use Ucp\Sdk\Model\RequestContext;
 #[Package('checkout')]
 final class ShopwareInvoicePaymentHandler implements PaymentHandlerInterface
 {
+    public const ID = 'com.shopware.invoice';
+
     public function id(): string
     {
-        return 'com.shopware.invoice';
+        return self::ID;
     }
 
     public function describe(RequestContext $context): PaymentHandlerDescriptor

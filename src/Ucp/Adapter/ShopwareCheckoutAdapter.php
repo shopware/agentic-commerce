@@ -223,7 +223,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
         $payment = CompletionPaymentResult::ofPlacedOrder($sessionMetadata, $order);
 
-        if (CheckoutStatus::Incomplete !== $payment->status) {
+        if (!$payment->canBePaidAgain()) {
             return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, $payment);
         }
 
@@ -232,7 +232,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, $payment, [$refusal]);
         }
 
-        return $this->checkoutCompleter->retryPayment($checkoutId, $sessionMetadata, $order, $salesChannelContext, $context, $instruments[0]);
+        return $this->checkoutCompleter->retryPayment($checkoutId, $orderId, $salesChannelContext, $context, $instruments[0]);
     }
 
     /**

@@ -825,6 +825,54 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     }
 
     #[Test]
+    public function testCompletingAPlacedOrderThatCannotBePaidAgainReplaysTheFailureWithoutGateOrRetry(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value, CompletionPaymentResult::SESSION_RETRYABLE_KEY => false],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $paymentGateway,
+        );
+
+        $checkout = $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::PLACED_CHECKOUT_ID, [new PaymentInstrument('invoice', 'com.example.deactivated')]),
+            $this->completionRequestContext(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([['payment_failed', 'unrecoverable']], array_map(
+            static fn (array $message): array => [$message['code'], $message['severity']],
+            $checkout['messages'],
+        ));
+        self::assertArrayNotHasKey('order', $checkout);
+    }
+
+    #[Test]
+    public function testCompletingAPlacedOrderPaidSinceItsFailureReplaysItAsCompleted(): void
+    {
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_PAID),
+            $paymentGateway,
+        );
+
+        $checkout = $adapter->completeCheckoutFromRequest(
+            new CheckoutCompleteRequest(self::PLACED_CHECKOUT_ID, [new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID)]),
+            $this->completionRequestContext(),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $checkout->status);
+        self::assertSame(self::PLACED_ORDER_ID, $checkout->order?->id);
+    }
+
+    #[Test]
     public function testReadingAPlacedOrderWithAFailedTransactionAnswersIncomplete(): void
     {
         $adapter = $this->placedOrderAdapter(

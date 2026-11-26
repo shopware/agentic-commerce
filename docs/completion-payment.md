@@ -56,6 +56,8 @@ UCP shop advertises at least that one.
 | returns a redirect               | `requires_escalation` | the redirect as `continue_url` and a `payment_requires_buyer_input` message, no `order` yet |
 | throws, or answers its error URL | `incomplete`          | a recoverable `payment_failed` message at `$.payment.instruments[0]`, no `order`            |
 
+While the payment call runs, `checkout.get` reads `complete_in_progress`.
+
 `completed` means that nothing is left for the agent to do. It does not mean that money arrived: an
 invoice or prepayment order is `completed` with an open transaction, as it is in the Storefront.
 
@@ -73,11 +75,33 @@ The order exists and its cart is gone, so the checkout can no longer be updated.
 the checkout again, with the same or another instrument. That call passes the gate and the applier
 like the first one. It then gives the order a new transaction for the payment method of the returned
 context, through the Store API route behind `/store-api/order/payment`, and runs the payment
-handling again. No second order is placed. When Shopware does not allow the order's payment to
-change any more, the call is answered with an error and nothing is charged.
+handling again. No second order is placed. The handler's `validate()` does not run again, because no
+order is placed.
 
-Every failed payment is logged as a warning with the order id, the handler id and the payment method
-id. The credential is never logged and never stored in the checkout session.
+Newer Shopware versions, from `6.6.10.21` on, only change the payment of an order when the payment
+method has _Allow payment change after checkout_ switched on. Payment methods that extensions add
+have it off by default. When Shopware refuses the change, the answer is `incomplete` with a
+`payment_failed` message of severity `unrecoverable`, and the checkout stays that way. A payment
+extension that wants agents to pay again switches the setting on for its payment method.
+
+When the order is paid in another way in the meantime, for example by the buyer on the order page of
+the Storefront, the checkout reads `completed`.
+
+Every failed payment is logged as a warning with the order id, the handler id, the payment method id
+and the exception. The plugin does not log the credential itself and does not store it in the
+checkout session. An exception message that a payment handler writes ends up in the log, so a
+handler must not put the token into it.
+
+### What is not covered yet
+
+- A buyer who never finishes at the payment page leaves the checkout at `requires_escalation`. The
+  agent has no call that replaces the open payment.
+- `checkout.cancel` does not cancel an order that is already placed.
+- A refusal in the handler's `validate()` reaches the agent as an error response, not as
+  `payment_failed`.
+- On Shopware `6.5` and `6.6`, a prepared payment handler that fails in `capture()` leaves an order
+  behind. The checkout then reads `incomplete` with an `unrecoverable` `payment_failed`, because
+  completing again would not capture.
 
 ## Why it is not closed here
 
@@ -214,9 +238,14 @@ handler of that payment method, under the request key
 | `6.6.5.0` and newer | `AbstractPaymentHandler::validate()` reads it from the data bag | `AbstractPaymentHandler::pay()` reads it from the request |
 | older               | a prepared payment handler reads it in `validate()`             | `pay()` reads it from the `RequestDataBag`                |
 
-Refuse a token you cannot charge in `validate()` where you can: the completion then fails before an
-order exists. A failure in `pay()` leaves an order with a failed transaction behind, which the agent
-pays again as described above.
+In `validate()` and in `pay()` on older versions the value is a nested data bag: read it with
+`$dataBag->get('ucpPaymentInstrument')?->all()`. In `pay()` on `6.6.5.0` and newer it is a plain
+array: `$request->request->all('ucpPaymentInstrument')`.
+
+A refusal in `validate()` stops the completion before an order exists, but the agent gets an error
+response and not `payment_failed`. A failure in `pay()` leaves an order with a failed transaction
+behind, which the agent pays again as described above. Do not return the token from `validate()`:
+Shopware stores the returned struct unencrypted on the order transaction.
 
 An existing payment handler does not look at this key, so it treats an agent order like a Storefront
 order without payment data. A handler that needs the buyer in the browser returns its redirect, and
@@ -261,10 +290,11 @@ method, so a method that needs the buyer still answers `requires_escalation`.
 ### 4. Decide what tokenization means for you
 
 `ShopwareInvoicePaymentHandler` reports `tokenization: false` and returns `null` from `tokenize()`.
-A provider handling real credentials will want the opposite, and the tokenization capability this
-plugin publishes (`dev.ucp.shopping.payment_tokenization`) is an id no UCP release defines — at
-`2026-08-25` tokenization is a payment _handler_ concern (`handlers/tokenization/openapi.json`), not
-a shopping capability. Worth settling before building against it.
+A provider handling real credentials will want the opposite, and the tokenization capability id of
+this plugin (`dev.ucp.shopping.payment_tokenization`) is one no UCP release defines, and the profile
+does not publish it. At `2026-08-25` tokenization is a payment _handler_ concern
+(`handlers/tokenization/openapi.json`), not a shopping capability. Worth settling before building
+against it.
 
 ## Testing an implementation
 

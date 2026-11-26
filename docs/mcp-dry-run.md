@@ -72,8 +72,9 @@ adds the refusal of `CompletionPaymentGate` to the blockers, so the preview says
 answer with `payment_failed`. A checkout that is already completed has no such blocker, because a
 completion replays its order before the gate runs.
 
-A checkout whose payment failed reads `incomplete`, so the preview names the blocker "finish it with
-update_checkout". A commit pays the existing order again instead. See
+A checkout whose payment failed reads `incomplete` with a `payment_failed` message. A commit pays
+its order again, so the preview names no status blocker for it. When the message is `unrecoverable`,
+the preview says that the order cannot be paid again through the checkout. See
 [completion-payment.md](completion-payment.md).
 
 ## Limits of the rolled-back dry run

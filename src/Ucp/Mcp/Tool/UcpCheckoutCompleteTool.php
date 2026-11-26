@@ -87,16 +87,20 @@ final class UcpCheckoutCompleteTool
             $id,
         ));
 
+        $current = $checkout->jsonSerialize();
+        $messages = $current['messages'] ?? [];
+
         return $this->toolContext->preview(
             'checkout.complete',
             $checkout,
             $this->completionPreview->blockers(
-                $checkout->jsonSerialize()['status'] ?? null,
+                $current['status'] ?? null,
                 $this->completionPreview->paymentRefusal(
                     $this->completionPaymentGate,
                     $this->completionPayment->handlerIds($requestPayload),
                     $context,
                 ),
+                \is_array($messages) ? $messages : [],
             ),
         );
     }

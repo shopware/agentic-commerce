@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompletionPreview;
 use Ucp\Sdk\Enum\CheckoutStatus;
@@ -73,6 +74,41 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     public function testAPaymentRefusalDoesNotBlockAnAlreadyCompletedCheckoutBecauseItIsReplayedBeforePayment(): void
     {
         self::assertSame([], (new UcpCheckoutCompletionPreview())->blockers('completed', $this->paymentRefusal()));
+    }
+
+    #[Test]
+    public function testAPlacedOrderWhosePaymentCanBePaidAgainHasNoStatusBlocker(): void
+    {
+        self::assertSame([], (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $this->failedPaymentMessages(retryable: true)));
+    }
+
+    #[Test]
+    public function testAPlacedOrderWhosePaymentCannotBePaidAgainIsBlocked(): void
+    {
+        self::assertSame(
+            ['The payment failed and the order cannot be paid again through this checkout.'],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $this->failedPaymentMessages(retryable: false)),
+        );
+    }
+
+    #[Test]
+    public function testAPaymentRefusalStillBlocksPayingAPlacedOrderAgain(): void
+    {
+        self::assertSame(
+            ['Completing a checkout needs exactly one payment instrument, 0 given.'],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', $this->paymentRefusal(), $this->failedPaymentMessages(retryable: true)),
+        );
+    }
+
+    #[Test]
+    public function testAnIncompleteCheckoutWithOtherMessagesKeepsItsStatusBlocker(): void
+    {
+        $messages = [['type' => 'warning', 'content' => 'The product is out of stock.', 'code' => 'out_of_stock']];
+
+        self::assertSame(
+            ['Checkout is incomplete: finish it with update_checkout before completing.'],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $messages),
+        );
     }
 
     #[Test]
@@ -152,6 +188,14 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     public function testAnUnknownStatusBlocksRatherThanSilentlyAllowingACommit(mixed $status, string $expectedBlocker): void
     {
         self::assertSame([$expectedBlocker], (new UcpCheckoutCompletionPreview())->blockers($status));
+    }
+
+    /**
+     * @return list<array<string, string>> the messages of a placed order's checkout as `checkout.get` returns them
+     */
+    private function failedPaymentMessages(bool $retryable): array
+    {
+        return array_map(static fn (Message $message): array => $message->toArray(), CompletionPaymentResult::failed($retryable)->messages());
     }
 
     private function paymentRefusal(): Message

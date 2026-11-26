@@ -79,8 +79,8 @@ Payment tokenization remains extension-ready but not bundled as a shipped tokeni
   payment-handler descriptor.
 - `/ucp/v1/tokenize` must return `501` until at least one real payment handler supports UCP
   tokenization and the capability is enabled.
-- `payment_handlers` must stay an empty object in `/.well-known/ucp` unless tokenization is enabled
-  and a real tokenizing handler is registered.
+- `payment_handlers` in `/.well-known/ucp` lists the registered payment handlers of every sales
+  channel with UCP switched on, independent of tokenization.
 - Store API customer login/context-token APIs and Shopware checkout payment tokens are not
   sufficient substitutes. They do not provide the UCP identity-linking consent model or a reusable
   payment-tokenization contract.
@@ -140,7 +140,7 @@ and every transport on each lane.
 
 The default shipped optional capability decision:
 
-- `payment_handlers` is an empty object in the UCP profile.
+- `payment_handlers` lists the bundled `com.shopware.invoice` handler in the UCP profile.
 - `/.well-known/oauth-authorization-server` returns `501` until `identity_linking` is enabled for
   the sales channel.
 - With `identity_linking` enabled, OAuth metadata returns `200` and authorize requires a logged-in

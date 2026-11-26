@@ -8,6 +8,7 @@ use Psr\Log\LoggerInterface;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -45,7 +46,8 @@ final class UnappliedCompletionPayment extends AbstractCompletionPaymentApplier
         SalesChannelContext $context,
         RequestContext $requestContext,
     ): SalesChannelContext {
-        if (null === $instrument) {
+        // The plugin's own handler stands for the sales channel default, so there is nothing to warn about.
+        if (null === $instrument || ShopwareInvoicePaymentHandler::ID === $instrument->handlerId) {
             return $context;
         }
 

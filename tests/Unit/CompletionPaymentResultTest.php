@@ -79,10 +79,11 @@ final class CompletionPaymentResultTest extends TestCase
 
         self::assertSame(CheckoutStatus::Incomplete, $result->status);
         self::assertNull($result->redirectUrl);
+        self::assertTrue($result->canBePaidAgain());
     }
 
     #[Test]
-    public function testAnIncompleteSessionFailedEvenWithAnOpenTransaction(): void
+    public function testAnIncompleteSessionWithAnOpenTransactionCanBePaidAgain(): void
     {
         $result = CompletionPaymentResult::ofPlacedOrder(
             ['status' => CheckoutStatus::Incomplete->value],
@@ -90,6 +91,78 @@ final class CompletionPaymentResultTest extends TestCase
         );
 
         self::assertSame(CheckoutStatus::Incomplete, $result->status);
+        self::assertTrue($result->canBePaidAgain());
+    }
+
+    #[Test]
+    public function testASessionSavedBeforeThePaymentCallReadsInProgressWithoutAMessage(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::CompleteInProgress->value],
+            $this->order($this->transaction(OrderTransactionStates::STATE_OPEN, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::CompleteInProgress, $result->status);
+        self::assertSame([], $result->messages());
+        self::assertTrue($result->canBePaidAgain(), 'A payment call that died must not block the checkout for good.');
+    }
+
+    #[Test]
+    public function testAPaymentCallThatDiedAfterTheTransactionFailedReadsFailed(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::CompleteInProgress->value],
+            $this->order($this->transaction(OrderTransactionStates::STATE_FAILED, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::Incomplete, $result->status);
+    }
+
+    #[Test]
+    public function testAPaymentCallThatDiedAfterTheChargeReadsCompleted(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::CompleteInProgress->value],
+            $this->order($this->transaction(OrderTransactionStates::STATE_PAID, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $result->status);
+    }
+
+    #[Test]
+    public function testAnIncompleteSessionMarkedNotRetryableCannotBePaidAgain(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::Incomplete->value, CompletionPaymentResult::SESSION_RETRYABLE_KEY => false],
+            $this->order($this->transaction(OrderTransactionStates::STATE_FAILED, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::Incomplete, $result->status);
+        self::assertFalse($result->retryable);
+        self::assertFalse($result->canBePaidAgain());
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function settledTransactionStateProvider(): iterable
+    {
+        yield 'the order is paid' => [OrderTransactionStates::STATE_PAID];
+        yield 'the payment is authorized' => [OrderTransactionStates::STATE_AUTHORIZED];
+        yield 'the order is partly paid' => [OrderTransactionStates::STATE_PARTIALLY_PAID];
+    }
+
+    #[DataProvider('settledTransactionStateProvider')]
+    #[Test]
+    public function testASettledTransactionCompletesASessionSavedAsIncomplete(string $transactionState): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->order($this->transaction($transactionState, '2026-11-01 10:00:00')),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $result->status);
+        self::assertFalse($result->canBePaidAgain());
     }
 
     #[Test]
@@ -105,6 +178,46 @@ final class CompletionPaymentResultTest extends TestCase
 
         self::assertSame(CheckoutStatus::RequiresEscalation, $result->status);
         self::assertSame(self::REDIRECT_URL, $result->redirectUrl);
+    }
+
+    #[Test]
+    public function testANewerPaidTransactionCompletesAnOrderWhosePaymentFailedBefore(): void
+    {
+        $result = CompletionPaymentResult::ofPlacedOrder(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->order(
+                $this->transaction(OrderTransactionStates::STATE_FAILED, '2026-11-01 10:00:00'),
+                $this->transaction(OrderTransactionStates::STATE_PAID, '2026-11-01 10:05:00'),
+            ),
+        );
+
+        self::assertSame(CheckoutStatus::Completed, $result->status);
+    }
+
+    #[Test]
+    public function testOnlyARetryableFailureCanBePaidAgain(): void
+    {
+        self::assertTrue(CompletionPaymentResult::failed()->canBePaidAgain());
+        self::assertFalse(CompletionPaymentResult::failed(false)->canBePaidAgain());
+        self::assertFalse(CompletionPaymentResult::completed()->canBePaidAgain());
+        self::assertFalse(CompletionPaymentResult::awaitsBuyer(self::REDIRECT_URL)->canBePaidAgain());
+    }
+
+    #[Test]
+    public function testTheSessionKeepsTheRedirectOfAPaymentAwaitingTheBuyer(): void
+    {
+        self::assertSame(
+            [CompletionPaymentResult::SESSION_REDIRECT_URL_KEY => self::REDIRECT_URL],
+            CompletionPaymentResult::awaitsBuyer(self::REDIRECT_URL)->sessionData(),
+        );
+    }
+
+    #[Test]
+    public function testTheSessionMarksOnlyAFailureThatCannotBePaidAgain(): void
+    {
+        self::assertSame([CompletionPaymentResult::SESSION_RETRYABLE_KEY => false], CompletionPaymentResult::failed(false)->sessionData());
+        self::assertSame([], CompletionPaymentResult::failed()->sessionData());
+        self::assertSame([], CompletionPaymentResult::completed()->sessionData());
     }
 
     #[Test]
@@ -133,6 +246,18 @@ final class CompletionPaymentResultTest extends TestCase
         self::assertCount(1, $messages);
         self::assertSame('error', $messages[0]->type);
         self::assertSame('recoverable', $messages[0]->severity);
+        self::assertSame('payment_failed', $messages[0]->code);
+        self::assertSame('$.payment.instruments[0]', $messages[0]->path);
+    }
+
+    #[Test]
+    public function testAFailedPaymentThatCannotBePaidAgainIsUnrecoverable(): void
+    {
+        $messages = CompletionPaymentResult::failed(false)->messages();
+
+        self::assertCount(1, $messages);
+        self::assertSame('error', $messages[0]->type);
+        self::assertSame('unrecoverable', $messages[0]->severity);
         self::assertSame('payment_failed', $messages[0]->code);
         self::assertSame('$.payment.instruments[0]', $messages[0]->path);
     }

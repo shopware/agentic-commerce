@@ -13,14 +13,17 @@ use Ucp\Sdk\Model\Common\Message;
 /**
  * What the payment of a placed order means for its checkout.
  *
- * `Completed`: nothing is left for the agent to do. `RequiresEscalation`: the buyer has to finish
- * the payment at `$redirectUrl`. `Incomplete`: the payment failed and the agent may complete again.
+ * `Completed`: nothing is left for the agent to do. `CompleteInProgress`: the payment call has not
+ * returned yet. `RequiresEscalation`: the buyer has to finish
+ * the payment at `$redirectUrl`. `Incomplete`: the payment failed; the agent may complete again
+ * while `$retryable` holds.
  *
  * @internal
  */
 final class CompletionPaymentResult
 {
     public const SESSION_REDIRECT_URL_KEY = 'paymentRedirectUrl';
+    public const SESSION_RETRYABLE_KEY = 'paymentRetryable';
 
     private const AWAITING_STATES = [
         OrderTransactionStates::STATE_OPEN,
@@ -36,6 +39,7 @@ final class CompletionPaymentResult
     private function __construct(
         public readonly CheckoutStatus $status,
         public readonly ?string $redirectUrl = null,
+        public readonly bool $retryable = true,
     ) {
     }
 
@@ -49,9 +53,17 @@ final class CompletionPaymentResult
         return new self(CheckoutStatus::RequiresEscalation, $redirectUrl);
     }
 
-    public static function failed(): self
+    public static function inProgress(): self
     {
-        return new self(CheckoutStatus::Incomplete);
+        return new self(CheckoutStatus::CompleteInProgress);
+    }
+
+    /**
+     * @param bool $retryable false when completing the checkout again cannot pay the order
+     */
+    public static function failed(bool $retryable = true): self
+    {
+        return new self(CheckoutStatus::Incomplete, null, $retryable);
     }
 
     /**
@@ -65,20 +77,40 @@ final class CompletionPaymentResult
         }
 
         $transactionState = self::latestTransaction($order)?->getStateMachineState()?->getTechnicalName();
-        if (\in_array($transactionState, self::FAILED_STATES, true)) {
-            return self::failed();
+        $failed = \in_array($transactionState, self::FAILED_STATES, true);
+        if (null !== $transactionState && !$failed && !\in_array($transactionState, self::AWAITING_STATES, true)) {
+            return self::completed();
         }
 
-        if (CheckoutStatus::RequiresEscalation->value !== $sessionStatus) {
-            return self::failed();
+        if (!$failed && CheckoutStatus::RequiresEscalation->value === $sessionStatus) {
+            $redirectUrl = $sessionMetadata[self::SESSION_REDIRECT_URL_KEY] ?? null;
+
+            return \is_string($redirectUrl) && '' !== $redirectUrl ? self::awaitsBuyer($redirectUrl) : self::completed();
         }
 
-        $redirectUrl = $sessionMetadata[self::SESSION_REDIRECT_URL_KEY] ?? null;
-        if (\in_array($transactionState, self::AWAITING_STATES, true) && \is_string($redirectUrl) && '' !== $redirectUrl) {
-            return self::awaitsBuyer($redirectUrl);
+        if (!$failed && CheckoutStatus::CompleteInProgress->value === $sessionStatus) {
+            return self::inProgress();
         }
 
-        return self::completed();
+        return self::failed(false !== ($sessionMetadata[self::SESSION_RETRYABLE_KEY] ?? null));
+    }
+
+    public function canBePaidAgain(): bool
+    {
+        // A payment call that is really running holds the completion lock, so one left in progress has died.
+        return CheckoutStatus::CompleteInProgress === $this->status
+            || (CheckoutStatus::Incomplete === $this->status && $this->retryable);
+    }
+
+    /**
+     * @return array<string, mixed> what the checkout session keeps next to its status
+     */
+    public function sessionData(): array
+    {
+        return array_filter([
+            self::SESSION_REDIRECT_URL_KEY => $this->redirectUrl,
+            self::SESSION_RETRYABLE_KEY => $this->retryable ? null : false,
+        ], static fn (mixed $value): bool => null !== $value);
     }
 
     public function continueUrl(?string $checkoutContinueUrl): ?string
@@ -99,13 +131,21 @@ final class CompletionPaymentResult
                 'payment_requires_buyer_input',
                 '$.payment',
             )],
-            CheckoutStatus::Incomplete => [new Message(
-                'error',
-                'The payment failed. The order is kept. Complete the checkout again to pay it, with the same or another payment instrument.',
-                'recoverable',
-                'payment_failed',
-                '$.payment.instruments[0]',
-            )],
+            CheckoutStatus::Incomplete => [$this->retryable
+                ? new Message(
+                    'error',
+                    'The payment failed. The order is kept. Complete the checkout again to pay it, with the same or another payment instrument.',
+                    'recoverable',
+                    'payment_failed',
+                    '$.payment.instruments[0]',
+                )
+                : new Message(
+                    'error',
+                    'The payment failed and the order cannot be paid again through this checkout. The order is kept, and the shop has to settle it with the buyer.',
+                    'unrecoverable',
+                    'payment_failed',
+                    '$.payment.instruments[0]',
+                )],
             default => [],
         };
     }

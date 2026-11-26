@@ -436,6 +436,10 @@ to publish no handler until a real PSP-backed one exists (P12), and the agent is
 completable checkout has to advertise at least one. It moves money, so it is a decision for checkout
 and a provider, not a fix.
 
+Since [#279](https://github.com/shopware/agentic-commerce/issues/279) the profile lists the
+registered handlers and completion runs Shopware's payment handling. See
+[completion-payment.md](completion-payment.md).
+
 **Running it needs three environment facts** that are not obvious. The agent-profile URL must be
 served from a _local development host_ (`127.0.0.1`, `localhost`, `::1`): plain http from
 `host.containers.internal` is refused even with profile-fetching development mode on, by design. So

@@ -163,6 +163,8 @@ final class UcpResponseSchemaTest extends TestCase
         yield 'a read whose payment awaits the buyer' => [CompletionPaymentResult::awaitsBuyer('https://psp.example/pay/1'), 'checkout.get.response'];
         yield 'a complete call whose payment failed' => [CompletionPaymentResult::failed(), 'checkout.complete.response'];
         yield 'a read whose payment failed' => [CompletionPaymentResult::failed(), 'checkout.get.response'];
+        yield 'a complete call whose payment cannot be paid again' => [CompletionPaymentResult::failed(false), 'checkout.complete.response'];
+        yield 'a read whose payment cannot be paid again' => [CompletionPaymentResult::failed(false), 'checkout.get.response'];
     }
 
     #[DataProvider('unpaidOrderProvider')]

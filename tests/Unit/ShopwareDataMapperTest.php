@@ -513,6 +513,25 @@ final class ShopwareDataMapperTest extends TestCase
     }
 
     #[Test]
+    public function testAnOrderThatCannotBePaidAgainCarriesAnUnrecoverablePaymentFailure(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            payment: CompletionPaymentResult::failed(false),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertSame([['payment_failed', 'unrecoverable']], array_map(
+            static fn (array $message): array => [$message['code'], $message['severity']],
+            $checkout['messages'],
+        ));
+    }
+
+    #[Test]
     public function testGivenMessagesReplaceTheMessagesOfThePaymentState(): void
     {
         $refusal = new Message('error', 'The payment handler is not advertised.', 'recoverable', 'payment_failed', '$.payment.instruments[0].handler_id');

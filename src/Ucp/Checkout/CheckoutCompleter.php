@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\CartException;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
@@ -97,15 +98,18 @@ final class CheckoutCompleter
                 $requestContext,
             );
 
-            $order = $this->orderGateway->placeOrder($cart, $customerContext, $paymentInstrument);
+            [$order, $payment] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
             $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
-            $payment = $this->completionPayment->pay($order->getId(), $customerContext, $paymentInstrument, $permalinkUrl);
 
-            // Saved before the completion row: a reader that finds the row loads the session afterwards
-            // and needs its rotated context token.
-            $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment);
-
+            // The order is tied to the checkout before the payment runs, so a crash in between cannot lose it.
+            // The session comes first: a reader that finds the completion row needs its rotated context token.
+            $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment ?? CompletionPaymentResult::inProgress());
             $this->completionStore->complete($checkoutId, $order->getId());
+
+            if (null === $payment) {
+                $payment = $this->completionPayment->pay($order->getId(), $customerContext, $paymentInstrument, $permalinkUrl);
+                $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment);
+            }
 
             if (null !== $config->webhookUrlOverride) {
                 $this->orderWebhookPublisher->publish(
@@ -123,15 +127,9 @@ final class CheckoutCompleter
         }
     }
 
-    /**
-     * Pays the order of a checkout again after its payment failed.
-     *
-     * @param array<string, mixed> $metadata
-     */
     public function retryPayment(
         string $checkoutId,
-        array $metadata,
-        OrderEntity $order,
+        string $orderId,
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
         ?PaymentInstrument $paymentInstrument,
@@ -139,14 +137,38 @@ final class CheckoutCompleter
         $lock = $this->lock($checkoutId, $salesChannelContext->getSalesChannelId());
 
         try {
+            // Read again under the lock: another request may have paid the order in the meantime.
+            $metadata = $this->sessionManager->load($checkoutId, $salesChannelContext->getSalesChannelId());
+            $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $metadata);
             $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
-            $payment = $this->completionPayment->retry($order->getId(), $paymentInstrument, $salesChannelContext, $requestContext, $permalinkUrl);
+            $payment = CompletionPaymentResult::ofPlacedOrder($metadata, $order);
 
-            $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $payment);
+            if ($payment->canBePaidAgain()) {
+                $payment = $this->completionPayment->retry($orderId, $paymentInstrument, $salesChannelContext, $requestContext, $permalinkUrl);
+                $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $payment);
+            }
 
             return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $payment);
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * @return array{0: OrderEntity, 1: CompletionPaymentResult|null} the payment result is set when Shopware already ran the payment
+     */
+    private function placeOrder(Cart $cart, SalesChannelContext $context, ?PaymentInstrument $instrument): array
+    {
+        try {
+            return [$this->orderGateway->placeOrder($cart, $context, $instrument), null];
+        } catch (CartException $exception) {
+            $orderId = $exception->getParameters()['orderId'] ?? null;
+            if (CartException::CART_PAYMENT_INVALID_ORDER_STORED_CODE !== $exception->getErrorCode() || !\is_string($orderId)) {
+                throw $exception;
+            }
+
+            // Shopware 6.5 and 6.6 capture a prepared payment inside the order route and keep the order when that fails.
+            return [$this->orderGateway->getOrderForSalesChannelContext($orderId, $context), CompletionPaymentResult::failed(false)];
         }
     }
 
@@ -173,7 +195,7 @@ final class CheckoutCompleter
             $buyer,
             orderId: $order->getId(),
             orderDeepLinkCode: $order->getDeepLinkCode(),
-            paymentRedirectUrl: $payment->redirectUrl,
+            payment: $payment,
         );
     }
 

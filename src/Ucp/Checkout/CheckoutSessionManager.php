@@ -53,12 +53,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
-        ?string $paymentRedirectUrl = null,
+        ?CompletionPaymentResult $payment = null,
     ): void {
         $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
-        if (null !== $paymentRedirectUrl) {
-            $metadata[CompletionPaymentResult::SESSION_REDIRECT_URL_KEY] = $paymentRedirectUrl;
-        }
+        $metadata = [...$metadata, ...($payment?->sessionData() ?? [])];
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -114,6 +112,14 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function load(string $checkoutId, string $salesChannelId): array
+    {
+        return $this->sessionStore->load($checkoutId, $salesChannelId);
     }
 
     /**

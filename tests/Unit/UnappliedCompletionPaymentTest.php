@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
+use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -55,7 +56,7 @@ final class UnappliedCompletionPaymentTest extends TestCase
 
         self::assertCount(1, $logger->records);
         self::assertSame('warning', $logger->records[0]['level']);
-        self::assertSame('com.shopware.invoice', $logger->records[0]['context']['handler_id']);
+        self::assertSame('com.example.psp', $logger->records[0]['context']['handler_id']);
         self::assertStringContainsString('AbstractCompletionPaymentApplier', $logger->records[0]['message']);
         self::assertStringContainsString('docs/completion-payment.md', $logger->records[0]['message']);
     }
@@ -79,6 +80,25 @@ final class UnappliedCompletionPaymentTest extends TestCase
     }
 
     /**
+     * The plugin's own invoice handler stands for the sales channel default, so ignoring it is correct.
+     */
+    #[Test]
+    public function itStaysSilentForThePluginsOwnInvoiceHandler(): void
+    {
+        $logger = $this->collectingLogger();
+        $context = $this->salesChannelContext();
+
+        $result = (new UnappliedCompletionPayment($logger))->apply(
+            new PaymentInstrument('invoice', ShopwareInvoicePaymentHandler::ID),
+            $context,
+            new RequestContext('shop.example'),
+        );
+
+        self::assertSame($context, $result);
+        self::assertSame([], $logger->records);
+    }
+
+    /**
      * The bundle wires the logger with nullOnInvalid(), so an application without one must
      * not fail on the path whose only job was to complain.
      */
@@ -98,7 +118,7 @@ final class UnappliedCompletionPaymentTest extends TestCase
 
     private function instrument(): PaymentInstrument
     {
-        return new PaymentInstrument('card', 'com.shopware.invoice', ['payment_method_id' => 'pm-1']);
+        return new PaymentInstrument('card', 'com.example.psp', ['payment_method_id' => 'pm-1']);
     }
 
     private function salesChannelContext(): SalesChannelContext

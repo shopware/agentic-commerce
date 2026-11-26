@@ -12,6 +12,7 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Buyer;
 
@@ -89,6 +90,75 @@ final class CheckoutSessionManagerTest extends TestCase
         self::assertSame($contextToken, $calls[1][1]['swagAgenticCommerce']['ucpCheckout']['shopwareContextToken']);
         self::assertSame('deep-link-code', $calls[0][1]['swagAgenticCommerce']['ucpCheckout']['orderDeepLinkCode']);
         self::assertSame('deep-link-code', $calls[1][1]['swagAgenticCommerce']['ucpCheckout']['orderDeepLinkCode']);
+    }
+
+    #[Test]
+    public function testItKeepsTheRedirectOfAPaymentAwaitingTheBuyer(): void
+    {
+        $session = $this->savedSession(CheckoutStatus::RequiresEscalation, CompletionPaymentResult::awaitsBuyer('https://psp.example/pay/1'));
+
+        self::assertSame('https://psp.example/pay/1', $session[CompletionPaymentResult::SESSION_REDIRECT_URL_KEY]);
+        self::assertArrayNotHasKey(CompletionPaymentResult::SESSION_RETRYABLE_KEY, $session);
+    }
+
+    #[Test]
+    public function testItMarksAFailedPaymentThatCannotBePaidAgain(): void
+    {
+        $session = $this->savedSession(CheckoutStatus::Incomplete, CompletionPaymentResult::failed(false));
+
+        self::assertFalse($session[CompletionPaymentResult::SESSION_RETRYABLE_KEY]);
+        self::assertArrayNotHasKey(CompletionPaymentResult::SESSION_REDIRECT_URL_KEY, $session);
+    }
+
+    #[Test]
+    public function testARetryableFailedPaymentAddsNothingToTheSession(): void
+    {
+        $session = $this->savedSession(CheckoutStatus::Incomplete, CompletionPaymentResult::failed());
+
+        self::assertArrayNotHasKey(CompletionPaymentResult::SESSION_RETRYABLE_KEY, $session);
+        self::assertArrayNotHasKey(CompletionPaymentResult::SESSION_REDIRECT_URL_KEY, $session);
+        self::assertSame(CheckoutStatus::Incomplete->value, $session['status']);
+    }
+
+    #[Test]
+    public function testItLoadsTheSessionSavedForTheCheckout(): void
+    {
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->expects(static::once())
+            ->method('load')
+            ->with('checkout-id', '22222222222222222222222222222222')
+            ->willReturn(['swagAgenticCommerce' => ['ucpCheckout' => ['status' => CheckoutStatus::Incomplete->value]]]);
+
+        $session = (new CheckoutSessionManager(new CheckoutSessionStore($persister)))->load('checkout-id', '22222222222222222222222222222222');
+
+        self::assertSame(['status' => CheckoutStatus::Incomplete->value], $session);
+    }
+
+    /**
+     * @return array<string, mixed> the checkout session handed to the persister
+     */
+    private function savedSession(CheckoutStatus $status, CompletionPaymentResult $payment): array
+    {
+        $session = null;
+        $persister = $this->createMock(SalesChannelContextPersister::class);
+        $persister->expects(static::once())
+            ->method('save')
+            ->willReturnCallback(static function (string $token, array $payload) use (&$session): void {
+                $session = $payload['swagAgenticCommerce']['ucpCheckout'];
+            });
+
+        (new CheckoutSessionManager(new CheckoutSessionStore($persister)))->saveForCheckoutId(
+            'current-shopware-token',
+            $this->context('22222222222222222222222222222222', 'current-shopware-token', '66666666666666666666666666666666'),
+            $status->value,
+            null,
+            orderId: '99999999999999999999999999999999',
+            payment: $payment,
+        );
+
+        self::assertIsArray($session);
+
+        return $session;
     }
 
     private function context(string $salesChannelId, string $token, string $customerId): SalesChannelContext

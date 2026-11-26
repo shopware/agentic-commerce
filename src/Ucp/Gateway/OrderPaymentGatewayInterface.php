@@ -18,8 +18,6 @@ interface OrderPaymentGatewayInterface
     public function pay(string $orderId, SalesChannelContext $context, ?PaymentInstrument $instrument, string $returnUrl): ?string;
 
     /**
-     * Gives the order a new open transaction with the payment method of the context.
-     *
      * @throws \Throwable when Shopware does not allow the order's payment to change any more
      */
     public function changePaymentMethod(string $orderId, SalesChannelContext $context): void;

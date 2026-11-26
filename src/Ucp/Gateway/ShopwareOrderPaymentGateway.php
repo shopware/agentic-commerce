@@ -34,8 +34,11 @@ final class ShopwareOrderPaymentGateway implements OrderPaymentGatewayInterface
         )->getRedirectResponse()?->getTargetUrl();
 
         // With an error URL, Shopware answers a failed payment with a redirect to it instead of throwing.
-        if (null !== $redirectUrl && str_starts_with($redirectUrl, $returnUrl) && str_contains(substr($redirectUrl, \strlen($returnUrl)), 'error-code=')) {
-            throw new PaymentFailedException($redirectUrl);
+        if (null !== $redirectUrl && str_starts_with($redirectUrl, $returnUrl)) {
+            parse_str((string) parse_url($redirectUrl, \PHP_URL_QUERY), $query);
+            if (isset($query['error-code']) && \is_string($query['error-code'])) {
+                throw new PaymentFailedException($query['error-code']);
+            }
         }
 
         return $redirectUrl;

@@ -94,14 +94,36 @@ final class ShopwareOrderPaymentGatewayTest extends TestCase
     }
 
     #[Test]
-    public function testARedirectToTheReturnUrlWithAnErrorCodeIsAFailedPayment(): void
+    public function testARedirectToTheReturnUrlWithAnErrorCodeIsAFailedPaymentNamingTheCode(): void
     {
-        $errorUrl = self::RETURN_URL.'?error-code=CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED';
+        $errorUrl = self::RETURN_URL.'?error-code=CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED&orderId='.self::ORDER_ID;
         $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($errorUrl)));
 
-        $this->expectExceptionObject(new PaymentFailedException($errorUrl));
+        try {
+            $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL);
+            self::fail('An error redirect must fail the payment.');
+        } catch (PaymentFailedException $exception) {
+            self::assertStringContainsString('"CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED"', $exception->getMessage());
+            self::assertStringNotContainsString(self::RETURN_URL, $exception->getMessage());
+        }
+    }
 
-        $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL);
+    #[Test]
+    public function testARedirectToTheReturnUrlWithoutAnErrorCodeIsNotAFailure(): void
+    {
+        $finishUrl = self::RETURN_URL.'?status=done';
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($finishUrl)));
+
+        self::assertSame($finishUrl, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL));
+    }
+
+    #[Test]
+    public function testAnErrorCodeOnAnotherUrlIsAnOrdinaryRedirect(): void
+    {
+        $redirectUrl = self::REDIRECT_URL.'?error-code=SOMETHING';
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($redirectUrl)));
+
+        self::assertSame($redirectUrl, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL));
     }
 
     #[Test]

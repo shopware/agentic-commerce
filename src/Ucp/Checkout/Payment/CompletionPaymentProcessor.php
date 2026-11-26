@@ -53,13 +53,24 @@ final class CompletionPaymentProcessor
 
     /**
      * Pays an order again whose payment failed, with the payment method the applier picks for the new instrument.
-     *
-     * @throws \Throwable when the instrument is refused or the order's payment can no longer change; nothing was charged then
      */
     public function retry(string $orderId, ?PaymentInstrument $instrument, SalesChannelContext $context, RequestContext $requestContext, string $returnUrl): CompletionPaymentResult
     {
         $context = $this->applier->apply($instrument, $context, $requestContext);
-        $this->paymentGateway->changePaymentMethod($orderId, $context);
+
+        try {
+            $this->paymentGateway->changePaymentMethod($orderId, $context);
+        } catch (\Throwable $exception) {
+            // Shopware refuses the change for a payment method without "Allow payment change after checkout".
+            $this->logger?->warning('An order placed through a UCP checkout cannot be paid again: Shopware refused to change its payment.', [
+                'order_id' => $orderId,
+                'payment_method_id' => $context->getPaymentMethod()->getId(),
+                'sales_channel_id' => $context->getSalesChannelId(),
+                'exception' => $exception,
+            ]);
+
+            return CompletionPaymentResult::failed(false);
+        }
 
         return $this->pay($orderId, $context, $instrument, $returnUrl);
     }
