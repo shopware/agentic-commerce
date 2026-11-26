@@ -34,6 +34,8 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\RequestContext;
@@ -74,7 +76,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
         $this->paymentMethodAvailable(true);
         $this->contextService->method('get')->willReturn($this->createMock(SalesChannelContext::class));
 
-        self::assertNull($this->refusal([self::HANDLER_ID], 'ready_for_complete'));
+        self::assertNull($this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete'));
     }
 
     #[Test]
@@ -90,7 +92,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
             'severity' => 'recoverable',
             'code' => 'payment_failed',
             'path' => '$.payment.instruments[0]',
-        ], $this->refusal([self::HANDLER_ID], 'ready_for_complete')?->toArray());
+        ], $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete')?->toArray());
     }
 
     #[Test]
@@ -101,7 +103,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
 
         self::assertSame(
             'The payment handler "com.shopware.invoice" has no payment method that is available to this checkout.',
-            $this->refusal([self::HANDLER_ID], 'ready_for_complete')?->content,
+            $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete')?->content,
         );
     }
 
@@ -111,7 +113,37 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
         $this->handlerRegistry->method('find')->willReturn(null);
         $this->contextService->method('get')->willReturn($this->createMock(SalesChannelContext::class));
 
-        self::assertSame('No payment handler "com.example.unknown" is registered.', $this->refusal(['com.example.unknown'], 'ready_for_complete')?->content);
+        self::assertSame('No payment handler "com.example.unknown" is registered.', $this->refusal(self::instrumentsOf('com.example.unknown'), 'ready_for_complete')?->content);
+    }
+
+    #[Test]
+    public function testTheInstrumentOfTheRequestReachesTheHandler(): void
+    {
+        $instrument = new PaymentInstrument('card', self::HANDLER_ID, ['token' => 'tok_123'], ['address_country' => 'DE'], true);
+        $this->paymentHandler->expects(static::once())->method('prepareInstrument')
+            ->with($instrument, static::isInstanceOf(RequestContext::class))
+            ->willReturn(['paymentMethodId' => self::PAYMENT_METHOD_ID, 'token' => '']);
+        $this->handlerRegistry->method('find')->willReturn($this->paymentHandler);
+        $this->paymentMethodAvailable(true);
+        $this->contextService->method('get')->willReturn($this->createMock(SalesChannelContext::class));
+
+        self::assertNull($this->refusal([$instrument], 'ready_for_complete'));
+    }
+
+    #[Test]
+    public function testAnInstrumentTheHandlerRejectsIsRefusedInsteadOfFailingTheDryRun(): void
+    {
+        $this->paymentHandler->method('prepareInstrument')->willThrowException(new ValidationException('The credential is not accepted.'));
+        $this->handlerRegistry->method('find')->willReturn($this->paymentHandler);
+        $this->contextService->method('get')->willReturn($this->createMock(SalesChannelContext::class));
+
+        self::assertSame([
+            'type' => 'error',
+            'content' => 'The credential is not accepted.',
+            'severity' => 'recoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments[0]',
+        ], $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete')?->toArray());
     }
 
     #[Test]
@@ -129,7 +161,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
             },
         );
 
-        $this->refusal([self::HANDLER_ID], 'ready_for_complete');
+        $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete');
     }
 
     #[Test]
@@ -139,7 +171,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
             throw new \LogicException('The profile must not be built without a runtime configuration.');
         }));
 
-        $refusal = $this->refusal([self::HANDLER_ID], 'ready_for_complete', $gate, new RequestContext('shop.example'));
+        $refusal = $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete', $gate, new RequestContext('shop.example'));
 
         self::assertSame(UcpConfigException::RUNTIME_CONFIGURATION_MISSING, $refusal?->code);
         self::assertSame('unrecoverable', $refusal->severity);
@@ -166,7 +198,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
         }));
         $this->contextService->expects(static::never())->method('get');
 
-        $refusal = $this->refusal($handlerIds, 'ready_for_complete', $gate);
+        $refusal = $this->refusal(self::instrumentsOf(...$handlerIds), 'ready_for_complete', $gate);
 
         self::assertSame([
             'type' => 'error',
@@ -183,7 +215,7 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
         $this->handlerRegistry->expects(static::never())->method('find');
         $this->contextService->expects(static::never())->method('get');
 
-        $refusal = $this->refusal(['com.example.deactivated'], 'ready_for_complete');
+        $refusal = $this->refusal(self::instrumentsOf('com.example.deactivated'), 'ready_for_complete');
 
         self::assertSame('$.payment.instruments[0].handler_id', $refusal?->path);
     }
@@ -204,13 +236,13 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
         $this->handlerRegistry->expects(static::never())->method('find');
         $this->contextService->expects(static::never())->method('get');
 
-        self::assertNull($this->refusal([self::HANDLER_ID], $status));
+        self::assertNull($this->refusal(self::instrumentsOf(self::HANDLER_ID), $status));
     }
 
     /**
-     * @param list<string> $handlerIds
+     * @param list<PaymentInstrument> $instruments
      */
-    private function refusal(array $handlerIds, mixed $status, ?CompletionPaymentGate $gate = null, ?RequestContext $requestContext = null): ?Message
+    private function refusal(array $instruments, mixed $status, ?CompletionPaymentGate $gate = null, ?RequestContext $requestContext = null): ?Message
     {
         $advertisedHandlers = RecordingProfileBuilder::advertising(self::HANDLER_ID, 'com.example.unknown');
 
@@ -223,11 +255,19 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
             new SalesChannelContextResolver($this->domainResolver(), $this->contextService, $this->persister),
             new CheckoutSessionStore($this->persister),
         ))->refusal(
-            $handlerIds,
+            $instruments,
             $status,
             self::CHECKOUT_ID,
             $requestContext ?? new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration('2026-08-25', 'https://shop.example')),
         );
+    }
+
+    /**
+     * @return list<PaymentInstrument>
+     */
+    private static function instrumentsOf(string ...$handlerIds): array
+    {
+        return array_map(static fn (string $handlerId): PaymentInstrument => new PaymentInstrument('tokenized', $handlerId), array_values($handlerIds));
     }
 
     private function handlerOfPaymentMethod(string $paymentMethodId): void

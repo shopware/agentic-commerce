@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Shopware\Core\Framework\Log\Package;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
 /**
  * Guarantees the spec-required payment object on a completion request.
@@ -47,14 +48,13 @@ final class UcpCheckoutCompletionPayment
     }
 
     /**
-     * The `handler_id` of every instrument the completion would carry, read the way the SDK maps
-     * `payment` into `CheckoutCompleteRequest`: the `instruments` list, or the flat single instrument.
+     * Repeats the SDK's mapping of `payment` into `CheckoutCompleteRequest`, because its mapper is `@internal`.
      *
      * @param array<string, mixed> $payload
      *
-     * @return list<string>
+     * @return list<PaymentInstrument>
      */
-    public function handlerIds(array $payload): array
+    public function instruments(array $payload): array
     {
         $payment = $payload['payment'] ?? null;
         if (!\is_array($payment)) {
@@ -62,26 +62,43 @@ final class UcpCheckoutCompletionPayment
         }
 
         if (isset($payment['instruments'])) {
-            $handlerIds = [];
+            $instruments = [];
             foreach (\is_array($payment['instruments']) ? $payment['instruments'] : [] as $instrument) {
                 if (\is_array($instrument)) {
-                    $handlerIds[] = self::handlerId($instrument);
+                    $instruments[] = self::instrument($instrument);
                 }
             }
 
-            return $handlerIds;
+            return $instruments;
         }
 
-        return isset($payment['handler_id']) || isset($payment['type']) ? [self::handlerId($payment)] : [];
+        return isset($payment['handler_id']) || isset($payment['type']) ? [self::instrument($payment)] : [];
     }
 
     /**
-     * @param array<mixed> $instrument
+     * @param array<mixed> $payload
      */
-    private static function handlerId(array $instrument): string
+    private static function instrument(array $payload): PaymentInstrument
     {
-        $handlerId = $instrument['handler_id'] ?? '';
+        return new PaymentInstrument(
+            self::scalarString($payload['type'] ?? 'tokenized'),
+            self::scalarString($payload['handler_id'] ?? ''),
+            self::arrayOrEmpty($payload['credential'] ?? null),
+            self::arrayOrEmpty($payload['billing_address'] ?? null),
+            true === ($payload['selected'] ?? false),
+        );
+    }
 
-        return \is_scalar($handlerId) ? (string) $handlerId : '';
+    private static function scalarString(mixed $value): string
+    {
+        return \is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function arrayOrEmpty(mixed $value): array
+    {
+        return \is_array($value) ? $value : [];
     }
 }

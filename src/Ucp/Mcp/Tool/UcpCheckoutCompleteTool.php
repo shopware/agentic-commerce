@@ -89,7 +89,7 @@ final class UcpCheckoutCompleteTool
         $current = $checkout->jsonSerialize();
         $messages = $current['messages'] ?? [];
         $paymentRefusal = $this->completionPaymentCheck->refusal(
-            $this->completionPayment->handlerIds($requestPayload),
+            $this->completionPayment->instruments($requestPayload),
             $current['status'] ?? null,
             $id,
             $context,

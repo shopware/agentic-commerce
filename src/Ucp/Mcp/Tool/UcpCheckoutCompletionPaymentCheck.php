@@ -14,6 +14,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\RegisteredHandlerPaymentMethodReso
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Enum\CheckoutStatus;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\RequestContext;
@@ -40,16 +41,16 @@ final class UcpCheckoutCompletionPaymentCheck
     /**
      * The dry run never reaches the executor of the SDK, which refuses a completion without exactly one instrument.
      *
-     * @param list<string> $handlerIds
+     * @param list<PaymentInstrument> $instruments
      */
-    public function refusal(array $handlerIds, mixed $status, string $checkoutId, RequestContext $requestContext): ?Message
+    public function refusal(array $instruments, mixed $status, string $checkoutId, RequestContext $requestContext): ?Message
     {
-        if (1 !== \count($handlerIds)) {
+        if (1 !== \count($instruments)) {
             return PaymentFailedMessage::recoverable('Complete Checkout requires exactly one payment instrument.', '$.payment.instruments');
         }
 
         try {
-            $gateRefusal = $this->gate->refusal($handlerIds[0], $requestContext);
+            $gateRefusal = $this->gate->refusal($instruments[0]->handlerId, $requestContext);
         } catch (UcpConfigException $exception) {
             return new Message('error', $exception->getMessage(), 'unrecoverable', $exception->getErrorCode());
         }
@@ -60,8 +61,8 @@ final class UcpCheckoutCompletionPaymentCheck
         }
 
         try {
-            $this->paymentMethodResolver->resolve(new PaymentInstrument('', $handlerIds[0]), $this->checkoutContext($checkoutId, $requestContext), $requestContext);
-        } catch (CompletionPaymentException $exception) {
+            $this->paymentMethodResolver->resolve($instruments[0], $this->checkoutContext($checkoutId, $requestContext), $requestContext);
+        } catch (CompletionPaymentException|ValidationException $exception) {
             return PaymentFailedMessage::recoverable($exception->getMessage());
         }
 
