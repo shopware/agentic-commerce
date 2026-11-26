@@ -2,7 +2,7 @@ name: Release to Store
 
 # A dispatch from main builds, and with `publish` uploads, a Store release. Pushing a tag such as
 # v1.3.1-rc.1 builds a test package instead: the same archive stamped with the tag's version,
-# install-tested on 6.5, 6.6 and trunk, attached to a GitHub pre-release. That path never reaches
+# install-tested on 6.5, 6.6, 6.7 and trunk, attached to a GitHub pre-release. That path never reaches
 # the Store.
 # Both build through package-zip.yml, so the archive that ships has been installed first.
 
