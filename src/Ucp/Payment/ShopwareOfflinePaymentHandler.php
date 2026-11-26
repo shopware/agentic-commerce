@@ -41,6 +41,11 @@ final class ShopwareOfflinePaymentHandler implements PaymentHandlerInterface
         return $this->id;
     }
 
+    public function coreHandlerClass(): string
+    {
+        return $this->coreHandlerClass;
+    }
+
     public function describe(RequestContext $context): PaymentHandlerDescriptor
     {
         $name = substr($this->id, \strlen(self::ID_PREFIX));

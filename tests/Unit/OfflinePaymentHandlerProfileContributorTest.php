@@ -10,13 +10,15 @@ use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\CashPayment;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\InvoicePayment;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\PrePayment;
+use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
+use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsAnyFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\IdSearchResult;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
 use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
@@ -84,15 +86,39 @@ final class OfflinePaymentHandlerProfileContributorTest extends TestCase
     }
 
     #[Test]
-    public function testTheMethodIsLookedUpOnTheSalesChannelOfTheBaseUri(): void
+    public function testTheMethodsOfAllOfflineHandlersAreLookedUpWithOneSearchOnTheSalesChannelOfTheBaseUri(): void
     {
-        $searchedSalesChannelIds = [];
-        $this->contributor(self::OTHER_SALES_CHANNEL_ID, [], $searchedSalesChannelIds)->contribute(
+        $paymentMethodSearchCriteria = [];
+        $this->contributor(self::OTHER_SALES_CHANNEL_ID, [], $paymentMethodSearchCriteria)->contribute(
             $this->profileWith('com.shopware.invoice'),
             new ProfileBuildInput(UcpProtocol::VERSION, self::BASE_URI),
         );
 
-        self::assertSame([self::OTHER_SALES_CHANNEL_ID, self::OTHER_SALES_CHANNEL_ID, self::OTHER_SALES_CHANNEL_ID], $searchedSalesChannelIds);
+        self::assertCount(1, $paymentMethodSearchCriteria);
+        $handlerClassesInFilter = [];
+        $salesChannelIds = [];
+        foreach ($paymentMethodSearchCriteria[0]->getFilters() as $filter) {
+            if ($filter instanceof EqualsAnyFilter && 'handlerIdentifier' === $filter->getField()) {
+                $handlerClassesInFilter = $filter->getValue();
+            }
+            if ($filter instanceof EqualsFilter && 'salesChannels.id' === $filter->getField()) {
+                $salesChannelIds[] = $filter->getValue();
+            }
+        }
+        self::assertSame([InvoicePayment::class, PrePayment::class, CashPayment::class], $handlerClassesInFilter);
+        self::assertSame([self::OTHER_SALES_CHANNEL_ID], $salesChannelIds);
+    }
+
+    #[Test]
+    public function testABaseUriThatResolvesToNoSalesChannelSearchesNoMethod(): void
+    {
+        $paymentMethodSearchCriteria = [];
+        $this->contributor(null, [InvoicePayment::class => self::INVOICE_PAYMENT_METHOD_ID], $paymentMethodSearchCriteria)->contribute(
+            $this->profileWith('com.shopware.invoice'),
+            new ProfileBuildInput(UcpProtocol::VERSION, self::BASE_URI),
+        );
+
+        self::assertSame([], $paymentMethodSearchCriteria);
     }
 
     #[Test]
@@ -118,29 +144,24 @@ final class OfflinePaymentHandlerProfileContributorTest extends TestCase
     /**
      * @param string|null           $resolvedSalesChannelId        the sales channel the base URI resolves to, null when it resolves to none
      * @param array<string, string> $paymentMethodIdByHandlerClass
-     * @param list<string>|null     $searchedSalesChannelIds
+     * @param list<Criteria>|null   $paymentMethodSearchCriteria
      */
-    private function contributor(?string $resolvedSalesChannelId, array $paymentMethodIdByHandlerClass, ?array &$searchedSalesChannelIds = null): OfflinePaymentHandlerProfileContributor
+    private function contributor(?string $resolvedSalesChannelId, array $paymentMethodIdByHandlerClass, ?array &$paymentMethodSearchCriteria = null): OfflinePaymentHandlerProfileContributor
     {
         $paymentMethodRepository = $this->createMock(EntityRepository::class);
-        $paymentMethodRepository->method('searchIds')->willReturnCallback(
-            static function (Criteria $criteria, Context $context) use ($paymentMethodIdByHandlerClass, &$searchedSalesChannelIds): IdSearchResult {
-                $handlerClass = '';
-                foreach ($criteria->getFilters() as $filter) {
-                    if (!$filter instanceof EqualsFilter) {
-                        continue;
-                    }
-                    if ('handlerIdentifier' === $filter->getField()) {
-                        $handlerClass = (string) $filter->getValue();
-                    }
-                    if ('salesChannels.id' === $filter->getField() && null !== $searchedSalesChannelIds) {
-                        $searchedSalesChannelIds[] = $filter->getValue();
-                    }
+        $paymentMethodRepository->method('search')->willReturnCallback(
+            static function (Criteria $criteria, Context $context) use ($paymentMethodIdByHandlerClass, &$paymentMethodSearchCriteria): EntitySearchResult {
+                $paymentMethodSearchCriteria[] = $criteria;
+
+                $paymentMethods = new PaymentMethodCollection();
+                foreach ($paymentMethodIdByHandlerClass as $handlerClass => $paymentMethodId) {
+                    $paymentMethod = new PaymentMethodEntity();
+                    $paymentMethod->setId($paymentMethodId);
+                    $paymentMethod->setHandlerIdentifier($handlerClass);
+                    $paymentMethods->add($paymentMethod);
                 }
 
-                $paymentMethodId = $paymentMethodIdByHandlerClass[$handlerClass] ?? null;
-
-                return new IdSearchResult(null === $paymentMethodId ? 0 : 1, null === $paymentMethodId ? [] : [$paymentMethodId => ['primaryKey' => $paymentMethodId, 'data' => ['id' => $paymentMethodId]]], $criteria, $context);
+                return new EntitySearchResult('payment_method', $paymentMethods->count(), $paymentMethods, null, $criteria, $context);
             },
         );
 
@@ -155,7 +176,7 @@ final class OfflinePaymentHandlerProfileContributorTest extends TestCase
         ]);
         $otherPluginHandler->method('id')->willReturn('com.example.psp');
 
-        return new OfflinePaymentHandlerProfileContributor($handlerRegistry, $this->domainResolver($resolvedSalesChannelId));
+        return new OfflinePaymentHandlerProfileContributor($handlerRegistry, $this->domainResolver($resolvedSalesChannelId), $paymentMethods);
     }
 
     private function domainResolver(?string $salesChannelId): SalesChannelDomainResolver

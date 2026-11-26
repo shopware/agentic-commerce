@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Profile;
 
 use Shopware\Core\Framework\Log\Package;
+use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
 use Swag\AgenticCommerce\Ucp\Payment\ShopwareOfflinePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Ucp\Sdk\Contract\ProfileContributorInterface;
@@ -24,6 +25,7 @@ final class OfflinePaymentHandlerProfileContributor implements ProfileContributo
     public function __construct(
         private readonly PaymentHandlerRegistryInterface $handlerRegistry,
         private readonly SalesChannelDomainResolver $domainResolver,
+        private readonly SalesChannelPaymentMethods $paymentMethods,
     ) {
     }
 
@@ -31,13 +33,21 @@ final class OfflinePaymentHandlerProfileContributor implements ProfileContributo
     {
         $salesChannelId = $this->domainResolver->resolveByBaseUri($input->baseUri)?->salesChannelId;
 
-        $unofferedHandlerIds = [];
+        $offlineHandlers = [];
         foreach ($this->handlerRegistry->all() as $handler) {
-            if (!$handler instanceof ShopwareOfflinePaymentHandler) {
-                continue;
+            if ($handler instanceof ShopwareOfflinePaymentHandler) {
+                $offlineHandlers[] = $handler;
             }
+        }
 
-            if (null === $salesChannelId || null === $handler->paymentMethodId($salesChannelId)) {
+        $paymentMethodIdByHandlerClass = null === $salesChannelId ? [] : $this->paymentMethods->idsByHandlerClass(
+            array_map(static fn (ShopwareOfflinePaymentHandler $handler): string => $handler->coreHandlerClass(), $offlineHandlers),
+            $salesChannelId,
+        );
+
+        $unofferedHandlerIds = [];
+        foreach ($offlineHandlers as $handler) {
+            if (!isset($paymentMethodIdByHandlerClass[$handler->coreHandlerClass()])) {
                 $unofferedHandlerIds[] = $handler->id();
             }
         }
