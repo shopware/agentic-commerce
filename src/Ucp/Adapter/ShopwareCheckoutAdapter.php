@@ -16,7 +16,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutLegalLinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CheckoutPaymentSelector;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
@@ -53,7 +53,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         private readonly ContextTokenGenerator $contextTokenGenerator,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
         private readonly CheckoutLegalLinkBuilder $legalLinkBuilder,
-        private readonly CompletionPaymentGate $completionPaymentGate,
+        private readonly CheckoutPaymentSelector $paymentSelector,
     ) {
     }
 
@@ -63,6 +63,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $token = $cartId ?? $this->contextTokenGenerator->generate();
         $discountCodes = $this->discountCodes($request->discounts);
         [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $cartId, $request, $discountCodes, $context);
+        [$salesChannelContext, $cart, $paymentMessages] = $this->selectPayment($request->payment, $salesChannelContext, $cart, $context);
 
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $request->buyer);
         $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, null, $request->payment);
@@ -75,7 +76,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->openCheckout($cart, $salesChannelContext, $status, $request->buyer, $salesChannelContext->getToken());
+        return $this->openCheckout($cart, $salesChannelContext, $status, $request->buyer, $salesChannelContext->getToken(), $paymentMessages);
     }
 
     /**
@@ -148,6 +149,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $discountCodes,
             $context,
         );
+        [$salesChannelContext, $cart, $paymentMessages] = $this->selectPayment($request->payment, $salesChannelContext, $cart, $context);
 
         $buyer = $request->buyer ?? $this->sessionStore->buyer($sessionMetadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
@@ -163,7 +165,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $request->id);
+        return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $request->id, $paymentMessages);
     }
 
     /**
@@ -173,51 +175,43 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
      */
     public function completeCheckoutFromRequest(CheckoutCompleteRequest $request, RequestContext $context): Checkout
     {
-        return $this->completeCheckoutInternal($request->id, $context, $request->instruments);
+        return $this->completeCheckoutInternal($request->id, $context, $request->selectedInstrument());
     }
 
     public function completeCheckout(string $id, RequestContext $context): Checkout
     {
-        return $this->completeCheckoutInternal($id, $context, []);
+        return $this->completeCheckoutInternal($id, $context, null);
     }
 
-    /**
-     * @param list<PaymentInstrument> $instruments
-     */
-    private function completeCheckoutInternal(string $id, RequestContext $context, array $instruments): Checkout
+    private function completeCheckoutInternal(string $id, RequestContext $context, ?PaymentInstrument $instrument): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         [$completedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
         if (null !== $completedOrderId) {
-            return $this->completePlacedOrder($completedOrderId, $id, $sessionMetadata, $context, $instruments);
+            return $this->completePlacedOrder($completedOrderId, $id, $sessionMetadata, $context, $instrument);
         }
 
         $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        $refusal = $this->paymentRefusal($instruments, $context);
+        $buyer = $this->sessionStore->buyer($sessionMetadata);
+        $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
+
+        $refusal = $this->paymentSelector->refusal($instrument, $context);
         if (null !== $refusal) {
-            return $this->openCheckout(
-                $cart,
-                $salesChannelContext,
-                CheckoutStatus::Incomplete,
-                $this->sessionStore->buyer($sessionMetadata),
-                $id,
-                [$refusal],
-            );
+            return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $id, [$refusal]);
         }
 
-        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $instruments[0])
+        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $status, $instrument)
             ?? $this->getCheckout($id, $context);
     }
 
     /**
      * Replays a checkout whose order is placed, or pays the order again when its payment failed.
      *
-     * @param array<string, mixed>    $sessionMetadata
-     * @param list<PaymentInstrument> $instruments
+     * @param array<string, mixed> $sessionMetadata
      */
-    private function completePlacedOrder(string $orderId, string $checkoutId, array $sessionMetadata, RequestContext $context, array $instruments): Checkout
+    private function completePlacedOrder(string $orderId, string $checkoutId, array $sessionMetadata, RequestContext $context, ?PaymentInstrument $instrument): Checkout
     {
         $salesChannelContext = $this->completedCheckoutContext($sessionMetadata, $context);
         $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
@@ -227,23 +221,31 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, $payment);
         }
 
-        $refusal = $this->paymentRefusal($instruments, $context);
+        $refusal = $this->paymentSelector->refusal($instrument, $context);
         if (null !== $refusal) {
             return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, $payment, [$refusal]);
         }
 
-        return $this->checkoutCompleter->retryPayment($checkoutId, $orderId, $salesChannelContext, $context, $instruments[0]);
+        return $this->checkoutCompleter->retryPayment($checkoutId, $orderId, $salesChannelContext, $context, $instrument);
     }
 
     /**
-     * @param list<PaymentInstrument> $instruments
+     * Makes the cart and totals of an open checkout follow the payment method of the selected instrument.
+     *
+     * @return array{0: SalesChannelContext, 1: Cart, 2: list<Message>} a refused instrument leaves context and cart as they are and adds its refusal
      */
-    private function paymentRefusal(array $instruments, RequestContext $context): ?Message
+    private function selectPayment(?PaymentInstrument $instrument, SalesChannelContext $salesChannelContext, Cart $cart, RequestContext $context): array
     {
-        return $this->completionPaymentGate->refusal(
-            array_map(static fn (PaymentInstrument $instrument): string => $instrument->handlerId, $instruments),
-            $context,
-        );
+        if (null === $instrument) {
+            return [$salesChannelContext, $cart, []];
+        }
+
+        $selected = $this->paymentSelector->select($instrument, $salesChannelContext, $context);
+        if ($selected instanceof Message) {
+            return [$salesChannelContext, $cart, [$selected]];
+        }
+
+        return [$selected, $this->cartGateway->loadCart($selected), []];
     }
 
     /**
@@ -294,15 +296,18 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         SalesChannelContext $salesChannelContext,
         CheckoutStatus $status,
         ?Buyer $buyer,
-        string $continueUrlCheckoutId,
+        string $checkoutId,
         array $messages = [],
     ): Checkout {
+        // The cart is stored under the context token, which differs from the checkout id once a refused completion rotated it.
+        $cart->setToken($checkoutId);
+
         return $this->mapper->toCheckout(
             $cart,
             $salesChannelContext,
             $status,
             $buyer,
-            $this->continueUrlBuilder->build($continueUrlCheckoutId, $salesChannelContext->getSalesChannelId()),
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
             legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
             messages: $messages,
         );

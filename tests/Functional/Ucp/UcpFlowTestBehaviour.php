@@ -84,6 +84,15 @@ trait UcpFlowTestBehaviour
     }
 
     /**
+     * Rebuilds the agent profile from the merchant profile as the sales channel offers it now, for
+     * a test that changes the offered payment methods after {@see configureUcpRuntime()}.
+     */
+    protected function refreshMerchantProfile(): void
+    {
+        static::getContainer()->get(StaticAgentProfileFetcher::class)->setProfile($this->buildMerchantProfile());
+    }
+
+    /**
      * Creates a minimal active storefront product visible in the configured sales channel via the
      * core {@see ProductBuilder} fixture. Returns the product id.
      */

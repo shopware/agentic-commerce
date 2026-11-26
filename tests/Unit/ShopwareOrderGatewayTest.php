@@ -309,10 +309,10 @@ final class ShopwareOrderGatewayTest extends TestCase
 
         self::assertSame($order, $placedOrder);
         self::assertSame(['ucpPaymentInstrument' => [
+            'handlerId' => 'com.example.psp',
             'type' => 'card',
-            'handler_id' => 'com.example.psp',
             'credential' => ['token' => 'tok_1'],
-            'billing_address' => ['postal_code' => '12345'],
+            'billingAddress' => ['postal_code' => '12345'],
         ]], $data);
     }
 

@@ -116,7 +116,6 @@ and `P8` tractable.
 `src/Ucp/Adapter/ShopwareCheckoutAdapter.php:220` (`new Cart($cart->id)`);
 `src/Ucp/Capability/UcpCapabilityCatalog.php:118-124`;
 `src/Ucp/Profile/CapabilityFilteringProfileContributor.php:63-70,96-103`;
-`src/Ucp/Payment/ShopwareInvoicePaymentHandler.php:22-33`;
 `src/Ucp/Admin/SigningKey/UcpSigningKeyService.php:81`. Tests may keep positional construction where
 it reads better, but `src/` should not.
 
@@ -264,14 +263,11 @@ We reach deep into that JSON by string path:
 `$fulfillment->extra` and walks `fulfillment.methods[].destinations[]`);
 `src/Ucp/Customer/GuestCustomerAddressResolver.php:31,36,42,47,78`;
 `src/Ucp/Adapter/ShopwareCheckoutAdapter.php:62,158` (passes `$request->fulfillment` in);
-`src/Ucp/Payment/ShopwareInvoicePaymentHandler.php:39`
-(`$instrument->credential['payment_method_id']` — check against the credential split);
 `src/Ucp/Capability/CheckoutCapability.php` config map (the `allows_` flags);
 `tests/Unit/CheckoutGuestAddressPayloadResolverTest.php`.
 
 **Acceptance.** A `2026-08-25`-shaped fulfillment payload with explicit destination types resolves a
-guest address correctly; an array-shaped `multi_destination` is handled; the invoice handler still
-resolves its payment method under the split credential types.
+guest address correctly; an array-shaped `multi_destination` is handled.
 
 **Effort.** M · **Depends on.** SDK `T19`, `P2`
 
@@ -281,18 +277,14 @@ resolves its payment method under the split credential types.
 versions and adds `requires` range intersection. Any descriptor whose version drifts from the
 negotiated protocol version starts being **excluded** rather than silently accepted.
 
-We publish `UcpProtocol::VERSION` on most descriptors but **hardcode `'2026-04-08'`** at
-`src/Ucp/Payment/ShopwareInvoicePaymentHandler.php:25` instead of using the constant. Fix that here
-so `P10` has one fewer site.
-
 **Also relevant.** `SwagAgenticCommerce::install()`/`update()` call
 `SchemaBootstrapper::ensureSchema()` (`src/SwagAgenticCommerce.php:135-144`), and SDK `T20` adds a
 column to the negotiation-session table. Verify the SDK's schema bootstrap is additive and
 idempotent, or plugin updates break on existing installs.
 
-**Files.** `src/Ucp/Payment/ShopwareInvoicePaymentHandler.php:25`;
-`tests/Functional/Ucp/UcpCartFlowTest.php`, `UcpCatalogFlowTest.php`, `UcpCheckoutFlowTest.php`,
-`UcpFlowTestBehaviour.php`; `tests/Integration/` for the schema-update path.
+**Files.** `tests/Functional/Ucp/UcpCartFlowTest.php`, `UcpCatalogFlowTest.php`,
+`UcpCheckoutFlowTest.php`, `UcpFlowTestBehaviour.php`; `tests/Integration/` for the schema-update
+path.
 
 **Acceptance.** The functional UCP flow tests still negotiate every capability we publish. A plugin
 `update()` against an existing install adds the new column without error.
@@ -301,7 +293,7 @@ idempotent, or plugin updates break on existing installs.
 
 ## P10 — `feat!: bump the plugin to UCP 2026-08-25`
 
-**Why.** SDK `T21` flips the active protocol version. We carry the version in **five independent
+**Why.** SDK `T21` flips the active protocol version. We carry the version in **four independent
 source locations plus a build artifact**, and one test reads SDK internals off disk.
 
 **Files.**
@@ -309,8 +301,6 @@ source locations plus a build artifact**, and one test reads SDK internals off d
 - `src/Ucp/UcpProtocol.php:10` — `public const VERSION` , the canonical constant
 - `src/Resources/config/services.php:160` — the `ucp_sdk` extension config
 - `src/Resources/config/packages/ucp_sdk.yaml:2` — the duplicate (resolve via `P16` first)
-- `src/Ucp/Payment/ShopwareInvoicePaymentHandler.php:25` — a hardcoded literal that should be
-  `UcpProtocol::VERSION` (fixed in `P9`)
 - `src/Resources/app/administration/src/extension/sw-sales-channel/agentic-commerce/ucp-protocol.js:1`
   — `export const UCP_VERSION`
 - `src/Resources/public/static/js/*.js` — the compiled admin bundle carries
@@ -366,7 +356,7 @@ is not** — the SDK has shipped the seam since 0.0.3.
 (`completeCheckoutFromRequest(CheckoutCompleteRequest, RequestContext)`);
 `src/Ucp/Adapter/ShopwareCheckoutAdapter.php` — implement
 `Ucp\Sdk\Adapter\PaymentAwareCheckoutAdapterInterface`; `src/Ucp/Checkout/CheckoutCompleter.php`;
-`src/Ucp/Payment/ShopwareInvoicePaymentHandler.php`; `src/Resources/config/services.php:263-270`
+`src/Ucp/Payment/ShopwareOfflinePaymentHandler.php`; `src/Resources/config/services.php:263-270`
 aliases.
 
 **Note.** Because we hand-write the capability rather than using `AdapterBackedCheckoutCapability`,

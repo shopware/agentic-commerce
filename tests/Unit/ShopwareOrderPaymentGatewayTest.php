@@ -14,7 +14,7 @@ use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractHandlePaymentMethodRoute;
 use Shopware\Core\Checkout\Payment\SalesChannel\HandlePaymentMethodRouteResponse;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedException;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareOrderPaymentGateway;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,7 +26,8 @@ final class ShopwareOrderPaymentGatewayTest extends TestCase
 {
     private const ORDER_ID = '00000000000000000000000000000001';
     private const PAYMENT_METHOD_ID = '00000000000000000000000000000002';
-    private const RETURN_URL = 'https://shop.example/account/order/deep-link-code';
+    private const FINISH_URL = 'https://shop.example/account/order/deep-link-code';
+    private const CONTINUE_URL = 'https://shop.example/ucp/checkout/continue/checkout-1';
     private const REDIRECT_URL = 'https://psp.example/pay/1';
 
     private AbstractHandlePaymentMethodRoute&MockObject $handlePaymentRoute;
@@ -60,19 +61,20 @@ final class ShopwareOrderPaymentGatewayTest extends TestCase
             self::ORDER_ID,
             $context,
             new PaymentInstrument('card', 'com.example.psp', ['token' => 'tok_1'], ['postal_code' => '12345']),
-            self::RETURN_URL,
+            self::FINISH_URL,
+            self::CONTINUE_URL,
         );
 
         self::assertInstanceOf(Request::class, $request);
         self::assertSame([
             'orderId' => self::ORDER_ID,
-            'finishUrl' => self::RETURN_URL,
-            'errorUrl' => self::RETURN_URL,
+            'finishUrl' => self::FINISH_URL,
+            'errorUrl' => self::CONTINUE_URL,
             'ucpPaymentInstrument' => [
+                'handlerId' => 'com.example.psp',
                 'type' => 'card',
-                'handler_id' => 'com.example.psp',
                 'credential' => ['token' => 'tok_1'],
-                'billing_address' => ['postal_code' => '12345'],
+                'billingAddress' => ['postal_code' => '12345'],
             ],
         ], $request->request->all());
     }
@@ -82,7 +84,7 @@ final class ShopwareOrderPaymentGatewayTest extends TestCase
     {
         $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(null));
 
-        self::assertNull($this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL));
+        self::assertNull($this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::FINISH_URL));
     }
 
     #[Test]
@@ -90,31 +92,61 @@ final class ShopwareOrderPaymentGatewayTest extends TestCase
     {
         $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse(self::REDIRECT_URL)));
 
-        self::assertSame(self::REDIRECT_URL, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL));
+        self::assertSame(self::REDIRECT_URL, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::FINISH_URL));
     }
 
     #[Test]
-    public function testARedirectToTheReturnUrlWithAnErrorCodeIsAFailedPaymentNamingTheCode(): void
+    public function testARedirectToTheSharedReturnUrlWithAnErrorCodeIsAFailedPaymentNamingTheCode(): void
     {
-        $errorUrl = self::RETURN_URL.'?error-code=CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED&orderId='.self::ORDER_ID;
-        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($errorUrl)));
+        $errorRedirectUrl = self::FINISH_URL.'?error-code=CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED&orderId='.self::ORDER_ID;
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($errorRedirectUrl)));
 
         try {
-            $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL);
+            $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::FINISH_URL);
             self::fail('An error redirect must fail the payment.');
-        } catch (PaymentFailedException $exception) {
+        } catch (CompletionPaymentException $exception) {
+            self::assertSame(CompletionPaymentException::PAYMENT_FAILED, $exception->getErrorCode());
             self::assertStringContainsString('"CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED"', $exception->getMessage());
-            self::assertStringNotContainsString(self::RETURN_URL, $exception->getMessage());
+            self::assertStringNotContainsString(self::FINISH_URL, $exception->getMessage());
         }
     }
 
     #[Test]
-    public function testARedirectToTheReturnUrlWithoutAnErrorCodeIsNotAFailure(): void
+    public function testARedirectToTheSharedReturnUrlWithoutAnErrorCodeIsNotAFailure(): void
     {
-        $finishUrl = self::RETURN_URL.'?status=done';
-        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($finishUrl)));
+        $finishRedirectUrl = self::FINISH_URL.'?status=done';
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($finishRedirectUrl)));
 
-        self::assertSame($finishUrl, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL));
+        self::assertSame($finishRedirectUrl, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::FINISH_URL));
+    }
+
+    #[Test]
+    public function testARedirectToTheErrorUrlIsAFailureWhenItDiffersFromTheFinishUrl(): void
+    {
+        $errorRedirectUrl = self::CONTINUE_URL.'?error-code=CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED';
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($errorRedirectUrl)));
+
+        $this->expectExceptionObject(CompletionPaymentException::paymentFailed('CHECKOUT__ASYNC_PAYMENT_PROCESS_INTERRUPTED'));
+
+        $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::CONTINUE_URL);
+    }
+
+    #[Test]
+    public function testARedirectToTheErrorUrlWithoutAnErrorCodeIsStillAFailureWhenItDiffersFromTheFinishUrl(): void
+    {
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse(self::CONTINUE_URL)));
+
+        $this->expectExceptionObject(CompletionPaymentException::paymentFailed(''));
+
+        $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::CONTINUE_URL);
+    }
+
+    #[Test]
+    public function testARedirectToTheFinishUrlIsNotAFailureWhenItDiffersFromTheErrorUrl(): void
+    {
+        $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse(self::FINISH_URL)));
+
+        self::assertSame(self::FINISH_URL, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::CONTINUE_URL));
     }
 
     #[Test]
@@ -123,7 +155,7 @@ final class ShopwareOrderPaymentGatewayTest extends TestCase
         $redirectUrl = self::REDIRECT_URL.'?error-code=SOMETHING';
         $this->handlePaymentRoute->method('load')->willReturn(new HandlePaymentMethodRouteResponse(new RedirectResponse($redirectUrl)));
 
-        self::assertSame($redirectUrl, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::RETURN_URL));
+        self::assertSame($redirectUrl, $this->gateway->pay(self::ORDER_ID, $this->salesChannelContext(), null, self::FINISH_URL, self::FINISH_URL));
     }
 
     #[Test]

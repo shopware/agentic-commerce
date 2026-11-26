@@ -364,7 +364,7 @@ final class ShopwareCartGateway
         throw new ResourceNotFoundException(\sprintf('Cart "%s" was not found.', $token));
     }
 
-    private function loadCart(\Shopware\Core\System\SalesChannel\SalesChannelContext $context): \Shopware\Core\Checkout\Cart\Cart
+    public function loadCart(\Shopware\Core\System\SalesChannel\SalesChannelContext $context): \Shopware\Core\Checkout\Cart\Cart
     {
         return $this->cartLoadRoute->load(new Request(['token' => $context->getToken()]), $context)->getCart();
     }

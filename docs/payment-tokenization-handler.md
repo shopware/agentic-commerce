@@ -1,8 +1,8 @@
 # Payment Tokenization Handler Guide
 
 `SwagAgenticCommerce` intentionally does not ship a fake payment tokenizer. The bundled
-`ShopwareInvoicePaymentHandler` describes an offline invoice-style payment flow and returns
-`supportsTokenization() === false`.
+`ShopwareOfflinePaymentHandler` describes Shopware's offline payment methods (invoice, prepayment
+and cash on delivery) and returns `supportsTokenization() === false`.
 
 Real UCP payment tokenization must be implemented by a PSP/payment plugin that can safely exchange
 payment credentials for a reusable PSP token.

@@ -22,8 +22,13 @@ use Shopware\Core\Checkout\Order\SalesChannel\AbstractOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\AbstractSetPaymentOrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderRoute;
 use Shopware\Core\Checkout\Order\SalesChannel\SetPaymentOrderRoute;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\CashPayment;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\InvoicePayment;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\PrePayment;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractHandlePaymentMethodRoute;
+use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
 use Shopware\Core\Checkout\Payment\SalesChannel\HandlePaymentMethodRoute;
+use Shopware\Core\Checkout\Payment\SalesChannel\PaymentMethodRoute;
 use Shopware\Core\Content\Media\MediaService;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductListRoute;
 use Shopware\Core\Content\Product\SalesChannel\Detail\AbstractProductDetailRoute;
@@ -38,6 +43,8 @@ use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
 use Shopware\Core\System\Country\SalesChannel\CountryRoute;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
+use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
+use Shopware\Core\System\SalesChannel\SalesChannel\ContextSwitchRoute;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Shopware\Core\System\SystemConfig\Util\ConfigReader;
 use Swag\AgenticCommerce\AgenticFiles\AgenticFilesCoreBridgeInterface;
@@ -115,9 +122,10 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManagerInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\DoctrineDbalCheckoutCompletionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\AdvertisedPaymentHandlers;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\UnappliedCompletionPayment;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\RegisteredHandlerCompletionPayment;
 use Swag\AgenticCommerce\Ucp\Config\DoctrineDbalUcpConfigRepository;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\ShopwareRuntimeConfigurationResolver;
@@ -157,8 +165,10 @@ use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutGetTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutUpdateTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpDiscountApplyTool;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpOrderGetTool;
+use Swag\AgenticCommerce\Ucp\Negotiation\AdvertisedPaymentHandlerNegotiator;
 use Swag\AgenticCommerce\Ucp\Negotiation\VersionNegotiationCounter;
-use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
+use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
+use Swag\AgenticCommerce\Ucp\Payment\ShopwareOfflinePaymentHandler;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolverCacheInvalidator;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
@@ -188,6 +198,7 @@ use Ucp\Sdk\Contract\DiscountCapabilityInterface;
 use Ucp\Sdk\Contract\IdentityLinkingCapabilityInterface;
 use Ucp\Sdk\Contract\OrderCapabilityInterface;
 use Ucp\Sdk\Contract\TokenizationCapabilityInterface;
+use Ucp\Sdk\Service\CapabilityNegotiatorInterface;
 use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 use Ucp\Sdk\Service\ProfileBuilderInterface;
 use Ucp\Sdk\Service\ResponseSignatureServiceInterface;
@@ -259,6 +270,8 @@ return static function (ContainerConfigurator $container): void {
             __DIR__.'/../../Content/ProductExport/AgenticProductExportDefinition.php',
             // Registered by UpdateProtectionServices, which also runs while the SDK is unusable.
             __DIR__.'/../../UpdateProtection',
+            // Registered below once per offline payment method.
+            __DIR__.'/../../Ucp/Payment/ShopwareOfflinePaymentHandler.php',
         ]);
 
     // DAL repositories are bound by service id, not type — named args required.
@@ -327,6 +340,8 @@ return static function (ContainerConfigurator $container): void {
     $services->alias(AbstractOrderRoute::class, OrderRoute::class);
     $services->alias(AbstractHandlePaymentMethodRoute::class, HandlePaymentMethodRoute::class);
     $services->alias(AbstractSetPaymentOrderRoute::class, SetPaymentOrderRoute::class);
+    $services->alias(AbstractPaymentMethodRoute::class, PaymentMethodRoute::class);
+    $services->alias(AbstractContextSwitchRoute::class, ContextSwitchRoute::class);
     $services->alias(AbstractCountryRoute::class, CountryRoute::class);
     $services->alias(AbstractProductSearchRoute::class, ProductSearchRoute::class);
     $services->alias(AbstractProductDetailRoute::class, ProductDetailRoute::class);
@@ -345,21 +360,27 @@ return static function (ContainerConfigurator $container): void {
     $services->set(CheckoutWebhookUrlGuard::class)
         ->arg('$allowHttpLocalWebhookOverride', $allowHttpLocalWebhookOverride);
 
-    // Reached only for an instrument naming a handler the profile advertises. Until something is
-    // registered under this interface the order is placed with the sales channel default payment
-    // method. Replacing it is the whole integration: alias your own service here and the
-    // instrument reaches it. See docs/completion-payment.md.
-    $services->set(UnappliedCompletionPayment::class)
-        ->arg('$logger', service('logger')->nullOnInvalid());
-    $services->alias(AbstractCompletionPaymentApplier::class, UnappliedCompletionPayment::class);
+    // Reached only for an instrument naming a handler the profile advertises. Replacing it is the
+    // whole integration: alias your own service here and the instrument reaches it.
+    // See docs/completion-payment.md.
+    $services->alias(AbstractCompletionPaymentApplier::class, RegisteredHandlerCompletionPayment::class);
 
     $services->set(CompletionPaymentProcessor::class)
         ->arg('$logger', service('logger')->nullOnInvalid());
 
-    // Lazy, as a direct reference recurses without end: profile builder, capability registry, checkout capability, adapter, this gate.
+    // Lazy, as a direct reference recurses without end: profile builder, capability registry, checkout capability, adapter, the gate.
+    $services->set(AdvertisedPaymentHandlers::class)
+        ->arg('$profileBuilder', service_closure(ProfileBuilderInterface::class));
+
     $services->set(CompletionPaymentGate::class)
-        ->arg('$profileBuilder', service_closure(ProfileBuilderInterface::class))
         ->arg('$logger', service('logger')->nullOnInvalid());
+
+    $services->set(AdvertisedPaymentHandlerNegotiator::class)
+        ->decorate(CapabilityNegotiatorInterface::class)
+        ->arg('$inner', service('.inner'));
+
+    $services->set(SalesChannelPaymentMethods::class)
+        ->arg('$paymentMethodRepository', service('payment_method.repository'));
 
     $services->alias(CatalogAdapterInterface::class, ShopwareCatalogAdapter::class);
     $services->alias(CartAdapterInterface::class, ShopwareCartAdapter::class);
@@ -393,8 +414,17 @@ return static function (ContainerConfigurator $container): void {
     $services->set(ShopwareIdentityLinkingAdapter::class)
         ->tag('ucp_sdk.adapter.identity_linking');
 
-    $services->set(ShopwareInvoicePaymentHandler::class)
-        ->tag('ucp_sdk.payment_handler');
+    // One handler per offline payment method of core, each resolving to the method of the sales channel.
+    foreach ([
+        ShopwareOfflinePaymentHandler::INVOICE_ID => InvoicePayment::class,
+        ShopwareOfflinePaymentHandler::PREPAYMENT_ID => PrePayment::class,
+        ShopwareOfflinePaymentHandler::CASH_ON_DELIVERY_ID => CashPayment::class,
+    ] as $handlerId => $coreHandlerClass) {
+        $services->set('swag_agentic_commerce.ucp.payment_handler.'.$handlerId, ShopwareOfflinePaymentHandler::class)
+            ->arg('$id', $handlerId)
+            ->arg('$coreHandlerClass', $coreHandlerClass)
+            ->tag('ucp_sdk.payment_handler');
+    }
 
     // Scheduled tasks.
     $services->set(CleanupExpiredOAuthTokensTask::class)

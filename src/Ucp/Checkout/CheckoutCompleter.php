@@ -9,18 +9,22 @@ use Shopware\Core\Checkout\Cart\CartException;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedMessage;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Customer\GuestCustomerContextProvisionerInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\LockInterface;
+use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\Checkout;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
+use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
@@ -57,6 +61,7 @@ final class CheckoutCompleter
         Cart $cart,
         SalesChannelContext $salesChannelContext,
         RequestContext $requestContext,
+        CheckoutStatus $statusBeforeCompletion,
         ?PaymentInstrument $paymentInstrument = null,
     ): ?Checkout {
         $salesChannelId = $salesChannelContext->getSalesChannelId();
@@ -92,11 +97,15 @@ final class CheckoutCompleter
                 $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
             }
 
-            $customerContext = $this->completionPayment->apply(
-                $paymentInstrument,
-                $customerContext,
-                $requestContext,
-            );
+            try {
+                $customerContext = $this->completionPayment->apply(
+                    $paymentInstrument,
+                    $customerContext,
+                    $requestContext,
+                );
+            } catch (CompletionPaymentException|ValidationException $exception) {
+                return $this->refusedCheckout($checkoutId, $cart, $customerContext, $buyer, $metadata, $statusBeforeCompletion, $exception);
+            }
 
             [$order, $payment] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
             $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
@@ -107,7 +116,13 @@ final class CheckoutCompleter
             $this->completionStore->complete($checkoutId, $order->getId());
 
             if (null === $payment) {
-                $payment = $this->completionPayment->pay($order->getId(), $customerContext, $paymentInstrument, $permalinkUrl);
+                $payment = $this->completionPayment->pay(
+                    $order->getId(),
+                    $customerContext,
+                    $paymentInstrument,
+                    $permalinkUrl,
+                    $this->errorUrl($checkoutId, $customerContext, $permalinkUrl),
+                );
                 $this->saveSession($checkoutId, $customerContext, $buyer, $order, $payment);
             }
 
@@ -144,7 +159,19 @@ final class CheckoutCompleter
             $payment = CompletionPaymentResult::ofPlacedOrder($metadata, $order);
 
             if ($payment->canBePaidAgain()) {
-                $payment = $this->completionPayment->retry($orderId, $paymentInstrument, $salesChannelContext, $requestContext, $permalinkUrl);
+                try {
+                    $payment = $this->completionPayment->retry(
+                        $orderId,
+                        $paymentInstrument,
+                        $salesChannelContext,
+                        $requestContext,
+                        $permalinkUrl,
+                        $this->errorUrl($checkoutId, $salesChannelContext, $permalinkUrl),
+                    );
+                } catch (CompletionPaymentException|ValidationException $exception) {
+                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $payment, [PaymentFailedMessage::recoverable($exception->getMessage())]);
+                }
+
                 $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $payment);
             }
 
@@ -199,7 +226,10 @@ final class CheckoutCompleter
         );
     }
 
-    private function placedCheckout(string $checkoutId, OrderEntity $order, SalesChannelContext $context, string $permalinkUrl, CompletionPaymentResult $payment): Checkout
+    /**
+     * @param list<Message>|null $messages
+     */
+    private function placedCheckout(string $checkoutId, OrderEntity $order, SalesChannelContext $context, string $permalinkUrl, CompletionPaymentResult $payment, ?array $messages = null): Checkout
     {
         return $this->mapper->toCompletedCheckout(
             $order,
@@ -209,6 +239,39 @@ final class CheckoutCompleter
             orderPermalinkUrl: $permalinkUrl,
             legalLinks: $this->legalLinkBuilder->build($context),
             payment: $payment,
+            messages: $messages,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function refusedCheckout(string $checkoutId, Cart $cart, SalesChannelContext $context, ?Buyer $buyer, array $metadata, CheckoutStatus $status, CompletionPaymentException|ValidationException $exception): Checkout
+    {
+        // Registering the guest rotated the context token and moved the cart with it, so the session has to follow.
+        $this->sessionManager->saveForCheckoutId(
+            $checkoutId,
+            $context,
+            $status->value,
+            $buyer,
+            guestAddress: $this->sessionManager->guestAddress($metadata),
+            guestShippingAddress: $this->sessionManager->guestShippingAddress($metadata),
+        );
+        $cart->setToken($checkoutId);
+
+        return $this->mapper->toCheckout(
+            $cart,
+            $context,
+            $status,
+            $buyer,
+            $this->continueUrlBuilder->build($checkoutId, $context->getSalesChannelId()),
+            legalLinks: $this->legalLinkBuilder->build($context),
+            messages: [PaymentFailedMessage::recoverable($exception->getMessage())],
+        );
+    }
+
+    private function errorUrl(string $checkoutId, SalesChannelContext $context, string $permalinkUrl): string
+    {
+        return $this->continueUrlBuilder->build($checkoutId, $context->getSalesChannelId()) ?? $permalinkUrl;
     }
 }

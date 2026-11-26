@@ -8,7 +8,7 @@ use Shopware\Core\Checkout\Order\SalesChannel\AbstractSetPaymentOrderRoute;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractHandlePaymentMethodRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedException;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 
@@ -21,23 +21,26 @@ final class ShopwareOrderPaymentGateway implements OrderPaymentGatewayInterface
     ) {
     }
 
-    public function pay(string $orderId, SalesChannelContext $context, ?PaymentInstrument $instrument, string $returnUrl): ?string
+    public function pay(string $orderId, SalesChannelContext $context, ?PaymentInstrument $instrument, string $finishUrl, string $errorUrl): ?string
     {
         $redirectUrl = $this->handlePaymentRoute->load(
             new Request([], [
                 'orderId' => $orderId,
-                'finishUrl' => $returnUrl,
-                'errorUrl' => $returnUrl,
+                'finishUrl' => $finishUrl,
+                'errorUrl' => $errorUrl,
                 ...self::instrumentData($instrument),
             ]),
             $context,
         )->getRedirectResponse()?->getTargetUrl();
 
         // With an error URL, Shopware answers a failed payment with a redirect to it instead of throwing.
-        if (null !== $redirectUrl && str_starts_with($redirectUrl, $returnUrl)) {
+        if (null !== $redirectUrl && str_starts_with($redirectUrl, $errorUrl)) {
             parse_str((string) parse_url($redirectUrl, \PHP_URL_QUERY), $query);
-            if (isset($query['error-code']) && \is_string($query['error-code'])) {
-                throw new PaymentFailedException($query['error-code']);
+            $errorCode = $query['error-code'] ?? null;
+
+            // With one URL for both outcomes, only the error code tells a failure from a success.
+            if ($finishUrl !== $errorUrl || \is_string($errorCode)) {
+                throw CompletionPaymentException::paymentFailed(\is_string($errorCode) ? $errorCode : '');
             }
         }
 
@@ -65,10 +68,10 @@ final class ShopwareOrderPaymentGateway implements OrderPaymentGatewayInterface
         }
 
         return [AbstractCompletionPaymentApplier::REQUEST_KEY => [
+            'handlerId' => $instrument->handlerId,
             'type' => $instrument->type,
-            'handler_id' => $instrument->handlerId,
             'credential' => $instrument->credential,
-            'billing_address' => $instrument->billingAddress,
+            'billingAddress' => $instrument->billingAddress,
         ]];
     }
 }

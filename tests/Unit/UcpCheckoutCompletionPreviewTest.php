@@ -7,14 +7,10 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
-use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompletionPreview;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Message;
-use Ucp\Sdk\Model\Config\RuntimeConfiguration;
-use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
 final class UcpCheckoutCompletionPreviewTest extends TestCase
@@ -109,46 +105,6 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
             ['Checkout is incomplete: finish it with update_checkout before completing.'],
             (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $messages),
         );
-    }
-
-    #[Test]
-    public function testAMissingRuntimeConfigurationIsReportedAsAPaymentBlockerInsteadOfFailingThePreview(): void
-    {
-        $preview = new UcpCheckoutCompletionPreview();
-        $gate = new CompletionPaymentGate(static function (): never {
-            throw new \LogicException('The profile must not be built without a runtime configuration.');
-        });
-
-        $refusal = $preview->paymentRefusal($gate, ['com.shopware.invoice'], new RequestContext('shop.example'));
-
-        self::assertNotNull($refusal);
-        self::assertSame(UcpConfigException::RUNTIME_CONFIGURATION_MISSING, $refusal->code);
-        self::assertSame(
-            [$refusal->content],
-            $preview->blockers('ready_for_complete', $refusal),
-        );
-    }
-
-    #[Test]
-    public function testAGateRefusalIsPassedThroughAsItIs(): void
-    {
-        $gate = new CompletionPaymentGate(static function (): never {
-            throw new \LogicException('The profile must not be built for a wrong instrument count.');
-        });
-
-        $refusal = (new UcpCheckoutCompletionPreview())->paymentRefusal($gate, [], new RequestContext('shop.example'));
-
-        self::assertSame('payment_failed', $refusal?->code);
-    }
-
-    #[Test]
-    public function testNoPaymentRefusalWhenTheGateLetsTheCompletionGo(): void
-    {
-        $profileBuilder = RecordingProfileBuilder::advertising('com.shopware.invoice');
-        $gate = new CompletionPaymentGate(static fn (): RecordingProfileBuilder => $profileBuilder);
-        $context = new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration('2026-08-25', 'https://shop.example'));
-
-        self::assertNull((new UcpCheckoutCompletionPreview())->paymentRefusal($gate, ['com.shopware.invoice'], $context));
     }
 
     #[Test]

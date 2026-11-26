@@ -7,7 +7,12 @@ namespace Swag\AgenticCommerce\Tests\Functional\Ucp;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\CashPayment;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\InvoicePayment;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\PrePayment;
 use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineTransition\StateMachineTransitionActions;
 use Shopware\Core\System\StateMachine\StateMachineRegistry;
@@ -15,6 +20,8 @@ use Shopware\Core\System\StateMachine\Transition;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Shopware\Core\Test\TestDefaults;
 use Symfony\Component\HttpFoundation\Response;
+use Ucp\Sdk\Model\Http\HttpRequest;
+use Ucp\Sdk\Service\HttpRequestContextFactoryInterface;
 
 /**
  * Drives the UCP checkout capability end to end through the booted kernel against a seeded
@@ -101,6 +108,61 @@ final class UcpCheckoutFlowTest extends TestCase
     }
 
     #[Test]
+    public function testCompletingWithTheInvoiceHandlerPlacesTheOrderWithTheInvoiceMethodWhileTheChannelDefaultIsAnother(): void
+    {
+        $this->configureUcpRuntime();
+        $paymentMethodIdByHandlerClass = $this->offerPaymentMethods(CashPayment::class, InvoicePayment::class);
+        $this->refreshMerchantProfile();
+
+        $completedCheckout = $this->completeCheckoutWith('Invoice Album', 'UCP-IT-INVOICE', self::INVOICE_HANDLER_ID);
+
+        self::assertSame('completed', $completedCheckout['status']);
+        self::assertSame(
+            [$paymentMethodIdByHandlerClass[InvoicePayment::class]],
+            $this->orderPaymentMethodIds($completedCheckout['order']['id']),
+            'Expected the order to carry the payment method of the handler the agent named, not the channel default.',
+        );
+        self::assertNotSame($paymentMethodIdByHandlerClass[CashPayment::class], $paymentMethodIdByHandlerClass[InvoicePayment::class]);
+    }
+
+    #[Test]
+    public function testAHandlerWhoseMethodTheSalesChannelDoesNotOfferIsAbsentFromTheProfileAndRefused(): void
+    {
+        $this->configureUcpRuntime();
+        $this->offerPaymentMethods(CashPayment::class, InvoicePayment::class);
+        $this->refreshMerchantProfile();
+        $this->offerPaymentMethods(CashPayment::class);
+
+        $profileResponse = $this->ucpRequest('GET', '/.well-known/ucp');
+        self::assertSame(Response::HTTP_OK, $profileResponse->getStatusCode(), (string) $profileResponse->getContent());
+        $advertisedHandlerNames = array_keys($this->decode($profileResponse)['ucp']['payment_handlers'] ?? []);
+        self::assertNotContains(self::INVOICE_HANDLER_ID, $advertisedHandlerNames);
+        self::assertContains('com.shopware.cash_on_delivery', $advertisedHandlerNames);
+
+        $this->assertCompletionIsRefusedWithoutPlacingAnOrder(['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => self::INVOICE_HANDLER_ID]]], false);
+    }
+
+    #[Test]
+    public function testNegotiationKeepsOnlyTheHandlersTheProfileAdvertises(): void
+    {
+        $this->configureUcpRuntime();
+        $this->offerPaymentMethods(CashPayment::class, InvoicePayment::class);
+        $this->refreshMerchantProfile();
+        $this->offerPaymentMethods(CashPayment::class);
+
+        $context = static::getContainer()->get(HttpRequestContextFactoryInterface::class)->create(new HttpRequest(
+            'GET',
+            $this->ucpDomain.'/ucp/v1/checkout-sessions/any-checkout',
+            ['UCP-Agent' => \sprintf('platform; profile="%s/.well-known/ucp"', $this->ucpDomain)],
+        ));
+
+        self::assertNotNull($context->negotiation);
+        self::assertContains('com.shopware.cash_on_delivery', $context->negotiation->paymentHandlerIds);
+        self::assertNotContains(self::INVOICE_HANDLER_ID, $context->negotiation->paymentHandlerIds);
+        self::assertArrayNotHasKey(self::INVOICE_HANDLER_ID, $context->negotiation->paymentHandlers);
+    }
+
+    #[Test]
     public function testCompletionWithoutAnInstrumentIsRefusedWithoutPlacingAnOrder(): void
     {
         $this->assertCompletionIsRefusedWithoutPlacingAnOrder([]);
@@ -118,9 +180,12 @@ final class UcpCheckoutFlowTest extends TestCase
      *
      * @param array<string, mixed> $payment
      */
-    private function assertCompletionIsRefusedWithoutPlacingAnOrder(array $payment): void
+    private function assertCompletionIsRefusedWithoutPlacingAnOrder(array $payment, bool $configuresRuntime = true): void
     {
-        $this->configureUcpRuntime();
+        if ($configuresRuntime) {
+            $this->configureUcpRuntime();
+        }
+
         $productId = $this->seedStorefrontProduct('Refused Album', 'UCP-IT-REFUSED');
         $buyerEmail = 'refused-completion@example.com';
         $fulfillment = ['type' => 'shipping', 'extra' => ['shipping_address' => ['street' => 'Kernel Street 1', 'zipcode' => '12345', 'city' => 'Berlin', 'country_code' => 'DE']]];
@@ -137,7 +202,7 @@ final class UcpCheckoutFlowTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $complete->getStatusCode(), (string) $complete->getContent());
         $refused = $this->decode($complete);
-        self::assertSame('incomplete', $refused['status']);
+        self::assertSame('ready_for_complete', $refused['status'], 'A refusal keeps the status the checkout had');
         self::assertArrayNotHasKey('order', $refused);
         $paymentFailedMessages = array_values(array_filter($refused['messages'] ?? [], static fn (array $message): bool => 'payment_failed' === ($message['code'] ?? null)));
         self::assertCount(1, $paymentFailedMessages);
@@ -228,6 +293,75 @@ final class UcpCheckoutFlowTest extends TestCase
             self::assertStringStartsWith($this->ucpDomain.'/', $link['url']);
         }
         self::assertNotContains('shipping_policy', array_column($links, 'type'), 'Another sales channel\'s shipping page must not leak into this one.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function completeCheckoutWith(string $productName, string $productNumber, string $handlerId): array
+    {
+        $productId = $this->seedStorefrontProduct($productName, $productNumber);
+        $fulfillment = ['type' => 'shipping', 'extra' => ['shipping_address' => ['street' => 'Kernel Street 1', 'zipcode' => '12345', 'city' => 'Berlin', 'country_code' => 'DE']]];
+
+        $createResponse = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions', [
+            'line_items' => [['item' => ['id' => $productId, 'title' => $productName, 'price' => 19.99], 'quantity' => 1]],
+            'buyer' => ['email' => 'handler-mapping@example.com', 'first_name' => 'Handler', 'last_name' => 'Mapping'],
+            'fulfillment' => $fulfillment,
+        ]);
+        self::assertSame(Response::HTTP_CREATED, $createResponse->getStatusCode(), (string) $createResponse->getContent());
+        $checkoutId = $this->decode($createResponse)['id'];
+
+        $completionResponse = $this->ucpRequest('POST', '/ucp/v1/checkout-sessions/'.$checkoutId.'/complete', ['id' => $checkoutId, 'payment' => ['instruments' => [['id' => 'instrument-1', 'type' => 'invoice', 'handler_id' => $handlerId]]]]);
+        self::assertSame(Response::HTTP_OK, $completionResponse->getStatusCode(), (string) $completionResponse->getContent());
+
+        return $this->decode($completionResponse);
+    }
+
+    /**
+     * @param class-string $defaultHandlerClass
+     * @param class-string ...$offeredHandlerClasses
+     *
+     * @return array<class-string, string>
+     */
+    private function offerPaymentMethods(string $defaultHandlerClass, string ...$offeredHandlerClasses): array
+    {
+        $paymentMethodRepository = static::getContainer()->get('payment_method.repository');
+        $paymentMethodIdByHandlerClass = [];
+        foreach ([InvoicePayment::class, PrePayment::class, CashPayment::class] as $handlerClass) {
+            $paymentMethodId = $paymentMethodRepository->searchIds((new Criteria())->addFilter(new EqualsFilter('handlerIdentifier', $handlerClass))->setLimit(1), Context::createDefaultContext())->firstId();
+            self::assertIsString($paymentMethodId, \sprintf('Expected the test database to hold a payment method for %s.', $handlerClass));
+            $paymentMethodIdByHandlerClass[$handlerClass] = $paymentMethodId;
+        }
+        $paymentMethodRepository->update(array_map(static fn (string $id): array => ['id' => $id, 'active' => true], array_values($paymentMethodIdByHandlerClass)), Context::createDefaultContext());
+
+        static::getContainer()->get(Connection::class)->executeStatement(
+            'DELETE FROM sales_channel_payment_method WHERE sales_channel_id = :salesChannelId',
+            ['salesChannelId' => Uuid::fromHexToBytes($this->ucpSalesChannelId)],
+        );
+        static::getContainer()->get('sales_channel.repository')->update([[
+            'id' => $this->ucpSalesChannelId,
+            'paymentMethodId' => $paymentMethodIdByHandlerClass[$defaultHandlerClass],
+            'paymentMethods' => array_map(
+                static fn (string $handlerClass): array => ['id' => $paymentMethodIdByHandlerClass[$handlerClass]],
+                [$defaultHandlerClass, ...$offeredHandlerClasses],
+            ),
+        ]], Context::createDefaultContext());
+
+        return $paymentMethodIdByHandlerClass;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function orderPaymentMethodIds(string $orderId): array
+    {
+        /** @var list<string> $orderPaymentMethodIds */
+        $orderPaymentMethodIds = static::getContainer()->get(Connection::class)->fetchFirstColumn(
+            'SELECT LOWER(HEX(payment_method_id)) FROM order_transaction WHERE order_id = :orderId',
+            ['orderId' => Uuid::fromHexToBytes($orderId)],
+        );
+
+        return $orderPaymentMethodIds;
     }
 
     private function createCmsPage(string $name): string
