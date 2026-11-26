@@ -10,6 +10,7 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -33,6 +34,7 @@ final class CompletionPaymentProcessor
 
     /**
      * @throws CompletionPaymentException when the applier refuses, or when its payment method changes the total the agent last saw
+     * @throws ValidationException
      */
     public function apply(?PaymentInstrument $instrument, SalesChannelContext $context, RequestContext $requestContext): SalesChannelContext
     {

@@ -1044,7 +1044,7 @@ final class CheckoutCompleterTest extends TestCase
         }, $totals);
 
         $cartLoadRoute = $this->createMock(AbstractCartLoadRoute::class);
-        $cartLoadRoute->method('load')->willReturnOnConsecutiveCalls(...$responses);
+        $cartLoadRoute->method('load')->willReturnOnConsecutiveCalls(...array_values($responses));
 
         return $cartLoadRoute;
     }
@@ -1114,7 +1114,7 @@ final class CheckoutCompleterTest extends TestCase
         return array_map(static fn (Message $message): array => [$message->code, $message->severity], $checkout->messages);
     }
 
-    private function customerContext(): SalesChannelContext
+    private function customerContext(): SalesChannelContext&MockObject
     {
         $currency = new CurrencyEntity();
         $currency->setIsoCode('EUR');

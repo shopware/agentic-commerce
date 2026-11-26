@@ -10,6 +10,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\CashPayment;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\InvoicePayment;
+use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
@@ -31,6 +32,7 @@ final class ShopwareOfflinePaymentHandlerTest extends TestCase
     private const INVOICE_PAYMENT_METHOD_ID = '00000000000000000000000000000002';
     private const AGENT_CHOSEN_PAYMENT_METHOD_ID = '00000000000000000000000000000003';
 
+    /** @var EntityRepository<PaymentMethodCollection>&MockObject */
     private EntityRepository&MockObject $paymentMethodRepository;
 
     protected function setUp(): void

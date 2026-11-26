@@ -7,6 +7,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
+use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
@@ -30,6 +31,7 @@ final class RegisteredHandlerPaymentMethodResolver
      * @return string the id of the payment method that the buyer of the context may use
      *
      * @throws CompletionPaymentException when no handler is registered for the instrument, or its payment method is not available
+     * @throws ValidationException        when the payment handler refuses the instrument
      */
     public function resolve(?PaymentInstrument $instrument, SalesChannelContext $context, RequestContext $requestContext): string
     {

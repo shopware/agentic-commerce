@@ -125,13 +125,13 @@ final class OfflinePaymentHandlerProfileContributorTest extends TestCase
         $paymentMethodRepository = $this->createMock(EntityRepository::class);
         $paymentMethodRepository->method('searchIds')->willReturnCallback(
             static function (Criteria $criteria, Context $context) use ($paymentMethodIdByHandlerClass, &$searchedSalesChannelIds): IdSearchResult {
-                $handlerClass = null;
+                $handlerClass = '';
                 foreach ($criteria->getFilters() as $filter) {
                     if (!$filter instanceof EqualsFilter) {
                         continue;
                     }
                     if ('handlerIdentifier' === $filter->getField()) {
-                        $handlerClass = $filter->getValue();
+                        $handlerClass = (string) $filter->getValue();
                     }
                     if ('salesChannels.id' === $filter->getField() && null !== $searchedSalesChannelIds) {
                         $searchedSalesChannelIds[] = $filter->getValue();

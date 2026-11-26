@@ -32,6 +32,7 @@ final class SalesChannelPaymentMethodsTest extends TestCase
     private const PAYMENT_METHOD_ID = '00000000000000000000000000000002';
     private const OTHER_PAYMENT_METHOD_ID = '00000000000000000000000000000003';
 
+    /** @var EntityRepository<PaymentMethodCollection>&MockObject */
     private EntityRepository&MockObject $paymentMethodRepository;
 
     private AbstractPaymentMethodRoute&MockObject $paymentMethodRoute;
