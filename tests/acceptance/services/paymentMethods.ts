@@ -7,7 +7,7 @@ export async function activePaymentMethodId(
     TestDataService: FixtureTypes['TestDataService'],
     coreHandlerClass: 'InvoicePayment' | 'PrePayment' | 'CashPayment',
 ): Promise<string> {
-    const matchingMethods = await TestDataService.AdminApiClient.post('./search-ids/payment_method', {
+    const paymentMethodIds = await TestDataService.AdminApiClient.post('./search-ids/payment-method', {
         data: {
             filter: [
                 { type: 'equals', field: 'handlerIdentifier', value: `${CORE_PAYMENT_HANDLER_NAMESPACE}${coreHandlerClass}` },
@@ -15,8 +15,8 @@ export async function activePaymentMethodId(
             ],
         },
     });
-    expect(matchingMethods.ok(), await matchingMethods.text()).toBeTruthy();
-    const { data: [activeMethodId] } = (await matchingMethods.json()) as { data: string[] };
+    expect(paymentMethodIds.ok(), await paymentMethodIds.text()).toBeTruthy();
+    const { data: [activeMethodId] } = (await paymentMethodIds.json()) as { data: string[] };
     expect(activeMethodId, `the shop has no active ${coreHandlerClass} payment method`).toBeDefined();
 
     return activeMethodId;
