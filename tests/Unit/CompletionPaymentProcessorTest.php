@@ -15,6 +15,9 @@ use Shopware\Core\Checkout\Cart\SalesChannel\CartResponse;
 use Shopware\Core\Checkout\Cart\Tax\Struct\CalculatedTaxCollection;
 use Shopware\Core\Checkout\Cart\Tax\Struct\TaxRuleCollection;
 use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
+use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
+use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
+use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
@@ -44,6 +47,8 @@ final class CompletionPaymentProcessorTest extends TestCase
 
     private AbstractCartLoadRoute&MockObject $cartLoadRoute;
 
+    private AbstractContextSwitchRoute&MockObject $contextSwitchRoute;
+
     private CollectingLogger $logger;
 
     private CompletionPaymentProcessor $processor;
@@ -53,8 +58,9 @@ final class CompletionPaymentProcessorTest extends TestCase
         $this->applier = $this->createMock(AbstractCompletionPaymentApplier::class);
         $this->paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
         $this->cartLoadRoute = $this->createMock(AbstractCartLoadRoute::class);
+        $this->contextSwitchRoute = $this->createMock(AbstractContextSwitchRoute::class);
         $this->logger = new CollectingLogger();
-        $this->processor = new CompletionPaymentProcessor($this->applier, $this->paymentGateway, $this->cartLoadRoute, $this->logger);
+        $this->processor = new CompletionPaymentProcessor($this->applier, $this->paymentGateway, $this->cartLoadRoute, $this->contextSwitchRoute, $this->logger);
     }
 
     #[Test]
@@ -69,6 +75,7 @@ final class CompletionPaymentProcessorTest extends TestCase
             $this->cartResponseWithTotal(10.0),
             $this->cartResponseWithTotal(10.0),
         );
+        $this->contextSwitchRoute->expects(static::never())->method('switchContext');
 
         self::assertSame($switchedContext, $this->processor->apply($instrument, $context, $requestContext));
     }
@@ -89,6 +96,28 @@ final class CompletionPaymentProcessorTest extends TestCase
             self::assertSame(CompletionPaymentException::PAYMENT_METHOD_CHANGES_TOTAL, $exception->getErrorCode());
             self::assertStringContainsString('Update the checkout with this instrument first', $exception->getMessage());
         }
+    }
+
+    #[Test]
+    public function testASwitchThatChangesTheTotalIsRevertedToThePreviousPaymentMethod(): void
+    {
+        $context = $this->salesChannelContext();
+        $switchedContext = $this->salesChannelContext();
+        $this->applier->method('apply')->willReturn($switchedContext);
+        $this->cartLoadRoute->method('load')->willReturnOnConsecutiveCalls(
+            $this->cartResponseWithTotal(10.0),
+            $this->cartResponseWithTotal(12.5),
+        );
+        $this->contextSwitchRoute->expects(static::once())
+            ->method('switchContext')
+            ->with(
+                static::callback(static fn (RequestDataBag $data): bool => $data->all() === [SalesChannelContextService::PAYMENT_METHOD_ID => self::PAYMENT_METHOD_ID]),
+                $switchedContext,
+            );
+
+        $this->expectException(CompletionPaymentException::class);
+
+        $this->processor->apply($this->instrument(), $context, new RequestContext('shop.example'));
     }
 
     #[Test]

@@ -7,6 +7,9 @@ namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 use Psr\Log\LoggerInterface;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartLoadRoute;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
+use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
+use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,6 +31,7 @@ final class CompletionPaymentProcessor
         private readonly AbstractCompletionPaymentApplier $applier,
         private readonly OrderPaymentGatewayInterface $paymentGateway,
         private readonly AbstractCartLoadRoute $cartLoadRoute,
+        private readonly AbstractContextSwitchRoute $contextSwitchRoute,
         private readonly ?LoggerInterface $logger = null,
     ) {
     }
@@ -42,6 +46,12 @@ final class CompletionPaymentProcessor
         $switchedContext = $this->applier->apply($instrument, $context, $requestContext);
 
         if ($this->cartTotal($switchedContext) !== $totalBeforeSwitch) {
+            // The token outlives the refusal: a repeated completion would otherwise see equal totals and place the order.
+            $this->contextSwitchRoute->switchContext(
+                new RequestDataBag([SalesChannelContextService::PAYMENT_METHOD_ID => $context->getPaymentMethod()->getId()]),
+                $switchedContext,
+            );
+
             throw CompletionPaymentException::paymentMethodChangesTotal();
         }
 

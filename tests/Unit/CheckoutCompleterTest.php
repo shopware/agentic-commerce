@@ -29,6 +29,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\IdSearchResult;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
+use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
@@ -1031,6 +1032,7 @@ final class CheckoutCompleterTest extends TestCase
             $applier,
             $paymentGateway ?? $this->createMock(OrderPaymentGatewayInterface::class),
             $cartLoadRoute ?? new RecordingCartLoadRoute(new Cart(self::CHECKOUT_ID)),
+            $this->createMock(AbstractContextSwitchRoute::class),
         );
     }
 

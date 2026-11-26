@@ -42,6 +42,7 @@ use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelD
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParameters;
+use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
@@ -439,7 +440,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
                 $this->uninitialized(CheckoutWebhookUrlGuard::class),
                 $this->createMock(OrderWebhookPublisherInterface::class),
                 new OrderPermalinkBuilder(),
-                new CompletionPaymentProcessor($this->passThroughApplier(), $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart())),
+                new CompletionPaymentProcessor($this->passThroughApplier(), $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class)),
                 $this->legalLinkBuilder(),
             ),
             $contextResolver,
@@ -1505,7 +1506,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
-            new CompletionPaymentProcessor($this->passThroughApplier(), $paymentGateway, new RecordingCartLoadRoute($this->cart())),
+            new CompletionPaymentProcessor($this->passThroughApplier(), $paymentGateway, new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class)),
             $this->legalLinkBuilder(),
         );
 
@@ -1589,7 +1590,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
-            new CompletionPaymentProcessor($applier, $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart())),
+            new CompletionPaymentProcessor($applier, $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class)),
             $this->legalLinkBuilder(),
         );
     }
