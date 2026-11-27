@@ -66,6 +66,22 @@ test.describe('Request signatures @UcpProtocol', () => {
         expect(refusal.status(), await refusal.text()).toBe(401);
     });
 
+    test('the strict policy refuses an unsigned A2A request with 401', async ({ TestDataService, UcpAgent }) => {
+        const signatureRequiringChannel = await TestDataService.createStorefrontSalesChannel();
+        await TestDataService.activateUcp(signatureRequiringChannel.salesChannel.id, { enabledTransports: ['rest', 'a2a'], signaturePolicy: 'strict' });
+
+        const refusal = await UcpAgent.at(signatureRequiringChannel.url).unsigned.send('POST', '/ucp/a2a', {
+            body: {
+                jsonrpc: '2.0',
+                id: crypto.randomUUID(),
+                method: 'message/send',
+                params: { message: { role: 'user', kind: 'message', messageId: crypto.randomUUID(), parts: [{ type: 'text', text: 'show me the catalog' }] } },
+            },
+        });
+
+        expect(refusal.status(), await refusal.text()).toBe(401);
+    });
+
     test(`the strict policy refuses ${tamperedBody.name} with 400 or 401`, async ({ TestDataService, UcpAgent }) => {
         const strictChannel = await TestDataService.createStorefrontSalesChannel();
         await TestDataService.activateUcp(strictChannel.salesChannel.id, { signaturePolicy: 'strict' });
