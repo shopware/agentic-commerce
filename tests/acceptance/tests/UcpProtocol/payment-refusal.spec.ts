@@ -1,7 +1,7 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import type { FixtureTypes } from '@fixtures/AcceptanceTest';
 import { searchIds } from '@services/adminSearch';
-import { createCompletableCheckout } from '@services/completableCheckout';
+import { completionWithAdvertisedHandler, createCompletableCheckout, invoiceInstrument } from '@services/completableCheckout';
 import { isRefusal, messageCodes } from '@services/ucpMessages';
 
 const cardInstrument = { id: 'instrument-1', handler_id: 'com.example.card', type: 'card', credential: { type: 'token', token: 'tok_test' } };
@@ -38,12 +38,13 @@ test.describe('Payment instrument count @UcpProtocol', () => {
     const instrumentCountCases = [
         { case: 'no instrument', payment: { instruments: [] } },
         { case: 'an empty payment object', payment: {} },
-        { case: 'two instruments', payment: { instruments: [cardInstrument, { ...cardInstrument, id: 'instrument-2' }] } },
+        { case: 'two instruments of an advertised handler', payment: { instruments: [invoiceInstrument, { ...invoiceInstrument, id: 'instrument-2' }] } },
     ];
 
     for (const instrumentCountCase of instrumentCountCases) {
         test(`completion with ${instrumentCountCase.case} is refused with payment_failed`, async ({ TestDataService, UcpAgent }) => {
             const checkout = await createCompletableCheckout(TestDataService, UcpAgent);
+            await completionWithAdvertisedHandler(TestDataService, checkout.salesChannelId);
 
             await expectRefusedCompletion(checkout, TestDataService, instrumentCountCase.payment);
         });
