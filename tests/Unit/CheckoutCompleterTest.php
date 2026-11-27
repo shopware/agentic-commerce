@@ -59,6 +59,7 @@ use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\InMemoryStore;
 use Symfony\Component\Routing\RouterInterface;
@@ -635,6 +636,50 @@ final class CheckoutCompleterTest extends TestCase
     }
 
     #[Test]
+    public function testAnApplierThatThrowsAnythingElseSavesTheSessionWithTheRotatedContextTokenAndRethrows(): void
+    {
+        $calls = [];
+        $applierFailure = new \RuntimeException('The payment extension is broken.');
+        $failingApplier = $this->createMock(AbstractCompletionPaymentApplier::class);
+        $failingApplier->method('apply')->willThrowException($applierFailure);
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::never())->method('placeOrder');
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+
+        $completer = $this->placingCompleter($orderGateway, $this->recordingSessionManager($calls), $this->recordingCompletionStore($calls), $paymentGateway, $this->customerContext(), null, $this->completionPayment($paymentGateway, $failingApplier));
+
+        try {
+            $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), CheckoutStatus::ReadyForComplete, new PaymentInstrument('card', 'com.example.psp'));
+            static::fail('The failure of the applier must propagate.');
+        } catch (\RuntimeException $exception) {
+            static::assertSame($applierFailure, $exception);
+        }
+
+        static::assertSame([['session', CheckoutStatus::ReadyForComplete->value, null]], $calls);
+    }
+
+    #[Test]
+    public function testAWebhookUrlTheGuardRefusesSavesTheSessionWithTheRotatedContextTokenAndRethrows(): void
+    {
+        $calls = [];
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->expects(static::never())->method('placeOrder');
+        $configService = $this->configService(new UcpConfig(webhookUrlOverride: 'http://hooks.example/orders'));
+        $webhookUrlGuard = new CheckoutWebhookUrlGuard($this->uninitialized(SalesChannelViewProvider::class));
+
+        $completer = $this->placingCompleter($orderGateway, $this->recordingSessionManager($calls), $this->recordingCompletionStore($calls), $this->createMock(OrderPaymentGatewayInterface::class), $this->customerContext(), null, null, self::CONTINUE_URL, $configService, $webhookUrlGuard);
+
+        try {
+            $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), CheckoutStatus::ReadyForComplete);
+            static::fail('The refusal of the webhook URL must propagate.');
+        } catch (ValidationException $exception) {
+            static::assertSame('Webhook override URLs must use https and include a host.', $exception->getMessage());
+        }
+
+        static::assertSame([['session', CheckoutStatus::ReadyForComplete->value, null]], $calls);
+    }
+
+    #[Test]
     public function testRetryPaymentPaysAFailedOrderAgainAndSavesTheNewStatus(): void
     {
         $instrument = new PaymentInstrument('card', 'com.example.psp');
@@ -1063,6 +1108,8 @@ final class CheckoutCompleterTest extends TestCase
         ?LockFactory $lockFactory = null,
         ?CompletionPaymentProcessor $completionPayment = null,
         ?string $continueUrl = self::CONTINUE_URL,
+        ?UcpConfigService $configService = null,
+        ?CheckoutWebhookUrlGuard $webhookUrlGuard = null,
     ): CheckoutCompleter {
         $provisioner = $this->createMock(GuestCustomerContextProvisionerInterface::class);
         $provisioner->method('ensureGuestCustomer')->willReturn($customerContext);
@@ -1074,12 +1121,12 @@ final class CheckoutCompleterTest extends TestCase
             $orderGateway,
             new ShopwareDataMapper(),
             $provisioner,
-            $this->nullConfigService(),
+            $configService ?? $this->nullConfigService(),
             $sessionManager,
             $completionStore,
             $lockFactory ?? new LockFactory(new InMemoryStore()),
             $continueUrlBuilder,
-            $this->uninitialized(CheckoutWebhookUrlGuard::class),
+            $webhookUrlGuard ?? $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
             $completionPayment ?? $this->completionPayment($paymentGateway),
@@ -1328,6 +1375,14 @@ final class CheckoutCompleterTest extends TestCase
             {
             }
         };
+    }
+
+    private function configService(UcpConfig $ucpConfig): UcpConfigService
+    {
+        $repository = $this->createMock(UcpConfigRepositoryInterface::class);
+        $repository->method('find')->willReturn($ucpConfig);
+
+        return new UcpConfigService($repository, $this->createMock(LegacyConfigStoreInterface::class));
     }
 
     private function nullConfigService(): UcpConfigService

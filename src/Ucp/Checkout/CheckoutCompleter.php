@@ -92,22 +92,22 @@ final class CheckoutCompleter
             // against the customer context anyway, but it rejects carts whose token it cannot find.
             $cart->setToken($customerContext->getToken());
 
-            $config = $this->configService->getConfig($customerContext->getSalesChannelId());
-            if (null !== $config->webhookUrlOverride) {
-                $this->webhookUrlGuard->assertAllowed($config->webhookUrlOverride, $config, $customerContext->getSalesChannelId());
-            }
-
             try {
-                $customerContext = $this->completionPayment->apply(
-                    $paymentInstrument,
-                    $customerContext,
-                    $requestContext,
-                );
-            } catch (CompletionPaymentException|ValidationException $exception) {
-                return $this->refusedCheckout($checkoutId, $cart, $customerContext, $buyer, $metadata, $statusBeforeCompletion, $exception);
-            }
+                $salesChannelUcpConfig = $this->configService->getConfig($customerContext->getSalesChannelId());
+                if (null !== $salesChannelUcpConfig->webhookUrlOverride) {
+                    $this->webhookUrlGuard->assertAllowed($salesChannelUcpConfig->webhookUrlOverride, $salesChannelUcpConfig, $customerContext->getSalesChannelId());
+                }
 
-            try {
+                try {
+                    $customerContext = $this->completionPayment->apply(
+                        $paymentInstrument,
+                        $customerContext,
+                        $requestContext,
+                    );
+                } catch (CompletionPaymentException|ValidationException $exception) {
+                    return $this->refusedCheckout($checkoutId, $cart, $customerContext, $buyer, $metadata, $statusBeforeCompletion, $exception);
+                }
+
                 [$order, $paymentOutcome] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
             } catch (\Throwable $exception) {
                 $this->saveOpenSession($checkoutId, $customerContext, $buyer, $metadata, $statusBeforeCompletion);
@@ -133,9 +133,9 @@ final class CheckoutCompleter
                 $this->saveSession($checkoutId, $customerContext, $buyer, $order, $paymentOutcome);
             }
 
-            if (null !== $config->webhookUrlOverride) {
+            if (null !== $salesChannelUcpConfig->webhookUrlOverride) {
                 $this->orderWebhookPublisher->publish(
-                    $config->webhookUrlOverride,
+                    $salesChannelUcpConfig->webhookUrlOverride,
                     new OrderWebhookPayload(event: 'order.created', orderId: $order->getId(), payload: [
                         'order' => $this->mapper->toOrderView($order)->toArray(),
                     ]),
