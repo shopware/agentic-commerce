@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Swag\AgenticCommerce\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Context;
@@ -25,6 +26,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 
 /** @internal */
@@ -38,7 +40,7 @@ final class EmbeddedResponseListenerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: []);
+        $this->config = new UcpConfig(active: true, enabledTransports: ['rest', 'embedded'], embeddedAllowedOrigins: []);
         $this->kernel = $this->createMock(HttpKernelInterface::class);
 
         $repository = $this->createMock(UcpConfigRepositoryInterface::class);
@@ -47,6 +49,7 @@ final class EmbeddedResponseListenerTest extends TestCase
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(fn (string $key): mixed => match ($key) {
             'SwagAgenticCommerce.config.active' => $this->config->active,
+            'SwagAgenticCommerce.config.enabledTransports' => $this->config->enabledTransports,
             'SwagAgenticCommerce.config.embeddedAllowedOrigins' => $this->config->embeddedAllowedOrigins,
             'SwagAgenticCommerce.config.embeddedFrameAncestors' => $this->config->embeddedFrameAncestors,
             default => null,
@@ -88,7 +91,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     #[Test]
     public function testItAllowsConfiguredEmbeddedOrigin(): void
     {
-        $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example']);
+        $this->config = new UcpConfig(active: true, enabledTransports: ['rest', 'embedded'], embeddedAllowedOrigins: ['https://assistant.example']);
 
         $event = new RequestEvent(
             $this->kernel,
@@ -107,7 +110,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     {
         $ucpConfigRepository = $this->createMock(UcpConfigRepositoryInterface::class);
         $ucpConfigRepository->method('find')->willReturnCallback(static fn (string $salesChannelId): ?UcpConfig => 'sales-channel-de' === $salesChannelId
-            ? new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example'], embeddedFrameAncestors: ['https://assistant.example'])
+            ? new UcpConfig(active: true, enabledTransports: ['rest', 'embedded'], embeddedAllowedOrigins: ['https://assistant.example'], embeddedFrameAncestors: ['https://assistant.example'])
             : null);
         $pathPrefixedDomain = new SalesChannelDomainEntity();
         $pathPrefixedDomain->setId('domain-de');
@@ -141,7 +144,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     #[Test]
     public function testItAllowsOriginLessRequestsBecauseBrowsersOmitOriginOnNavigations(): void
     {
-        $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example']);
+        $this->config = new UcpConfig(active: true, enabledTransports: ['rest', 'embedded'], embeddedAllowedOrigins: ['https://assistant.example']);
 
         $event = new RequestEvent(
             $this->kernel,
@@ -160,6 +163,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     {
         $this->config = new UcpConfig(
             active: true,
+            enabledTransports: ['rest', 'embedded'],
             embeddedAllowedOrigins: ['https://assistant.example'],
             embeddedFrameAncestors: ['https://assistant.example'],
         );
@@ -189,6 +193,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     {
         $this->config = new UcpConfig(
             active: true,
+            enabledTransports: ['rest', 'embedded'],
             embeddedAllowedOrigins: ['https://assistant.example'],
         );
 
@@ -210,6 +215,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     {
         $this->config = new UcpConfig(
             active: true,
+            enabledTransports: ['rest', 'embedded'],
             embeddedAllowedOrigins: ['https://assistant.example'],
             embeddedFrameAncestors: ['https://assistant.example'],
         );
@@ -240,7 +246,7 @@ final class EmbeddedResponseListenerTest extends TestCase
     #[Test]
     public function testItSetsTokenHygieneHeadersOnOriginLessEmbeddedResponses(): void
     {
-        $this->config = new UcpConfig(active: true, embeddedAllowedOrigins: ['https://assistant.example']);
+        $this->config = new UcpConfig(active: true, enabledTransports: ['rest', 'embedded'], embeddedAllowedOrigins: ['https://assistant.example']);
 
         $response = new Response('<html></html>');
 
@@ -255,5 +261,69 @@ final class EmbeddedResponseListenerTest extends TestCase
         self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
         self::assertSame('noindex, nofollow', $response->headers->get('X-Robots-Tag'));
         self::assertFalse($response->headers->has('Access-Control-Allow-Origin'));
+    }
+
+    /**
+     * @param list<string>          $embeddedAllowedOrigins
+     * @param array<string, string> $server
+     */
+    #[Test]
+    #[DataProvider('requestsToADisabledEmbeddedTransport')]
+    public function testItRefusesEveryRequestToADisabledEmbeddedTransportLikeTheSdkRefusesItsGet(string $method, array $embeddedAllowedOrigins, array $server): void
+    {
+        $this->config = new UcpConfig(active: true, enabledTransports: ['rest'], embeddedAllowedOrigins: $embeddedAllowedOrigins);
+        $event = new RequestEvent(
+            $this->kernel,
+            Request::create('https://shop.example/ucp/embedded/checkout/checkout-id', $method, server: $server),
+            HttpKernelInterface::MAIN_REQUEST,
+        );
+
+        try {
+            $this->listener->onKernelRequest($event);
+            self::fail('Expected the disabled embedded transport to be refused.');
+        } catch (NotFoundHttpException $exception) {
+            self::assertSame('Embedded transport is not enabled.', $exception->getMessage());
+        }
+
+        self::assertFalse($event->hasResponse());
+    }
+
+    /**
+     * @return iterable<string, array{string, list<string>, array<string, string>}>
+     */
+    public static function requestsToADisabledEmbeddedTransport(): iterable
+    {
+        $allowlisted = ['https://assistant.example'];
+
+        yield 'preflight from an allowed origin' => [Request::METHOD_OPTIONS, $allowlisted, ['HTTP_ORIGIN' => 'https://assistant.example', 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET']];
+        yield 'GET from an allowed origin' => [Request::METHOD_GET, $allowlisted, ['HTTP_ORIGIN' => 'https://assistant.example']];
+        yield 'origin-less preflight' => [Request::METHOD_OPTIONS, $allowlisted, []];
+        yield 'preflight from a foreign origin' => [Request::METHOD_OPTIONS, $allowlisted, ['HTTP_ORIGIN' => 'https://foreign.example']];
+        yield 'preflight without configured origins' => [Request::METHOD_OPTIONS, [], ['HTTP_ORIGIN' => 'https://assistant.example']];
+    }
+
+    #[Test]
+    public function testItWithholdsTheConfiguredFrameAncestorsAndOriginGrantFromADisabledEmbeddedTransport(): void
+    {
+        $this->config = new UcpConfig(
+            active: true,
+            enabledTransports: ['rest'],
+            embeddedAllowedOrigins: ['https://assistant.example'],
+            embeddedFrameAncestors: ['https://assistant.example'],
+        );
+        $response = new Response('', Response::HTTP_NOT_FOUND);
+
+        $this->listener->onKernelResponse(new ResponseEvent(
+            $this->kernel,
+            Request::create('https://shop.example/ucp/embedded/checkout/checkout-id', server: ['HTTP_ORIGIN' => 'https://assistant.example']),
+            HttpKernelInterface::MAIN_REQUEST,
+            $response,
+        ));
+
+        self::assertFalse($response->headers->has('Access-Control-Allow-Origin'));
+        self::assertSame("frame-ancestors 'self'", $response->headers->get('Content-Security-Policy'));
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
+        self::assertSame('noindex, nofollow', $response->headers->get('X-Robots-Tag'));
     }
 }

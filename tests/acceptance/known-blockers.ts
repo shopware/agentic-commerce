@@ -189,13 +189,6 @@ export const knownBlockers: KnownBlocker[] = [
         reviewBy: '2026-12-31',
     },
     {
-        key: 'D33',
-        description: 'With embedded origins configured, EmbeddedResponseListener answers an OPTIONS preflight to the embedded routes with 204 also when the embedded transport is switched off, where the GET to the same route answers 404.',
-        owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/336',
-        reviewBy: '2026-12-31',
-    },
-    {
         key: 'D36',
         description: 'The SDK answers checkout operations with an empty ucp.services, also when the embedded transport is enabled, where UCP 2026-08-25 requires an embedded service binding with config.delegate in the checkout response for a checkout that can be embedded.',
         owner: 'dgrothaus-sw',
