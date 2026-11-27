@@ -599,7 +599,35 @@ final class CheckoutCompleterTest extends TestCase
             static::assertSame(CartException::CART_PAYMENT_INVALID_ORDER_CODE, $exception->getErrorCode());
         }
 
-        static::assertSame([], $calls);
+        static::assertSame([['session', CheckoutStatus::Incomplete->value, null]], $calls);
+    }
+
+    #[Test]
+    public function testAFailedOrderPlacementSavesTheSessionWithTheRotatedContextTokenAndRethrows(): void
+    {
+        $savedContextTokens = [];
+        $orderPlacementFailure = new \RuntimeException('The product is out of stock.');
+        $orderGateway = $this->createMock(OrderGatewayInterface::class);
+        $orderGateway->method('placeOrder')->willThrowException($orderPlacementFailure);
+        $completionStore = $this->openCompletionStore();
+        $completionStore->expects(static::never())->method('complete');
+        $sessionManager = $this->createMock(CheckoutSessionManagerInterface::class);
+        $sessionManager->method('saveForCheckoutId')->willReturnCallback(
+            static function (string $checkoutId, SalesChannelContext $context, string $status) use (&$savedContextTokens): void {
+                $savedContextTokens[] = [$checkoutId, $context->getToken(), $status];
+            },
+        );
+
+        $completer = $this->placingCompleter($orderGateway, $sessionManager, $completionStore, $this->createMock(OrderPaymentGatewayInterface::class), $this->customerContext());
+
+        try {
+            $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), new RequestContext('shop.example'), CheckoutStatus::ReadyForComplete);
+            static::fail('The order placement failure must propagate.');
+        } catch (\RuntimeException $exception) {
+            static::assertSame($orderPlacementFailure, $exception);
+        }
+
+        static::assertSame([[self::CHECKOUT_ID, self::ROTATED_CONTEXT_TOKEN, CheckoutStatus::ReadyForComplete->value]], $savedContextTokens);
     }
 
     #[Test]

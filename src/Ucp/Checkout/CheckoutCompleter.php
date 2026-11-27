@@ -107,7 +107,14 @@ final class CheckoutCompleter
                 return $this->refusedCheckout($checkoutId, $cart, $customerContext, $buyer, $metadata, $statusBeforeCompletion, $exception);
             }
 
-            [$order, $paymentOutcome] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
+            try {
+                [$order, $paymentOutcome] = $this->placeOrder($cart, $customerContext, $paymentInstrument);
+            } catch (\Throwable $exception) {
+                $this->saveOpenSession($checkoutId, $customerContext, $buyer, $metadata, $statusBeforeCompletion);
+
+                throw $exception;
+            }
+
             $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
 
             // The order is tied to the checkout before the payment runs, so a crash in between cannot lose it.
@@ -273,15 +280,7 @@ final class CheckoutCompleter
      */
     private function refusedCheckout(string $checkoutId, Cart $cart, SalesChannelContext $context, ?Buyer $buyer, array $metadata, CheckoutStatus $status, CompletionPaymentException|ValidationException $exception): Checkout
     {
-        // Registering the guest rotated the context token and moved the cart with it, so the session has to follow.
-        $this->sessionManager->saveForCheckoutId(
-            $checkoutId,
-            $context,
-            $status->value,
-            $buyer,
-            guestAddress: $this->sessionManager->guestAddress($metadata),
-            guestShippingAddress: $this->sessionManager->guestShippingAddress($metadata),
-        );
+        $this->saveOpenSession($checkoutId, $context, $buyer, $metadata, $status);
         $cart->setToken($checkoutId);
 
         return $this->mapper->toCheckout(
@@ -292,6 +291,22 @@ final class CheckoutCompleter
             $this->continueUrlBuilder->build($checkoutId, $context->getSalesChannelId()),
             legalLinks: $this->legalLinkBuilder->build($context),
             messages: [PaymentFailedMessage::recoverable($exception->getMessage())],
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function saveOpenSession(string $checkoutId, SalesChannelContext $context, ?Buyer $buyer, array $metadata, CheckoutStatus $status): void
+    {
+        // Registering the guest rotated the context token and moved the cart with it, so the session has to follow.
+        $this->sessionManager->saveForCheckoutId(
+            $checkoutId,
+            $context,
+            $status->value,
+            $buyer,
+            guestAddress: $this->sessionManager->guestAddress($metadata),
+            guestShippingAddress: $this->sessionManager->guestShippingAddress($metadata),
         );
     }
 
