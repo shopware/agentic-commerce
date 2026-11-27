@@ -13,6 +13,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Ucp\Sdk\Enum\Transport;
 
 /** @internal */
 #[Package('checkout')]
@@ -33,6 +35,12 @@ final class EmbeddedResponseListener
 
         $config = $this->configService->getConfig($this->domainResolver->resolveByRequest($request)?->salesChannelId);
         $origin = $request->headers->get('origin');
+
+        // The SDK's EmbeddedController refuses a disabled transport the same way, but a preflight
+        // never reaches it: this listener, or else Shopware's CorsListener, answers OPTIONS first.
+        if (!$this->servesEmbeddedTransport($config)) {
+            throw new NotFoundHttpException('Embedded transport is not enabled.');
+        }
 
         if ([] === $config->embeddedAllowedOrigins) {
             $event->setResponse($this->forbidden('Embedded origins are not configured for this sales channel.'));
@@ -68,7 +76,8 @@ final class EmbeddedResponseListener
         }
 
         $config = $this->configService->getConfig($this->domainResolver->resolveByRequest($request)?->salesChannelId);
-        $frameAncestors = [] !== $config->embeddedFrameAncestors ? $config->embeddedFrameAncestors : ["'self'"];
+        $servesEmbeddedTransport = $this->servesEmbeddedTransport($config);
+        $frameAncestors = $servesEmbeddedTransport && [] !== $config->embeddedFrameAncestors ? $config->embeddedFrameAncestors : ["'self'"];
         $response = $event->getResponse();
         $origin = $request->headers->get('origin');
 
@@ -85,7 +94,7 @@ final class EmbeddedResponseListener
         $response->headers->set('Referrer-Policy', 'no-referrer');
         $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
 
-        if (\is_string($origin) && \in_array($origin, $config->embeddedAllowedOrigins, true)) {
+        if ($servesEmbeddedTransport && \is_string($origin) && \in_array($origin, $config->embeddedAllowedOrigins, true)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);
         }
     }
@@ -93,6 +102,11 @@ final class EmbeddedResponseListener
     private function isEmbeddedRequest(string $path): bool
     {
         return str_starts_with($path, '/ucp/embedded/');
+    }
+
+    private function servesEmbeddedTransport(UcpConfig $config): bool
+    {
+        return \in_array(Transport::Embedded, $config->runtimeTransports(), true);
     }
 
     private function forbidden(string $message): JsonResponse
