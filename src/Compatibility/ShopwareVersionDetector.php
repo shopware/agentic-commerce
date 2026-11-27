@@ -101,6 +101,16 @@ final class ShopwareVersionDetector
         return version_compare($version, '6.7.3.0', '<');
     }
 
+    public function enforcesPaymentChangeAfterOrder(): bool
+    {
+        $version = $this->normalizeVersion($this->currentVersion());
+
+        // SetPaymentOrderRoute refuses every payment method without "Allow payment change after checkout",
+        // also when the method of the order stays the same: from 6.6.10.21 on the 6.6 line and from 6.7.13.0 on 6.7.
+        return version_compare($version, '6.7.13.0', '>=')
+            || (version_compare($version, '6.6.10.21', '>=') && version_compare($version, '6.7.0.0', '<'));
+    }
+
     public function coreShipsAgenticCommerce(): bool
     {
         // Core defines the constant only while it ships the feature itself.

@@ -7,12 +7,16 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\InvoicePayment;
+use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Swag\AgenticCommerce\Ucp\Capability\IdentityLinkingCapability;
 use Swag\AgenticCommerce\Ucp\Capability\PaymentTokenizationCapability;
 use Swag\AgenticCommerce\Ucp\Capability\UcpCapabilityCatalog;
 use Swag\AgenticCommerce\Ucp\Capability\UcpExtensionAvailability;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
-use Swag\AgenticCommerce\Ucp\Payment\ShopwareInvoicePaymentHandler;
+use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
+use Swag\AgenticCommerce\Ucp\Payment\ShopwareOfflinePaymentHandler;
 use Ucp\Sdk\Contract\PaymentHandlerInterface;
 use Ucp\Sdk\Exception\UnsupportedCapabilityException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
@@ -24,7 +28,7 @@ use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 #[CoversClass(IdentityLinkingCapability::class)]
 #[CoversClass(PaymentTokenizationCapability::class)]
 #[CoversClass(UcpExtensionAvailability::class)]
-#[CoversClass(ShopwareInvoicePaymentHandler::class)]
+#[CoversClass(ShopwareOfflinePaymentHandler::class)]
 final class UcpExtensionCapabilityTest extends TestCase
 {
     #[Test]
@@ -61,9 +65,13 @@ final class UcpExtensionCapabilityTest extends TestCase
     }
 
     #[Test]
-    public function testItDoesNotTreatTheBundledInvoiceHandlerAsTokenizingPspSupport(): void
+    public function testItDoesNotTreatTheBundledOfflineHandlersAsTokenizingPspSupport(): void
     {
-        $handler = new ShopwareInvoicePaymentHandler();
+        $handler = new ShopwareOfflinePaymentHandler(
+            ShopwareOfflinePaymentHandler::INVOICE_ID,
+            InvoicePayment::class,
+            new SalesChannelPaymentMethods($this->createMock(EntityRepository::class), $this->createMock(AbstractPaymentMethodRoute::class)),
+        );
         $availability = new UcpExtensionAvailability([], new PaymentHandlerRegistryStub([$handler]));
 
         self::assertFalse($handler->supportsTokenization());

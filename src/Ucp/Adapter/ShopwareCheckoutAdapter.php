@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Adapter;
 
 use Shopware\Core\Checkout\Cart\Cart;
+use Shopware\Core\Checkout\Cart\LineItem\LineItem;
+use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
@@ -15,7 +17,9 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutLegalLinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionManager;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CheckoutPaymentSelector;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedMessage;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -30,6 +34,7 @@ use Ucp\Sdk\Model\Checkout\CheckoutCreateRequest;
 use Ucp\Sdk\Model\Checkout\CheckoutUpdateRequest;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
+use Ucp\Sdk\Model\Common\LineItem as UcpLineItem;
 use Ucp\Sdk\Model\Common\Message;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -51,7 +56,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         private readonly ContextTokenGenerator $contextTokenGenerator,
         private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
         private readonly CheckoutLegalLinkBuilder $legalLinkBuilder,
-        private readonly CompletionPaymentGate $completionPaymentGate,
+        private readonly CheckoutPaymentSelector $paymentSelector,
     ) {
     }
 
@@ -61,6 +66,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $token = $cartId ?? $this->contextTokenGenerator->generate();
         $discountCodes = $this->discountCodes($request->discounts);
         [$salesChannelContext, $cart] = $this->createOrReuseCheckoutCart($token, $cartId, $request, $discountCodes, $context);
+        [$salesChannelContext, $cart, $paymentMessages] = $this->selectPayment($request->payment, $salesChannelContext, $cart, $context);
 
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $request->buyer);
         $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, null, $request->payment);
@@ -73,7 +79,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->openCheckout($cart, $salesChannelContext, $status, $request->buyer, $salesChannelContext->getToken());
+        return $this->openCheckout($cart, $salesChannelContext, $status, $request->buyer, $salesChannelContext->getToken(), $paymentMessages);
     }
 
     /**
@@ -133,26 +139,33 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     public function updateCheckout(CheckoutUpdateRequest $request, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $sessionMetadata = $this->sessionStore->load($request->id, $resolution->salesChannelId);
+        [$placedOrderId, $sessionMetadata] = $this->loadSession($request->id, $resolution->salesChannelId);
 
-        if (($sessionMetadata['status'] ?? null) === 'completed' || null !== $this->completionStore->completedOrderId($request->id)) {
+        if (null !== $placedOrderId) {
+            return $this->updatePlacedOrder($placedOrderId, $request, $sessionMetadata, $context);
+        }
+
+        if (($sessionMetadata['status'] ?? null) === 'completed') {
             throw new ValidationException('Completed checkout sessions cannot be updated.');
         }
 
+        $contextToken = $this->sessionStore->contextToken($sessionMetadata, $request->id);
         $discountCodes = $this->discountCodes($request->discounts);
         [$salesChannelContext, $cart] = $this->cartGateway->synchronizeCheckoutCart(
-            $request->id,
+            $contextToken,
             $request->lineItems,
             $discountCodes,
             $context,
         );
+        [$salesChannelContext, $cart, $paymentMessages] = $this->selectPayment($request->payment, $salesChannelContext, $cart, $context);
 
         $buyer = $request->buyer ?? $this->sessionStore->buyer($sessionMetadata);
         $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
 
         $addresses = $this->guestAddressPayloadResolver->resolveAddresses($request->fulfillment, $sessionMetadata, $request->payment);
 
-        $this->sessionManager->save(
+        $this->sessionManager->saveForCheckoutId(
+            $request->id,
             $salesChannelContext,
             $status->value,
             $buyer,
@@ -161,7 +174,7 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             guestShippingAddress: $addresses['shipping'],
         );
 
-        return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $request->id);
+        return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $request->id, $paymentMessages);
     }
 
     /**
@@ -171,45 +184,140 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
      */
     public function completeCheckoutFromRequest(CheckoutCompleteRequest $request, RequestContext $context): Checkout
     {
-        return $this->completeCheckoutInternal($request->id, $context, $request->instruments);
+        return $this->completeCheckoutInternal($request->id, $context, $request->selectedInstrument());
     }
 
     public function completeCheckout(string $id, RequestContext $context): Checkout
     {
-        return $this->completeCheckoutInternal($id, $context, []);
+        return $this->completeCheckoutInternal($id, $context, null);
     }
 
-    /**
-     * @param list<PaymentInstrument> $instruments
-     */
-    private function completeCheckoutInternal(string $id, RequestContext $context, array $instruments): Checkout
+    private function completeCheckoutInternal(string $id, RequestContext $context, ?PaymentInstrument $instrument): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
         [$completedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
         if (null !== $completedOrderId) {
-            return $this->completedCheckout($completedOrderId, $id, $sessionMetadata, $context);
+            return $this->completePlacedOrder($completedOrderId, $id, $sessionMetadata, $context, $instrument);
         }
 
         $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
         [$salesChannelContext, $cart] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
 
-        $refusal = $this->completionPaymentGate->refusal(
-            array_map(static fn (PaymentInstrument $instrument): string => $instrument->handlerId, $instruments),
-            $context,
-        );
+        $buyer = $this->sessionStore->buyer($sessionMetadata);
+        $status = $this->statusFor($cart->getLineItems()->count(), null !== $buyer);
+
+        $refusal = $this->paymentSelector->refusal($instrument, $context);
         if (null !== $refusal) {
-            return $this->openCheckout(
-                $cart,
-                $salesChannelContext,
-                CheckoutStatus::Incomplete,
-                $this->sessionStore->buyer($sessionMetadata),
-                $id,
-                [$refusal],
-            );
+            return $this->openCheckout($cart, $salesChannelContext, $status, $buyer, $id, [$refusal]);
         }
 
-        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $instruments[0])
+        return $this->checkoutCompleter->complete($id, $sessionMetadata, $cart, $salesChannelContext, $context, $status, $instrument)
             ?? $this->getCheckout($id, $context);
+    }
+
+    /**
+     * Replays a checkout whose order is placed, or pays the order again when its payment failed.
+     *
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function completePlacedOrder(string $orderId, string $checkoutId, array $sessionMetadata, RequestContext $context, ?PaymentInstrument $instrument): Checkout
+    {
+        $salesChannelContext = $this->completedCheckoutContext($sessionMetadata, $context);
+        $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
+        $payment = CompletionPaymentResult::ofPlacedOrder($sessionMetadata, $order);
+
+        if (!$payment->canBePaidAgain()) {
+            return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, $payment);
+        }
+
+        $refusal = $this->paymentSelector->refusal($instrument, $context);
+        if (null !== $refusal) {
+            return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, $payment, [$refusal]);
+        }
+
+        return $this->checkoutCompleter->retryPayment($checkoutId, $orderId, $salesChannelContext, $context, $instrument);
+    }
+
+    /**
+     * The order cannot change, so only its payment can: buyer, fulfillment and discounts of the request are ignored.
+     *
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function updatePlacedOrder(string $orderId, CheckoutUpdateRequest $request, array $sessionMetadata, RequestContext $context): Checkout
+    {
+        $salesChannelContext = $this->completedCheckoutContext($sessionMetadata, $context);
+        $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
+        $payment = CompletionPaymentResult::ofPlacedOrder($sessionMetadata, $order);
+
+        if (!$payment->canBePaidAgain()) {
+            throw new ValidationException('Completed checkout sessions cannot be updated.');
+        }
+
+        $refusal = $this->placedOrderLineItemsRefusal($order, $request->lineItems)
+            ?? $this->paymentSelector->refusalForPlacedOrder($request->payment, $salesChannelContext, $context);
+        if (null !== $refusal) {
+            return PaymentFailedMessage::isUnrecoverable($refusal)
+                ? $this->checkoutCompleter->markCannotBePaidAgain($request->id, $orderId, $salesChannelContext, $context, $refusal)
+                : $this->placedCheckout($order, $request->id, $salesChannelContext, $context, $payment, [$refusal]);
+        }
+
+        return $this->checkoutCompleter->markReadyToPayAgain($request->id, $orderId, $salesChannelContext, $context);
+    }
+
+    /**
+     * @param list<UcpLineItem> $requestedLineItems an empty list leaves the line items of the order as they are
+     */
+    private function placedOrderLineItemsRefusal(OrderEntity $order, array $requestedLineItems): ?Message
+    {
+        if ([] === $requestedLineItems) {
+            return null;
+        }
+
+        $quantityByOrderedProductId = [];
+        foreach ($order->getLineItems() ?? [] as $lineItem) {
+            if (LineItem::PRODUCT_LINE_ITEM_TYPE === $lineItem->getType()) {
+                $productId = $lineItem->getReferencedId() ?? $lineItem->getIdentifier();
+                $quantityByOrderedProductId[$productId] = ($quantityByOrderedProductId[$productId] ?? 0) + $lineItem->getQuantity();
+            }
+        }
+
+        $quantityByRequestedProductId = [];
+        foreach ($requestedLineItems as $lineItem) {
+            $quantityByRequestedProductId[$lineItem->id] = ($quantityByRequestedProductId[$lineItem->id] ?? 0) + $lineItem->quantity;
+        }
+
+        ksort($quantityByOrderedProductId);
+        ksort($quantityByRequestedProductId);
+        if ($quantityByOrderedProductId === $quantityByRequestedProductId) {
+            return null;
+        }
+
+        return new Message(
+            'error',
+            'The order is placed, so only its payment can change. Send the line items of the order, or none.',
+            'recoverable',
+            'order_placed',
+            '$.line_items',
+        );
+    }
+
+    /**
+     * Makes the cart and totals of an open checkout follow the payment method of the selected instrument.
+     *
+     * @return array{0: SalesChannelContext, 1: Cart, 2: list<Message>} a refused instrument leaves context and cart as they are and adds its refusal
+     */
+    private function selectPayment(?PaymentInstrument $instrument, SalesChannelContext $salesChannelContext, Cart $cart, RequestContext $context): array
+    {
+        if (null === $instrument) {
+            return [$salesChannelContext, $cart, []];
+        }
+
+        $selected = $this->paymentSelector->select($instrument, $salesChannelContext, $context);
+        if ($selected instanceof Message) {
+            return [$salesChannelContext, $cart, [$selected]];
+        }
+
+        return [$selected, $this->cartGateway->loadCart($selected), []];
     }
 
     /**
@@ -241,13 +349,19 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     public function cancelCheckout(string $id, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $sessionMetadata = $this->sessionStore->load($id, $resolution->salesChannelId);
+        [$placedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
+
+        if (null !== $placedOrderId) {
+            throw new ValidationException('Checkout sessions with a placed order cannot be canceled.');
+        }
+
         $buyer = $this->sessionStore->buyer($sessionMetadata);
 
-        [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($id, $context);
-        $cart = $this->cartGateway->cancelCart($id, $context);
+        $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
+        [$salesChannelContext] = $this->cartGateway->loadCheckoutCart($contextToken, $context);
+        $cart = $this->cartGateway->cancelCart($contextToken, $context);
 
-        $this->sessionManager->save($salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
+        $this->sessionManager->saveForCheckoutId($id, $salesChannelContext, CheckoutStatus::Canceled->value, $buyer);
 
         return $this->openCheckout(new Cart($cart->id), $salesChannelContext, CheckoutStatus::Canceled, $buyer, $id);
     }
@@ -260,15 +374,18 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         SalesChannelContext $salesChannelContext,
         CheckoutStatus $status,
         ?Buyer $buyer,
-        string $continueUrlCheckoutId,
+        string $checkoutId,
         array $messages = [],
     ): Checkout {
+        // The cart is stored under the context token, which differs from the checkout id once a refused completion rotated it.
+        $cart->setToken($checkoutId);
+
         return $this->mapper->toCheckout(
             $cart,
             $salesChannelContext,
             $status,
             $buyer,
-            $this->continueUrlBuilder->build($continueUrlCheckoutId, $salesChannelContext->getSalesChannelId()),
+            $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
             legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
             messages: $messages,
         );
@@ -321,6 +438,14 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $salesChannelContext = $this->completedCheckoutContext($sessionMetadata, $context);
         $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $sessionMetadata);
 
+        return $this->placedCheckout($order, $checkoutId, $salesChannelContext, $context, CompletionPaymentResult::ofPlacedOrder($sessionMetadata, $order));
+    }
+
+    /**
+     * @param list<Message>|null $messages
+     */
+    private function placedCheckout(OrderEntity $order, string $checkoutId, SalesChannelContext $salesChannelContext, RequestContext $context, CompletionPaymentResult $payment, ?array $messages = null): Checkout
+    {
         return $this->mapper->toCompletedCheckout(
             $order,
             $checkoutId,
@@ -328,6 +453,8 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
             $this->continueUrlBuilder->build($checkoutId, $salesChannelContext->getSalesChannelId()),
             orderPermalinkUrl: $this->orderPermalinkBuilder->build($order, $context),
             legalLinks: $this->legalLinkBuilder->build($salesChannelContext),
+            payment: $payment,
+            messages: $messages,
         );
     }
 }

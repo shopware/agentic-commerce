@@ -8,7 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\SalesChannel\AbstractCartOrderRoute;
+use Shopware\Core\Checkout\Cart\SalesChannel\CartOrderRouteResponse;
 use Shopware\Core\Checkout\Customer\CustomerEntity;
 use Shopware\Core\Checkout\Order\OrderCollection;
 use Shopware\Core\Checkout\Order\OrderEntity;
@@ -20,6 +22,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\Feature;
+use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\PlatformRequest;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainCollection;
 use Shopware\Core\System\SalesChannel\Aggregate\SalesChannelDomain\SalesChannelDomainEntity;
@@ -35,6 +38,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\UcpErrorDescriptor;
 use Ucp\Sdk\Model\RequestContext;
 
@@ -87,6 +91,8 @@ final class ShopwareOrderGatewayTest extends TestCase
                 self::assertArrayHasKey('billingAddress', $criteria->getAssociations());
                 self::assertArrayHasKey('lineItems', $criteria->getAssociations());
                 self::assertArrayHasKey('stateMachineState', $criteria->getAssociations());
+                self::assertTrue($criteria->hasAssociation('transactions'));
+                self::assertArrayHasKey('stateMachineState', $criteria->getAssociation('transactions')->getAssociations());
 
                 $orders = new OrderCollection([$order]);
 
@@ -281,6 +287,55 @@ final class ShopwareOrderGatewayTest extends TestCase
     }
 
     #[Test]
+    public function testItHandsThePaymentInstrumentToTheOrderRoute(): void
+    {
+        $order = new OrderEntity();
+        $data = null;
+
+        $cartOrderRoute = $this->createMock(AbstractCartOrderRoute::class);
+        $cartOrderRoute->expects(static::once())
+            ->method('order')
+            ->willReturnCallback(static function (Cart $_cart, SalesChannelContext $_context, RequestDataBag $requestData) use (&$data, $order): CartOrderRouteResponse {
+                $data = $requestData->all();
+
+                return new CartOrderRouteResponse($order);
+            });
+
+        $placedOrder = $this->orderPlacingGateway($cartOrderRoute)->placeOrder(
+            new Cart('cart-token'),
+            $this->createMock(SalesChannelContext::class),
+            new PaymentInstrument('card', 'com.example.psp', ['token' => 'tok_1'], ['postal_code' => '12345']),
+        );
+
+        self::assertSame($order, $placedOrder);
+        self::assertSame(['ucpPaymentInstrument' => [
+            'handlerId' => 'com.example.psp',
+            'type' => 'card',
+            'credential' => ['token' => 'tok_1'],
+            'billingAddress' => ['postal_code' => '12345'],
+        ]], $data);
+    }
+
+    #[Test]
+    public function testItPlacesAnOrderWithoutAnInstrumentWithEmptyRequestData(): void
+    {
+        $data = null;
+
+        $cartOrderRoute = $this->createMock(AbstractCartOrderRoute::class);
+        $cartOrderRoute->expects(static::once())
+            ->method('order')
+            ->willReturnCallback(static function (Cart $_cart, SalesChannelContext $_context, RequestDataBag $requestData) use (&$data): CartOrderRouteResponse {
+                $data = $requestData->all();
+
+                return new CartOrderRouteResponse(new OrderEntity());
+            });
+
+        $this->orderPlacingGateway($cartOrderRoute)->placeOrder(new Cart('cart-token'), $this->createMock(SalesChannelContext::class));
+
+        self::assertSame([], $data);
+    }
+
+    #[Test]
     public function testItRequiresIncomingContextTokenForPublicOrderReads(): void
     {
         $gateway = new ShopwareOrderGateway(
@@ -296,6 +351,17 @@ final class ShopwareOrderGatewayTest extends TestCase
         ]));
 
         $gateway->getOrder('99999999999999999999999999999999', new RequestContext('shop.example'));
+    }
+
+    private function orderPlacingGateway(AbstractCartOrderRoute $cartOrderRoute): ShopwareOrderGateway
+    {
+        return new ShopwareOrderGateway(
+            $this->uninitialized(SalesChannelContextResolver::class),
+            $cartOrderRoute,
+            $this->createMock(AbstractOrderRoute::class),
+            $this->uninitialized(CheckoutSessionStore::class),
+            new RequestStack(),
+        );
     }
 
     private function domainResolver(string $salesChannelId): SalesChannelDomainResolver

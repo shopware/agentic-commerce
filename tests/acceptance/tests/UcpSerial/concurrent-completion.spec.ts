@@ -15,7 +15,7 @@ async function isRefusedWhileInFlight(completion: APIResponse): Promise<boolean>
     return messages.some(message => message.code === 'invalid_request' && (message.content ?? '').startsWith('Checkout completion is already processing'));
 }
 
-test.describe('Concurrent completion @UcpKnownBlocked @UcpBlockedByD2', () => {
+test.describe('Concurrent completion @UcpSerial', () => {
     test('parallel completions of one checkout place exactly one order', async ({ TestDataService, UcpAgent }) => {
         const { agent, buyer, salesChannelId, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
         const completionRequest = await completionWithAdvertisedHandler(TestDataService, salesChannelId);

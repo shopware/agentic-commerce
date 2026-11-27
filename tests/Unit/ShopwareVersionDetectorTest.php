@@ -53,6 +53,20 @@ final class ShopwareVersionDetectorTest extends TestCase
     }
 
     #[Test]
+    public function testCoreEnforcesThePaymentChangeAfterOrderFromSixSixTenTwentyOneAndSixSevenThirteen(): void
+    {
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.5.8.18'))->enforcesPaymentChangeAfterOrder());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.6.10.20'))->enforcesPaymentChangeAfterOrder());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.6.10.21'))->enforcesPaymentChangeAfterOrder());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.6.10.28'))->enforcesPaymentChangeAfterOrder());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.0.0'))->enforcesPaymentChangeAfterOrder());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '6.7.12.9'))->enforcesPaymentChangeAfterOrder());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.13.0'))->enforcesPaymentChangeAfterOrder());
+        self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.7.9999999-dev'))->enforcesPaymentChangeAfterOrder());
+        self::assertFalse((new ShopwareVersionDetector(versionOverride: '0.0.0.0'))->enforcesPaymentChangeAfterOrder());
+    }
+
+    #[Test]
     public function testItNeedsTheSystemConfigXsdCompatPatchOnlyOnSixFive(): void
     {
         self::assertTrue((new ShopwareVersionDetector(versionOverride: '6.5.0.0'))->needsSystemConfigXsdCompatPatch());

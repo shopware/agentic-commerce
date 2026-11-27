@@ -14,6 +14,7 @@ use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Content\Product\ProductEntity;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Ucp\Sdk\Enum\AdjustmentStatus;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Catalog\Product;
@@ -161,30 +162,35 @@ final class ShopwareDataMapper implements ShopwareDataMapperInterface
     }
 
     /**
-     * @param list<Link> $legalLinks
+     * @param list<Link>                   $legalLinks
+     * @param CompletionPaymentResult|null $payment    the state of the order's payment, null for a paid order
+     * @param list<Message>|null           $messages   replaces the messages of the payment state
      */
-    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = []): Checkout
+    public function toCompletedCheckout(OrderEntity $order, string $checkoutId, string $currencyCode, ?string $continueUrl = null, ?string $orderPermalinkUrl = null, array $legalLinks = [], ?CompletionPaymentResult $payment = null, ?array $messages = null): Checkout
     {
+        $payment ??= CompletionPaymentResult::completed();
+        $completed = CheckoutStatus::Completed === $payment->status;
+        $continueUrl = $payment->continueUrl($continueUrl);
+
         return new Checkout(
             id: $checkoutId,
-            status: CheckoutStatus::Completed,
+            status: $payment->status,
             currency: $currencyCode,
             lineItems: $this->mapOrderLineItems($order),
             totals: $this->orderMoneySummary($order),
-            messages: [],
+            messages: $messages ?? $payment->messages(),
             links: [
-                ...(null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : []),
+                ...($completed && null !== $continueUrl ? [new Link('order', $continueUrl, 'Order details')] : []),
                 ...$legalLinks,
             ],
             buyer: $this->mapOrderBuyer($order),
             continueUrl: $continueUrl,
-            // The order's creation time used to be passed here positionally, and slot ten is
-            // `expiresAt` -- so a completed checkout advertised an expiry in the past. A
-            // completed checkout does not expire, so the field is omitted.
+            // A completed checkout does not expire, so `expiresAt` is omitted.
             // `order.permalink_url` is a required, absolute URI in the UCP response
             // schema; fall back to the continue URL only when a permalink is not
             // supplied. A null permalink makes the response fail SDK validation.
-            order: new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl),
+            // An order whose payment is still open is not confirmed to the agent.
+            order: $completed ? new OrderConfirmation($order->getId(), $orderPermalinkUrl ?? $continueUrl) : null,
         );
     }
 

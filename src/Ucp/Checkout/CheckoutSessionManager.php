@@ -6,6 +6,7 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
@@ -52,8 +53,10 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
+        ?CompletionPaymentResult $payment = null,
     ): void {
         $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
+        $metadata = [...$metadata, ...($payment?->sessionData() ?? [])];
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -109,6 +112,14 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function load(string $checkoutId, string $salesChannelId): array
+    {
+        return $this->sessionStore->load($checkoutId, $salesChannelId);
     }
 
     /**

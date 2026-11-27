@@ -23,6 +23,7 @@ use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\System\Currency\CurrencyEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Link;
@@ -469,6 +470,102 @@ final class ShopwareDataMapperTest extends TestCase
         );
 
         self::assertSame($this->legalLinkArrays(), $checkout->toArray()['links']);
+    }
+
+    #[Test]
+    public function testAnOrderAwaitingTheBuyerIsNotConfirmedAndContinuesAtTheRedirect(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            orderPermalinkUrl: 'https://shop.example/account/order/deep-link-code',
+            legalLinks: $this->legalLinks(),
+            payment: CompletionPaymentResult::awaitsBuyer('https://psp.example/pay/1'),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::RequiresEscalation->value, $checkout['status']);
+        self::assertSame('https://psp.example/pay/1', $checkout['continue_url']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertSame($this->legalLinkArrays(), $checkout['links']);
+        self::assertSame(['payment_requires_buyer_input'], array_column($checkout['messages'], 'code'));
+    }
+
+    #[Test]
+    public function testAnOrderWhosePaymentFailedIsNotConfirmedAndKeepsTheCheckoutContinueUrl(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            orderPermalinkUrl: 'https://shop.example/account/order/deep-link-code',
+            legalLinks: $this->legalLinks(),
+            payment: CompletionPaymentResult::failed(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame('https://shop.example/continue', $checkout['continue_url']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertSame($this->legalLinkArrays(), $checkout['links']);
+        self::assertSame(['payment_failed'], array_column($checkout['messages'], 'code'));
+    }
+
+    #[Test]
+    public function testAnOrderReadyToBePaidAgainReadsReadyForCompleteWithoutAnOrderConfirmation(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            orderPermalinkUrl: 'https://shop.example/account/order/deep-link-code',
+            legalLinks: $this->legalLinks(),
+            payment: CompletionPaymentResult::readyToPayAgain(),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::ReadyForComplete->value, $checkout['status']);
+        self::assertSame('https://shop.example/continue', $checkout['continue_url']);
+        self::assertSame([], $checkout['messages']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertSame($this->legalLinkArrays(), $checkout['links']);
+    }
+
+    #[Test]
+    public function testAnOrderThatCannotBePaidAgainCarriesAnUnrecoverablePaymentFailure(): void
+    {
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            payment: CompletionPaymentResult::failed(false),
+        )->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertArrayNotHasKey('order', $checkout);
+        self::assertSame([['payment_failed', 'unrecoverable']], array_map(
+            static fn (array $message): array => [$message['code'], $message['severity']],
+            $checkout['messages'],
+        ));
+    }
+
+    #[Test]
+    public function testGivenMessagesReplaceTheMessagesOfThePaymentState(): void
+    {
+        $refusal = new Message('error', 'The payment handler is not advertised.', 'recoverable', 'payment_failed', '$.payment.instruments[0].handler_id');
+
+        $checkout = (new ShopwareDataMapper())->toCompletedCheckout(
+            $this->order(),
+            'checkout-1',
+            'EUR',
+            'https://shop.example/continue',
+            payment: CompletionPaymentResult::failed(),
+            messages: [$refusal],
+        );
+
+        self::assertSame([$refusal], $checkout->messages);
     }
 
     /**

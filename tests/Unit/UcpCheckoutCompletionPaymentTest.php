@@ -72,38 +72,61 @@ final class UcpCheckoutCompletionPaymentTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{array<string, mixed>, list<string>}>
+     * @return iterable<string, array{array<string, mixed>, list<PaymentInstrument>}>
      */
-    public static function handlerIdsProvider(): iterable
+    public static function instrumentsProvider(): iterable
     {
         yield 'no payment' => [[], []];
         yield 'payment that is not an object' => [['payment' => null], []];
         yield 'empty payment' => [['payment' => []], []];
         yield 'empty instrument list' => [['payment' => ['instruments' => []]], []];
-        yield 'one instrument' => [['payment' => ['instruments' => [['handler_id' => 'com.shopware.invoice']]]], ['com.shopware.invoice']];
+        yield 'one instrument' => [
+            ['payment' => ['instruments' => [['handler_id' => 'com.shopware.invoice']]]],
+            [new PaymentInstrument('tokenized', 'com.shopware.invoice')],
+        ];
         yield 'two instruments' => [
             ['payment' => ['instruments' => [['handler_id' => 'com.shopware.invoice'], ['handler_id' => 'com.example.card']]]],
-            ['com.shopware.invoice', 'com.example.card'],
+            [new PaymentInstrument('tokenized', 'com.shopware.invoice'), new PaymentInstrument('tokenized', 'com.example.card')],
         ];
-        yield 'instrument without a handler id' => [['payment' => ['instruments' => [['type' => 'card']]]], ['']];
+        yield 'instrument without a handler id' => [
+            ['payment' => ['instruments' => [['type' => 'card']]]],
+            [new PaymentInstrument('card', '')],
+        ];
         yield 'instrument that is not an object' => [['payment' => ['instruments' => ['com.shopware.invoice']]], []];
-        yield 'flat instrument' => [['payment' => ['handler_id' => 'com.shopware.invoice']], ['com.shopware.invoice']];
-        yield 'flat instrument without a handler id' => [['payment' => ['type' => 'card']], ['']];
+        yield 'flat instrument' => [
+            ['payment' => ['handler_id' => 'com.shopware.invoice']],
+            [new PaymentInstrument('tokenized', 'com.shopware.invoice')],
+        ];
+        yield 'flat instrument without a handler id' => [['payment' => ['type' => 'card']], [new PaymentInstrument('card', '')]];
+        yield 'instrument with credential, billing address and selection' => [
+            ['payment' => ['instruments' => [[
+                'type' => 'card',
+                'handler_id' => 'com.example.card',
+                'credential' => ['token' => 'tok_123'],
+                'billing_address' => ['address_country' => 'DE'],
+                'selected' => true,
+            ]]]],
+            [new PaymentInstrument('card', 'com.example.card', ['token' => 'tok_123'], ['address_country' => 'DE'], true)],
+        ];
+        yield 'selection that is not a boolean' => [
+            ['payment' => ['instruments' => [['handler_id' => 'com.example.card', 'selected' => 'true']]]],
+            [new PaymentInstrument('tokenized', 'com.example.card')],
+        ];
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param list<string>         $expectedHandlerIds
+     * @param array<string, mixed>    $payload
+     * @param list<PaymentInstrument> $expectedInstruments
      */
-    #[DataProvider('handlerIdsProvider')]
+    #[DataProvider('instrumentsProvider')]
     #[Test]
-    public function testHandlerIdsAreReadTheWayTheSdkMapsThePaymentObject(array $payload, array $expectedHandlerIds): void
+    public function testInstrumentsAreReadTheWayTheSdkMapsThePaymentObject(array $payload, array $expectedInstruments): void
     {
-        self::assertSame($expectedHandlerIds, (new UcpCheckoutCompletionPayment())->handlerIds($payload));
+        self::assertEquals($expectedInstruments, (new UcpCheckoutCompletionPayment())->instruments($payload));
     }
 
     #[Test]
-    public function testHandlerIdsMatchTheInstrumentsTheSdkMapsFromTheSamePayload(): void
+    public function testInstrumentsMatchTheInstrumentsTheSdkMapsFromTheSamePayload(): void
     {
         $payloadsByCase = [
             'two instruments' => ['payment' => ['instruments' => [
@@ -116,18 +139,25 @@ final class UcpCheckoutCompletionPaymentTest extends TestCase
             'payment that is null' => ['payment' => null],
             'payment that is not an array' => ['payment' => 'com.shopware.invoice'],
             'instrument without a handler id' => ['payment' => ['instruments' => [['type' => 'card']]]],
+            'instrument with credential, billing address and selection' => ['payment' => ['instruments' => [[
+                'type' => 'card',
+                'handler_id' => 'com.example.card',
+                'credential' => ['token' => 'tok_123'],
+                'billing_address' => ['address_country' => 'DE'],
+                'selected' => true,
+            ]]]],
+            'instrument with a credential that is not an object' => ['payment' => ['instruments' => [['handler_id' => 'com.example.card', 'credential' => 'tok_123']]]],
             'instruments that is a string' => ['payment' => ['instruments' => 'com.shopware.invoice']],
             'instruments that is an object' => ['payment' => ['instruments' => ['handler_id' => 'com.shopware.invoice']]],
             'instruments holding a non-array' => ['payment' => ['instruments' => ['com.shopware.invoice', ['handler_id' => 'com.example.card']]]],
         ];
 
         foreach ($payloadsByCase as $case => $payload) {
-            $sdkHandlerIds = array_map(
-                static fn (PaymentInstrument $instrument): string => $instrument->handlerId,
+            self::assertEquals(
                 (new HttpPayloadMapper())->toCheckoutCompleteRequest('checkout-1', $payload)->instruments,
+                (new UcpCheckoutCompletionPayment())->instruments($payload),
+                $case,
             );
-
-            self::assertSame($sdkHandlerIds, (new UcpCheckoutCompletionPayment())->handlerIds($payload), $case);
         }
     }
 }

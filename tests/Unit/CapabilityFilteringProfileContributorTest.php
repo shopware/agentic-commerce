@@ -24,6 +24,7 @@ use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelDomainResolver;
 use Swag\AgenticCommerce\Ucp\UcpProtocol;
 use Ucp\Sdk\Enum\Transport;
 use Ucp\Sdk\Model\Profile\CapabilityDescriptor;
+use Ucp\Sdk\Model\Profile\PaymentHandlerDescriptor;
 use Ucp\Sdk\Model\Profile\PlatformProfile;
 use Ucp\Sdk\Model\Profile\ProfileBuildInput;
 use Ucp\Sdk\Model\Profile\ServiceEndpoint;
@@ -110,6 +111,44 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
         self::assertNotSame([], $contributor->contribute($profile, $input)->services, 'the stored config is active');
     }
 
+    #[Test]
+    public function testAnActiveConfigPublishesThePaymentHandlersWithoutTheTokenizationSwitch(): void
+    {
+        $profile = $this->profileWithInvoiceHandler();
+
+        $result = $this->contributor([UcpCapabilityCatalog::CONFIG_CHECKOUT])->contribute(
+            $profile,
+            new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
+        );
+
+        self::assertSame($profile->paymentHandlers, $result->paymentHandlers);
+    }
+
+    #[Test]
+    public function testAnInactiveConfigWithholdsThePaymentHandlers(): void
+    {
+        $result = $this->contributor([UcpCapabilityCatalog::CONFIG_CHECKOUT], active: false)->contribute(
+            $this->profileWithInvoiceHandler(),
+            new ProfileBuildInput(UcpProtocol::VERSION, 'https://shop.example'),
+        );
+
+        self::assertSame([], $result->paymentHandlers);
+    }
+
+    private function profileWithInvoiceHandler(): PlatformProfile
+    {
+        return new PlatformProfile(UcpProtocol::VERSION, [], [], [
+            'com.shopware.invoice' => [new PaymentHandlerDescriptor(
+                'com.shopware.invoice',
+                'com.shopware.invoice',
+                UcpProtocol::VERSION,
+                'https://example.com/spec',
+                'https://example.com/config.json',
+                ['https://example.com/instrument.json'],
+            )],
+        ]);
+    }
+
     /**
      * @param list<string>                              $enabledCapabilities
      * @param array<string, list<CapabilityDescriptor>> $profileCapabilities
@@ -143,11 +182,11 @@ final class CapabilityFilteringProfileContributorTest extends TestCase
     /**
      * @param list<string> $enabledCapabilities
      */
-    private function contributor(array $enabledCapabilities, ProfileDraftConfig $draftConfig = new ProfileDraftConfig()): CapabilityFilteringProfileContributor
+    private function contributor(array $enabledCapabilities, ProfileDraftConfig $draftConfig = new ProfileDraftConfig(), bool $active = true): CapabilityFilteringProfileContributor
     {
         $legacyStore = $this->createMock(LegacyConfigStoreInterface::class);
         $legacyStore->method('get')->willReturnCallback(static fn (string $key): mixed => match ($key) {
-            'SwagAgenticCommerce.config.active' => true,
+            'SwagAgenticCommerce.config.active' => $active,
             'SwagAgenticCommerce.config.enabledCapabilities' => $enabledCapabilities,
             default => null,
         });

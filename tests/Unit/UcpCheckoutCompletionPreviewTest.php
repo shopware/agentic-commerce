@@ -7,13 +7,10 @@ namespace Swag\AgenticCommerce\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
-use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompletionPreview;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Model\Common\Message;
-use Ucp\Sdk\Model\Config\RuntimeConfiguration;
-use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
 final class UcpCheckoutCompletionPreviewTest extends TestCase
@@ -76,43 +73,46 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     }
 
     #[Test]
-    public function testAMissingRuntimeConfigurationIsReportedAsAPaymentBlockerInsteadOfFailingThePreview(): void
+    public function testAPlacedOrderWhosePaymentCanBePaidAgainHasNoStatusBlocker(): void
     {
-        $preview = new UcpCheckoutCompletionPreview();
-        $gate = new CompletionPaymentGate(static function (): never {
-            throw new \LogicException('The profile must not be built without a runtime configuration.');
-        });
+        self::assertSame([], (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $this->failedPaymentMessages(retryable: true)));
+    }
 
-        $refusal = $preview->paymentRefusal($gate, ['com.shopware.invoice'], new RequestContext('shop.example'));
+    #[Test]
+    public function testAPlacedOrderThatIsReadyToBePaidAgainHasNoBlocker(): void
+    {
+        $messages = array_map(static fn (Message $message): array => $message->toArray(), CompletionPaymentResult::readyToPayAgain()->messages());
 
-        self::assertNotNull($refusal);
-        self::assertSame(UcpConfigException::RUNTIME_CONFIGURATION_MISSING, $refusal->code);
+        self::assertSame([], (new UcpCheckoutCompletionPreview())->blockers(CompletionPaymentResult::readyToPayAgain()->status, null, $messages));
+    }
+
+    #[Test]
+    public function testAPlacedOrderWhosePaymentCannotBePaidAgainIsBlocked(): void
+    {
         self::assertSame(
-            [$refusal->content],
-            $preview->blockers('ready_for_complete', $refusal),
+            ['The payment failed and the order cannot be paid again through this checkout.'],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $this->failedPaymentMessages(retryable: false)),
         );
     }
 
     #[Test]
-    public function testAGateRefusalIsPassedThroughAsItIs(): void
+    public function testAPaymentRefusalStillBlocksPayingAPlacedOrderAgain(): void
     {
-        $gate = new CompletionPaymentGate(static function (): never {
-            throw new \LogicException('The profile must not be built for a wrong instrument count.');
-        });
-
-        $refusal = (new UcpCheckoutCompletionPreview())->paymentRefusal($gate, [], new RequestContext('shop.example'));
-
-        self::assertSame('payment_failed', $refusal?->code);
+        self::assertSame(
+            ['Completing a checkout needs exactly one payment instrument, 0 given.'],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', $this->paymentRefusal(), $this->failedPaymentMessages(retryable: true)),
+        );
     }
 
     #[Test]
-    public function testNoPaymentRefusalWhenTheGateLetsTheCompletionGo(): void
+    public function testAnIncompleteCheckoutWithOtherMessagesKeepsItsStatusBlocker(): void
     {
-        $profileBuilder = RecordingProfileBuilder::advertising('com.shopware.invoice');
-        $gate = new CompletionPaymentGate(static fn (): RecordingProfileBuilder => $profileBuilder);
-        $context = new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration('2026-08-25', 'https://shop.example'));
+        $messages = [['type' => 'warning', 'content' => 'The product is out of stock.', 'code' => 'out_of_stock']];
 
-        self::assertNull((new UcpCheckoutCompletionPreview())->paymentRefusal($gate, ['com.shopware.invoice'], $context));
+        self::assertSame(
+            ['Checkout is incomplete: finish it with update_checkout before completing.'],
+            (new UcpCheckoutCompletionPreview())->blockers('incomplete', null, $messages),
+        );
     }
 
     #[Test]
@@ -152,6 +152,14 @@ final class UcpCheckoutCompletionPreviewTest extends TestCase
     public function testAnUnknownStatusBlocksRatherThanSilentlyAllowingACommit(mixed $status, string $expectedBlocker): void
     {
         self::assertSame([$expectedBlocker], (new UcpCheckoutCompletionPreview())->blockers($status));
+    }
+
+    /**
+     * @return list<array<string, string>> the messages of a placed order's checkout as `checkout.get` returns them
+     */
+    private function failedPaymentMessages(bool $retryable): array
+    {
+        return array_map(static fn (Message $message): array => $message->toArray(), CompletionPaymentResult::failed($retryable)->messages());
     }
 
     private function paymentRefusal(): Message

@@ -75,12 +75,12 @@ Sales-channel configuration is also plugin-table backed:
 
 Payment tokenization remains extension-ready but not bundled as a shipped tokenizer:
 
-- The plugin registers the tokenization capability wrapper and a non-tokenizing Shopware invoice
-  payment-handler descriptor.
+- The plugin registers the tokenization capability wrapper and non-tokenizing payment handlers for
+  invoice, prepayment and cash on delivery.
 - `/ucp/v1/tokenize` must return `501` until at least one real payment handler supports UCP
   tokenization and the capability is enabled.
-- `payment_handlers` must stay an empty object in `/.well-known/ucp` unless tokenization is enabled
-  and a real tokenizing handler is registered.
+- `payment_handlers` in `/.well-known/ucp` lists the registered payment handlers of every sales
+  channel with UCP switched on, independent of tokenization.
 - Store API customer login/context-token APIs and Shopware checkout payment tokens are not
   sufficient substitutes. They do not provide the UCP identity-linking consent model or a reusable
   payment-tokenization contract.
@@ -140,7 +140,9 @@ and every transport on each lane.
 
 The default shipped optional capability decision:
 
-- `payment_handlers` is an empty object in the UCP profile.
+- `payment_handlers` in the UCP profile lists each bundled handler (`com.shopware.invoice`,
+  `com.shopware.prepayment`, `com.shopware.cash_on_delivery`) whose kind of payment method is active
+  and assigned to the sales channel.
 - `/.well-known/oauth-authorization-server` returns `501` until `identity_linking` is enabled for
   the sales channel.
 - With `identity_linking` enabled, OAuth metadata returns `200` and authorize requires a logged-in

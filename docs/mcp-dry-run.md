@@ -67,10 +67,33 @@ call, so it is still the one entry point every mutating tool goes through — se
 Blocker derivation lives in `UcpCheckoutCompletionPreview` — split out of the tool because the tool
 depends on the final `ShoppingOperationExecutor` and cannot be constructed with a mock.
 
-A payload that does not carry exactly one payment instrument naming a handler the profile advertises
-adds the refusal of `CompletionPaymentGate` to the blockers, so the preview says what a commit would
-answer with `payment_failed`. A checkout that is already completed has no such blocker, because a
-completion replays its order before the gate runs.
+The payment part of the preview lives in `UcpCheckoutCompletionPaymentCheck`.
+
+A payload that does not carry exactly one payment instrument adds the refusal the UCP SDK answers a
+commit with, because the preview never reaches the SDK's check. A single instrument naming a handler
+the profile does not advertise adds the refusal of `CompletionPaymentGate`. In both cases the
+preview says what a commit would answer with `payment_failed`. A checkout that is already completed
+has no such blocker, because a completion replays its order before the gate runs.
+
+An advertised handler whose payment method the sales channel does not offer, or the buyer may not
+use because of an availability rule, adds the refusal of the default applier. The preview asks
+`RegisteredHandlerPaymentMethodResolver`, which the default applier uses as well, for the payment
+method of the handler and its availability in the context of the checkout. It switches nothing. It
+checks with the context the checkout has before the guest customer is registered, so a rule that
+depends on the buyer's address can still refuse the commit.
+
+A payment method that changes the total of the checkout cannot be told without switching to it, so
+the preview does not report it. A commit refuses it unless the checkout was updated with that
+instrument first.
+
+A checkout whose payment failed reads `incomplete` with a `payment_failed` message. A commit pays
+its order again, so the preview names no status blocker for it. When the message is `unrecoverable`,
+the preview says that the order cannot be paid again through the checkout. For a placed order that
+can be paid again, the preview reports the refusal of a payment method without _Allow payment change
+after checkout_ on the Shopware versions that enforce it, as described in
+[completion-payment.md](completion-payment.md). Once an Update Checkout has accepted a new
+instrument, the checkout reads `ready_for_complete` and the preview names no blocker for it either.
+See [completion-payment.md](completion-payment.md).
 
 ## Limits of the rolled-back dry run
 

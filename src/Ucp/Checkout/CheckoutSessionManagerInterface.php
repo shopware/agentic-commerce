@@ -6,12 +6,18 @@ namespace Swag\AgenticCommerce\Ucp\Checkout;
 
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Ucp\Sdk\Model\Common\Buyer;
 
 /** @internal */
 #[Package('checkout')]
 interface CheckoutSessionManagerInterface
 {
+    /**
+     * @return array<string, mixed> the session saved for the checkout, empty when there is none
+     */
+    public function load(string $checkoutId, string $salesChannelId): array;
+
     /**
      * @param array<string, mixed> $metadata
      */
@@ -62,5 +68,6 @@ interface CheckoutSessionManagerInterface
         ?string $orderDeepLinkCode = null,
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
+        ?CompletionPaymentResult $payment = null,
     ): void;
 }

@@ -339,15 +339,14 @@ Verify that Save applies pending changes across sales channel tabs:
 
 ### 3. Real payment-tokenization handler
 
-The acceptance suite expects at least one payment handler in the profile and stays red until one
-exists (known blocker D2). To prove the real path, install a real tokenizing payment handler (see
+The profile lists the bundled invoice, prepayment and cash on delivery handlers, which do not
+tokenize. To prove the real path, install a real tokenizing payment handler (see
 [docs/payment-tokenization-handler.md](payment-tokenization-handler.md) for the implementer
 checklist) and enable `payment_tokenization` for the sales channel.
 
 Steps:
 
-- Confirm `GET /.well-known/ucp` now advertises the installed handler under `payment_handlers` (no
-  longer an empty object).
+- Confirm `GET /.well-known/ucp` now advertises the installed handler under `payment_handlers`.
 - Confirm `POST /ucp/v1/tokenize` returns a real token (not `501`):
 
   ```bash

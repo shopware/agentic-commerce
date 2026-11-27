@@ -20,6 +20,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Ucp\Sdk\Exception\ResourceNotFoundException;
 use Ucp\Sdk\Exception\ValidationException;
+use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
@@ -35,9 +36,12 @@ final class ShopwareOrderGateway implements OrderGatewayInterface
     ) {
     }
 
-    public function placeOrder(Cart $cart, SalesChannelContext $context): OrderEntity
+    public function placeOrder(Cart $cart, SalesChannelContext $context, ?PaymentInstrument $instrument = null): OrderEntity
     {
-        return $this->cartOrderRoute->order($cart, $context, new RequestDataBag())->getOrder();
+        // The payment handler validates the instrument before the order is written.
+        $data = new RequestDataBag(ShopwareOrderPaymentGateway::instrumentData($instrument));
+
+        return $this->cartOrderRoute->order($cart, $context, $data)->getOrder();
     }
 
     public function getOrder(string $orderId, RequestContext $requestContext): OrderEntity
@@ -138,6 +142,7 @@ final class ShopwareOrderGateway implements OrderGatewayInterface
         $criteria->addAssociation('billingAddress');
         $criteria->addAssociation('lineItems.cover');
         $criteria->addAssociation('stateMachineState');
+        $criteria->addAssociation('transactions.stateMachineState');
 
         return $criteria;
     }

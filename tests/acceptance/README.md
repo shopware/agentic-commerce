@@ -185,11 +185,17 @@ writes the agent's profile, public key in `keys` included, to
 `<SHOPWARE_DIR>/public/ucp-acceptance-agents/<kid>.json`. The agent sends it as
 `UCP-Agent: profile="<url>"`. The profile carries every shopping capability the UCP specification
 defines at the protocol version, so the SDK has something to negotiate, and
-`publish({ capabilities })` replaces that set for negative specs. The shop fetches the profile from
-`UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`), the web container's own document
-root, the only plain-http host the SDK admits and only in development mode. The fixture verifies the
-file is served through `APP_URL` and throws otherwise. It never falls back to the shop's own
-profile. A worker removes its own files at teardown.
+`publish({ capabilities })` replaces that set for negative specs. It also declares the plugin's
+three offline payment handlers, `com.shopware.invoice`, `com.shopware.prepayment` and
+`com.shopware.cash_on_delivery`, in the entry shape the SDK reads, and
+`publish({ paymentHandlers })` replaces them. The SDK negotiates on the entry `id`. It leaves
+`ucp.payment_handlers` empty in checkout responses until known blocker D40 is fixed. Completion
+specs send one instrument for `com.shopware.invoice` with `type: 'invoice'` and no token. A
+spec-shaped entry (`id`, `version`, `spec`, `schema`) is rejected until known blocker D39 is fixed.
+The shop fetches the profile from `UCP_AGENT_PROFILE_BASE_URL` (default `http://localhost:8000`),
+the web container's own document root, the only plain-http host the SDK admits and only in
+development mode. The fixture verifies the file is served through `APP_URL` and throws otherwise. It
+never falls back to the shop's own profile. A worker removes its own files at teardown.
 
 **`UcpAclUsers`** (test scope) has `as('ucp.viewer' | 'ucp.editor' | 'ucp.key_rotator')`, which
 creates an ACL role and a non-admin user, logs into the Administration in a separate page context

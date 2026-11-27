@@ -38,10 +38,14 @@ export interface CapabilityEntry {
 
 export type CapabilityMap = Record<string, CapabilityEntry[]>;
 
+export type PaymentHandlerMap = Record<string, Record<string, unknown>[]>;
+
 export interface PublishOptions {
     kid?: string
     /** Replaces the default set entirely; `{}` publishes an agent that can negotiate nothing. */
     capabilities?: CapabilityMap
+    /** Replaces the three offline handlers entirely; `{}` publishes an agent that can pay with nothing. */
+    paymentHandlers?: PaymentHandlerMap
     services?: Record<string, unknown[]>
     /** Published as `webhook_url` in the config of the order capability. */
     orderWebhookUrl?: string
@@ -73,6 +77,23 @@ export function specShoppingCapabilities(version: string): CapabilityMap {
         spec: `https://ucp.dev/specification/${capability.document}/`,
         schema: `https://ucp.dev/${version}/schemas/shopping/${capability.document}.json`,
         ...(capability.extends === undefined ? {} : { extends: capability.extends }),
+    }]]));
+}
+
+const OFFLINE_PAYMENT_HANDLER_IDS = ['com.shopware.invoice', 'com.shopware.prepayment', 'com.shopware.cash_on_delivery'];
+
+/**
+ * The handlers the plugin advertises for its offline payment methods, in the entry shape the SDK
+ * reads from an agent profile. The SDK negotiates on the entry id, so it carries the handler id.
+ */
+export function offlinePaymentHandlers(version: string): PaymentHandlerMap {
+    return Object.fromEntries(OFFLINE_PAYMENT_HANDLER_IDS.map(handlerId => [handlerId, [{
+        id: handlerId,
+        name: handlerId,
+        version,
+        spec: `https://developer.shopware.com/ucp/payment-handlers/${handlerId}`,
+        config_schema: 'https://ucp.dev/schemas/payments/delegate-payment.json',
+        instrument_schemas: ['https://ucp.dev/schemas/shopping/types/payment_instrument.json'],
     }]]));
 }
 
@@ -116,7 +137,7 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
             fs.mkdirSync(directory, { recursive: true });
             fs.accessSync(directory, fs.constants.W_OK);
 
-            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities, services, orderWebhookUrl } = {}) => {
+            const publish: UcpAgentProfileHost['publish'] = async ({ kid, capabilities, paymentHandlers, services, orderWebhookUrl } = {}) => {
                 const agentKid = kid ?? `acceptance-w${workerInfo.parallelIndex}-${crypto.randomUUID().slice(0, 8)}`;
                 const { publicJwk, privateKeyPem } = generateSigningKey(agentKid);
                 const publishedCapabilities = capabilities ?? specShoppingCapabilities(version);
@@ -133,7 +154,7 @@ export const test = base.extend<NonNullable<unknown>, UcpAgentProfileHostTypes>(
                         version,
                         services: services ?? {},
                         capabilities: publishedCapabilities,
-                        payment_handlers: {},
+                        payment_handlers: paymentHandlers ?? offlinePaymentHandlers(version),
                     },
                     keys: [publicJwk],
                 };
