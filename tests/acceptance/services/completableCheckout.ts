@@ -16,14 +16,16 @@ export async function createCompletableCheckout(
     const product = await TestDataService.createBasicProduct({ visibilities: [{ salesChannelId: ucpChannel.salesChannel.id, visibility: 30 }] });
     const agent = UcpAgent.at(ucpChannel.url);
     const buyer = { email: `ucp-checkout-${crypto.randomUUID()}@example.com`, first_name: 'Ada', last_name: 'Lovelace' };
-    const fulfillment = { methods: [{ type: 'shipping', destinations: [{ street_address: '1 Test Street', address_locality: 'London', postal_code: 'SW1A 1AA', address_country: 'GB' }] }] };
+    const shippingAddress = { street_address: '1 Test Street', address_locality: 'London', postal_code: 'SW1A 1AA', address_country: 'GB' };
     const lineItems = [{ item: { id: product.id }, quantity: 1 }];
 
-    const readyCheckout = await agent.rest.send('POST', CHECKOUT_SESSIONS_PATH, { body: { line_items: lineItems, buyer, fulfillment } });
+    const readyCheckout = await agent.rest.send('POST', CHECKOUT_SESSIONS_PATH, { body: { line_items: lineItems, buyer, fulfillment: { methods: [{ type: 'shipping', destinations: [shippingAddress] }] } } });
     expect(readyCheckout.ok(), await readyCheckout.text()).toBeTruthy();
-    const { id: checkoutId } = (await readyCheckout.json()) as { id: string };
+    const { id: checkoutId, line_items: checkoutLineItems } = (await readyCheckout.json()) as { id: string, line_items: { id: string }[] };
+    // Update Checkout requires the line items a fulfillment method covers.
+    const shippingFulfillment = { methods: [{ type: 'shipping', line_item_ids: checkoutLineItems.map(lineItem => lineItem.id), destinations: [shippingAddress] }] };
 
-    return { agent, buyer, fulfillment, lineItems, salesChannelId: ucpChannel.salesChannel.id, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
+    return { agent, buyer, fulfillment: shippingFulfillment, lineItems, salesChannelId: ucpChannel.salesChannel.id, channelUrl: ucpChannel.url, checkoutPath: `${CHECKOUT_SESSIONS_PATH}/${checkoutId}` };
 }
 
 export async function completionWithAdvertisedHandler(

@@ -20,6 +20,7 @@ test.describe('Checkout state @UcpProtocol', () => {
         await test.step('an update is refused', async () => {
             const updateAfterCompletion = await agent.rest.send('PUT', checkoutPath, { body: { line_items: lineItems.map(lineItem => ({ ...lineItem, quantity: 2 })), buyer, fulfillment } });
             expect(await isRefusal(updateAfterCompletion), await updateAfterCompletion.text()).toBe(true);
+            expect(await updateAfterCompletion.text()).toContain('Completed checkout sessions cannot be updated.');
 
             const storedCheckout = await agent.rest.send('GET', checkoutPath);
             expect(storedCheckout.status(), await storedCheckout.text()).toBe(200);
