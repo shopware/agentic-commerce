@@ -31,8 +31,8 @@
     "typescript-eslint": "^8.59.0"
   },
   "dependencies": {
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@shopware-ag/acceptance-test-suite": "12.27.0",
-    "playwright-core": "1.65.0"
+    "playwright-core": "1.65.1"
   }
 }
