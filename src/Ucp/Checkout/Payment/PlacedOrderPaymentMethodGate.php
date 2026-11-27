@@ -21,6 +21,9 @@ use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 #[Package('checkout')]
 final class PlacedOrderPaymentMethodGate
 {
+    private const CORE_HANDLER_NAMESPACE = 'Shopware\\Core\\';
+    private const APP_HANDLER_IDENTIFIER_PREFIX = 'app\\';
+
     public function __construct(
         private readonly ShopwareVersionDetector $versionDetector,
         private readonly AdvertisedPaymentHandlers $advertisedHandlers,
@@ -87,19 +90,19 @@ final class PlacedOrderPaymentMethodGate
      */
     private function hasPaymentExtensionMethodWithAfterOrderEnabled(array $afterOrderEnabledFlagsByHandlerClass): bool
     {
-        $offlineHandlerClasses = [];
-        foreach ($this->handlerRegistry->all() as $handler) {
-            if ($handler instanceof ShopwareOfflinePaymentHandler) {
-                $offlineHandlerClasses[] = $handler->coreHandlerClass();
-            }
-        }
-
-        foreach ($afterOrderEnabledFlagsByHandlerClass as $handlerClass => $afterOrderEnabledFlags) {
-            if (!\in_array($handlerClass, $offlineHandlerClasses, true) && \in_array(true, $afterOrderEnabledFlags, true)) {
+        foreach ($afterOrderEnabledFlagsByHandlerClass as $handlerIdentifier => $afterOrderEnabledFlags) {
+            if ($this->isPaymentExtensionHandler((string) $handlerIdentifier) && \in_array(true, $afterOrderEnabledFlags, true)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function isPaymentExtensionHandler(string $handlerIdentifier): bool
+    {
+        // Shopware gives every app payment method this identifier prefix, on every supported version.
+        return !str_starts_with($handlerIdentifier, self::CORE_HANDLER_NAMESPACE)
+            && !str_starts_with($handlerIdentifier, self::APP_HANDLER_IDENTIFIER_PREFIX);
     }
 }

@@ -37,7 +37,6 @@ trait BuildsPlacedOrderPaymentMethodGate
         $paymentMethods = new SalesChannelPaymentMethods($paymentMethodRepository, $this->createMock(AbstractPaymentMethodRoute::class));
         $invoiceHandler = new ShopwareOfflinePaymentHandler(ShopwareOfflinePaymentHandler::INVOICE_ID, InvoicePayment::class, $paymentMethods);
         $handlerRegistry = $this->createMock(PaymentHandlerRegistryInterface::class);
-        $handlerRegistry->method('all')->willReturn([$invoiceHandler]);
 
         if ($canBePaidAgain) {
             $advertisedHandlerId = 'com.example.psp';

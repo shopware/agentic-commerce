@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\DebitPayment;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\InvoicePayment;
 use Shopware\Core\Checkout\Payment\Cart\PaymentHandler\PrePayment;
 use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
@@ -37,6 +38,7 @@ final class PlacedOrderPaymentMethodGateTest extends TestCase
     private const EXTENSION_HANDLER_ID = 'com.example.psp';
     private const UNREGISTERED_HANDLER_ID = 'com.example.unregistered';
     private const EXTENSION_HANDLER_CLASS = 'Swag\\Example\\PspPaymentHandler';
+    private const APP_HANDLER_IDENTIFIER = 'app\\ExampleApp_pay';
 
     private PaymentHandlerRegistryInterface&MockObject $handlerRegistry;
 
@@ -147,6 +149,30 @@ final class PlacedOrderPaymentMethodGateTest extends TestCase
     }
 
     #[Test]
+    public function testAnOrderCannotBePaidAgainByAPaymentExtensionWhenOnlyDirectDebitHasPaymentChangeAfterCheckout(): void
+    {
+        $this->methodsOfSalesChannel([DebitPayment::class => [true], self::EXTENSION_HANDLER_CLASS => [false]]);
+
+        self::assertFalse($this->gateOnShopware('6.7.13.0', self::EXTENSION_HANDLER_ID)->canBePaidByAdvertisedHandler(self::SALES_CHANNEL_ID, $this->requestContext()));
+    }
+
+    #[Test]
+    public function testAnOrderCannotBePaidAgainByAPaymentExtensionWhenOnlyAnAppPaymentMethodHasPaymentChangeAfterCheckout(): void
+    {
+        $this->methodsOfSalesChannel([self::APP_HANDLER_IDENTIFIER => [true], self::EXTENSION_HANDLER_CLASS => [false]]);
+
+        self::assertFalse($this->gateOnShopware('6.7.13.0', self::EXTENSION_HANDLER_ID)->canBePaidByAdvertisedHandler(self::SALES_CHANNEL_ID, $this->requestContext()));
+    }
+
+    #[Test]
+    public function testAnOrderCanBePaidAgainByAPaymentExtensionAlongsideDirectDebitAndAppPaymentMethods(): void
+    {
+        $this->methodsOfSalesChannel([DebitPayment::class => [false], self::APP_HANDLER_IDENTIFIER => [false], self::EXTENSION_HANDLER_CLASS => [true]]);
+
+        self::assertTrue($this->gateOnShopware('6.7.13.0', self::EXTENSION_HANDLER_ID)->canBePaidByAdvertisedHandler(self::SALES_CHANNEL_ID, $this->requestContext()));
+    }
+
+    #[Test]
     public function testAnOrderCanBePaidAgainByAnOfflineHandlerWhoseMethodHasPaymentChangeAfterCheckout(): void
     {
         $this->methodsOfSalesChannel([InvoicePayment::class => [false], PrePayment::class => [true]]);
@@ -238,7 +264,6 @@ final class PlacedOrderPaymentMethodGateTest extends TestCase
             ShopwareOfflinePaymentHandler::PREPAYMENT_ID => $offlineHandlers[1],
             self::EXTENSION_HANDLER_ID => $this->createMock(PaymentHandlerInterface::class),
         ];
-        $this->handlerRegistry->method('all')->willReturn(array_values($handlerByHandlerId));
         $this->handlerRegistry->method('find')->willReturnCallback(static fn (string $handlerId): ?PaymentHandlerInterface => $handlerByHandlerId[$handlerId] ?? null);
     }
 
