@@ -227,6 +227,7 @@ final class CheckoutCompleter
             }
 
             // Shopware 6.5 and 6.6 capture a prepared payment inside the order route and keep the order when that fails.
+            // Their payment processing skips a prepared handler, so paying again would report success without a capture.
             return [$this->orderGateway->getOrderForSalesChannelContext($orderId, $context), CompletionPaymentResult::failed(false)];
         }
     }
