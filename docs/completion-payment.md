@@ -110,7 +110,9 @@ same `continue_url`, and no second payment is started. Once the order transactio
 
 The order exists and its cart is gone. The checkout reads `incomplete` with a recoverable
 `payment_failed` message at `$.payment.instruments[0]`, so the agent resolves it through Update
-Checkout, as the UCP specification describes for `incomplete`.
+Checkout, as the UCP specification describes for `incomplete`. When no handler in the profile can
+pay the order again, the message is `unrecoverable` instead, as described at the end of this
+section.
 
 An Update Checkout with an instrument for another payment handler is accepted when the order can be
 paid again. The instrument has to pass the gate and the applier, as on completion. The default
@@ -145,10 +147,12 @@ can then pay with the instrument of another handler. A payment extension that wa
 again with its own payment method switches the setting on for it.
 
 When no handler in the profile can pay the order again, a failed payment and this refusal are
-`unrecoverable` instead. The plugin knows the payment methods of its bundled handlers and checks
-their setting. The payment method of a payment extension's handler is known only from an instrument,
-so such a handler counts as able to pay when the sales channel has any other active payment method
-with the setting switched on.
+`unrecoverable` instead. The plugin saves this state, so the checkout keeps the `unrecoverable`
+message, also after the merchant switches the setting on. The plugin knows the payment methods of
+its bundled handlers and checks their setting. The payment method of a payment extension's handler
+is known only from an instrument, so such a handler counts as able to pay when the sales channel has
+another active payment method of a plugin with the setting switched on. The payment methods of
+Shopware itself and of apps do not count, because no handler that a plugin registers selects them.
 
 When the order is paid in another way in the meantime, for example by the buyer on the order page of
 the Storefront, the checkout reads `completed`.
