@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Checkout\Payment;
 
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
 use Ucp\Sdk\Exception\ValidationException;
@@ -40,11 +41,21 @@ final class RegisteredHandlerPaymentMethodResolver
             throw CompletionPaymentException::handlerNotRegistered($instrument?->handlerId);
         }
 
-        $paymentMethodId = $paymentHandler->prepareInstrument($instrument, $requestContext)['paymentMethodId'];
-        if ('' === $paymentMethodId || !$this->paymentMethods->isAvailable($paymentMethodId, $context)) {
+        $paymentMethodId = self::paymentMethodId($paymentHandler->prepareInstrument($instrument, $requestContext));
+        if (null === $paymentMethodId || !$this->paymentMethods->isAvailable($paymentMethodId, $context)) {
             throw CompletionPaymentException::paymentMethodUnavailable($instrument->handlerId);
         }
 
         return $paymentMethodId;
+    }
+
+    /**
+     * @param array<mixed> $preparedInstrument
+     */
+    private static function paymentMethodId(array $preparedInstrument): ?string
+    {
+        $paymentMethodId = $preparedInstrument['paymentMethodId'] ?? null;
+
+        return \is_string($paymentMethodId) && Uuid::isValid($paymentMethodId) ? $paymentMethodId : null;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -88,6 +89,34 @@ final class RegisteredHandlerPaymentMethodResolverTest extends TestCase
     {
         $this->handlerRegistry->method('find')->willReturn($this->paymentHandler);
         $this->paymentHandler->method('prepareInstrument')->willReturn(['paymentMethodId' => '', 'token' => '']);
+        $this->paymentMethodRoute->expects(static::never())->method('load');
+
+        $this->expectExceptionObject(CompletionPaymentException::paymentMethodUnavailable(self::HANDLER_ID));
+
+        $this->resolver->resolve(new PaymentInstrument('invoice', self::HANDLER_ID), $this->createMock(SalesChannelContext::class), new RequestContext('shop.example'));
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function unusablePaymentMethodIdProvider(): iterable
+    {
+        yield 'a missing key' => [['token' => '']];
+        yield 'a null' => [['paymentMethodId' => null, 'token' => '']];
+        yield 'an integer' => [['paymentMethodId' => 1, 'token' => '']];
+        yield 'an array' => [['paymentMethodId' => [self::PAYMENT_METHOD_ID], 'token' => '']];
+        yield 'a string that is no uuid' => [['paymentMethodId' => 'invoice', 'token' => '']];
+    }
+
+    /**
+     * @param array<string, mixed> $preparedInstrument
+     */
+    #[DataProvider('unusablePaymentMethodIdProvider')]
+    #[Test]
+    public function testAPaymentMethodIdThatIsNoUuidIsRefusedWithoutCheckingItsAvailability(array $preparedInstrument): void
+    {
+        $this->handlerRegistry->method('find')->willReturn($this->paymentHandler);
+        $this->paymentHandler->method('prepareInstrument')->willReturn($preparedInstrument);
         $this->paymentMethodRoute->expects(static::never())->method('load');
 
         $this->expectExceptionObject(CompletionPaymentException::paymentMethodUnavailable(self::HANDLER_ID));
