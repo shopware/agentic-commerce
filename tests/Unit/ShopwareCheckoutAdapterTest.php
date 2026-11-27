@@ -1419,6 +1419,38 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         }
     }
 
+    /**
+     * @return iterable<string, array{string|null}>
+     */
+    public static function completedOrderIdOfPlacedCheckoutProvider(): iterable
+    {
+        yield 'a completion row' => [self::PLACED_ORDER_ID];
+        yield 'only the legacy session metadata' => [null];
+    }
+
+    #[DataProvider('completedOrderIdOfPlacedCheckoutProvider')]
+    #[Test]
+    public function testCancellingACheckoutWithAPlacedOrderIsRefusedAndSavesNothing(?string $completionRowOrderId): void
+    {
+        $savedSessions = [];
+        $sessionMetadata = ['status' => 'completed'];
+        $adapter = $this->placedOrderAdapter(
+            $sessionMetadata,
+            $this->orderWithTransaction(OrderTransactionStates::STATE_OPEN),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $this->recordingPlacedOrderPersister($sessionMetadata, $savedSessions),
+            $completionRowOrderId,
+        );
+
+        $this->expectExceptionObject(new ValidationException('Checkout sessions with a placed order cannot be canceled.'));
+
+        try {
+            $adapter->cancelCheckout(self::PLACED_CHECKOUT_ID, $this->completionRequestContext());
+        } finally {
+            self::assertSame([], $savedSessions);
+        }
+    }
+
     private function placedOrderUpdate(): CheckoutUpdateRequest
     {
         return new CheckoutUpdateRequest(
@@ -1473,7 +1505,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     /**
      * @param array<string, mixed> $sessionMetadata
      */
-    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway, ?SalesChannelContextPersister $persister = null): ShopwareCheckoutAdapter
+    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway, ?SalesChannelContextPersister $persister = null, ?string $completionRowOrderId = self::PLACED_ORDER_ID): ShopwareCheckoutAdapter
     {
         $persister ??= $this->placedOrderPersister($sessionMetadata);
 
@@ -1487,7 +1519,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         $continueUrlBuilder = $this->continueUrlBuilder(self::CONTINUE_URL_TEMPLATE);
 
         $completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
-        $completionStore->method('completedOrderId')->willReturn(self::PLACED_ORDER_ID);
+        $completionStore->method('completedOrderId')->willReturn($completionRowOrderId);
         $completionStore->expects(static::never())->method('complete');
 
         $orderGateway = $this->createMock(OrderGatewayInterface::class);

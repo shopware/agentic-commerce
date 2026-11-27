@@ -153,7 +153,7 @@ handler must not put the token into it.
 
 - A buyer who never finishes at the payment page leaves the checkout at `requires_escalation`. The
   agent has no call that replaces the open payment.
-- `checkout.cancel` does not cancel an order that is already placed.
+- `checkout.cancel` refuses a checkout whose order is placed, so the agent cannot cancel that order.
 - A refusal in the handler's `validate()` reaches the agent as an error response, not as
   `payment_failed`.
 - On Shopware `6.5` and `6.6`, a prepared payment handler that fails in `capture()` leaves an order

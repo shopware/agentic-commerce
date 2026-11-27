@@ -346,7 +346,12 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
     public function cancelCheckout(string $id, RequestContext $context): Checkout
     {
         $resolution = $this->contextResolver->resolveSalesChannel($context);
-        $sessionMetadata = $this->sessionStore->load($id, $resolution->salesChannelId);
+        [$placedOrderId, $sessionMetadata] = $this->loadSession($id, $resolution->salesChannelId);
+
+        if (null !== $placedOrderId) {
+            throw new ValidationException('Checkout sessions with a placed order cannot be canceled.');
+        }
+
         $buyer = $this->sessionStore->buyer($sessionMetadata);
 
         $contextToken = $this->sessionStore->contextToken($sessionMetadata, $id);
