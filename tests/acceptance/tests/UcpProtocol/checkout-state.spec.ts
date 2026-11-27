@@ -28,5 +28,18 @@ test.describe('Checkout state @UcpProtocol', () => {
             expect(status).toBe('completed');
             expect(order.id).toBe(placedOrder.id);
         });
+
+        await test.step('a cancel is refused and keeps the order', async () => {
+            const cancelAfterCompletion = await agent.rest.send('POST', `${checkoutPath}/cancel`);
+            expect(await isRefusal(cancelAfterCompletion), await cancelAfterCompletion.text()).toBe(true);
+            expect(await cancelAfterCompletion.text()).toContain('Checkout sessions with a placed order cannot be canceled.');
+
+            const storedCheckout = await agent.rest.send('GET', checkoutPath);
+            expect(storedCheckout.status(), await storedCheckout.text()).toBe(200);
+            const { status, order } = (await storedCheckout.json()) as { status: string, order: { id: string } };
+            expect(status).toBe('completed');
+            expect(order.id).toBe(placedOrder.id);
+            expect(await searchIds(TestDataService, 'order', 'orderCustomer.email', buyer.email)).toEqual([placedOrder.id]);
+        });
     });
 });

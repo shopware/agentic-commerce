@@ -1,21 +1,9 @@
 import { expect, test } from '@fixtures/AcceptanceTest';
 import { searchIds } from '@services/adminSearch';
-import { completionWithAdvertisedHandler, createCompletableCheckout, placeOrder } from '@services/completableCheckout';
+import { completionWithAdvertisedHandler, createCompletableCheckout } from '@services/completableCheckout';
 import { isRefusal, messageCodes } from '@services/ucpMessages';
 
 test.describe('Checkout state @UcpKnownBlocked @UcpBlockedByD22', () => {
-    test('a completed checkout cannot be cancelled', async ({ TestDataService, UcpAgent }) => {
-        const { agent, salesChannelId, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
-        const placedOrder = await placeOrder(TestDataService, agent, salesChannelId, checkoutPath);
-
-        const cancelAfterCompletion = await agent.rest.send('POST', `${checkoutPath}/cancel`);
-        expect(await isRefusal(cancelAfterCompletion), await cancelAfterCompletion.text()).toBe(true);
-
-        const storedCheckout = await agent.rest.send('GET', checkoutPath);
-        expect(storedCheckout.status(), await storedCheckout.text()).toBe(200);
-        expect(((await storedCheckout.json()) as { order: { id: string } }).order.id).toBe(placedOrder.id);
-    });
-
     test('a cancelled checkout stays cancelled', async ({ TestDataService, UcpAgent }) => {
         const { agent, buyer, lineItems, salesChannelId, checkoutPath } = await createCompletableCheckout(TestDataService, UcpAgent);
         const completionRequest = await completionWithAdvertisedHandler(TestDataService, salesChannelId);
