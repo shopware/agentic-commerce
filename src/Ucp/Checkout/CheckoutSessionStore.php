@@ -16,6 +16,7 @@ final class CheckoutSessionStore
     private const PAYLOAD_KEY = 'swagAgenticCommerce';
     private const CHECKOUT_KEY = 'ucpCheckout';
     private const CONTEXT_TOKEN_KEY = 'shopwareContextToken';
+    private const CHECKOUT_ID_KEY = 'ucpCheckoutId';
 
     public function __construct(
         private readonly SalesChannelContextPersister $persister,
@@ -65,6 +66,23 @@ final class CheckoutSessionStore
     public function contextToken(array $metadata, string $fallbackToken): string
     {
         return $this->storedContextToken($metadata) ?? $fallbackToken;
+    }
+
+    /**
+     * The checkout id the metadata belongs to. Sessions written before the explicit key fall
+     * back to the context token at the last save, which equaled the checkout id until a save
+     * after token rotation rewrote it.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public function checkoutId(array $metadata): ?string
+    {
+        $checkoutId = $metadata[self::CHECKOUT_ID_KEY] ?? null;
+        if (\is_string($checkoutId) && '' !== $checkoutId) {
+            return $checkoutId;
+        }
+
+        return $this->storedContextToken($metadata);
     }
 
     /**

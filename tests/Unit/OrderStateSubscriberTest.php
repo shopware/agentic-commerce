@@ -11,7 +11,10 @@ use Shopware\Core\Checkout\Order\Event\OrderStateMachineStateChangeEvent;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Swag\AgenticCommerce\Tests\Unit\System\SalesChannel\Fixtures\StaticSalesChannelTypeResolver;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutWebhookUrlGuard;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
@@ -19,6 +22,8 @@ use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Swag\AgenticCommerce\Ucp\Order\OrderStateSubscriber;
+use Swag\AgenticCommerce\Ucp\Order\OrderWebhookEmitter;
+use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelViewProvider;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
@@ -85,13 +90,17 @@ final class OrderStateSubscriberTest extends TestCase
 
         $subscriber = new OrderStateSubscriber(
             $completionStore,
-            $permalinkBuilder,
-            $this->configService(new UcpConfig(
-                profileDomain: 'https://shop.example',
-                webhookUrlOverride: 'https://agent.example/webhook',
-            )),
-            $mapper,
-            $publisher,
+            new OrderWebhookEmitter(
+                $this->configService(new UcpConfig(
+                    profileDomain: 'https://shop.example',
+                    webhookUrlOverride: 'https://agent.example/webhook',
+                    agentAllowlist: ['agent.example'],
+                )),
+                $this->guard(),
+                $permalinkBuilder,
+                $mapper,
+                $publisher,
+            ),
         );
 
         $subscriber->onOrderStateChanged(new OrderStateMachineStateChangeEvent(
@@ -114,16 +123,27 @@ final class OrderStateSubscriberTest extends TestCase
 
         $subscriber = new OrderStateSubscriber(
             $completionStore,
-            new OrderPermalinkBuilder(),
-            $this->configService(new UcpConfig()),
-            $this->createMock(ShopwareDataMapperInterface::class),
-            $publisher,
+            new OrderWebhookEmitter(
+                $this->configService(new UcpConfig()),
+                $this->guard(),
+                new OrderPermalinkBuilder(),
+                $this->createMock(ShopwareDataMapperInterface::class),
+                $publisher,
+            ),
         );
 
         $subscriber->onOrderStateChanged(new OrderStateMachineStateChangeEvent(
             'state_enter.'.OrderStates::STATE_MACHINE.'.'.OrderStates::STATE_CANCELLED,
             $order,
             Context::createDefaultContext(),
+        ));
+    }
+
+    private function guard(): CheckoutWebhookUrlGuard
+    {
+        return new CheckoutWebhookUrlGuard(new SalesChannelViewProvider(
+            $this->createMock(EntityRepository::class),
+            new StaticSalesChannelTypeResolver(),
         ));
     }
 

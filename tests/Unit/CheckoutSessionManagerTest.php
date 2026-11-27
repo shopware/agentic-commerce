@@ -39,6 +39,7 @@ final class CheckoutSessionManagerTest extends TestCase
                 self::assertSame($salesChannelId, $savedSalesChannelId);
                 self::assertSame($customerId, $savedCustomerId);
                 self::assertSame($contextToken, $payload['swagAgenticCommerce']['ucpCheckout']['shopwareContextToken']);
+                self::assertSame($contextToken, $payload['swagAgenticCommerce']['ucpCheckout']['ucpCheckoutId']);
                 self::assertSame('deep-link-code', $payload['swagAgenticCommerce']['ucpCheckout']['orderDeepLinkCode']);
             });
 
@@ -87,6 +88,8 @@ final class CheckoutSessionManagerTest extends TestCase
         self::assertSame([$checkoutId, $salesChannelId, null], [$calls[1][0], $calls[1][2], $calls[1][3]]);
         self::assertSame($contextToken, $calls[0][1]['swagAgenticCommerce']['ucpCheckout']['shopwareContextToken']);
         self::assertSame($contextToken, $calls[1][1]['swagAgenticCommerce']['ucpCheckout']['shopwareContextToken']);
+        self::assertSame($checkoutId, $calls[0][1]['swagAgenticCommerce']['ucpCheckout']['ucpCheckoutId']);
+        self::assertSame($checkoutId, $calls[1][1]['swagAgenticCommerce']['ucpCheckout']['ucpCheckoutId']);
         self::assertSame('deep-link-code', $calls[0][1]['swagAgenticCommerce']['ucpCheckout']['orderDeepLinkCode']);
         self::assertSame('deep-link-code', $calls[1][1]['swagAgenticCommerce']['ucpCheckout']['orderDeepLinkCode']);
     }

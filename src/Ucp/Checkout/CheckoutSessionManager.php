@@ -32,7 +32,8 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
+        // The context token is the checkout id until a save after token rotation.
+        $metadata = $this->metadata($salesChannelContext->getToken(), $salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
     }
@@ -53,7 +54,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
         ?array $guestAddress = null,
         ?array $guestShippingAddress = null,
     ): void {
-        $metadata = $this->metadata($salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
+        $metadata = $this->metadata($checkoutId, $salesChannelContext, $status, $buyer, $discountCodes, $orderId, $orderDeepLinkCode, $guestAddress, $guestShippingAddress);
 
         $this->sessionStore->save($salesChannelContext, $metadata);
 
@@ -70,6 +71,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
      * @return array<string, mixed>
      */
     private function metadata(
+        string $checkoutId,
         SalesChannelContext $salesChannelContext,
         string $status,
         ?Buyer $buyer,
@@ -83,6 +85,7 @@ final class CheckoutSessionManager implements CheckoutSessionManagerInterface
             'status' => $status,
             'buyer' => $this->buyerPayload($buyer),
             'shopwareContextToken' => $salesChannelContext->getToken(),
+            'ucpCheckoutId' => $checkoutId,
         ];
 
         if ([] !== $discountCodes) {
