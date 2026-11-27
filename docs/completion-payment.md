@@ -113,10 +113,11 @@ The order exists and its cart is gone. The checkout reads `incomplete` with a re
 Checkout, as the UCP specification describes for `incomplete`.
 
 An Update Checkout with an instrument for another payment handler is accepted when the order can be
-paid again. The instrument has to pass the gate, and its handler has to resolve a payment method the
-buyer may use. Nothing is switched yet. The checkout then reads `ready_for_complete` without a
-message, and `checkout.get` answers the same until the agent completes it. An Update Checkout
-without an instrument, or with one that is refused, keeps the status of the checkout and answers one
+paid again. The instrument has to pass the gate and the applier, as on completion. The default
+applier already switches the payment method of the checkout, while the order keeps its payment until
+the agent completes the checkout. The checkout then reads `ready_for_complete` without a message,
+and `checkout.get` answers the same until the agent completes it. An Update Checkout without an
+instrument, or with one that is refused, keeps the status of the checkout and answers one
 recoverable `payment_failed` message, and the order keeps its payment.
 
 The order cannot change, so only its payment can. An Update Checkout whose line items differ from
