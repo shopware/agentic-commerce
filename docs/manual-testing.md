@@ -339,8 +339,8 @@ Verify that Save applies pending changes across sales channel tabs:
 
 ### 3. Real payment-tokenization handler
 
-The profile lists the bundled `com.shopware.invoice` handler, which does not tokenize. To prove the
-real path, install a real tokenizing payment handler (see
+The profile lists the bundled invoice, prepayment and cash on delivery handlers, which do not
+tokenize. To prove the real path, install a real tokenizing payment handler (see
 [docs/payment-tokenization-handler.md](payment-tokenization-handler.md) for the implementer
 checklist) and enable `payment_tokenization` for the sales channel.
 

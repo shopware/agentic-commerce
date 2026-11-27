@@ -35,9 +35,7 @@ final class UcpCheckoutCompletionPayment
     public function apply(array $payload): array
     {
         // An explicit payment is passed through untouched, including a deliberate
-        // null or empty object. Once the SDK threads payment into
-        // completeCheckout() it becomes meaningful, and silently overwriting what
-        // the agent sent would hide that.
+        // null or empty object: overwriting it would hide what the agent sent.
         if (\array_key_exists('payment', $payload)) {
             return $payload;
         }

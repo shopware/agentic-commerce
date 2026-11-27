@@ -317,6 +317,10 @@ response and not `payment_failed`. A failure in `pay()` leaves an order with a f
 behind, which the agent pays again as described above. Do not return the token from `validate()`:
 Shopware stores the returned struct unencrypted on the order transaction.
 
+Any Store API client can send `ucpPaymentInstrument` to `/store-api/checkout/order` and
+`/store-api/handle-payment` as well. The key therefore does not prove that a UCP agent placed the
+order. A handler checks the credential in it like any other input from a client.
+
 An existing payment handler does not look at this key, so it treats an agent order like a Storefront
 order without payment data. A handler that needs the buyer in the browser returns its redirect, and
 the agent gets `requires_escalation`.
