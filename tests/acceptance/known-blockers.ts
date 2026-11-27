@@ -213,14 +213,14 @@ export const knownBlockers: KnownBlocker[] = [
         key: 'D39',
         description: 'The SDK rejects an agent profile whose payment_handlers entries have the shape of UCP 2026-08-25 (id, version, spec, schema), because it requires name, config_schema and instrument_schemas. It negotiates on the entry id, where the specification keys the registry by handler name and makes id an instance identifier.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/279',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/269',
         reviewBy: '2026-12-31',
     },
     {
         key: 'D40',
         description: 'The SDK answers every successful checkout response with an empty ucp.payment_handlers, where UCP 2026-08-25 requires the handlers negotiated between the agent and the profile.',
         owner: 'dgrothaus-sw',
-        issueUrl: 'https://github.com/shopware/agentic-commerce/issues/279',
+        issueUrl: 'https://github.com/agentic-commerce-alliance/ucp-php-sdk/issues/270',
         reviewBy: '2026-12-31',
     },
 ];

@@ -3,7 +3,7 @@ import { createCompletableCheckout } from '@services/completableCheckout';
 import { activePaymentMethodId } from '@services/paymentMethods';
 import { readUcpProtocolVersion } from '@services/pluginSource';
 
-test.describe('Payment handler negotiation @UcpKnownBlocked @UcpBlockedByD39', () => {
+test.describe('Payment handler negotiation @UcpKnownBlocked @UcpBlockedByD39 @UcpBlockedByD40', () => {
     test('an agent with a spec-shaped handler entry negotiates the handler by its name', async ({ TestDataService, UcpAgentWithProfile }) => {
         const version = readUcpProtocolVersion();
         const agentWithSpecShapedHandler = await UcpAgentWithProfile({
