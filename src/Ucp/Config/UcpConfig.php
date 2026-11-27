@@ -284,6 +284,7 @@ final class UcpConfig
             $this->transportEndpoints($fallbackBaseUri, $storeApiMcpAvailable),
             $profileFetchingDevelopmentMode,
             $platformPolicy,
+            $this->embeddedAllowedOrigins,
         );
     }
 
