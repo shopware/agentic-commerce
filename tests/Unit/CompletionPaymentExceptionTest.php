@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedMessage;
+use Ucp\Sdk\Exception\ValidationException;
 
 /** @internal */
 final class CompletionPaymentExceptionTest extends TestCase
@@ -61,6 +62,15 @@ final class CompletionPaymentExceptionTest extends TestCase
     }
 
     #[Test]
+    public function testItBuildsPaymentMethodNotChangeableException(): void
+    {
+        $exception = CompletionPaymentException::paymentMethodNotChangeable();
+
+        self::assertSame(CompletionPaymentException::PAYMENT_METHOD_NOT_CHANGEABLE, $exception->getErrorCode());
+        self::assertSame('This payment method cannot pay an order that is already placed.', $exception->getMessage());
+    }
+
+    #[Test]
     public function testTheMessageOfARefusalIsARecoverablePaymentFailure(): void
     {
         self::assertSame([
@@ -71,5 +81,20 @@ final class CompletionPaymentExceptionTest extends TestCase
             'path' => '$.payment.instruments[0]',
         ], PaymentFailedMessage::recoverable('Refused.')->toArray());
         self::assertSame('$.payment.instruments', PaymentFailedMessage::recoverable('Refused.', '$.payment.instruments')->path);
+    }
+
+    #[Test]
+    public function testTheMessageOfAnExceptionPointsAtTheInstrumentUnlessItsPaymentMethodCannotPayAPlacedOrder(): void
+    {
+        self::assertSame(
+            '$.payment.instruments[0]',
+            PaymentFailedMessage::ofRefusal(CompletionPaymentException::paymentMethodUnavailable('com.shopware.invoice'))->path,
+        );
+        self::assertSame('$.payment.instruments[0]', PaymentFailedMessage::ofRefusal(new ValidationException('Refused.'))->path);
+        self::assertSame('Refused.', PaymentFailedMessage::ofRefusal(new ValidationException('Refused.'))->content);
+        self::assertSame(
+            '$.payment.instruments',
+            PaymentFailedMessage::ofRefusal(CompletionPaymentException::paymentMethodNotChangeable())->path,
+        );
     }
 }

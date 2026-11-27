@@ -19,9 +19,11 @@ use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Enum\CheckoutStatus;
@@ -40,6 +42,8 @@ final class CompletionPaymentProcessorTest extends TestCase
     private const FINISH_URL = 'https://shop.example/account/order/deep-link-code';
     private const ERROR_URL = 'https://shop.example/ucp/checkout/continue/checkout-1';
     private const REDIRECT_URL = 'https://psp.example/pay/1';
+    private const SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK = '6.6.10.20';
+    private const SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK = '6.7.13.0';
 
     private AbstractCompletionPaymentApplier&MockObject $applier;
 
@@ -60,7 +64,7 @@ final class CompletionPaymentProcessorTest extends TestCase
         $this->cartLoadRoute = $this->createMock(AbstractCartLoadRoute::class);
         $this->contextSwitchRoute = $this->createMock(AbstractContextSwitchRoute::class);
         $this->logger = new CollectingLogger();
-        $this->processor = new CompletionPaymentProcessor($this->applier, $this->paymentGateway, $this->cartLoadRoute, $this->contextSwitchRoute, $this->logger);
+        $this->processor = $this->processorOnShopware(self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK);
     }
 
     #[Test]
@@ -259,6 +263,34 @@ final class CompletionPaymentProcessorTest extends TestCase
     }
 
     #[Test]
+    public function testARetryWithAPaymentMethodThatCannotPayAPlacedOrderIsRefusedBeforeShopwareIsAsked(): void
+    {
+        $this->applier->method('apply')->willReturnArgument(1);
+        $this->paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $this->paymentGateway->expects(static::never())->method('pay');
+
+        try {
+            $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+            self::fail('A payment method without "Allow payment change after checkout" must be refused where core enforces it.');
+        } catch (CompletionPaymentException $exception) {
+            self::assertSame(CompletionPaymentException::PAYMENT_METHOD_NOT_CHANGEABLE, $exception->getErrorCode());
+        }
+    }
+
+    #[Test]
+    public function testARetryWithAPaymentMethodThatMayPayAPlacedOrderPaysWhereCoreEnforcesTheCheck(): void
+    {
+        $context = $this->salesChannelContext(afterOrderEnabled: true);
+        $this->applier->method('apply')->willReturnArgument(1);
+        $this->paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::ORDER_ID, $context);
+        $this->paymentGateway->expects(static::once())->method('pay')->willReturn(null);
+
+        $result = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->retry(self::ORDER_ID, $this->instrument(), $context, new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertSame(CheckoutStatus::Completed, $result->status);
+    }
+
+    #[Test]
     public function testARetryWhoseInstrumentTheApplierRefusesThrowsWithoutChangingThePayment(): void
     {
         $this->applier->method('apply')->willThrowException(new ValidationException('The instrument is refused.'));
@@ -268,6 +300,18 @@ final class CompletionPaymentProcessorTest extends TestCase
         $this->expectExceptionObject(new ValidationException('The instrument is refused.'));
 
         $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+    }
+
+    private function processorOnShopware(string $shopwareVersion): CompletionPaymentProcessor
+    {
+        return new CompletionPaymentProcessor(
+            $this->applier,
+            $this->paymentGateway,
+            $this->cartLoadRoute,
+            $this->contextSwitchRoute,
+            new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: $shopwareVersion)),
+            $this->logger,
+        );
     }
 
     private function cartResponseWithTotal(float $total): CartResponse
@@ -283,10 +327,11 @@ final class CompletionPaymentProcessorTest extends TestCase
         return new PaymentInstrument('card', 'com.example.psp', ['token' => 'tok_secret']);
     }
 
-    private function salesChannelContext(): SalesChannelContext
+    private function salesChannelContext(bool $afterOrderEnabled = false): SalesChannelContext
     {
         $paymentMethod = new PaymentMethodEntity();
         $paymentMethod->setId(self::PAYMENT_METHOD_ID);
+        $paymentMethod->setAfterOrderEnabled($afterOrderEnabled);
 
         $context = $this->createMock(SalesChannelContext::class);
         $context->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);

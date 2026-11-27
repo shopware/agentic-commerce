@@ -32,6 +32,7 @@ final class CompletionPaymentProcessor
         private readonly OrderPaymentGatewayInterface $paymentGateway,
         private readonly AbstractCartLoadRoute $cartLoadRoute,
         private readonly AbstractContextSwitchRoute $contextSwitchRoute,
+        private readonly PlacedOrderPaymentMethodGate $placedOrderGate,
         private readonly ?LoggerInterface $logger = null,
     ) {
     }
@@ -80,15 +81,19 @@ final class CompletionPaymentProcessor
 
     /**
      * Pays an order again whose payment failed, with the payment method the applier picks for the new instrument.
+     *
+     * @throws CompletionPaymentException when the applier refuses, or when core would refuse its payment method for a placed order
+     * @throws ValidationException
      */
     public function retry(string $orderId, ?PaymentInstrument $instrument, SalesChannelContext $context, RequestContext $requestContext, string $finishUrl, string $errorUrl): CompletionPaymentResult
     {
         $context = $this->applier->apply($instrument, $context, $requestContext);
+        $this->placedOrderGate->assertAllowed($context);
 
         try {
             $this->paymentGateway->changePaymentMethod($orderId, $context);
         } catch (\Throwable $exception) {
-            // Shopware refuses the change for a payment method without "Allow payment change after checkout", where another handler may still pay.
+            // Shopware refuses a payment method that is not available to the order, where another handler may still pay.
             $this->logger?->warning('Shopware refused to change the payment method of an order placed through a UCP checkout.', [
                 'order_id' => $orderId,
                 'payment_method_id' => $context->getPaymentMethod()->getId(),

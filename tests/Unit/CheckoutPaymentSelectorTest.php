@@ -8,12 +8,15 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AdvertisedPaymentHandlers;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CheckoutPaymentSelector;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Message;
@@ -25,6 +28,8 @@ use Ucp\Sdk\Model\RequestContext;
 final class CheckoutPaymentSelectorTest extends TestCase
 {
     private const ADVERTISED_HANDLER_ID = 'com.shopware.invoice';
+    private const SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK = '6.7.12.0';
+    private const SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK = '6.7.13.0';
 
     private AbstractCompletionPaymentApplier&MockObject $applier;
 
@@ -192,6 +197,60 @@ final class CheckoutPaymentSelectorTest extends TestCase
         self::assertSame('payment_failed', $refusal->code);
     }
 
+    #[Test]
+    public function testAPlacedOrderRefusesAPaymentMethodWithoutPaymentChangeAfterCheckoutWhereCoreEnforcesIt(): void
+    {
+        $instrument = new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID);
+        $this->applier->method('apply')->willReturn($this->contextWithAfterOrderEnabled(false));
+
+        $refusal = $this->selector(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->refusalForPlacedOrder($instrument, $this->createMock(SalesChannelContext::class), $this->requestContext());
+
+        self::assertSame([
+            'type' => 'error',
+            'content' => 'This payment method cannot pay an order that is already placed.',
+            'severity' => 'recoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments',
+        ], $refusal?->toArray());
+    }
+
+    #[Test]
+    public function testAPlacedOrderAcceptsAPaymentMethodWithPaymentChangeAfterCheckoutWhereCoreEnforcesTheCheck(): void
+    {
+        $this->applier->method('apply')->willReturn($this->contextWithAfterOrderEnabled(true));
+
+        self::assertNull($this->selector(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->refusalForPlacedOrder(
+            new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID),
+            $this->createMock(SalesChannelContext::class),
+            $this->requestContext(),
+        ));
+    }
+
+    #[Test]
+    public function testAPlacedOrderAcceptsAPaymentMethodWithoutPaymentChangeAfterCheckoutWhereCoreDoesNotEnforceIt(): void
+    {
+        $this->applier->method('apply')->willReturn($this->contextWithAfterOrderEnabled(false));
+
+        self::assertNull($this->selector(self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK)->refusalForPlacedOrder(
+            new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID),
+            $this->createMock(SalesChannelContext::class),
+            $this->requestContext(),
+        ));
+    }
+
+    #[Test]
+    public function testAnOpenCheckoutSelectsAPaymentMethodWithoutPaymentChangeAfterCheckoutWhereCoreEnforcesTheCheck(): void
+    {
+        $switchedContext = $this->contextWithAfterOrderEnabled(false);
+        $this->applier->method('apply')->willReturn($switchedContext);
+
+        self::assertSame($switchedContext, $this->selector(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->select(
+            new PaymentInstrument('invoice', self::ADVERTISED_HANDLER_ID),
+            $this->createMock(SalesChannelContext::class),
+            $this->requestContext(),
+        ));
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -202,14 +261,26 @@ final class CheckoutPaymentSelectorTest extends TestCase
         return $refusal->toArray();
     }
 
-    private function selector(): CheckoutPaymentSelector
+    private function selector(string $shopwareVersion = self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK): CheckoutPaymentSelector
     {
         $profileBuilder = RecordingProfileBuilder::advertising(self::ADVERTISED_HANDLER_ID);
 
         return new CheckoutPaymentSelector(
             new CompletionPaymentGate(new AdvertisedPaymentHandlers(static fn (): RecordingProfileBuilder => $profileBuilder)),
             $this->applier,
+            new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: $shopwareVersion)),
         );
+    }
+
+    private function contextWithAfterOrderEnabled(bool $afterOrderEnabled): SalesChannelContext
+    {
+        $paymentMethod = new PaymentMethodEntity();
+        $paymentMethod->setAfterOrderEnabled($afterOrderEnabled);
+
+        $context = $this->createMock(SalesChannelContext::class);
+        $context->method('getPaymentMethod')->willReturn($paymentMethod);
+
+        return $context;
     }
 
     private function requestContext(): RequestContext

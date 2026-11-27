@@ -137,10 +137,12 @@ again, because no order is placed. A completion that is refused keeps the status
 
 Newer Shopware versions, from `6.6.10.21` and `6.7.13.0` on, only change the payment of an order
 when the payment method has _Allow payment change after checkout_ switched on. Payment methods that
-extensions add have it off by default. When Shopware refuses the change, the answer is `incomplete`
-with a recoverable `payment_failed` message. The agent can then complete the checkout with the
-instrument of another handler. A payment extension that wants agents to pay again with its own
-payment method switches the setting on for it.
+plugins add have it off by default, while Shopware switches it on for the payment methods of apps.
+Shopware refuses such a payment method also when it stays the same. On these versions the plugin
+refuses the instrument of such a payment method itself, on Update Checkout and on the next
+completion, with a recoverable `payment_failed` message. The checkout keeps its status. The agent
+can then pay with the instrument of another handler. A payment extension that wants agents to pay
+again with its own payment method switches the setting on for it.
 
 When the order is paid in another way in the meantime, for example by the buyer on the order page of
 the Storefront, the checkout reads `completed`.
@@ -253,6 +255,8 @@ exists:
 
 `apply()` also runs when the agent completes a checkout again after a failed payment. The order
 exists then, and the payment method of the returned context becomes the order's new payment method.
+From Shopware `6.6.10.21` and `6.7.13.0` on, the plugin first refuses that payment method when it
+has _Allow payment change after checkout_ switched off.
 
 The gate sits before guest provisioning on purpose: a completion the gate refuses registers no
 customer.

@@ -16,6 +16,7 @@ final class CompletionPaymentException extends HttpException
     public const HANDLER_NOT_REGISTERED = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_HANDLER_NOT_REGISTERED';
     public const PAYMENT_FAILED = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_FAILED';
     public const PAYMENT_METHOD_CHANGES_TOTAL = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_METHOD_CHANGES_TOTAL';
+    public const PAYMENT_METHOD_NOT_CHANGEABLE = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_METHOD_NOT_CHANGEABLE';
 
     public static function paymentMethodUnavailable(string $handlerId): self
     {
@@ -52,6 +53,15 @@ final class CompletionPaymentException extends HttpException
             self::PAYMENT_FAILED,
             'Shopware answered the payment with its error redirect, error code "{{ errorCode }}".',
             ['errorCode' => $errorCode],
+        );
+    }
+
+    public static function paymentMethodNotChangeable(): self
+    {
+        return new self(
+            Response::HTTP_BAD_REQUEST,
+            self::PAYMENT_METHOD_NOT_CHANGEABLE,
+            'This payment method cannot pay an order that is already placed.',
         );
     }
 

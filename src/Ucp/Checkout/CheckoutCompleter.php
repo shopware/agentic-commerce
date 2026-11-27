@@ -176,7 +176,7 @@ final class CheckoutCompleter
                         $this->errorUrl($checkoutId, $salesChannelContext, $permalinkUrl),
                     );
                 } catch (CompletionPaymentException|ValidationException $exception) {
-                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $paymentOutcome, [PaymentFailedMessage::recoverable($exception->getMessage())]);
+                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $paymentOutcome, [PaymentFailedMessage::ofRefusal($exception)]);
                 }
 
                 $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $paymentOutcome);

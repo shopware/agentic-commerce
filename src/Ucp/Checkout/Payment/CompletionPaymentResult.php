@@ -147,7 +147,7 @@ final class CompletionPaymentResult
             CheckoutStatus::Incomplete => [$this->retryable
                 ? new Message(
                     'error',
-                    'The payment failed. The order is kept. Complete the checkout again to pay it, with the same or another payment instrument.',
+                    'The payment failed. The order is kept. Complete the checkout again with a payment instrument to pay it.',
                     'recoverable',
                     'payment_failed',
                     '$.payment.instruments[0]',

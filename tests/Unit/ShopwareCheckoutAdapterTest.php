@@ -73,6 +73,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
@@ -440,7 +441,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
                 $this->uninitialized(CheckoutWebhookUrlGuard::class),
                 $this->createMock(OrderWebhookPublisherInterface::class),
                 new OrderPermalinkBuilder(),
-                new CompletionPaymentProcessor($this->passThroughApplier(), $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class)),
+                new CompletionPaymentProcessor($this->passThroughApplier(), $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class), $this->placedOrderGate()),
                 $this->legalLinkBuilder(),
             ),
             $contextResolver,
@@ -1538,7 +1539,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
-            new CompletionPaymentProcessor($this->passThroughApplier(), $paymentGateway, new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class)),
+            new CompletionPaymentProcessor($this->passThroughApplier(), $paymentGateway, new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class), $this->placedOrderGate()),
             $this->legalLinkBuilder(),
         );
 
@@ -1622,9 +1623,14 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             $this->uninitialized(CheckoutWebhookUrlGuard::class),
             $this->createMock(OrderWebhookPublisherInterface::class),
             new OrderPermalinkBuilder(),
-            new CompletionPaymentProcessor($applier, $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class)),
+            new CompletionPaymentProcessor($applier, $this->createMock(OrderPaymentGatewayInterface::class), new RecordingCartLoadRoute($this->cart()), $this->createMock(AbstractContextSwitchRoute::class), $this->placedOrderGate()),
             $this->legalLinkBuilder(),
         );
+    }
+
+    private function placedOrderGate(): PlacedOrderPaymentMethodGate
+    {
+        return new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: '6.6.10.20'));
     }
 
     private function paymentSelector(string ...$advertisedHandlerIds): CheckoutPaymentSelector
@@ -1639,6 +1645,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
         return new CheckoutPaymentSelector(
             new CompletionPaymentGate(new AdvertisedPaymentHandlers(static fn (): RecordingProfileBuilder => $profileBuilder)),
             $applier,
+            $this->placedOrderGate(),
         );
     }
 

@@ -23,6 +23,7 @@ final class CheckoutPaymentSelector
     public function __construct(
         private readonly CompletionPaymentGate $gate,
         private readonly AbstractCompletionPaymentApplier $applier,
+        private readonly PlacedOrderPaymentMethodGate $placedOrderGate,
     ) {
     }
 
@@ -43,9 +44,9 @@ final class CheckoutPaymentSelector
         }
 
         try {
-            $this->applier->apply($instrument, $context, $requestContext);
+            $this->placedOrderGate->assertAllowed($this->applier->apply($instrument, $context, $requestContext));
         } catch (CompletionPaymentException|ValidationException $exception) {
-            return PaymentFailedMessage::recoverable($exception->getMessage());
+            return PaymentFailedMessage::ofRefusal($exception);
         }
 
         return null;

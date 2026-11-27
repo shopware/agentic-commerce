@@ -35,6 +35,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
+use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartLoadRoute;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
@@ -48,6 +49,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -90,6 +92,8 @@ final class CheckoutCompleterTest extends TestCase
     private const PERMALINK_URL = 'https://shop.example/account/order/'.self::DEEP_LINK_CODE;
     private const PAYMENT_REDIRECT_URL = 'https://psp.example/pay/1';
     private const CONTINUE_URL = 'https://example.com/continue';
+    private const SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK = '6.6.10.20';
+    private const SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK = '6.7.13.0';
 
     #[Test]
     public function testAlreadyCompletedBeforeLockAcquireLeavesTheReplayToTheCaller(): void
@@ -972,6 +976,40 @@ final class CheckoutCompleterTest extends TestCase
     }
 
     #[Test]
+    public function testRetryPaymentWithAPaymentMethodThatCannotPayAPlacedOrderAddsTheRefusalWithoutAskingShopware(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+        $passThroughApplier = $this->createMock(AbstractCompletionPaymentApplier::class);
+        $passThroughApplier->method('apply')->willReturnArgument(1);
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $customerContext,
+            null,
+            $this->completionPayment($paymentGateway, $passThroughApplier, null, self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK),
+        );
+
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
+
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([[
+            'type' => 'error',
+            'content' => 'This payment method cannot pay an order that is already placed.',
+            'severity' => 'recoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments',
+        ]], array_map(static fn (Message $message): array => $message->toArray(), $checkout->messages));
+        static::assertSame([], $calls);
+    }
+
+    #[Test]
     public function testRetryPaymentWhoseInstrumentAReplacementApplierRefusesWithAValidationExceptionAddsTheRefusal(): void
     {
         $customerContext = $this->customerContext();
@@ -1049,7 +1087,7 @@ final class CheckoutCompleterTest extends TestCase
         );
     }
 
-    private function completionPayment(?OrderPaymentGatewayInterface $paymentGateway = null, ?AbstractCompletionPaymentApplier $applier = null, ?AbstractCartLoadRoute $cartLoadRoute = null): CompletionPaymentProcessor
+    private function completionPayment(?OrderPaymentGatewayInterface $paymentGateway = null, ?AbstractCompletionPaymentApplier $applier = null, ?AbstractCartLoadRoute $cartLoadRoute = null, string $shopwareVersion = self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK): CompletionPaymentProcessor
     {
         if (null === $applier) {
             $applier = $this->createMock(AbstractCompletionPaymentApplier::class);
@@ -1061,6 +1099,7 @@ final class CheckoutCompleterTest extends TestCase
             $paymentGateway ?? $this->createMock(OrderPaymentGatewayInterface::class),
             $cartLoadRoute ?? new RecordingCartLoadRoute(new Cart(self::CHECKOUT_ID)),
             $this->createMock(AbstractContextSwitchRoute::class),
+            new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: $shopwareVersion)),
         );
     }
 
@@ -1151,6 +1190,7 @@ final class CheckoutCompleterTest extends TestCase
 
         $paymentMethod = new PaymentMethodEntity();
         $paymentMethod->setId(self::PAYMENT_METHOD_ID);
+        $paymentMethod->setAfterOrderEnabled(false);
 
         $customerContext = $this->createMock(SalesChannelContext::class);
         $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
