@@ -8,13 +8,7 @@ use Shopware\Core\Checkout\Order\Event\OrderStateMachineStateChangeEvent;
 use Shopware\Core\Checkout\Order\OrderStates;
 use Shopware\Core\Framework\Log\Package;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
-use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
-use Swag\AgenticCommerce\Ucp\Config\UcpConfigService;
-use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapperInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Ucp\Sdk\Model\RequestContext;
-use Ucp\Sdk\Model\Webhook\OrderWebhookPayload;
-use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 
 /** @internal */
 #[Package('after-sales')]
@@ -22,10 +16,7 @@ final class OrderStateSubscriber implements EventSubscriberInterface
 {
     public function __construct(
         private readonly CheckoutCompletionStoreInterface $completionStore,
-        private readonly OrderPermalinkBuilder $orderPermalinkBuilder,
-        private readonly UcpConfigService $configService,
-        private readonly ShopwareDataMapperInterface $mapper,
-        private readonly OrderWebhookPublisherInterface $webhookPublisher,
+        private readonly OrderWebhookEmitter $webhookEmitter,
     ) {
     }
 
@@ -47,25 +38,6 @@ final class OrderStateSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $salesChannelId = $order->getSalesChannelId();
-        $config = $this->configService->getConfig($salesChannelId);
-        if (null === $config->webhookUrlOverride) {
-            return;
-        }
-
-        $runtimeConfiguration = $config->toRuntimeConfiguration('', $salesChannelId);
-        $host = parse_url($runtimeConfiguration->baseUri, \PHP_URL_HOST) ?: '';
-        // The same order URL the completion and the read return: `permalink_url` means one
-        // thing, and a continue URL is a checkout return address rather than an order page.
-        $requestContext = new RequestContext($host, runtimeConfiguration: $runtimeConfiguration);
-        $permalinkUrl = $this->orderPermalinkBuilder->build($order, $requestContext);
-
-        $this->webhookPublisher->publish(
-            $config->webhookUrlOverride,
-            new OrderWebhookPayload(event: 'order.updated', orderId: $order->getId(), payload: [
-                'order' => $this->mapper->toOrderView($order, $permalinkUrl, $checkoutId)->toArray(),
-            ]),
-            $requestContext,
-        );
+        $this->webhookEmitter->publish('order.updated', $order, $checkoutId);
     }
 }

@@ -186,16 +186,24 @@ final class CheckoutCompleterTest extends TestCase
         $currency = new CurrencyEntity();
         $currency->setIsoCode('EUR');
 
+        $frameworkContext = Context::createDefaultContext();
         $customerContext = $this->createMock(SalesChannelContext::class);
         $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
         $customerContext->method('getCurrency')->willReturn($currency);
+        $customerContext->method('getContext')->willReturn($frameworkContext);
         $this->withLegalLinkDomain($customerContext);
 
         $order = new OrderEntity();
         $order->setId(self::ORDER_ID);
 
         $orderGateway = $this->createMock(OrderGatewayInterface::class);
-        $orderGateway->expects(static::once())->method('placeOrder')->willReturn($order);
+        $orderGateway->expects(static::once())
+            ->method('placeOrder')
+            ->willReturnCallback(static function () use ($order, $frameworkContext): OrderEntity {
+                static::assertTrue($frameworkContext->hasState(CheckoutCompleter::AGENT_COMPLETION_STATE), 'The agent-completion state must mark the order placement');
+
+                return $order;
+            });
         $orderGateway->expects(static::never())->method('getOrder');
 
         $sessionManager = new class($saveCount) implements CheckoutSessionManagerInterface {
@@ -303,6 +311,8 @@ final class CheckoutCompleterTest extends TestCase
         static::assertSame(1, $saveCount, 'sessionManager->saveForCheckoutId() must be called exactly once');
         static::assertSame(1, $saveCountAtCompletionRow, 'The session must carry the rotated context token before the completion row exists');
 
+        static::assertFalse($frameworkContext->hasState(CheckoutCompleter::AGENT_COMPLETION_STATE), 'The agent-completion state must not outlive the order placement');
+
         // Lock released via finally — a new acquire must succeed
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after successful completion');
     }
@@ -314,8 +324,10 @@ final class CheckoutCompleterTest extends TestCase
         $completionStore->method('completedOrderId')->willReturn(null);
         $completionStore->expects(static::never())->method('complete');
 
+        $frameworkContext = Context::createDefaultContext();
         $customerContext = $this->createMock(SalesChannelContext::class);
         $customerContext->method('getSalesChannelId')->willReturn(self::SALES_CHANNEL_ID);
+        $customerContext->method('getContext')->willReturn($frameworkContext);
 
         $orderGateway = $this->createMock(OrderGatewayInterface::class);
         $orderGateway->method('placeOrder')->willThrowException(new \RuntimeException('Order placement failed.'));
@@ -360,6 +372,8 @@ final class CheckoutCompleterTest extends TestCase
         } catch (\RuntimeException $e) {
             static::assertSame('Order placement failed.', $e->getMessage());
         }
+
+        static::assertFalse($frameworkContext->hasState(CheckoutCompleter::AGENT_COMPLETION_STATE), 'The agent-completion state must not outlive a failed order placement');
 
         // Lock released via finally — a new acquire must succeed
         static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after order placement failure');

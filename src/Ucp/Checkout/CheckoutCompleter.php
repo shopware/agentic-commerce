@@ -25,6 +25,12 @@ use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 #[Package('checkout')]
 final class CheckoutCompleter
 {
+    /**
+     * Set on the Context while the completer places the order, so the order-placed subscriber
+     * does not record the same completion a second time.
+     */
+    public const AGENT_COMPLETION_STATE = 'swag-agentic-commerce-agent-completion';
+
     public function __construct(
         private readonly OrderGatewayInterface $orderGateway,
         private readonly ShopwareDataMapperInterface $mapper,
@@ -101,7 +107,14 @@ final class CheckoutCompleter
                 $requestContext,
             );
 
-            $order = $this->orderGateway->placeOrder($cart, $customerContext);
+            $context = $customerContext->getContext();
+            $context->addState(self::AGENT_COMPLETION_STATE);
+
+            try {
+                $order = $this->orderGateway->placeOrder($cart, $customerContext);
+            } finally {
+                $context->removeState(self::AGENT_COMPLETION_STATE);
+            }
 
             // Saved before the completion row: a reader that finds the row loads the session afterwards
             // and needs its rotated context token.
