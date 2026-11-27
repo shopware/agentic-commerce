@@ -108,7 +108,7 @@ final class SalesChannelPaymentMethods
 
     public function find(string $paymentMethodId): ?PaymentMethodEntity
     {
-        $paymentMethod = $this->paymentMethodRepository->search(new Criteria([$paymentMethodId]), Context::createDefaultContext())->first();
+        $paymentMethod = $this->paymentMethodRepository->search(new Criteria([$paymentMethodId]), Context::createDefaultContext())->getEntities()->first();
 
         return $paymentMethod instanceof PaymentMethodEntity ? $paymentMethod : null;
     }
