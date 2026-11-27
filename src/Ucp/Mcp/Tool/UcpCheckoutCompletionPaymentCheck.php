@@ -6,12 +6,17 @@ namespace Swag\AgenticCommerce\Ucp\Mcp\Tool;
 
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedMessage;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\RegisteredHandlerPaymentMethodResolver;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
+use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
@@ -35,6 +40,10 @@ final class UcpCheckoutCompletionPaymentCheck
         private readonly RegisteredHandlerPaymentMethodResolver $paymentMethodResolver,
         private readonly SalesChannelContextResolver $contextResolver,
         private readonly CheckoutSessionStore $sessionStore,
+        private readonly CheckoutCompletionStoreInterface $completionStore,
+        private readonly OrderGatewayInterface $orderGateway,
+        private readonly PlacedOrderPaymentMethodGate $placedOrderGate,
+        private readonly SalesChannelPaymentMethods $salesChannelPaymentMethods,
     ) {
     }
 
@@ -60,19 +69,42 @@ final class UcpCheckoutCompletionPaymentCheck
             return $gateRefusal;
         }
 
+        $sessionMetadata = $this->sessionStore->load($checkoutId, $this->contextResolver->resolveSalesChannel($requestContext)->salesChannelId);
+        $salesChannelContext = $this->contextResolver->resolve($this->sessionStore->contextToken($sessionMetadata, $checkoutId), $requestContext);
+
         try {
-            $this->paymentMethodResolver->resolve($instruments[0], $this->checkoutContext($checkoutId, $requestContext), $requestContext);
+            $paymentMethodId = $this->paymentMethodResolver->resolve($instruments[0], $salesChannelContext, $requestContext);
         } catch (CompletionPaymentException|ValidationException $exception) {
-            return PaymentFailedMessage::recoverable($exception->getMessage());
+            return PaymentFailedMessage::ofRefusal($exception);
+        }
+
+        if (!$this->canPlacedOrderBePaidAgain($checkoutId, $sessionMetadata, $salesChannelContext)) {
+            return null;
+        }
+
+        try {
+            $paymentMethod = $this->salesChannelPaymentMethods->find($paymentMethodId)
+                ?? throw CompletionPaymentException::paymentMethodUnavailable($instruments[0]->handlerId);
+            $this->placedOrderGate->assertAllowed($paymentMethod, $salesChannelContext->getSalesChannelId(), $requestContext);
+        } catch (CompletionPaymentException $exception) {
+            return PaymentFailedMessage::ofRefusal($exception);
         }
 
         return null;
     }
 
-    private function checkoutContext(string $checkoutId, RequestContext $requestContext): SalesChannelContext
+    /**
+     * @param array<string, mixed> $sessionMetadata
+     */
+    private function canPlacedOrderBePaidAgain(string $checkoutId, array $sessionMetadata, SalesChannelContext $salesChannelContext): bool
     {
-        $sessionMetadata = $this->sessionStore->load($checkoutId, $this->contextResolver->resolveSalesChannel($requestContext)->salesChannelId);
+        $placedOrderId = $this->completionStore->completedOrderId($checkoutId);
+        if (null === $placedOrderId) {
+            return false;
+        }
 
-        return $this->contextResolver->resolve($this->sessionStore->contextToken($sessionMetadata, $checkoutId), $requestContext);
+        $order = $this->orderGateway->getOrderForSalesChannelContext($placedOrderId, $salesChannelContext, $sessionMetadata);
+
+        return CompletionPaymentResult::ofPlacedOrder($sessionMetadata, $order)->canBePaidAgain();
     }
 }

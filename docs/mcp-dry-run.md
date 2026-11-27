@@ -88,9 +88,12 @@ instrument first.
 
 A checkout whose payment failed reads `incomplete` with a `payment_failed` message. A commit pays
 its order again, so the preview names no status blocker for it. When the message is `unrecoverable`,
-the preview says that the order cannot be paid again through the checkout. Once an Update Checkout
-has accepted a new instrument, the checkout reads `ready_for_complete` and the preview names no
-blocker for it either. See [completion-payment.md](completion-payment.md).
+the preview says that the order cannot be paid again through the checkout. For a placed order that
+can be paid again, the preview reports the refusal of a payment method without _Allow payment change
+after checkout_ on the Shopware versions that enforce it, as described in
+[completion-payment.md](completion-payment.md). Once an Update Checkout has accepted a new
+instrument, the checkout reads `ready_for_complete` and the preview names no blocker for it either.
+See [completion-payment.md](completion-payment.md).
 
 ## Limits of the rolled-back dry run
 

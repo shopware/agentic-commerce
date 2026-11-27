@@ -9,6 +9,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionCollection;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionEntity;
+use Shopware\Core\Checkout\Order\Aggregate\OrderTransaction\OrderTransactionStates;
+use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
 use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
@@ -23,11 +27,14 @@ use Shopware\Core\System\SalesChannel\Context\SalesChannelContextPersister;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceInterface;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextServiceParameters;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
+use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AdvertisedPaymentHandlers;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentGate;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\RegisteredHandlerPaymentMethodResolver;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
+use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Mcp\Tool\UcpCheckoutCompletionPaymentCheck;
 use Swag\AgenticCommerce\Ucp\Payment\SalesChannelPaymentMethods;
 use Swag\AgenticCommerce\Ucp\SalesChannel\SalesChannelContextResolver;
@@ -45,10 +52,13 @@ use Ucp\Sdk\Service\PaymentHandlerRegistryInterface;
 #[CoversClass(UcpCheckoutCompletionPaymentCheck::class)]
 final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
 {
+    use BuildsPlacedOrderPaymentMethodGate;
+
     private const HANDLER_ID = 'com.shopware.invoice';
     private const CHECKOUT_ID = 'checkout-id';
     private const SALES_CHANNEL_ID = '22222222222222222222222222222222';
     private const PAYMENT_METHOD_ID = '00000000000000000000000000000001';
+    private const ORDER_ID = '00000000000000000000000000000002';
 
     private PaymentHandlerRegistryInterface&MockObject $handlerRegistry;
 
@@ -56,17 +66,27 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
 
     private AbstractPaymentMethodRoute&MockObject $paymentMethodRoute;
 
+    /** @var EntityRepository<PaymentMethodCollection>&MockObject */
+    private EntityRepository&MockObject $paymentMethodRepository;
+
     private SalesChannelContextServiceInterface&MockObject $contextService;
 
     private SalesChannelContextPersister&MockObject $persister;
+
+    private CheckoutCompletionStoreInterface&MockObject $completionStore;
+
+    private OrderGatewayInterface&MockObject $orderGateway;
 
     protected function setUp(): void
     {
         $this->handlerRegistry = $this->createMock(PaymentHandlerRegistryInterface::class);
         $this->paymentHandler = $this->createMock(PaymentHandlerInterface::class);
         $this->paymentMethodRoute = $this->createMock(AbstractPaymentMethodRoute::class);
+        $this->paymentMethodRepository = $this->createMock(EntityRepository::class);
         $this->contextService = $this->createMock(SalesChannelContextServiceInterface::class);
         $this->persister = $this->createMock(SalesChannelContextPersister::class);
+        $this->completionStore = $this->createMock(CheckoutCompletionStoreInterface::class);
+        $this->orderGateway = $this->createMock(OrderGatewayInterface::class);
     }
 
     #[Test]
@@ -177,6 +197,84 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
         self::assertSame('unrecoverable', $refusal->severity);
     }
 
+    #[Test]
+    public function testAPlacedOrderIsRefusedWithAPaymentMethodWithoutPaymentChangeAfterCheckoutWhereCoreEnforcesIt(): void
+    {
+        $this->placedOrderThatCanBePaidAgain();
+        $this->handlerOfPaymentMethod(self::PAYMENT_METHOD_ID);
+        $this->paymentMethodAvailable(true);
+        $this->paymentMethodStored(afterOrderEnabled: false);
+
+        self::assertSame([
+            'type' => 'error',
+            'content' => 'This payment method cannot pay an order that is already placed.',
+            'severity' => 'recoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments',
+        ], $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'incomplete', shopwareVersion: '6.7.13.0')?->toArray());
+    }
+
+    #[Test]
+    public function testAPlacedOrderIsRefusedForGoodWhenNoAdvertisedHandlerCanPayItAgain(): void
+    {
+        $this->placedOrderThatCanBePaidAgain();
+        $this->handlerOfPaymentMethod(self::PAYMENT_METHOD_ID);
+        $this->paymentMethodAvailable(true);
+        $this->paymentMethodStored(afterOrderEnabled: false);
+
+        $refusal = $this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete', shopwareVersion: '6.6.10.21', canBePaidAgain: false);
+
+        self::assertSame('unrecoverable', $refusal?->severity);
+        self::assertSame('payment_failed', $refusal->code);
+        self::assertSame('$.payment.instruments', $refusal->path);
+    }
+
+    #[Test]
+    public function testAPlacedOrderIsNotRefusedWithAPaymentMethodWithPaymentChangeAfterCheckout(): void
+    {
+        $this->placedOrderThatCanBePaidAgain();
+        $this->handlerOfPaymentMethod(self::PAYMENT_METHOD_ID);
+        $this->paymentMethodAvailable(true);
+        $this->paymentMethodStored(afterOrderEnabled: true);
+
+        self::assertNull($this->refusal(self::instrumentsOf(self::HANDLER_ID), 'incomplete', shopwareVersion: '6.7.13.0'));
+    }
+
+    #[Test]
+    public function testAPlacedOrderIsNotRefusedWithAPaymentMethodWithoutPaymentChangeAfterCheckoutWhereCoreDoesNotEnforceIt(): void
+    {
+        $this->placedOrderThatCanBePaidAgain();
+        $this->handlerOfPaymentMethod(self::PAYMENT_METHOD_ID);
+        $this->paymentMethodAvailable(true);
+        $this->paymentMethodStored(afterOrderEnabled: false);
+
+        self::assertNull($this->refusal(self::instrumentsOf(self::HANDLER_ID), 'incomplete', shopwareVersion: '6.7.12.0', canBePaidAgain: false));
+    }
+
+    #[Test]
+    public function testAPlacedOrderThatCannotBePaidAgainIsNotCheckedForThePaymentMethod(): void
+    {
+        $this->completionStore->method('completedOrderId')->willReturn(self::ORDER_ID);
+        $this->orderGateway->method('getOrderForSalesChannelContext')->willReturn($this->placedOrderWithTransactionState(OrderTransactionStates::STATE_PAID));
+        $this->handlerOfPaymentMethod(self::PAYMENT_METHOD_ID);
+        $this->paymentMethodAvailable(true);
+        $this->paymentMethodRepository->expects(static::never())->method('search');
+
+        self::assertNull($this->refusal(self::instrumentsOf(self::HANDLER_ID), 'incomplete', shopwareVersion: '6.7.13.0'));
+    }
+
+    #[Test]
+    public function testACheckoutWithoutAPlacedOrderIsNotCheckedForThePaymentMethodAfterTheOrder(): void
+    {
+        $this->completionStore->method('completedOrderId')->willReturn(null);
+        $this->orderGateway->expects(static::never())->method('getOrderForSalesChannelContext');
+        $this->handlerOfPaymentMethod(self::PAYMENT_METHOD_ID);
+        $this->paymentMethodAvailable(true);
+        $this->paymentMethodRepository->expects(static::never())->method('search');
+
+        self::assertNull($this->refusal(self::instrumentsOf(self::HANDLER_ID), 'ready_for_complete', shopwareVersion: '6.7.13.0'));
+    }
+
     /**
      * @return iterable<string, array{list<string>}>
      */
@@ -242,23 +340,62 @@ final class UcpCheckoutCompletionPaymentCheckTest extends TestCase
     /**
      * @param list<PaymentInstrument> $instruments
      */
-    private function refusal(array $instruments, mixed $status, ?CompletionPaymentGate $gate = null, ?RequestContext $requestContext = null): ?Message
+    private function refusal(array $instruments, mixed $status, ?CompletionPaymentGate $gate = null, ?RequestContext $requestContext = null, string $shopwareVersion = '6.6.10.20', bool $canBePaidAgain = true): ?Message
     {
         $advertisedHandlers = RecordingProfileBuilder::advertising(self::HANDLER_ID, 'com.example.unknown');
+        $paymentMethods = new SalesChannelPaymentMethods($this->paymentMethodRepository, $this->paymentMethodRoute);
 
         return (new UcpCheckoutCompletionPaymentCheck(
             $gate ?? new CompletionPaymentGate(new AdvertisedPaymentHandlers(static fn (): RecordingProfileBuilder => $advertisedHandlers)),
-            new RegisteredHandlerPaymentMethodResolver(
-                $this->handlerRegistry,
-                new SalesChannelPaymentMethods($this->createMock(EntityRepository::class), $this->paymentMethodRoute),
-            ),
+            new RegisteredHandlerPaymentMethodResolver($this->handlerRegistry, $paymentMethods),
             new SalesChannelContextResolver($this->domainResolver(), $this->contextService, $this->persister),
             new CheckoutSessionStore($this->persister),
+            $this->completionStore,
+            $this->orderGateway,
+            $this->placedOrderGateOnShopware($shopwareVersion, $canBePaidAgain),
+            $paymentMethods,
         ))->refusal(
             $instruments,
             $status,
             self::CHECKOUT_ID,
             $requestContext ?? new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration('2026-08-25', 'https://shop.example')),
+        );
+    }
+
+    private function placedOrderThatCanBePaidAgain(): void
+    {
+        $this->completionStore->method('completedOrderId')->willReturn(self::ORDER_ID);
+        $this->orderGateway->method('getOrderForSalesChannelContext')->willReturn($this->placedOrderWithTransactionState(OrderTransactionStates::STATE_FAILED));
+    }
+
+    private function placedOrderWithTransactionState(string $transactionState): OrderEntity
+    {
+        $state = new StateMachineStateEntity();
+        $state->setId('00000000000000000000000000000007');
+        $state->setTechnicalName($transactionState);
+
+        $transaction = new OrderTransactionEntity();
+        $transaction->setId('00000000000000000000000000000008');
+        $transaction->setCreatedAt(new \DateTimeImmutable('2026-11-01 10:00:00'));
+        $transaction->setStateMachineState($state);
+
+        $order = new OrderEntity();
+        $order->setId(self::ORDER_ID);
+        $order->setTransactions(new OrderTransactionCollection([$transaction]));
+
+        return $order;
+    }
+
+    private function paymentMethodStored(bool $afterOrderEnabled): void
+    {
+        $this->paymentMethodRepository->method('search')->willReturnCallback(
+            static function (Criteria $criteria, Context $context) use ($afterOrderEnabled): EntitySearchResult {
+                $paymentMethod = new PaymentMethodEntity();
+                $paymentMethod->setId(self::PAYMENT_METHOD_ID);
+                $paymentMethod->setAfterOrderEnabled($afterOrderEnabled);
+
+                return new EntitySearchResult('payment_method', 1, new PaymentMethodCollection([$paymentMethod]), null, $criteria, $context);
+            },
         );
     }
 
