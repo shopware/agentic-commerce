@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Swag\AgenticCommerce\Ucp\Payment;
 
 use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
+use Shopware\Core\Checkout\Payment\PaymentMethodEntity;
 use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
@@ -79,6 +80,37 @@ final class SalesChannelPaymentMethods
         }
 
         return $paymentMethodIdByHandlerClass;
+    }
+
+    /**
+     * @return array<string, list<bool>> per `handlerIdentifier`, whether each active payment method of the sales channel
+     *                                   allows paying after checkout, in position order
+     */
+    public function afterOrderEnabledFlagsByHandlerClass(string $salesChannelId): array
+    {
+        $criteria = new Criteria();
+        $criteria->addFilter(
+            new EqualsFilter('active', true),
+            new EqualsFilter('salesChannels.id', $salesChannelId),
+        );
+        $criteria->addSorting(new FieldSorting('position'));
+
+        $afterOrderEnabledFlagsByHandlerClass = [];
+        foreach ($this->paymentMethodRepository->search($criteria, Context::createDefaultContext())->getEntities() as $paymentMethod) {
+            $handlerClass = $paymentMethod->get('handlerIdentifier');
+            if (\is_string($handlerClass)) {
+                $afterOrderEnabledFlagsByHandlerClass[$handlerClass][] = true === $paymentMethod->get('afterOrderEnabled');
+            }
+        }
+
+        return $afterOrderEnabledFlagsByHandlerClass;
+    }
+
+    public function find(string $paymentMethodId): ?PaymentMethodEntity
+    {
+        $paymentMethod = $this->paymentMethodRepository->search(new Criteria([$paymentMethodId]), Context::createDefaultContext())->first();
+
+        return $paymentMethod instanceof PaymentMethodEntity ? $paymentMethod : null;
     }
 
     /**

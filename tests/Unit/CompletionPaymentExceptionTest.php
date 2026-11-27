@@ -71,6 +71,15 @@ final class CompletionPaymentExceptionTest extends TestCase
     }
 
     #[Test]
+    public function testItBuildsOrderCannotBePaidAgainException(): void
+    {
+        $exception = CompletionPaymentException::orderCannotBePaidAgain();
+
+        self::assertSame(CompletionPaymentException::ORDER_CANNOT_BE_PAID_AGAIN, $exception->getErrorCode());
+        self::assertStringContainsString('the shop has to settle it with the buyer', $exception->getMessage());
+    }
+
+    #[Test]
     public function testTheMessageOfARefusalIsARecoverablePaymentFailure(): void
     {
         self::assertSame([
@@ -96,5 +105,19 @@ final class CompletionPaymentExceptionTest extends TestCase
             '$.payment.instruments',
             PaymentFailedMessage::ofRefusal(CompletionPaymentException::paymentMethodNotChangeable())->path,
         );
+    }
+
+    #[Test]
+    public function testTheMessageOfAnOrderThatCannotBePaidAgainIsAnUnrecoverablePaymentFailure(): void
+    {
+        $exception = CompletionPaymentException::orderCannotBePaidAgain();
+
+        self::assertSame([
+            'type' => 'error',
+            'content' => $exception->getMessage(),
+            'severity' => 'unrecoverable',
+            'code' => 'payment_failed',
+            'path' => '$.payment.instruments',
+        ], PaymentFailedMessage::ofRefusal($exception)->toArray());
     }
 }

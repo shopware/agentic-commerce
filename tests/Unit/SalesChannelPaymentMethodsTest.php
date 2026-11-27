@@ -137,6 +137,75 @@ final class SalesChannelPaymentMethodsTest extends TestCase
     }
 
     #[Test]
+    public function testEveryActiveMethodOfTheSalesChannelReportsWhetherItAllowsPaymentChangeAfterCheckoutPerHandlerClass(): void
+    {
+        $searchedCriteria = null;
+        $this->paymentMethodRepository->expects(static::once())
+            ->method('search')
+            ->willReturnCallback(static function (Criteria $criteria, Context $context) use (&$searchedCriteria): EntitySearchResult {
+                $searchedCriteria = $criteria;
+                $paymentMethods = new PaymentMethodCollection();
+                foreach ([
+                    [self::PAYMENT_METHOD_ID, InvoicePayment::class, false],
+                    [self::OTHER_PAYMENT_METHOD_ID, PrePayment::class, true],
+                    [self::LATER_INVOICE_PAYMENT_METHOD_ID, InvoicePayment::class, true],
+                ] as [$paymentMethodId, $handlerClass, $afterOrderEnabled]) {
+                    $paymentMethod = new PaymentMethodEntity();
+                    $paymentMethod->setId($paymentMethodId);
+                    $paymentMethod->setHandlerIdentifier($handlerClass);
+                    $paymentMethod->setAfterOrderEnabled($afterOrderEnabled);
+                    $paymentMethods->add($paymentMethod);
+                }
+
+                return new EntitySearchResult('payment_method', $paymentMethods->count(), $paymentMethods, null, $criteria, $context);
+            });
+
+        $afterOrderEnabledFlagsByHandlerClass = $this->paymentMethods->afterOrderEnabledFlagsByHandlerClass(self::SALES_CHANNEL_ID);
+
+        self::assertSame([InvoicePayment::class => [false, true], PrePayment::class => [true]], $afterOrderEnabledFlagsByHandlerClass);
+        self::assertInstanceOf(Criteria::class, $searchedCriteria);
+        $filterValueByField = [];
+        foreach ($searchedCriteria->getFilters() as $filter) {
+            self::assertInstanceOf(EqualsFilter::class, $filter);
+            $filterValueByField[$filter->getField()] = $filter->getValue();
+        }
+        self::assertSame(['active' => true, 'salesChannels.id' => self::SALES_CHANNEL_ID], $filterValueByField);
+        self::assertEquals([new FieldSorting('position')], $searchedCriteria->getSorting());
+    }
+
+    #[Test]
+    public function testASalesChannelWithoutActiveMethodsReportsNoHandlerClasses(): void
+    {
+        $this->paymentMethodRepository->method('search')
+            ->willReturnCallback(fn (Criteria $criteria, Context $context): EntitySearchResult => $this->paymentMethodSearchResult($criteria, []));
+
+        self::assertSame([], $this->paymentMethods->afterOrderEnabledFlagsByHandlerClass(self::SALES_CHANNEL_ID));
+    }
+
+    #[Test]
+    public function testAPaymentMethodIsFoundById(): void
+    {
+        $this->paymentMethodRepository->expects(static::once())
+            ->method('search')
+            ->willReturnCallback(function (Criteria $criteria, Context $context): EntitySearchResult {
+                self::assertSame([self::PAYMENT_METHOD_ID], $criteria->getIds());
+
+                return $this->paymentMethodSearchResult($criteria, [self::PAYMENT_METHOD_ID => InvoicePayment::class]);
+            });
+
+        self::assertSame(self::PAYMENT_METHOD_ID, $this->paymentMethods->find(self::PAYMENT_METHOD_ID)?->getId());
+    }
+
+    #[Test]
+    public function testAnUnknownPaymentMethodIsNotFound(): void
+    {
+        $this->paymentMethodRepository->method('search')
+            ->willReturnCallback(fn (Criteria $criteria, Context $context): EntitySearchResult => $this->paymentMethodSearchResult($criteria, []));
+
+        self::assertNull($this->paymentMethods->find(self::PAYMENT_METHOD_ID));
+    }
+
+    #[Test]
     public function testAMethodTheRouteOffersTheBuyerIsAvailable(): void
     {
         $context = $this->createMock(SalesChannelContext::class);

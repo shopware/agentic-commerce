@@ -17,6 +17,7 @@ final class CompletionPaymentException extends HttpException
     public const PAYMENT_FAILED = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_FAILED';
     public const PAYMENT_METHOD_CHANGES_TOTAL = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_METHOD_CHANGES_TOTAL';
     public const PAYMENT_METHOD_NOT_CHANGEABLE = 'SWAG_AGENTIC_COMMERCE__UCP_PAYMENT_METHOD_NOT_CHANGEABLE';
+    public const ORDER_CANNOT_BE_PAID_AGAIN = 'SWAG_AGENTIC_COMMERCE__UCP_ORDER_CANNOT_BE_PAID_AGAIN';
 
     public static function paymentMethodUnavailable(string $handlerId): self
     {
@@ -62,6 +63,15 @@ final class CompletionPaymentException extends HttpException
             Response::HTTP_BAD_REQUEST,
             self::PAYMENT_METHOD_NOT_CHANGEABLE,
             'This payment method cannot pay an order that is already placed.',
+        );
+    }
+
+    public static function orderCannotBePaidAgain(): self
+    {
+        return new self(
+            Response::HTTP_BAD_REQUEST,
+            self::ORDER_CANNOT_BE_PAID_AGAIN,
+            'The order is placed, and no payment method this business advertises can pay an order that is already placed. The order is kept, and the shop has to settle it with the buyer.',
         );
     }
 

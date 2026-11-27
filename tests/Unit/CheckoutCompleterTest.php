@@ -35,7 +35,6 @@ use Shopware\Core\System\SalesChannel\SalesChannelEntity;
 use Shopware\Core\System\StateMachine\Aggregation\StateMachineState\StateMachineStateEntity;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
 use Swag\AgenticCommerce\AgenticFiles\SalesChannelBaseUrlResolver;
-use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Tests\Unit\Ucp\Gateway\Fixtures\RecordingCartLoadRoute;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompleter;
 use Swag\AgenticCommerce\Ucp\Checkout\CheckoutCompletionStoreInterface;
@@ -49,7 +48,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedMessage;
 use Swag\AgenticCommerce\Ucp\Config\LegacyConfigStoreInterface;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfig;
 use Swag\AgenticCommerce\Ucp\Config\UcpConfigRepositoryInterface;
@@ -70,6 +69,7 @@ use Ucp\Sdk\Model\Checkout\PaymentInstrument;
 use Ucp\Sdk\Model\Common\Buyer;
 use Ucp\Sdk\Model\Common\Link;
 use Ucp\Sdk\Model\Common\Message;
+use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\Order\OrderView;
 use Ucp\Sdk\Model\RequestContext;
 use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
@@ -80,6 +80,8 @@ use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 #[CoversClass(CheckoutCompleter::class)]
 final class CheckoutCompleterTest extends TestCase
 {
+    use BuildsPlacedOrderPaymentMethodGate;
+
     private const CHECKOUT_ID = 'checkout-token';
     private const SALES_CHANNEL_ID = '00000000000000000000000000000001';
     private const ORDER_ID = '00000000000000000000000000000002';
@@ -1041,7 +1043,7 @@ final class CheckoutCompleterTest extends TestCase
             $this->completionPayment($paymentGateway, $passThroughApplier, null, self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK),
         );
 
-        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'), new PaymentInstrument('card', 'com.example.psp'));
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, $this->runtimeRequestContext(), new PaymentInstrument('card', 'com.example.psp'));
 
         static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
         static::assertSame([[
@@ -1052,6 +1054,139 @@ final class CheckoutCompleterTest extends TestCase
             'path' => '$.payment.instruments',
         ]], array_map(static fn (Message $message): array => $message->toArray(), $checkout->messages));
         static::assertSame([], $calls);
+    }
+
+    #[Test]
+    public function testRetryPaymentWithAPaymentMethodThatCannotPayAPlacedOrderRefusesUnrecoverablyAndSavesItWhenNoAdvertisedHandlerCan(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $paymentGateway->expects(static::never())->method('pay');
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $customerContext,
+            null,
+            $this->completionPayment($paymentGateway, null, null, self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false),
+        );
+
+        $checkout = $completer->retryPayment(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, $this->runtimeRequestContext(), new PaymentInstrument('card', 'com.example.psp'));
+
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([['payment_failed', 'unrecoverable']], $this->messageCodes($checkout));
+        static::assertSame([['session', CheckoutStatus::Incomplete->value, [CompletionPaymentResult::SESSION_RETRYABLE_KEY => false]]], $calls);
+    }
+
+    #[Test]
+    public function testMarkingAnOrderThatCannotBePaidAgainSavesTheFailureAsUnrecoverable(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+        $lockFactory = new LockFactory(new InMemoryStore());
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $this->recordingCompletionStore($calls),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $customerContext,
+            $lockFactory,
+        );
+        $refusal = PaymentFailedMessage::ofRefusal(CompletionPaymentException::orderCannotBePaidAgain());
+
+        $checkout = $completer->markCannotBePaidAgain(self::CHECKOUT_ID, self::ORDER_ID, $customerContext, new RequestContext('shop.example'), $refusal);
+
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([['payment_failed', 'unrecoverable']], $this->messageCodes($checkout));
+        static::assertSame($refusal->content, $checkout->messages[0]->content);
+        static::assertSame([['session', CheckoutStatus::Incomplete->value, [CompletionPaymentResult::SESSION_RETRYABLE_KEY => false]]], $calls);
+        static::assertTrue($lockFactory->createLock(self::LOCK_KEY)->acquire(false), 'Lock must be released after the update');
+    }
+
+    #[Test]
+    public function testMarkingAnOrderThatAnotherRequestPaidAsUnrecoverableSavesNothingAndReplaysItAsCompleted(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_PAID), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Completed->value]),
+            $this->recordingCompletionStore($calls),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $customerContext,
+        );
+
+        $checkout = $completer->markCannotBePaidAgain(
+            self::CHECKOUT_ID,
+            self::ORDER_ID,
+            $customerContext,
+            new RequestContext('shop.example'),
+            PaymentFailedMessage::ofRefusal(CompletionPaymentException::orderCannotBePaidAgain()),
+        );
+
+        static::assertSame(CheckoutStatus::Completed, $checkout->status);
+        static::assertSame([], $calls);
+    }
+
+    #[Test]
+    public function testMarkingAnOrderAsUnrecoverableWhileACompletionIsRunningIsRefused(): void
+    {
+        $customerContext = $this->customerContext();
+        $calls = [];
+        $lockFactory = new LockFactory(new InMemoryStore());
+        $runningCompletion = $lockFactory->createLock(self::LOCK_KEY);
+        $runningCompletion->acquire();
+        $completer = $this->placingCompleter(
+            $this->orderGatewayReading($this->placedOrder(OrderTransactionStates::STATE_FAILED), $customerContext),
+            $this->recordingSessionManager($calls, ['status' => CheckoutStatus::Incomplete->value]),
+            $this->recordingCompletionStore($calls),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $customerContext,
+            $lockFactory,
+        );
+
+        $this->expectException(ValidationException::class);
+
+        $completer->markCannotBePaidAgain(
+            self::CHECKOUT_ID,
+            self::ORDER_ID,
+            $customerContext,
+            new RequestContext('shop.example'),
+            PaymentFailedMessage::ofRefusal(CompletionPaymentException::orderCannotBePaidAgain()),
+        );
+    }
+
+    #[Test]
+    public function testAFailedPaymentIsSavedAsUnrecoverableWhereNoAdvertisedHandlerCanPayTheOrderAgain(): void
+    {
+        $calls = [];
+        $paymentGateway = $this->createMock(OrderPaymentGatewayInterface::class);
+        $paymentGateway->method('pay')->willThrowException(new \RuntimeException('Card declined.'));
+
+        $completer = $this->placingCompleter(
+            $this->orderGatewayPlacing($this->placedOrder()),
+            $this->recordingSessionManager($calls),
+            $this->recordingCompletionStore($calls),
+            $paymentGateway,
+            $this->customerContext(),
+            null,
+            $this->completionPayment($paymentGateway, null, null, self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false),
+        );
+
+        $checkout = $completer->complete(self::CHECKOUT_ID, [], new Cart(self::CHECKOUT_ID), $this->salesChannelContext(), $this->runtimeRequestContext(), CheckoutStatus::Incomplete, new PaymentInstrument('card', 'com.example.psp'));
+
+        static::assertInstanceOf(Checkout::class, $checkout);
+        static::assertSame(CheckoutStatus::Incomplete, $checkout->status);
+        static::assertSame([['payment_failed', 'unrecoverable']], $this->messageCodes($checkout));
+        static::assertSame([
+            ['session', CheckoutStatus::CompleteInProgress->value, []],
+            ['completion row', self::ORDER_ID],
+            ['session', CheckoutStatus::Incomplete->value, [CompletionPaymentResult::SESSION_RETRYABLE_KEY => false]],
+        ], $calls);
     }
 
     #[Test]
@@ -1134,7 +1269,7 @@ final class CheckoutCompleterTest extends TestCase
         );
     }
 
-    private function completionPayment(?OrderPaymentGatewayInterface $paymentGateway = null, ?AbstractCompletionPaymentApplier $applier = null, ?AbstractCartLoadRoute $cartLoadRoute = null, string $shopwareVersion = self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK): CompletionPaymentProcessor
+    private function completionPayment(?OrderPaymentGatewayInterface $paymentGateway = null, ?AbstractCompletionPaymentApplier $applier = null, ?AbstractCartLoadRoute $cartLoadRoute = null, string $shopwareVersion = self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK, bool $canBePaidAgain = true): CompletionPaymentProcessor
     {
         if (null === $applier) {
             $applier = $this->createMock(AbstractCompletionPaymentApplier::class);
@@ -1146,7 +1281,7 @@ final class CheckoutCompleterTest extends TestCase
             $paymentGateway ?? $this->createMock(OrderPaymentGatewayInterface::class),
             $cartLoadRoute ?? new RecordingCartLoadRoute(new Cart(self::CHECKOUT_ID)),
             $this->createMock(AbstractContextSwitchRoute::class),
-            new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: $shopwareVersion)),
+            $this->placedOrderGateOnShopware($shopwareVersion, $canBePaidAgain),
         );
     }
 
@@ -1228,6 +1363,11 @@ final class CheckoutCompleterTest extends TestCase
     private function messageCodes(Checkout $checkout): array
     {
         return array_map(static fn (Message $message): array => [$message->code, $message->severity], $checkout->messages);
+    }
+
+    private function runtimeRequestContext(): RequestContext
+    {
+        return new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration('2026-08-25', 'https://shop.example'));
     }
 
     private function customerContext(): SalesChannelContext&MockObject

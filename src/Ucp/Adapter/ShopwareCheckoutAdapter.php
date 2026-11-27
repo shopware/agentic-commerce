@@ -19,6 +19,7 @@ use Swag\AgenticCommerce\Ucp\Checkout\CheckoutSessionStore;
 use Swag\AgenticCommerce\Ucp\Checkout\OrderPermalinkBuilder;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CheckoutPaymentSelector;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentResult;
+use Swag\AgenticCommerce\Ucp\Checkout\Payment\PaymentFailedMessage;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderGatewayInterface;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareCartGateway;
 use Swag\AgenticCommerce\Ucp\Gateway\ShopwareDataMapper;
@@ -255,7 +256,9 @@ final class ShopwareCheckoutAdapter implements PaymentAwareCheckoutAdapterInterf
         $refusal = $this->placedOrderLineItemsRefusal($order, $request->lineItems)
             ?? $this->paymentSelector->refusalForPlacedOrder($request->payment, $salesChannelContext, $context);
         if (null !== $refusal) {
-            return $this->placedCheckout($order, $request->id, $salesChannelContext, $context, $payment, [$refusal]);
+            return PaymentFailedMessage::isUnrecoverable($refusal)
+                ? $this->checkoutCompleter->markCannotBePaidAgain($request->id, $orderId, $salesChannelContext, $context, $refusal)
+                : $this->placedCheckout($order, $request->id, $salesChannelContext, $context, $payment, [$refusal]);
         }
 
         return $this->checkoutCompleter->markReadyToPayAgain($request->id, $orderId, $salesChannelContext, $context);

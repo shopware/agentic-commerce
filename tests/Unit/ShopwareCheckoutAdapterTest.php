@@ -111,6 +111,8 @@ use Ucp\Sdk\Service\OrderWebhookPublisherInterface;
 #[CoversClass(ShopwareCheckoutAdapter::class)]
 final class ShopwareCheckoutAdapterTest extends TestCase
 {
+    use BuildsPlacedOrderPaymentMethodGate;
+
     private const SALES_CHANNEL_ID = '22222222222222222222222222222222';
     private const OPEN_CHECKOUT_ID = 'open-checkout-token';
     private const CONTINUE_URL_TEMPLATE = 'https://shop.example/checkout/{checkoutId}';
@@ -1365,6 +1367,32 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     }
 
     #[Test]
+    public function testUpdatingAPlacedOrderWhereNoAdvertisedHandlerCanPaySavesTheFailureAsUnrecoverable(): void
+    {
+        $savedSessions = [];
+        $adapter = $this->placedOrderAdapter(
+            ['status' => CheckoutStatus::Incomplete->value],
+            $this->orderWithTransaction(OrderTransactionStates::STATE_FAILED),
+            $this->createMock(OrderPaymentGatewayInterface::class),
+            $this->recordingPlacedOrderPersister(['status' => CheckoutStatus::Incomplete->value], $savedSessions),
+            placedOrderGate: $this->placedOrderGateOnShopware('6.7.13.0', canBePaidAgain: false),
+        );
+
+        $checkout = $adapter->updateCheckout($this->placedOrderUpdate(), $this->completionRequestContext())->toArray();
+
+        self::assertSame(CheckoutStatus::Incomplete->value, $checkout['status']);
+        self::assertSame([['payment_failed', 'unrecoverable', '$.payment.instruments']], array_map(
+            static fn (array $message): array => [$message['code'], $message['severity'], $message['path']],
+            $checkout['messages'],
+        ));
+        self::assertNotSame([], $savedSessions);
+        foreach ($savedSessions as $savedSession) {
+            self::assertSame(CheckoutStatus::Incomplete->value, $savedSession['status']);
+            self::assertFalse($savedSession[CompletionPaymentResult::SESSION_RETRYABLE_KEY]);
+        }
+    }
+
+    #[Test]
     public function testUpdatingAPlacedOrderWithoutAnInstrumentKeepsItsStatusWithTheRefusal(): void
     {
         $adapter = $this->placedOrderAdapter(
@@ -1506,7 +1534,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
     /**
      * @param array<string, mixed> $sessionMetadata
      */
-    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway, ?SalesChannelContextPersister $persister = null, ?string $completionRowOrderId = self::PLACED_ORDER_ID): ShopwareCheckoutAdapter
+    private function placedOrderAdapter(array $sessionMetadata, OrderEntity $order, OrderPaymentGatewayInterface $paymentGateway, ?SalesChannelContextPersister $persister = null, ?string $completionRowOrderId = self::PLACED_ORDER_ID, ?PlacedOrderPaymentMethodGate $placedOrderGate = null): ShopwareCheckoutAdapter
     {
         $persister ??= $this->placedOrderPersister($sessionMetadata);
 
@@ -1557,7 +1585,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
             new ContextTokenGenerator(),
             new OrderPermalinkBuilder(),
             $this->legalLinkBuilder(),
-            $this->paymentSelector(self::ADVERTISED_HANDLER_ID),
+            $this->paymentSelectorGatedBy($placedOrderGate ?? $this->placedOrderGate(), $this->passThroughApplier(), self::ADVERTISED_HANDLER_ID),
         );
     }
 
@@ -1630,7 +1658,7 @@ final class ShopwareCheckoutAdapterTest extends TestCase
 
     private function placedOrderGate(): PlacedOrderPaymentMethodGate
     {
-        return new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: '6.6.10.20'));
+        return $this->placedOrderGateOnShopware('6.6.10.20');
     }
 
     private function paymentSelector(string ...$advertisedHandlerIds): CheckoutPaymentSelector
@@ -1640,12 +1668,17 @@ final class ShopwareCheckoutAdapterTest extends TestCase
 
     private function paymentSelectorApplying(AbstractCompletionPaymentApplier $applier, string ...$advertisedHandlerIds): CheckoutPaymentSelector
     {
+        return $this->paymentSelectorGatedBy($this->placedOrderGate(), $applier, ...$advertisedHandlerIds);
+    }
+
+    private function paymentSelectorGatedBy(PlacedOrderPaymentMethodGate $placedOrderGate, AbstractCompletionPaymentApplier $applier, string ...$advertisedHandlerIds): CheckoutPaymentSelector
+    {
         $profileBuilder = RecordingProfileBuilder::advertising(...$advertisedHandlerIds);
 
         return new CheckoutPaymentSelector(
             new CompletionPaymentGate(new AdvertisedPaymentHandlers(static fn (): RecordingProfileBuilder => $profileBuilder)),
             $applier,
-            $this->placedOrderGate(),
+            $placedOrderGate,
         );
     }
 

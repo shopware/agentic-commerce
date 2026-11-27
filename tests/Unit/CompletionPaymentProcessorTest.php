@@ -19,22 +19,24 @@ use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
 use Shopware\Core\System\SalesChannel\SalesChannel\AbstractContextSwitchRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Swag\AgenticCommerce\Compatibility\ShopwareVersionDetector;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\AbstractCompletionPaymentApplier;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentException;
 use Swag\AgenticCommerce\Ucp\Checkout\Payment\CompletionPaymentProcessor;
-use Swag\AgenticCommerce\Ucp\Checkout\Payment\PlacedOrderPaymentMethodGate;
+use Swag\AgenticCommerce\Ucp\Config\UcpConfigException;
 use Swag\AgenticCommerce\Ucp\Gateway\OrderPaymentGatewayInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Ucp\Sdk\Enum\CheckoutStatus;
 use Ucp\Sdk\Exception\ValidationException;
 use Ucp\Sdk\Model\Checkout\PaymentInstrument;
+use Ucp\Sdk\Model\Config\RuntimeConfiguration;
 use Ucp\Sdk\Model\RequestContext;
 
 /** @internal */
 #[CoversClass(CompletionPaymentProcessor::class)]
 final class CompletionPaymentProcessorTest extends TestCase
 {
+    use BuildsPlacedOrderPaymentMethodGate;
+
     private const ORDER_ID = '00000000000000000000000000000001';
     private const SALES_CHANNEL_ID = '00000000000000000000000000000002';
     private const PAYMENT_METHOD_ID = '00000000000000000000000000000003';
@@ -163,10 +165,10 @@ final class CompletionPaymentProcessorTest extends TestCase
             ->with(self::ORDER_ID, $context, $instrument, self::FINISH_URL, self::ERROR_URL)
             ->willReturn(null);
 
-        $result = $this->processor->pay(self::ORDER_ID, $context, $instrument, self::FINISH_URL, self::ERROR_URL);
+        $paymentOutcome = $this->processor->pay(self::ORDER_ID, $context, $instrument, new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
 
-        self::assertSame(CheckoutStatus::Completed, $result->status);
-        self::assertNull($result->redirectUrl);
+        self::assertSame(CheckoutStatus::Completed, $paymentOutcome->status);
+        self::assertNull($paymentOutcome->redirectUrl);
     }
 
     #[Test]
@@ -174,10 +176,10 @@ final class CompletionPaymentProcessorTest extends TestCase
     {
         $this->paymentGateway->method('pay')->willReturn(self::REDIRECT_URL);
 
-        $result = $this->processor->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), self::FINISH_URL, self::ERROR_URL);
+        $paymentOutcome = $this->processor->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
 
-        self::assertSame(CheckoutStatus::RequiresEscalation, $result->status);
-        self::assertSame(self::REDIRECT_URL, $result->redirectUrl);
+        self::assertSame(CheckoutStatus::RequiresEscalation, $paymentOutcome->status);
+        self::assertSame(self::REDIRECT_URL, $paymentOutcome->redirectUrl);
     }
 
     #[Test]
@@ -186,10 +188,10 @@ final class CompletionPaymentProcessorTest extends TestCase
         $exception = new \RuntimeException('Card declined.');
         $this->paymentGateway->method('pay')->willThrowException($exception);
 
-        $result = $this->processor->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), self::FINISH_URL, self::ERROR_URL);
+        $paymentOutcome = $this->processor->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
 
-        self::assertSame(CheckoutStatus::Incomplete, $result->status);
-        self::assertTrue($result->retryable);
+        self::assertSame(CheckoutStatus::Incomplete, $paymentOutcome->status);
+        self::assertTrue($paymentOutcome->retryable);
         self::assertCount(1, $this->logger->records);
         self::assertSame('warning', $this->logger->records[0]['level']);
         self::assertSame([
@@ -200,6 +202,105 @@ final class CompletionPaymentProcessorTest extends TestCase
             'exception' => $exception,
         ], $this->logger->records[0]['context']);
         self::assertStringNotContainsString('tok_secret', $this->logger->records[0]['message']);
+    }
+
+    #[Test]
+    public function testAThrowingPaymentFailsRetryablyWhereAnAdvertisedHandlerCanPayTheOrderAgain(): void
+    {
+        $this->paymentGateway->method('pay')->willThrowException(new \RuntimeException('Card declined.'));
+
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)
+            ->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), $this->runtimeRequestContext(), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertSame(CheckoutStatus::Incomplete, $paymentOutcome->status);
+        self::assertTrue($paymentOutcome->retryable);
+    }
+
+    #[Test]
+    public function testAThrowingPaymentFailsUnrecoverablyWhereNoAdvertisedHandlerCanPayTheOrderAgain(): void
+    {
+        $this->paymentGateway->method('pay')->willThrowException(new \RuntimeException('Card declined.'));
+
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false)
+            ->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), $this->runtimeRequestContext(), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertSame(CheckoutStatus::Incomplete, $paymentOutcome->status);
+        self::assertFalse($paymentOutcome->retryable);
+    }
+
+    #[Test]
+    public function testAThrowingPaymentFailsRetryablyAndLogsWhenTheDecisionWhetherTheOrderCanBePaidAgainThrows(): void
+    {
+        $this->paymentGateway->method('pay')->willThrowException(new \RuntimeException('Card declined.'));
+
+        // Without a runtime configuration the profile of the business cannot be built.
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false)
+            ->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertSame(CheckoutStatus::Incomplete, $paymentOutcome->status);
+        self::assertTrue($paymentOutcome->retryable);
+        self::assertCount(2, $this->logger->records);
+        self::assertSame('warning', $this->logger->records[1]['level']);
+        self::assertSame(self::ORDER_ID, $this->logger->records[1]['context']['order_id']);
+        self::assertSame(self::SALES_CHANNEL_ID, $this->logger->records[1]['context']['sales_channel_id']);
+        self::assertInstanceOf(UcpConfigException::class, $this->logger->records[1]['context']['exception']);
+    }
+
+    #[Test]
+    public function testARetryWhosePaymentMethodCannotChangeFailsRetryablyAndLogsWhenTheDecisionWhetherTheOrderCanBePaidAgainThrows(): void
+    {
+        $contextWithAfterOrderEnabled = $this->salesChannelContext(afterOrderEnabled: true);
+        $this->applier->method('apply')->willReturnArgument(1);
+        $this->paymentGateway->method('changePaymentMethod')->willThrowException(new \RuntimeException('The payment of this order can no longer change.'));
+
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false)
+            ->retry(self::ORDER_ID, $this->instrument(), $contextWithAfterOrderEnabled, new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertSame(CheckoutStatus::Incomplete, $paymentOutcome->status);
+        self::assertTrue($paymentOutcome->retryable);
+        self::assertCount(2, $this->logger->records);
+        self::assertSame(self::ORDER_ID, $this->logger->records[1]['context']['order_id']);
+        self::assertInstanceOf(UcpConfigException::class, $this->logger->records[1]['context']['exception']);
+    }
+
+    #[Test]
+    public function testAThrowingPaymentFailsRetryablyWhereCoreDoesNotEnforceTheSettingWhateverTheHandlersAre(): void
+    {
+        $this->paymentGateway->method('pay')->willThrowException(new \RuntimeException('Card declined.'));
+
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITHOUT_PAYMENT_CHANGE_CHECK, canBePaidAgain: false)
+            ->pay(self::ORDER_ID, $this->salesChannelContext(), $this->instrument(), $this->runtimeRequestContext(), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertTrue($paymentOutcome->retryable);
+    }
+
+    #[Test]
+    public function testARetryWhosePaymentMethodCannotChangeFailsUnrecoverablyWhereNoAdvertisedHandlerCanPayTheOrderAgain(): void
+    {
+        $contextWithAfterOrderEnabled = $this->salesChannelContext(afterOrderEnabled: true);
+        $this->applier->method('apply')->willReturnArgument(1);
+        $this->paymentGateway->method('changePaymentMethod')->willThrowException(new \RuntimeException('The payment of this order can no longer change.'));
+
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false)
+            ->retry(self::ORDER_ID, $this->instrument(), $contextWithAfterOrderEnabled, $this->runtimeRequestContext(), self::FINISH_URL, self::ERROR_URL);
+
+        self::assertFalse($paymentOutcome->retryable);
+    }
+
+    #[Test]
+    public function testARetryWithAPaymentMethodThatCannotPayAPlacedOrderIsRefusedUnrecoverablyWhereNoAdvertisedHandlerCan(): void
+    {
+        $this->applier->method('apply')->willReturnArgument(1);
+        $this->paymentGateway->expects(static::never())->method('changePaymentMethod');
+        $this->paymentGateway->expects(static::never())->method('pay');
+
+        try {
+            $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK, canBePaidAgain: false)
+                ->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), $this->runtimeRequestContext(), self::FINISH_URL, self::ERROR_URL);
+            self::fail('No advertised handler can pay this placed order, so the retry must be refused for good.');
+        } catch (CompletionPaymentException $exception) {
+            self::assertSame(CompletionPaymentException::ORDER_CANNOT_BE_PAID_AGAIN, $exception->getErrorCode());
+        }
     }
 
     #[Test]
@@ -234,10 +335,10 @@ final class CompletionPaymentProcessorTest extends TestCase
                 return null;
             });
 
-        $result = $this->processor->retry(self::ORDER_ID, $instrument, $context, $requestContext, self::FINISH_URL, self::ERROR_URL);
+        $paymentOutcome = $this->processor->retry(self::ORDER_ID, $instrument, $context, $requestContext, self::FINISH_URL, self::ERROR_URL);
 
         self::assertSame(['apply', 'changePaymentMethod', 'pay'], $calls);
-        self::assertSame(CheckoutStatus::Completed, $result->status);
+        self::assertSame(CheckoutStatus::Completed, $paymentOutcome->status);
     }
 
     #[Test]
@@ -248,10 +349,10 @@ final class CompletionPaymentProcessorTest extends TestCase
         $this->paymentGateway->method('changePaymentMethod')->willThrowException($exception);
         $this->paymentGateway->expects(static::never())->method('pay');
 
-        $result = $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+        $paymentOutcome = $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
 
-        self::assertSame(CheckoutStatus::Incomplete, $result->status);
-        self::assertTrue($result->retryable);
+        self::assertSame(CheckoutStatus::Incomplete, $paymentOutcome->status);
+        self::assertTrue($paymentOutcome->retryable);
         self::assertCount(1, $this->logger->records);
         self::assertSame('warning', $this->logger->records[0]['level']);
         self::assertSame([
@@ -270,7 +371,7 @@ final class CompletionPaymentProcessorTest extends TestCase
         $this->paymentGateway->expects(static::never())->method('pay');
 
         try {
-            $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+            $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), $this->runtimeRequestContext(), self::FINISH_URL, self::ERROR_URL);
             self::fail('A payment method without "Allow payment change after checkout" must be refused where core enforces it.');
         } catch (CompletionPaymentException $exception) {
             self::assertSame(CompletionPaymentException::PAYMENT_METHOD_NOT_CHANGEABLE, $exception->getErrorCode());
@@ -280,14 +381,14 @@ final class CompletionPaymentProcessorTest extends TestCase
     #[Test]
     public function testARetryWithAPaymentMethodThatMayPayAPlacedOrderPaysWhereCoreEnforcesTheCheck(): void
     {
-        $context = $this->salesChannelContext(afterOrderEnabled: true);
+        $contextWithAfterOrderEnabled = $this->salesChannelContext(afterOrderEnabled: true);
         $this->applier->method('apply')->willReturnArgument(1);
-        $this->paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::ORDER_ID, $context);
+        $this->paymentGateway->expects(static::once())->method('changePaymentMethod')->with(self::ORDER_ID, $contextWithAfterOrderEnabled);
         $this->paymentGateway->expects(static::once())->method('pay')->willReturn(null);
 
-        $result = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->retry(self::ORDER_ID, $this->instrument(), $context, new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
+        $paymentOutcome = $this->processorOnShopware(self::SHOPWARE_VERSION_WITH_PAYMENT_CHANGE_CHECK)->retry(self::ORDER_ID, $this->instrument(), $contextWithAfterOrderEnabled, new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
 
-        self::assertSame(CheckoutStatus::Completed, $result->status);
+        self::assertSame(CheckoutStatus::Completed, $paymentOutcome->status);
     }
 
     #[Test]
@@ -302,16 +403,21 @@ final class CompletionPaymentProcessorTest extends TestCase
         $this->processor->retry(self::ORDER_ID, $this->instrument(), $this->salesChannelContext(), new RequestContext('shop.example'), self::FINISH_URL, self::ERROR_URL);
     }
 
-    private function processorOnShopware(string $shopwareVersion): CompletionPaymentProcessor
+    private function processorOnShopware(string $shopwareVersion, bool $canBePaidAgain = true): CompletionPaymentProcessor
     {
         return new CompletionPaymentProcessor(
             $this->applier,
             $this->paymentGateway,
             $this->cartLoadRoute,
             $this->contextSwitchRoute,
-            new PlacedOrderPaymentMethodGate(new ShopwareVersionDetector(versionOverride: $shopwareVersion)),
+            $this->placedOrderGateOnShopware($shopwareVersion, $canBePaidAgain),
             $this->logger,
         );
+    }
+
+    private function runtimeRequestContext(): RequestContext
+    {
+        return new RequestContext('shop.example', runtimeConfiguration: new RuntimeConfiguration('2026-08-25', 'https://shop.example'));
     }
 
     private function cartResponseWithTotal(float $total): CartResponse

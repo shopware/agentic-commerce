@@ -127,6 +127,7 @@ final class CheckoutCompleter
                     $order->getId(),
                     $customerContext,
                     $paymentInstrument,
+                    $requestContext,
                     $permalinkUrl,
                     $this->errorUrl($checkoutId, $customerContext, $permalinkUrl),
                 );
@@ -176,7 +177,13 @@ final class CheckoutCompleter
                         $this->errorUrl($checkoutId, $salesChannelContext, $permalinkUrl),
                     );
                 } catch (CompletionPaymentException|ValidationException $exception) {
-                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $paymentOutcome, [PaymentFailedMessage::ofRefusal($exception)]);
+                    $refusal = PaymentFailedMessage::ofRefusal($exception);
+                    if (PaymentFailedMessage::isUnrecoverable($refusal)) {
+                        $paymentOutcome = CompletionPaymentResult::failed(false);
+                        $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $paymentOutcome);
+                    }
+
+                    return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $permalinkUrl, $paymentOutcome, [$refusal]);
                 }
 
                 $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $paymentOutcome);
@@ -208,6 +215,34 @@ final class CheckoutCompleter
             }
 
             return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $this->orderPermalinkBuilder->build($order, $requestContext), $paymentOutcome);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function markCannotBePaidAgain(
+        string $checkoutId,
+        string $orderId,
+        SalesChannelContext $salesChannelContext,
+        RequestContext $requestContext,
+        Message $refusal,
+    ): Checkout {
+        $lock = $this->lock($checkoutId, $salesChannelContext->getSalesChannelId());
+
+        try {
+            // Read again under the lock: another request may have paid the order in the meantime.
+            $metadata = $this->sessionManager->load($checkoutId, $salesChannelContext->getSalesChannelId());
+            $order = $this->orderGateway->getOrderForSalesChannelContext($orderId, $salesChannelContext, $metadata);
+            $paymentOutcome = CompletionPaymentResult::ofPlacedOrder($metadata, $order);
+            $messages = null;
+
+            if ($paymentOutcome->canBePaidAgain()) {
+                $paymentOutcome = CompletionPaymentResult::failed(false);
+                $messages = [$refusal];
+                $this->saveSession($checkoutId, $salesChannelContext, $this->sessionManager->buyer($metadata), $order, $paymentOutcome);
+            }
+
+            return $this->placedCheckout($checkoutId, $order, $salesChannelContext, $this->orderPermalinkBuilder->build($order, $requestContext), $paymentOutcome, $messages);
         } finally {
             $lock->release();
         }

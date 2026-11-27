@@ -144,6 +144,12 @@ completion, with a recoverable `payment_failed` message. The checkout keeps its 
 can then pay with the instrument of another handler. A payment extension that wants agents to pay
 again with its own payment method switches the setting on for it.
 
+When no handler in the profile can pay the order again, a failed payment and this refusal are
+`unrecoverable` instead. The plugin knows the payment methods of its bundled handlers and checks
+their setting. The payment method of a payment extension's handler is known only from an instrument,
+so such a handler counts as able to pay when the sales channel has any other active payment method
+with the setting switched on.
+
 When the order is paid in another way in the meantime, for example by the buyer on the order page of
 the Storefront, the checkout reads `completed`.
 

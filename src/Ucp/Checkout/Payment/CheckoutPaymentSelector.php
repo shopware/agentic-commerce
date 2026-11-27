@@ -44,7 +44,8 @@ final class CheckoutPaymentSelector
         }
 
         try {
-            $this->placedOrderGate->assertAllowed($this->applier->apply($instrument, $context, $requestContext));
+            $appliedContext = $this->applier->apply($instrument, $context, $requestContext);
+            $this->placedOrderGate->assertAllowed($appliedContext->getPaymentMethod(), $appliedContext->getSalesChannelId(), $requestContext);
         } catch (CompletionPaymentException|ValidationException $exception) {
             return PaymentFailedMessage::ofRefusal($exception);
         }

@@ -59,7 +59,7 @@ final class CompletionPaymentProcessor
         return $switchedContext;
     }
 
-    public function pay(string $orderId, SalesChannelContext $context, ?PaymentInstrument $instrument, string $finishUrl, string $errorUrl): CompletionPaymentResult
+    public function pay(string $orderId, SalesChannelContext $context, ?PaymentInstrument $instrument, RequestContext $requestContext, string $finishUrl, string $errorUrl): CompletionPaymentResult
     {
         try {
             $redirectUrl = $this->paymentGateway->pay($orderId, $context, $instrument, $finishUrl, $errorUrl);
@@ -73,7 +73,7 @@ final class CompletionPaymentProcessor
                 'exception' => $exception,
             ]);
 
-            return CompletionPaymentResult::failed();
+            return $this->failed($orderId, $context, $requestContext);
         }
 
         return null === $redirectUrl ? CompletionPaymentResult::completed() : CompletionPaymentResult::awaitsBuyer($redirectUrl);
@@ -88,7 +88,7 @@ final class CompletionPaymentProcessor
     public function retry(string $orderId, ?PaymentInstrument $instrument, SalesChannelContext $context, RequestContext $requestContext, string $finishUrl, string $errorUrl): CompletionPaymentResult
     {
         $context = $this->applier->apply($instrument, $context, $requestContext);
-        $this->placedOrderGate->assertAllowed($context);
+        $this->placedOrderGate->assertAllowed($context->getPaymentMethod(), $context->getSalesChannelId(), $requestContext);
 
         try {
             $this->paymentGateway->changePaymentMethod($orderId, $context);
@@ -101,10 +101,26 @@ final class CompletionPaymentProcessor
                 'exception' => $exception,
             ]);
 
-            return CompletionPaymentResult::failed();
+            return $this->failed($orderId, $context, $requestContext);
         }
 
-        return $this->pay($orderId, $context, $instrument, $finishUrl, $errorUrl);
+        return $this->pay($orderId, $context, $instrument, $requestContext, $finishUrl, $errorUrl);
+    }
+
+    private function failed(string $orderId, SalesChannelContext $context, RequestContext $requestContext): CompletionPaymentResult
+    {
+        try {
+            return CompletionPaymentResult::failed($this->placedOrderGate->canBePaidByAdvertisedHandler($context->getSalesChannelId(), $requestContext));
+        } catch (\Throwable $exception) {
+            // The order exists already, so a failed decision must not hide the failed payment from the agent.
+            $this->logger?->warning('Whether an advertised payment handler can pay an order placed through a UCP checkout again could not be decided.', [
+                'order_id' => $orderId,
+                'sales_channel_id' => $context->getSalesChannelId(),
+                'exception' => $exception,
+            ]);
+
+            return CompletionPaymentResult::failed();
+        }
     }
 
     private function cartTotal(SalesChannelContext $context): float
